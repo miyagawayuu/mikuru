@@ -4,6 +4,14 @@
   "private": false,
   "type": "module",
   "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",
+  "homepage": "https://github.com/miyagawayuu/mikuru#readme",
+  "bugs": {
+    "url": "https://github.com/miyagawayuu/mikuru/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miyagawayuu/mikuru.git"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -25,7 +33,6 @@
   "files": [
     "dist",
     "README.md",
-    "docs",
     "CHANGELOG.md"
   ],
   "engines": {

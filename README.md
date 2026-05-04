@@ -137,15 +137,6 @@ npm run build:realworld
 npm run build:dogfood
 ```
 
-## 設計文書
+## 補足
 
-- [`docs/design.md`](docs/design.md): 全体アーキテクチャと設計境界
-- [`docs/sfc-syntax.md`](docs/sfc-syntax.md): `.mikuru` SFC構文
-- [`docs/reactivity.md`](docs/reactivity.md): リアクティビティと更新モデル
-- [`docs/compiler-mvp.md`](docs/compiler-mvp.md): MVPコンパイラ実装手順
-- [`docs/production-readiness.md`](docs/production-readiness.md): 実運用前の制約と検証項目
-- [`docs/v1-api-contract.md`](docs/v1-api-contract.md): v1で安定扱いするAPIと破壊的変更ポリシー
-- [`docs/implementation-guide.md`](docs/implementation-guide.md): Mikuruでアプリを書く開発者向け実装ガイド
-- [`docs/npm-usage.md`](docs/npm-usage.md): npm公開後にViteアプリでMikuruを使う手順
-- [`docs/release-checklist.md`](docs/release-checklist.md): v1公開前の確認項目
-- [`docs/release-notes-v1.md`](docs/release-notes-v1.md): v1.0.0のリリースノート
+Mikuru v1は、Vue完全互換ではなく小さなVue風SFCサブセットです。設計文書、対応構文、非対応構文、リリース前チェック項目などの詳細文書は内部資料として扱います。

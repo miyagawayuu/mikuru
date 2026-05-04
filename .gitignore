@@ -1,6 +1,7 @@
 .cursor/
 node_modules/
 dist/
+docs/
 examples/basic/dist/
 examples/dogfood/dist/
 examples/realworld/dist/
