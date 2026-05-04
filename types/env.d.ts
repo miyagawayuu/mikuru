@@ -3,19 +3,19 @@ type EnvMikuruComponentInstance = {
   unmount(): void;
 };
 
-type EnvMikuruMount = (
+type EnvMikuruMount<Props = Record<string, unknown>> = (
   target: Element | DocumentFragment,
-  props?: Record<string, unknown>
+  props?: Props
 ) => EnvMikuruComponentInstance;
 
-type EnvMikuruComponent = {
-  mount: EnvMikuruMount;
+type EnvMikuruComponent<Props = Record<string, unknown>> = {
+  mount: EnvMikuruMount<Props>;
 };
 
 declare module "mikuru/env" {
   export type MikuruComponentInstance = EnvMikuruComponentInstance;
-  export type MikuruMount = EnvMikuruMount;
-  export type MikuruComponent = EnvMikuruComponent;
+  export type MikuruMount<Props = Record<string, unknown>> = EnvMikuruMount<Props>;
+  export type MikuruComponent<Props = Record<string, unknown>> = EnvMikuruComponent<Props>;
 }
 
 declare module "*.mikuru" {

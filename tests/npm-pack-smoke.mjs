@@ -36,12 +36,16 @@ try {
     )
   );
   runNpm(["install", "--no-audit", "--no-fund"], tempRoot);
-  runNpm(["exec", "--", "mikuru", "create", "cli-app"], tempRoot);
+  runNpm(["exec", "--", "mikuru", "create", "cli-app", "--template", "starter", "--yes"], tempRoot);
+  runNpm(["exec", "--", "mikuru", "create", "basic-cli-app", "--template", "basic", "--yes"], tempRoot);
 
   const cliAppPackage = JSON.parse(readFileSync(join(tempRoot, "cli-app", "package.json"), "utf8"));
   if (cliAppPackage.name !== "cli-app") {
     throw new Error("Expected installed Mikuru CLI to scaffold cli-app");
   }
+
+  installAndBuildGeneratedApp(join(tempRoot, "cli-app"), tarball);
+  installAndBuildGeneratedApp(join(tempRoot, "basic-cli-app"), tarball);
 
   mkdirSync(appRoot);
   writeFileSync(
@@ -107,4 +111,13 @@ function increment() {
 
 function runNpm(args, cwd) {
   execFileSync(npm, args, { cwd, stdio: "ignore", shell: process.platform === "win32" });
+}
+
+function installAndBuildGeneratedApp(appRoot, tarball) {
+  const packageJsonPath = join(appRoot, "package.json");
+  const appPackageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  appPackageJson.dependencies.mikuru = `file:${tarball.replace(/\\/g, "/")}`;
+  writeFileSync(packageJsonPath, `${JSON.stringify(appPackageJson, null, 2)}\n`);
+  runNpm(["install", "--no-audit", "--no-fund"], appRoot);
+  runNpm(["run", "build"], appRoot);
 }

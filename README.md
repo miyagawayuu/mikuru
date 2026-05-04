@@ -22,6 +22,14 @@ npm run dev
 
 The generated starter includes Vite, TypeScript, the package-provided `.mikuru` module declaration, and a welcome component at `src/App.mikuru`.
 
+Use the `basic` template when you want a small component composition example:
+
+```sh
+npx mikuru create my-basic-app --template basic
+```
+
+`mikuru create` also accepts `--force` for non-empty directories and `--yes` / `-y` to use default answers for prompts.
+
 ## Add Mikuru to a Vite App
 
 Install Mikuru and the Vite tooling:
@@ -88,6 +96,18 @@ For TypeScript projects, add a local declaration file such as `src/mikuru-env.d.
 import "mikuru/env";
 ```
 
+You can use the exported component types for typed wrappers or hand-written integrations:
+
+```ts
+import type { MikuruComponent } from "mikuru/env";
+
+type GreetingProps = {
+  name: string;
+};
+
+declare const Greeting: MikuruComponent<GreetingProps>;
+```
+
 ## Supported v1 Surface
 
 - `.mikuru` SFCs with `<template>`, `<script>`, and `<style>`
@@ -133,6 +153,7 @@ The package also provides the `mikuru` binary:
 
 ```sh
 npx mikuru create my-app
+npx mikuru create my-basic-app --template basic
 ```
 
 ## Not Included in v1

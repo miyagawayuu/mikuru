@@ -1,0 +1,26 @@
+<template>
+  <article class="badge">
+    <strong>{{ label }}</strong>
+    <button @click="toggle">{{ modelValue }}</button>
+    <slot />
+  </article>
+</template>
+
+<script>
+const { label, modelValue } = defineProps({ label: String, modelValue: String });
+const emit = defineEmits(["update:modelValue"]);
+
+function toggle() {
+  emit("update:modelValue", modelValue.value === "curious" ? "building" : "curious");
+}
+</script>
+
+<style scoped>
+.badge {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+}
+</style>

@@ -15,6 +15,14 @@ npm install
 npm run dev
 ```
 
+For a small component composition example, use the `basic` template:
+
+```sh
+npx mikuru create my-basic-app --template basic
+```
+
+`mikuru create` also accepts `--force` for non-empty directories and `--yes` / `-y` to use default answers for prompts.
+
 For an existing Vite application, install the package manually:
 
 ```sh
@@ -105,6 +113,18 @@ Add this to `src/mikuru-env.d.ts` in the consuming app:
 
 ```ts
 import "mikuru/env";
+```
+
+For typed wrappers or hand-written integrations, use the exported component types:
+
+```ts
+import type { MikuruComponent } from "mikuru/env";
+
+type GreetingProps = {
+  name: string;
+};
+
+declare const Greeting: MikuruComponent<GreetingProps>;
 ```
 
 ## Available Package Exports

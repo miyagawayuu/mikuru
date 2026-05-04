@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5
+
+- Added a `basic` project template for `mikuru create --template basic`.
+- Added `mikuru create --force` and `--yes` support.
+- Added generated starter and basic template build smoke coverage for packed packages.
+- Added generic `MikuruComponent<Props>` and `MikuruMount<Props>` types.
+
 ## 1.0.4
 
 - Added a starter favicon to projects created with `mikuru create`.

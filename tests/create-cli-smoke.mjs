@@ -18,7 +18,11 @@ try {
 
   assert.equal(versionOutput.trim(), rootPackageJson.version);
   assert.match(rootHelpOutput, /mikuru create \[project-name\]/);
+  assert.match(rootHelpOutput, /starter\|basic/);
   assert.match(createHelpOutput, /--template <name>/);
+  assert.match(createHelpOutput, /starter, basic/);
+  assert.match(createHelpOutput, /--force/);
+  assert.match(createHelpOutput, /--yes/);
 
   runCli(cliPath, ["create", "hello-mikuru"], tempRoot);
 
@@ -39,6 +43,15 @@ try {
   runCli(cliPath, ["create", "--template", "starter", "template-app"], tempRoot);
   assert.equal(existsSync(join(tempRoot, "template-app", "package.json")), true);
 
+  runCli(cliPath, ["create", "basic-app", "--template=basic", "--yes"], tempRoot);
+  const basicPackageJson = JSON.parse(readFileSync(join(tempRoot, "basic-app", "package.json"), "utf8"));
+  const basicAppSource = readFileSync(join(tempRoot, "basic-app", "src", "App.mikuru"), "utf8");
+  const basicMoodBadgeSource = readFileSync(join(tempRoot, "basic-app", "src", "MoodBadge.mikuru"), "utf8");
+  assert.equal(basicPackageJson.name, "basic-app");
+  assert.equal(basicPackageJson.dependencies.mikuru, `^${rootPackageJson.version}`);
+  assert.match(basicAppSource, /Mikuru Counter/);
+  assert.match(basicMoodBadgeSource, /defineProps/);
+
   const nonEmptyRoot = join(tempRoot, "non-empty");
   mkdirSync(nonEmptyRoot);
   writeFileSync(join(nonEmptyRoot, "README.md"), "not empty");
@@ -46,6 +59,9 @@ try {
     runCliError(cliPath, ["create", "non-empty"], tempRoot),
     /Cannot create a Mikuru app in a non-empty directory/
   );
+  runCli(cliPath, ["create", "non-empty", "--force", "--yes"], tempRoot);
+  assert.equal(existsSync(join(nonEmptyRoot, "package.json")), true);
+  assert.equal(existsSync(join(nonEmptyRoot, "README.md")), true);
 
   assert.match(
     runCliError(cliPath, ["create", "--template", "unknown", "unknown-template"], tempRoot),

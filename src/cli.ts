@@ -3,9 +3,14 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSyn
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const availableTemplates = ["starter", "basic"] as const;
+type TemplateName = (typeof availableTemplates)[number];
+
 type CreateOptions = {
+  force: boolean;
   targetArg?: string;
-  templateName: string;
+  templateName: TemplateName;
+  yes: boolean;
 };
 
 const args = process.argv.slice(2);
@@ -32,13 +37,13 @@ if (!createOptions) {
   process.exit(1);
 }
 
-const { targetArg, templateName } = createOptions;
+const { force, targetArg, templateName } = createOptions;
 const targetDir = resolve(process.cwd(), targetArg ?? "mikuru-app");
 const appName = toPackageName(basename(targetDir));
 
-if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+if (!force && existsSync(targetDir) && readdirSync(targetDir).length > 0) {
   console.error(`Cannot create a Mikuru app in a non-empty directory: ${targetDir}`);
-  console.error("Choose a new directory name or empty the target directory first.");
+  console.error("Choose a new directory name, empty the target directory, or pass --force to overwrite template files.");
   process.exit(1);
 }
 
@@ -46,7 +51,9 @@ const templateDir = resolve(dirname(fileURLToPath(import.meta.url)), `../templat
 
 copyTemplate(templateDir, targetDir, { appName });
 
-console.log(`Created ${appName} in ${targetDir}`);
+console.log(`Created ${appName}`);
+console.log(`  Template: ${templateName}`);
+console.log(`  Location: ${targetDir}`);
 console.log("");
 console.log("Next steps:");
 console.log(`  cd ${basename(targetDir)}`);
@@ -55,7 +62,7 @@ console.log("  npm run dev");
 
 function printHelp(): void {
   console.log(`Usage:
-  mikuru create [project-name] [--template starter]
+  mikuru create [project-name] [--template starter|basic]
   mikuru --version
   mikuru --help
 
@@ -69,16 +76,20 @@ Options:
 
 function printCreateHelp(): void {
   console.log(`Usage:
-  mikuru create [project-name] [--template starter]
+  mikuru create [project-name] [--template starter|basic]
 
 Options:
-  --template <name>    Template to use. Available: starter.
+  --template <name>    Template to use. Available: ${availableTemplates.join(", ")}.
+  --force              Create into a non-empty directory and overwrite template files.
+  -y, --yes            Use default answers for prompts. Currently accepted for future compatibility.
   -h, --help           Show create help.`);
 }
 
 function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
+  let force = false;
   let targetArg: string | undefined;
   let templateName = "starter";
+  let yes = false;
 
   for (let i = 0; i < createArgs.length; i++) {
     const arg = createArgs[i];
@@ -86,6 +97,16 @@ function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
     if (arg === "--help" || arg === "-h") {
       printCreateHelp();
       process.exit(0);
+    }
+
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+
+    if (arg === "--yes" || arg === "-y") {
+      yes = true;
+      continue;
     }
 
     if (arg === "--template") {
@@ -119,13 +140,17 @@ function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
     targetArg = arg;
   }
 
-  if (templateName !== "starter") {
+  if (!isTemplateName(templateName)) {
     console.error(`Unknown template: ${templateName}`);
-    console.error("Available templates: starter");
+    console.error(`Available templates: ${availableTemplates.join(", ")}`);
     return undefined;
   }
 
-  return { targetArg, templateName };
+  return { force, targetArg, templateName, yes };
+}
+
+function isTemplateName(value: string): value is TemplateName {
+  return (availableTemplates as readonly string[]).includes(value);
 }
 
 function copyTemplate(sourceDir: string, targetDir: string, variables: { appName: string }): void {
