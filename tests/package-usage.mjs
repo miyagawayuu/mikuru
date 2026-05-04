@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 
 const { compile } = await import("mikuru/compiler");
+const env = await import("mikuru/env");
 const { effect, nextTick, ref, watch } = await import("mikuru/runtime");
 const { mikuru } = await import("mikuru/vite");
+
+assert.deepEqual(Object.keys(env), []);
 
 const result = compile(
   `<template><button @click="increment">count: {{ count }}</button></template>

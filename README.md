@@ -20,7 +20,7 @@ npm install
 npm run dev
 ```
 
-The generated starter includes Vite, TypeScript, a `.mikuru` module declaration, and a welcome component at `src/App.mikuru`.
+The generated starter includes Vite, TypeScript, the package-provided `.mikuru` module declaration, and a welcome component at `src/App.mikuru`.
 
 ## Add Mikuru to a Vite App
 
@@ -82,26 +82,10 @@ mount(app);
 
 ## TypeScript Declarations
 
-Until Mikuru ships global `.mikuru` declarations, add a local declaration file such as `src/mikuru-env.d.ts`:
+For TypeScript projects, add a local declaration file such as `src/mikuru-env.d.ts` that imports Mikuru's package-provided `.mikuru` module declaration:
 
 ```ts
-declare module "*.mikuru" {
-  export type MikuruComponentInstance = {
-    element: Element | Comment;
-    unmount(): void;
-  };
-
-  export function mount(
-    target: Element | DocumentFragment,
-    props?: Record<string, unknown>
-  ): MikuruComponentInstance;
-
-  const component: {
-    mount: typeof mount;
-  };
-
-  export default component;
-}
+import "mikuru/env";
 ```
 
 ## Supported v1 Surface
@@ -130,6 +114,12 @@ The Vite plugin is available from `mikuru/vite`:
 
 ```ts
 import { mikuru } from "mikuru/vite";
+```
+
+The `.mikuru` TypeScript declaration is available from `mikuru/env`:
+
+```ts
+import "mikuru/env";
 ```
 
 Compiler and runtime entries are public for lower-level integrations:

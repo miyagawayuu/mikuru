@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "mikuru": "^1.0.2"
+    "mikuru": "^1.0.3"
   },
   "devDependencies": {
     "typescript": "^6.0.3",

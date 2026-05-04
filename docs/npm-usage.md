@@ -101,26 +101,10 @@ Create `index.html`:
 
 ## Add TypeScript Declarations
 
-Until Mikuru ships a global declaration package for `.mikuru` files, add this to `src/mikuru-env.d.ts` in the consuming app:
+Add this to `src/mikuru-env.d.ts` in the consuming app:
 
 ```ts
-declare module "*.mikuru" {
-  export type MikuruComponentInstance = {
-    element: Element | Comment;
-    unmount(): void;
-  };
-
-  export function mount(
-    target: Element | DocumentFragment,
-    props?: Record<string, unknown>
-  ): MikuruComponentInstance;
-
-  const component: {
-    mount: typeof mount;
-  };
-
-  export default component;
-}
+import "mikuru/env";
 ```
 
 ## Available Package Exports
@@ -135,6 +119,12 @@ The Vite plugin is available from `mikuru/vite`:
 
 ```ts
 import { mikuru } from "mikuru/vite";
+```
+
+The `.mikuru` TypeScript declaration is available from `mikuru/env`:
+
+```ts
+import "mikuru/env";
 ```
 
 Lower-level compiler and runtime entries are also public:
@@ -162,4 +152,4 @@ npx vite build
 - Use `ref` and `computed` from `mikuru`.
 - Use `mikuru/vite` for `.mikuru` file transformation.
 - Use stable `:key` values for dynamic lists.
-- Add the `.mikuru` module declaration when using TypeScript.
+- Import `mikuru/env` from a local `.d.ts` file when using TypeScript.

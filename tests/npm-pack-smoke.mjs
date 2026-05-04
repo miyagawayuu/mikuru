@@ -20,7 +20,8 @@ try {
       {
         type: "module",
         scripts: {
-          build: "vite build"
+          build: "vite build",
+          typecheck: "tsc --noEmit"
         },
         dependencies: {
           mikuru: `file:${tarball.replace(/\\/g, "/")}`
@@ -44,13 +45,41 @@ try {
 
   mkdirSync(appRoot);
   writeFileSync(
+    join(tempRoot, "tsconfig.json"),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2022",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          lib: ["ES2022", "DOM"],
+          strict: true,
+          skipLibCheck: true
+        },
+        include: ["app/src/**/*.ts", "app/src/**/*.d.ts"]
+      },
+      null,
+      2
+    )
+  );
+  writeFileSync(
     join(appRoot, "index.html"),
     `<!doctype html><div id="app"></div><script type="module" src="/src/main.ts"></script>`
   );
   mkdirSync(join(appRoot, "src"));
+  writeFileSync(join(appRoot, "src", "mikuru-env.d.ts"), `import "mikuru/env";\n`);
   writeFileSync(
     join(appRoot, "src", "main.ts"),
-    `import { mount } from "./App.mikuru";\nmount(document.querySelector("#app"));\n`
+    `import { mount } from "./App.mikuru";
+
+const app = document.querySelector("#app");
+
+if (!app) {
+  throw new Error("Missing #app");
+}
+
+mount(app);
+`
   );
   writeFileSync(
     join(appRoot, "src", "App.mikuru"),
@@ -70,6 +99,7 @@ function increment() {
     )}, plugins: [mikuru()] });\n`
   );
 
+  runNpm(["run", "typecheck"], tempRoot);
   runNpm(["run", "build"], tempRoot);
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });

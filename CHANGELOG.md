@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- Added `mikuru/env` for package-provided `.mikuru` TypeScript declarations.
+
 ## 1.0.2
 
 - Reworked the README for npm package consumers with CLI-first setup, Vite integration, package exports, TypeScript declarations, and v1 limits.
