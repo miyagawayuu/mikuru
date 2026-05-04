@@ -1,12 +1,12 @@
 .cursor/
 node_modules/
 dist/
-docs/
 examples/basic/dist/
 examples/dogfood/dist/
 examples/realworld/dist/
 examples/mikuru-sample/dist/
 examples/mikuru-vue-like/dist/
+templates/starter/node_modules/
 test-results/
 playwright-report/
 *.tsbuildinfo

@@ -8,4 +8,10 @@ Run from the repository root:
 npx vite --config examples/mikuru-vue-like/vite.config.ts
 ```
 
+The repository root also provides a shortcut:
+
+```bash
+npm run dev:mikuru-vue-like
+```
+
 Open http://localhost:5175

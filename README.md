@@ -1,18 +1,48 @@
 # Mikuru
 
-Mikuruは、Vueの書き心地を残しながら、Svelte寄りにDOM更新コードを生成するコンパイル型JavaScriptフレームワークです。
+Mikuru is a compile-first JavaScript framework for Vue-like single-file components that generate direct DOM update code instead of using a virtual DOM.
 
-Vueのように単一ファイルコンポーネントと宣言的なテンプレートで書き、Svelteのようにビルド時にテンプレートを解析して、仮想DOMに依存しない小さなJavaScriptへ変換することを目指します。
+It is intentionally small. Mikuru v1 is a practical validation release for writing `.mikuru` components in Vite apps, not a Vue compatibility layer.
 
-## 目標
+## Requirements
 
-- `.mikuru` ファイルでコンポーネントを書く。
-- `<template>` / `<script>` / `<style>` のSFC構造を使う。
-- `ref`、`computed`、`effect` 風の小さなリアクティビティを提供する。
-- `{{ value }}`、`@click` / `v-on:click`、`:class` / `v-bind:class`、`v-if`、`v-for` のようなVue風テンプレート構文を使う。
-- コンパイラが更新箇所を静的に把握し、直接DOMを更新するコードを生成する。
+- Node.js 22 or newer
+- Vite 8 or newer for app development
 
-## 最小サンプル
+## Create a New App
+
+The fastest way to try Mikuru is the package CLI:
+
+```sh
+npx mikuru create my-app
+cd my-app
+npm install
+npm run dev
+```
+
+The generated starter includes Vite, TypeScript, a `.mikuru` module declaration, and a welcome component at `src/App.mikuru`.
+
+## Add Mikuru to a Vite App
+
+Install Mikuru and the Vite tooling:
+
+```sh
+npm install mikuru
+npm install -D vite typescript
+```
+
+Configure Vite:
+
+```ts
+import { defineConfig } from "vite";
+import { mikuru } from "mikuru/vite";
+
+export default defineConfig({
+  plugins: [mikuru()]
+});
+```
+
+Create a `.mikuru` component:
 
 ```mikuru
 <template>
@@ -36,107 +66,124 @@ button {
 </style>
 ```
 
-このコンポーネントは、概念的に次のようなJavaScript moduleへ変換されます。
+Mount it from your app entry:
 
-```js
-import { ref, effect } from "mikuru/runtime";
+```ts
+import { mount } from "./App.mikuru";
 
-export function mount(target) {
-  const count = ref(0);
-  const button = document.createElement("button");
+const app = document.querySelector("#app");
 
-  function increment() {
-    count.value += 1;
-  }
+if (!app) {
+  throw new Error("Missing #app");
+}
 
-  button.addEventListener("click", increment);
+mount(app);
+```
 
-  effect(() => {
-    button.textContent = `count: ${count.value}`;
-  });
+## TypeScript Declarations
 
-  target.appendChild(button);
+Until Mikuru ships global `.mikuru` declarations, add a local declaration file such as `src/mikuru-env.d.ts`:
+
+```ts
+declare module "*.mikuru" {
+  export type MikuruComponentInstance = {
+    element: Element | Comment;
+    unmount(): void;
+  };
+
+  export function mount(
+    target: Element | DocumentFragment,
+    props?: Record<string, unknown>
+  ): MikuruComponentInstance;
+
+  const component: {
+    mount: typeof mount;
+  };
+
+  export default component;
 }
 ```
 
-## v1範囲
+## Supported v1 Surface
 
-v1の成功条件は、Vue風の小さなSFC体験をVite上で実用的に書け、ブラウザで安定して動かせることです。最初のカウンターMVPは土台として維持し、v1では親子コンポーネント、フォーム入力、条件分岐、リスト表示、style注入までを公開対象として固定します。
+- `.mikuru` SFCs with `<template>`, `<script>`, and `<style>`
+- Vite plugin support through `mikuru/vite`
+- Template interpolation with `{{ value }}`
+- DOM events with `@click`, `v-on:click`, `.prevent`, and `.stop`
+- Attribute bindings with `:class` and `v-bind:class`
+- `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
+- `v-model` for common form controls and child components
+- Component props, events, `defineProps`, `defineEmits`, and default slots
+- Runtime helpers including `ref`, `computed`, `effect`, `watch`, `nextTick`, lifecycle callbacks, `provide`, and `inject`
+- Style injection and basic `<style scoped>` selector rewriting
+- Compile errors with filenames, line/column information, and code frames
 
-v1では次の機能を対象にします。
+## Package Exports
 
-- SFC分割: `<template>`、`<script>`、`<style>`
-- Vite plugin: `.mikuru` importをJavaScript moduleへ変換
-- テキスト補間: `{{ count }}`
-- イベント: `@click="increment"`、`v-on:click="increment"`、DOMイベントの `.prevent` / `.stop`
-- 属性バインド: `:class="className"`、`v-bind:class="className"`
-- class正規化: `:class="['base', { active }]"` の配列・オブジェクト形式
-- フォーム同期: `input` / `textarea` / `checkbox` / `select` の `v-model`
-- 条件分岐: `v-if` / `v-else-if` / `v-else`
-- 表示切り替え: `v-show="visible"`
-- 繰り返し: `v-for="item in items"`、`v-for="(item, index) in items"`、`of` エイリアス
-- コンポーネント合成: `<Child :count="count" @select="select" />` のprops/event受け渡し、`v-model`
-- default slot: `<Panel>content</Panel>` と子側の `<slot />`
-- props宣言: `const { title } = defineProps()` のコンパイル専用API
-- emits宣言: `const emit = defineEmits()` で親の `@event` ハンドラを呼び出し
-- style注入: `<style>` をmount時に一度だけdocumentへ追加し、`<style scoped>` の基本セレクタを書き換える
-- unmount: 生成コンポーネントがイベント、effect、子コンポーネントを破棄する
-- パーサ強化: コメント、シングルクォート属性、属性値内の `>`、void要素に対応
-- 式検証: テンプレート式をExpressionとして検証し、文や代入など危険な構文を拒否
-- エラー表示: コンパイルエラーにファイル名、行、列、コードフレームを付与
-- 小さなランタイム: `ref`、`computed`、`effect`
+Application code usually imports from `mikuru`:
 
-## v1の非目標
+```ts
+import { computed, ref } from "mikuru";
+```
 
-MikuruはVue完全互換を目指しません。SSR、hydration、transition、devtools、完全なテンプレート型チェック、Vue互換を名乗るための広範な仕様追従はv1後に検討します。scoped CSSはv1では基本セレクタのみを対象にし、`:global()`、深いセレクタ、複雑なネスト規則は後続課題です。
+The Vite plugin is available from `mikuru/vite`:
 
-## 開発
+```ts
+import { mikuru } from "mikuru/vite";
+```
+
+Compiler and runtime entries are public for lower-level integrations:
+
+```ts
+import { compile } from "mikuru/compiler";
+import { effect, nextTick, ref, unwrap, watch } from "mikuru/runtime";
+```
+
+The package also provides the `mikuru` binary:
+
+```sh
+npx mikuru create my-app
+```
+
+## Not Included in v1
+
+Mikuru does not claim Vue compatibility. The v1 package does not include SSR, hydration, transitions, devtools, named slots, slot props, dynamic components, `v-html`, object-form `v-bind` / `v-on`, or full template type checking.
+
+Scoped CSS is a basic selector rewrite, not a full CSS compiler. Avoid relying on `:global()`, deep selectors, complex nesting, CSS Modules, or preprocessors in v1.
+
+## Repository Development
+
+For local framework development:
 
 ```sh
 npm install
 npm run ci
 ```
 
-個別に確認する場合は次を使います。
+Useful targeted checks:
 
 ```sh
 npm run typecheck
 npm test
 npm run build
-npm run build:basic
-npm run build:realworld
-npm run build:dogfood
+npm run test:create
 npm run test:package
 npm run test:pack
 npm run test:e2e
-npm run test:e2e:dogfood
 ```
 
-公式exampleはViteで起動できます。
+Examples can be run from the repository root:
 
 ```sh
 npm run dev:basic
 npm run dev:realworld
 npm run dev:dogfood
+npm run dev:mikuru-sample
+npm run dev:mikuru-vue-like
 ```
 
-用途は次の通りです。
+## Documentation
 
-- `examples/basic`: カウンター、props/events、component `v-model`、default slot の最小確認
-- `examples/realworld`: 検索、フォーム、keyed list を含むアプリ風の検証
-- `examples/dogfood`: Mikuru自身で書いた notes app による日常的な書き心地の検証
-- `examples/mikuru-sample` / `examples/mikuru-vue-like`: 追加の手書きDOM/runtimeサンプル
-
-表示するときは、ブラウザで example の `index.html` を直接開かず、Viteが表示するローカルURLを開いてください。`.ts` と `.mikuru` はVite pluginで変換されます。
-
-exampleを本番ビルドする場合は次を使います。
-
-```sh
-npm run build:basic
-npm run build:realworld
-npm run build:dogfood
-```
-
-## 補足
-
-Mikuru v1は、Vue完全互換ではなく小さなVue風SFCサブセットです。設計文書、対応構文、非対応構文、リリース前チェック項目などの詳細文書は内部資料として扱います。
+- `CHANGELOG.md` lists published package changes.
+- `docs/npm-usage.md` shows a manual Vite setup for package consumers.
+- `docs/v1-api-contract.md` describes the v1 compatibility boundary used by this repository.

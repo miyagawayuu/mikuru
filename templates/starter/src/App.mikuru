@@ -1,0 +1,38 @@
+<template>
+  <main class="shell">
+    <section class="hero">
+      <div class="mark">み</div>
+      <p class="eyebrow">Mikuru is ready</p>
+      <h1>Make tiny Vue-like apps feel sweet and fast.</h1>
+      <p class="summary">
+        Edit <code>src/App.mikuru</code> and save to test Mikuru with Vite HMR.
+      </p>
+      <button @click="increment">count: {{ count }}</button>
+    </section>
+
+    <section class="grid">
+      <article>
+        <h2>Template</h2>
+        <p>Write friendly SFC templates with interpolation, events, lists, and form models.</p>
+      </article>
+      <article>
+        <h2>Runtime</h2>
+        <p>Keep state small with <code>ref</code>, <code>computed</code>, and direct DOM updates.</p>
+      </article>
+      <article>
+        <h2>Compiler</h2>
+        <p>Compile SFCs into lightweight browser code without bringing a virtual DOM.</p>
+      </article>
+    </section>
+  </main>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const count = ref(0);
+
+function increment() {
+  count.value += 1;
+}
+</script>

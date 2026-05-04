@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,10 +7,11 @@ import { fileURLToPath } from "node:url";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const tempRoot = mkdtempSync(join(tmpdir(), "mikuru-pack-smoke-"));
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
 try {
   runNpm(["pack", "--pack-destination", tempRoot], root);
-  const tarball = join(tempRoot, "mikuru-1.0.0.tgz");
+  const tarball = join(tempRoot, `mikuru-${packageJson.version}.tgz`);
   const appRoot = join(tempRoot, "app");
 
   writeFileSync(
@@ -34,6 +35,12 @@ try {
     )
   );
   runNpm(["install", "--no-audit", "--no-fund"], tempRoot);
+  runNpm(["exec", "--", "mikuru", "create", "cli-app"], tempRoot);
+
+  const cliAppPackage = JSON.parse(readFileSync(join(tempRoot, "cli-app", "package.json"), "utf8"));
+  if (cliAppPackage.name !== "cli-app") {
+    throw new Error("Expected installed Mikuru CLI to scaffold cli-app");
+  }
 
   mkdirSync(appRoot);
   writeFileSync(

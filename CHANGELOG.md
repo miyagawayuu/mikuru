@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.2
+
+- Reworked the README for npm package consumers with CLI-first setup, Vite integration, package exports, TypeScript declarations, and v1 limits.
+- Updated npm usage docs and release documentation to match the published package contents.
+- Updated the starter template to depend on `mikuru@^1.0.2`.
+
+## 1.0.1
+
+- Added the `mikuru` CLI with `mikuru create [project-name]`.
+- Added a Vite starter template that shows a Mikuru welcome screen and counter after setup.
+- Added create CLI smoke coverage and included it in CI.
+
 ## 1.0.0
 
 - Stabilized the v1 SFC compiler surface for `.mikuru` files.

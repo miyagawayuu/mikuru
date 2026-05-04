@@ -1,6 +1,6 @@
 {
   "name": "mikuru",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": false,
   "type": "module",
   "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",
@@ -30,8 +30,12 @@
       "default": "./dist/vite.js"
     }
   },
+  "bin": {
+    "mikuru": "dist/cli.js"
+  },
   "files": [
     "dist",
+    "templates",
     "README.md",
     "CHANGELOG.md"
   ],
@@ -45,7 +49,7 @@
     "build:realworld": "vite build --config examples/realworld/vite.config.ts",
     "build:mikuru-sample": "vite build --config examples/mikuru-sample/vite.config.ts",
     "build:mikuru-vue-like": "vite build --config examples/mikuru-vue-like/vite.config.ts",
-    "ci": "npm run typecheck && npm test && npm run build && npm run build:basic && npm run build:realworld && npm run build:dogfood && npm run test:package && npm run test:pack && npm run test:e2e && npm run test:e2e:dogfood",
+    "ci": "npm run typecheck && npm test && npm run build && npm run test:create && npm run build:basic && npm run build:realworld && npm run build:dogfood && npm run test:package && npm run test:pack && npm run test:e2e && npm run test:e2e:dogfood",
     "dev:basic": "vite --config examples/basic/vite.config.ts",
     "dev:dogfood": "vite --config examples/dogfood/vite.config.ts",
     "dev:realworld": "vite --config examples/realworld/vite.config.ts",
@@ -54,6 +58,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:dogfood": "playwright test --config playwright.dogfood.config.ts",
+    "test:create": "node tests/create-cli-smoke.mjs",
     "test:pack": "node tests/npm-pack-smoke.mjs",
     "test:package": "node tests/package-usage.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
