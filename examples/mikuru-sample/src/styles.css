@@ -1,0 +1,4 @@
+
+/* Minimal base styles; main styling uses Tailwind CDN */
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,system-ui,Arial}

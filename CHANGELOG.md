@@ -1,0 +1,14 @@
+# Changelog
+
+## 1.0.0
+
+- Stabilized the v1 SFC compiler surface for `.mikuru` files.
+- Added Vite integration, generated DOM cleanup, component props/events/slots, `defineProps`, and `defineEmits`.
+- Added `v-if` / `v-else-if` / `v-else`, `v-show`, `v-for`, `v-model`, DOM event modifiers, style injection, and basic scoped CSS support.
+- Added CI, library build checks, basic example build checks, and browser E2E coverage.
+- Added a realworld example, public package smoke test, parser-limit coverage, debug sourceURL support, and performance smoke coverage.
+- Added v3 source maps, keyed `v-for` reuse, npm pack smoke coverage, and a v1 API contract.
+- Added a dogfood notes app written in Mikuru to exercise daily authoring flows.
+- Added generated DOM coverage for keyed insert/remove/reorder behavior, component cleanup, and slot cleanup.
+- Added explicit unsupported-syntax errors with source frames, Vite error forwarding coverage, and debug `sourceURL` path normalization coverage.
+- Documented runtime helpers including `nextTick`, `watch`, lifecycle callbacks, `provide`, and `inject`.

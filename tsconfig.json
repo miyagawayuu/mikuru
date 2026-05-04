@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@mikuru-src/runtime": ["src/runtime/index.ts"],
+      "@mikuru-src/*": ["src/*"]
+    },
+    "ignoreDeprecations": "6.0",
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "vite.config.ts", "playwright.config.ts", "playwright.dogfood.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

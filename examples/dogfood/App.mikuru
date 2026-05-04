@@ -1,0 +1,156 @@
+<template>
+  <main class="dogfood">
+    <header>
+      <h1>Dogfood Notes</h1>
+      <button @click="seedMore">Seed more notes</button>
+    </header>
+
+    <TextField label="Search" v-model="search" />
+
+    <nav class="filters">
+      <button @click="showAll">All</button>
+      <button @click="showActive">Active</button>
+      <button @click="showArchived">Archived</button>
+    </nav>
+
+    <section class="notes">
+      <NoteCard
+        v-for="note in filteredNotes"
+        :key="note.id"
+        :note="note"
+        @archive="archiveNote"
+        @restore="restoreNote"
+      >
+        <small>{{ note.statusLabel }}</small>
+      </NoteCard>
+    </section>
+  </main>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+import TextField from "./TextField.mikuru";
+import NoteCard from "./NoteCard.mikuru";
+
+const search = ref("");
+const filter = ref("all");
+const notes = ref([
+  {
+    id: "parser",
+    title: "Parser limits should stay loud",
+    body: "Compile errors should include a focused code frame.",
+    owner: "Compiler",
+    archived: true,
+    statusLabel: "Archived"
+  },
+  {
+    id: "scoped",
+    title: "Scoped CSS works for simple selectors",
+    body: "Basic selector rewriting keeps component styles local.",
+    owner: "Runtime",
+    archived: false,
+    statusLabel: "Active"
+  },
+  {
+    id: "cleanup",
+    title: "Unmount cleanup under filters",
+    body: "Effects and event listeners should be released predictably.",
+    owner: "Runtime",
+    archived: false,
+    statusLabel: "Active"
+  }
+]);
+
+const filteredNotes = computed(() => {
+  const query = search.value.trim().toLowerCase();
+  return notes.value.filter((note) => {
+    const matchesFilter =
+      filter.value === "all" ||
+      (filter.value === "archived" ? note.archived : !note.archived);
+    const matchesSearch =
+      !query ||
+      note.title.toLowerCase().includes(query) ||
+      note.body.toLowerCase().includes(query) ||
+      note.owner.toLowerCase().includes(query);
+    return matchesFilter && matchesSearch;
+  });
+});
+
+function setArchived(id, archived) {
+  notes.value = notes.value.map((note) =>
+    note.id === id
+      ? {
+          ...note,
+          archived,
+          statusLabel: archived ? "Archived" : "Active"
+        }
+      : note
+  );
+}
+
+function archiveNote(id) {
+  setArchived(id, true);
+}
+
+function restoreNote(id) {
+  setArchived(id, false);
+}
+
+function seedMore() {
+  if (notes.value.some((note) => note.id === "keyed")) {
+    return;
+  }
+
+  notes.value = [
+    ...notes.value,
+    {
+      id: "keyed",
+      title: "Keyed lists keep card identity",
+      body: "The generated keyed range should reuse card instances.",
+      owner: "Compiler",
+      archived: false,
+      statusLabel: "Active"
+    }
+  ];
+}
+
+function showAll() {
+  filter.value = "all";
+}
+
+function showActive() {
+  filter.value = "active";
+}
+
+function showArchived() {
+  filter.value = "archived";
+}
+</script>
+
+<style scoped>
+.dogfood {
+  display: grid;
+  gap: 18px;
+  max-width: 860px;
+  margin: 36px auto;
+  padding: 0 20px;
+  font-family: system-ui, sans-serif;
+}
+
+header,
+.filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filters {
+  justify-content: flex-start;
+}
+
+.notes {
+  display: grid;
+  gap: 12px;
+}
+</style>

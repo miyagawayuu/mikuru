@@ -1,0 +1,42 @@
+<template>
+  <article class="note-card">
+    <div class="note-topline">
+      <strong>{{ note.title }}</strong>
+      <span>{{ note.owner }}</span>
+    </div>
+    <p>{{ note.body }}</p>
+    <slot />
+    <button v-if="note.archived" @click="restore">Restore</button>
+    <button v-else @click="archive">Archive</button>
+  </article>
+</template>
+
+<script>
+const { note } = defineProps({ note: Object });
+const emit = defineEmits(["archive", "restore"]);
+
+function archive() {
+  emit("archive", note.value.id);
+}
+
+function restore() {
+  emit("restore", note.value.id);
+}
+</script>
+
+<style scoped>
+.note-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.note-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+</style>

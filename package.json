@@ -1,0 +1,73 @@
+{
+  "name": "mikuru",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler/index.d.ts",
+      "default": "./dist/compiler/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "default": "./dist/runtime/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "default": "./dist/vite.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:basic": "vite build --config examples/basic/vite.config.ts",
+    "build:dogfood": "vite build --config examples/dogfood/vite.config.ts",
+    "build:realworld": "vite build --config examples/realworld/vite.config.ts",
+    "build:mikuru-sample": "vite build --config examples/mikuru-sample/vite.config.ts",
+    "build:mikuru-vue-like": "vite build --config examples/mikuru-vue-like/vite.config.ts",
+    "ci": "npm run typecheck && npm test && npm run build && npm run build:basic && npm run build:realworld && npm run build:dogfood && npm run test:package && npm run test:pack && npm run test:e2e && npm run test:e2e:dogfood",
+    "dev:basic": "vite --config examples/basic/vite.config.ts",
+    "dev:dogfood": "vite --config examples/dogfood/vite.config.ts",
+    "dev:realworld": "vite --config examples/realworld/vite.config.ts",
+    "dev:mikuru-sample": "vite --config examples/mikuru-sample/vite.config.ts",
+    "dev:mikuru-vue-like": "vite --config examples/mikuru-vue-like/vite.config.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:dogfood": "playwright test --config playwright.dogfood.config.ts",
+    "test:pack": "node tests/npm-pack-smoke.mjs",
+    "test:package": "node tests/package-usage.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "compiler",
+    "framework",
+    "sfc",
+    "vue",
+    "svelte"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0",
+    "happy-dom": "^20.9.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "acorn": "^8.16.0"
+  }
+}

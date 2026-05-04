@@ -1,0 +1,37 @@
+<template>
+  <section class="app">
+    <h1>Mikuru Counter</h1>
+    <button @click="increment">count: {{ count }}</button>
+    <MoodBadge label="Mood" v-model="mood">
+      <span>Current mood is {{ mood }}</span>
+    </MoodBadge>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+import MoodBadge from "./MoodBadge.mikuru";
+
+const count = ref(0);
+const mood = ref("curious");
+
+function increment() {
+  count.value += 1;
+  mood.value = count.value % 2 === 0 ? "curious" : "building";
+}
+</script>
+
+<style scoped>
+.app {
+  display: grid;
+  gap: 16px;
+  max-width: 520px;
+  margin: 48px auto;
+  font-family: system-ui, sans-serif;
+}
+
+button {
+  font: inherit;
+  width: fit-content;
+}
+</style>

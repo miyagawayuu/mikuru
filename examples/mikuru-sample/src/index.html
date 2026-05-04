@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mikuru AI Image Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-white text-slate-900">
+    <div id="app" class="max-w-7xl mx-auto p-6">
+      <header class="flex items-center justify-between py-4">
+        <div class="flex items-center gap-4">
+          <div class="text-xl font-bold">Mikuru</div>
+          <nav class="hidden md:flex items-center gap-3 text-sm text-slate-600">
+            <a href="#" class="hover:text-slate-900">イラスト</a>
+            <a href="#" class="hover:text-slate-900">フォト</a>
+            <a href="#" class="hover:text-slate-900">タイムライン</a>
+          </nav>
+        </div>
+
+        <div class="flex-1 px-6">
+          <div class="max-w-lg mx-auto">
+            <input id="search-input" type="search" placeholder="検索: タイトル、タグ、ユーザー" class="w-full border rounded px-3 py-2" />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <button id="open-post" class="px-4 py-2 bg-indigo-600 text-white rounded-md">New Post</button>
+          <div class="hidden md:block text-sm text-slate-600">ようこそ、You</div>
+        </div>
+      </header>
+
+      <main class="flex gap-6">
+        <section id="gallery" class="flex-1">
+          <!-- gallery mounted here -->
+        </section>
+
+        <aside class="w-[320px]">
+          <div class="p-4 border rounded-lg shadow-sm">
+            <div class="h-40 bg-slate-100 flex items-center justify-center text-slate-400">Ad space 320×320</div>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="mt-6 text-sm text-slate-600">Local demo — images saved to browser localStorage</footer>
+    </div>
+
+    <!-- Modal (hidden by default) -->
+    <div id="modal" class="fixed inset-0 hidden items-center justify-center z-50">
+      <div class="absolute inset-0 bg-black/40" id="modal-backdrop"></div>
+      <div class="relative w-full max-w-2xl mx-4">
+        <div id="modal-content" class="bg-white rounded-lg shadow-lg overflow-hidden"></div>
+      </div>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

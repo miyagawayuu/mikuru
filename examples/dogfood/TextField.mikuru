@@ -1,0 +1,22 @@
+<template>
+  <label class="field">
+    <span>{{ label }}</span>
+    <input :value="modelValue" @input="updateValue($event)" />
+  </label>
+</template>
+
+<script>
+const { label, modelValue } = defineProps({ label: String, modelValue: String });
+const emit = defineEmits(["update:modelValue"]);
+
+function updateValue(event) {
+  emit("update:modelValue", event.target.value);
+}
+</script>
+
+<style scoped>
+.field {
+  display: grid;
+  gap: 6px;
+}
+</style>

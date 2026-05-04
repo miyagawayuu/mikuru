@@ -1,0 +1,1313 @@
+import { Window } from "happy-dom";
+import { describe, expect, it } from "vitest";
+
+import { compile } from "../src/compiler/index.js";
+import { computed, effect, ref, setAttribute, unwrap } from "../src/runtime/index.js";
+
+type CompiledModule = {
+  mount(target: Element | DocumentFragment, props?: Record<string, unknown>): MikuruComponentInstance;
+};
+
+type MikuruComponentInstance = {
+  element: Element | Comment;
+  unmount(): void;
+};
+
+type CompiledFixture = {
+  document: Document;
+  module: CompiledModule;
+  root: HTMLDivElement;
+  window: Window;
+};
+
+describe("generated DOM code", () => {
+  it("updates interpolated text after an event handler changes state", () => {
+    const fixture = compileForDom(`<template>
+  <button @click="increment">count: {{ count }}</button>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const count = ref(0);
+
+function increment() {
+  count.value += 1;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(button?.textContent).toBe("count: 0");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(button?.textContent).toBe("count: 1");
+  });
+
+  it("updates bound attributes", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p :class="className">{{ className }}</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const className = ref("idle");
+
+function toggle() {
+  className.value = "active";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+    const button = fixture.root.querySelector("button");
+
+    expect(paragraph?.className).toBe("idle");
+    expect(paragraph?.textContent).toBe("idle");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.className).toBe("active");
+    expect(paragraph?.textContent).toBe("active");
+  });
+
+  it("normalizes array and object class bindings", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p :class="['base', { active: isActive, hidden: false }]">classed</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const isActive = ref(false);
+
+function toggle() {
+  isActive.value = true;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+    const button = fixture.root.querySelector("button");
+
+    expect(paragraph?.className).toBe("base");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.className).toBe("base active");
+  });
+
+  it("preserves static classes when dynamic class bindings update", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p class="note-card" :class="{ archived }">Card</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const archived = ref(false);
+
+function toggle() {
+  archived.value = true;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(paragraph?.className).toBe("note-card");
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(paragraph?.className).toBe("note-card archived");
+  });
+
+  it("auto-unwraps refs inside event call expressions", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="select(current.id)">Select</button>
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const current = ref({ id: "note-1" });
+const selected = ref("none");
+
+function select(id) {
+  selected.value = id;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("note-1");
+  });
+
+  it("supports long-form v-on and v-bind directives", () => {
+    const fixture = compileForDom(`<template>
+  <button v-on:click="toggle" v-bind:class="className">{{ className }}</button>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const className = ref("idle");
+
+function toggle() {
+  className.value = "active";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(button?.className).toBe("idle");
+    expect(button?.textContent).toBe("idle");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(button?.className).toBe("active");
+    expect(button?.textContent).toBe("active");
+  });
+
+  it("supports prevent and stop event modifiers on DOM events", () => {
+    const fixture = compileForDom(`<template>
+  <form @submit.prevent="submit">
+    <div @click="outer">
+      <button @click.stop="inner">Inner</button>
+    </div>
+    <button type="submit">Submit</button>
+    <p>{{ submitted }}:{{ outerCount }}:{{ innerCount }}</p>
+  </form>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const submitted = ref(false);
+const outerCount = ref(0);
+const innerCount = ref(0);
+
+function submit() {
+  submitted.value = true;
+}
+
+function outer() {
+  outerCount.value += 1;
+}
+
+function inner() {
+  innerCount.value += 1;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const buttons = fixture.root.querySelectorAll("button");
+    const form = fixture.root.querySelector("form");
+    const innerClick = createEvent(fixture.window, "click");
+    const submit = createEvent(fixture.window, "submit", { cancelable: true });
+
+    buttons[0]?.dispatchEvent(innerClick);
+    form?.dispatchEvent(submit);
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("true:0:1");
+    expect(innerClick.cancelBubble).toBe(true);
+    expect(submit.defaultPrevented).toBe(true);
+  });
+
+  it("syncs text inputs with v-model", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input v-model="name" />
+    <p>{{ name }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const name = ref("Mikuru");
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const input = fixture.root.querySelector("input");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(input?.value).toBe("Mikuru");
+    expect(paragraph?.textContent).toBe("Mikuru");
+
+    if (input) {
+      input.value = "Vue-like";
+      input.dispatchEvent(createEvent(fixture.window, "input"));
+    }
+
+    expect(paragraph?.textContent).toBe("Vue-like");
+  });
+
+  it("syncs textarea, checkbox, and select controls with v-model", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <textarea v-model="message"></textarea>
+    <input type="checkbox" v-model="enabled">
+    <select v-model="flavor">
+      <option value="mint">Mint</option>
+      <option value="berry">Berry</option>
+    </select>
+    <p>{{ message }}:{{ enabled }}:{{ flavor }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const message = ref("hello");
+const enabled = ref(false);
+const flavor = ref("mint");
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const textarea = fixture.root.querySelector("textarea");
+    const checkbox = fixture.root.querySelector("input");
+    const select = fixture.root.querySelector("select");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(textarea?.value).toBe("hello");
+    expect(checkbox?.checked).toBe(false);
+    expect(select?.value).toBe("mint");
+    expect(paragraph?.textContent).toBe("hello:false:mint");
+
+    if (textarea && checkbox && select) {
+      textarea.value = "updated";
+      textarea.dispatchEvent(createEvent(fixture.window, "input"));
+      checkbox.checked = true;
+      checkbox.dispatchEvent(createEvent(fixture.window, "change"));
+      select.value = "berry";
+      select.dispatchEvent(createEvent(fixture.window, "change"));
+    }
+
+    expect(paragraph?.textContent).toBe("updated:true:berry");
+  });
+
+  it("adds scoped style attributes and injects scoped CSS", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p>Hello</p>
+  </section>
+</template>
+
+<style scoped>
+section, p:hover {
+  color: red;
+}
+</style>`);
+
+    fixture.module.mount(fixture.root);
+    const section = fixture.root.querySelector("section");
+    const paragraph = fixture.root.querySelector("p");
+    const style = fixture.document.head.querySelector("style[data-mikuru-style]");
+    const scopeAttr = Array.from(section?.attributes ?? []).find((attr) => attr.name.startsWith("data-mikuru-scope-"))?.name;
+
+    expect(scopeAttr).toBeTruthy();
+    expect(paragraph?.hasAttribute(scopeAttr ?? "")).toBe(true);
+    expect(style?.textContent).toContain(`section[${scopeAttr}]`);
+    expect(style?.textContent).toContain(`p[${scopeAttr}]:hover`);
+  });
+
+  it("toggles visibility with v-show without removing the element", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p v-show="visible">Visible</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+
+function toggle() {
+  visible.value = !visible.value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p") as HTMLParagraphElement | null;
+    const button = fixture.root.querySelector("button");
+
+    expect(paragraph?.style.display).toBe("");
+    expect(paragraph?.textContent).toBe("Visible");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")).toBe(paragraph);
+    expect(paragraph?.style.display).toBe("none");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.style.display).toBe("");
+  });
+
+  it("mounts and unmounts v-if branches", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p v-if="visible">Visible</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+
+function toggle() {
+  visible.value = !visible.value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Visible");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")).toBeNull();
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Visible");
+  });
+
+  it("switches v-if, v-else-if, and v-else branches", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p v-if="mode === 'one'">One</p>
+    <p v-else-if="mode === 'two'">Two</p>
+    <p v-else>Fallback</p>
+    <button @click="next">Next</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const mode = ref("one");
+
+function next() {
+  mode.value = mode.value === "one" ? "two" : mode.value === "two" ? "other" : "one";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("One");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Two");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Fallback");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("One");
+  });
+
+  it("auto-unwraps refs inside template expressions", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p :class="{ active: mode === 'one' }">{{ mode === 'one' ? 'active' : 'paused' }}</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const mode = ref("one");
+
+function toggle() {
+  mode.value = "two";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+    const button = fixture.root.querySelector("button");
+
+    expect(paragraph?.className).toBe("active");
+    expect(paragraph?.textContent).toBe("active");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.className).toBe("");
+    expect(paragraph?.textContent).toBe("paused");
+  });
+
+  it("renders v-for items", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <ul>
+      <li v-for="item in items">{{ item }}</li>
+    </ul>
+    <button @click="add">Add</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref(["one", "two"]);
+
+function add() {
+  items.value = [...items.value, "three"];
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(Array.from(fixture.root.querySelectorAll("li")).map((item) => item.textContent)).toEqual(["one", "two"]);
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(Array.from(fixture.root.querySelectorAll("li")).map((item) => item.textContent)).toEqual([
+      "one",
+      "two",
+      "three"
+    ]);
+  });
+
+  it("renders v-for items with of syntax and index aliases", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p v-for="(item, index) of items" :key="item.id">{{ index }}:{{ item.label }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(Array.from(fixture.root.querySelectorAll("p")).map((item) => item.textContent)).toEqual(["0:Alpha", "1:Beta"]);
+    expect(Array.from(fixture.root.querySelectorAll("p")).some((item) => item.hasAttribute("key"))).toBe(false);
+  });
+
+  it("reuses keyed v-for elements across reorders", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="swap">Swap</button>
+    <article v-for="(item, index) in items" :key="item.id">{{ index }}:{{ item.label }}</article>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+
+function swap() {
+  items.value = [
+    { id: "b", label: "Beta updated" },
+    { id: "a", label: "Alpha updated" }
+  ];
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const firstRender = Array.from(fixture.root.querySelectorAll("article"));
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+    const secondRender = Array.from(fixture.root.querySelectorAll("article"));
+
+    expect(secondRender).toEqual([firstRender[1], firstRender[0]]);
+    expect(secondRender.map((item) => item.textContent)).toEqual(["0:Beta updated", "1:Alpha updated"]);
+  });
+
+  it("handles keyed v-for insert, remove, and reorder while preserving matching elements", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="shuffle">Shuffle</button>
+    <article v-for="item in items" :key="item.id">{{ item.label }}</article>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" },
+  { id: "c", label: "Gamma" }
+]);
+
+function shuffle() {
+  items.value = [
+    { id: "c", label: "Gamma updated" },
+    { id: "d", label: "Delta" },
+    { id: "a", label: "Alpha updated" }
+  ];
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const firstRender = Array.from(fixture.root.querySelectorAll("article"));
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+    const secondRender = Array.from(fixture.root.querySelectorAll("article"));
+
+    expect(secondRender.map((item) => item.textContent)).toEqual(["Gamma updated", "Delta", "Alpha updated"]);
+    expect(secondRender[0]).toBe(firstRender[2]);
+    expect(secondRender[2]).toBe(firstRender[0]);
+    expect(secondRender).not.toContain(firstRender[1]);
+  });
+
+  it("cleans removed keyed v-for element listeners", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="removeFirst">Remove first</button>
+    <article v-for="item in items" :key="item.id">
+      <button @click="select(item.id)">Select {{ item.id }}</button>
+    </article>
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref("none");
+const items = ref([
+  { id: "a" },
+  { id: "b" }
+]);
+
+function select(id) {
+  selected.value = id;
+}
+
+function removeFirst() {
+  items.value = items.value.slice(1);
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const removeButton = fixture.root.querySelector("section > button");
+    const removedItemButton = fixture.root.querySelector("article button");
+
+    removedItemButton?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("a");
+
+    removeButton?.dispatchEvent(createEvent(fixture.window, "click"));
+    removedItemButton?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(Array.from(fixture.root.querySelectorAll("article button")).map((button) => button.textContent)).toEqual(["Select b"]);
+    expect(fixture.root.querySelector("p")?.textContent).toBe("a");
+  });
+
+  it("keeps keyed component v-for event updates stable", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child v-for="item in items" :key="item.id" :item="item" @toggle="toggle" />
+    <p>{{ visible.length }}</p>
+  </section>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const items = ref([
+  { id: "a", archived: false },
+  { id: "b", archived: true }
+]);
+const visible = computed(() => items.value.filter((item) => true));
+
+const Child = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    const stop = effect(() => {
+      button.textContent = props.item.archived ? "Restore" : "Archive";
+    });
+    button.addEventListener("click", () => props.onToggle(props.item.id));
+    target.appendChild(button);
+    return {
+      element: button,
+      unmount() {
+        stop();
+        button.remove();
+      }
+    };
+  }
+};
+
+function toggle(id) {
+  items.value = items.value.map((item) => item.id === id ? { ...item, archived: !item.archived } : item);
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(Array.from(fixture.root.querySelectorAll("button")).map((button) => button.textContent)).toEqual(["Restore", "Restore"]);
+    expect(fixture.root.querySelector("p")?.textContent).toBe("2");
+  });
+
+  it("unmounts removed keyed component records exactly once", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="removeFirst">Remove first</button>
+    <Child v-for="item in items" :key="item.id" :item="item" @select="select" />
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref("none");
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+
+const Child = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    const stop = effect(() => {
+      button.textContent = props.item.label;
+    });
+    button.addEventListener("click", () => props.onSelect(props.item.id));
+    target.appendChild(button);
+    return {
+      element: button,
+      unmount() {
+        globalThis.__mikuruGeneratedDomEvents.push("unmount:" + props.item.id);
+        stop();
+        button.remove();
+      }
+    };
+  }
+};
+
+function select(id) {
+  selected.value = id;
+}
+
+function removeFirst() {
+  items.value = items.value.slice(1);
+}
+</script>`);
+
+    const events: string[] = [];
+    const previousEvents = (globalThis as { __mikuruGeneratedDomEvents?: string[] }).__mikuruGeneratedDomEvents;
+    (globalThis as { __mikuruGeneratedDomEvents?: string[] }).__mikuruGeneratedDomEvents = events;
+
+    try {
+      fixture.module.mount(fixture.root);
+      const removeButton = fixture.root.querySelector("section > button");
+      const removedChildButton = fixture.root.querySelectorAll("section > button")[1];
+
+      removedChildButton?.dispatchEvent(createEvent(fixture.window, "click"));
+      expect(fixture.root.querySelector("p")?.textContent).toBe("a");
+
+      removeButton?.dispatchEvent(createEvent(fixture.window, "click"));
+      removedChildButton?.dispatchEvent(createEvent(fixture.window, "click"));
+
+      expect(events).toEqual(["unmount:a"]);
+      expect(Array.from(fixture.root.querySelectorAll("section > button")).map((button) => button.textContent)).toEqual([
+        "Remove first",
+        "Beta"
+      ]);
+      expect(fixture.root.querySelector("p")?.textContent).toBe("a");
+    } finally {
+      (globalThis as { __mikuruGeneratedDomEvents?: string[] }).__mikuruGeneratedDomEvents = previousEvents;
+    }
+  });
+
+  it("cleans keyed component records when the parent unmounts", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child v-for="item in items" :key="item.id" :item="item" />
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+
+const Child = {
+  mount(target, props) {
+    const span = document.createElement("span");
+    const stop = effect(() => {
+      span.textContent = props.item.label;
+    });
+    target.appendChild(span);
+    return {
+      element: span,
+      unmount() {
+        globalThis.__mikuruGeneratedDomEvents.push("unmount:" + props.item.id);
+        stop();
+        span.remove();
+      }
+    };
+  }
+};
+</script>`);
+
+    const events: string[] = [];
+    const previousEvents = (globalThis as { __mikuruGeneratedDomEvents?: string[] }).__mikuruGeneratedDomEvents;
+    (globalThis as { __mikuruGeneratedDomEvents?: string[] }).__mikuruGeneratedDomEvents = events;
+
+    try {
+      const instance = fixture.module.mount(fixture.root);
+
+      expect(Array.from(fixture.root.querySelectorAll("span")).map((span) => span.textContent)).toEqual(["Alpha", "Beta"]);
+
+      instance.unmount();
+
+      expect(events).toEqual(["unmount:a", "unmount:b"]);
+      expect(fixture.root.querySelector("section")).toBeNull();
+    } finally {
+      (globalThis as { __mikuruGeneratedDomEvents?: string[] }).__mikuruGeneratedDomEvents = previousEvents;
+    }
+  });
+
+  it("cleans slot content effects when a child component unmounts", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="toggle">Toggle</button>
+    <Card v-if="visible">
+      <button @click="increment">slot count: {{ count }}</button>
+    </Card>
+    <p>{{ count }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+const count = ref(0);
+
+const Card = {
+  mount(target, props) {
+    const article = document.createElement("article");
+    const cleanup = props.children(article);
+    target.appendChild(article);
+    return {
+      element: article,
+      unmount() {
+        cleanup();
+        article.remove();
+      }
+    };
+  }
+};
+
+function increment() {
+  count.value += 1;
+}
+
+function toggle() {
+  visible.value = !visible.value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const toggle = fixture.root.querySelector("section > button");
+    const removedSlotButton = fixture.root.querySelector("article button");
+
+    removedSlotButton?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(removedSlotButton?.textContent).toBe("slot count: 1");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("1");
+
+    toggle?.dispatchEvent(createEvent(fixture.window, "click"));
+    removedSlotButton?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("article")).toBeNull();
+    expect(removedSlotButton?.textContent).toBe("slot count: 1");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("1");
+  });
+
+  it("injects component styles once per compiled component", () => {
+    const fixture = compileForDom(`<template>
+  <button>Styled</button>
+</template>
+
+<style>
+button {
+  color: red;
+}
+</style>`);
+
+    fixture.module.mount(fixture.root);
+    fixture.module.mount(fixture.root);
+
+    const styles = fixture.document.querySelectorAll("style[data-mikuru-style]");
+
+    expect(styles).toHaveLength(1);
+    expect(styles[0]?.textContent).toContain("color: red");
+  });
+
+  it("removes the root element and stops updates on unmount", () => {
+    const fixture = compileForDom(`<template>
+  <button @click="increment">count: {{ count }}</button>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const count = ref(0);
+
+function increment() {
+  count.value += 1;
+}
+</script>`);
+
+    const instance = fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(button?.textContent).toBe("count: 0");
+
+    instance.unmount();
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("button")).toBeNull();
+    expect(button?.textContent).toBe("count: 0");
+  });
+
+  it("cleans v-if branch listeners before remounting a branch", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="toggle">Toggle</button>
+    <button v-if="visible" @click="increment">count: {{ count }}</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+const count = ref(0);
+
+function toggle() {
+  visible.value = !visible.value;
+}
+
+function increment() {
+  count.value += 1;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const toggle = fixture.root.querySelector("button");
+    const firstCounter = fixture.root.querySelectorAll("button")[1];
+
+    firstCounter?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(firstCounter?.textContent).toBe("count: 1");
+
+    toggle?.dispatchEvent(createEvent(fixture.window, "click"));
+    firstCounter?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    toggle?.dispatchEvent(createEvent(fixture.window, "click"));
+    const secondCounter = fixture.root.querySelectorAll("button")[1];
+
+    expect(secondCounter?.textContent).toBe("count: 1");
+  });
+
+  it("mounts child components with props and cleans them up with the parent", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child message="static" :count="count" />
+    <button @click="increment">Increment</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const count = ref(1);
+
+const Child = {
+  mount(target, props) {
+    const span = document.createElement("span");
+    const stop = effect(() => {
+      span.textContent = props.message + ":" + props.count;
+    });
+    target.appendChild(span);
+    return {
+      element: span,
+      unmount() {
+        stop();
+        span.remove();
+      }
+    };
+  }
+};
+
+function increment() {
+  count.value += 1;
+}
+</script>`);
+
+    const instance = fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const span = fixture.root.querySelector("span");
+
+    expect(span?.textContent).toBe("static:1");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(span?.textContent).toBe("static:2");
+
+    instance.unmount();
+
+    expect(fixture.root.querySelector("span")).toBeNull();
+    expect(fixture.root.querySelector("section")).toBeNull();
+  });
+
+  it("passes component event handlers as onEvent props", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child @select="select" />
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref("none");
+
+const Child = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = "Select";
+    button.addEventListener("click", () => props.onSelect("child"));
+    target.appendChild(button);
+    return {
+      element: button,
+      unmount() {
+        button.remove();
+      }
+    };
+  }
+};
+
+function select(value) {
+  selected.value = value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(paragraph?.textContent).toBe("none");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.textContent).toBe("child");
+  });
+
+  it("passes component v-model as modelValue and update handler props", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child v-model="name" />
+    <p>{{ name }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const name = ref("Mikuru");
+
+const Child = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    const stop = effect(() => {
+      button.textContent = props.modelValue;
+    });
+    button.addEventListener("click", () => props.onUpdateModelValue("Updated"));
+    target.appendChild(button);
+    return {
+      element: button,
+      unmount() {
+        stop();
+        button.remove();
+      }
+    };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(button?.textContent).toBe("Mikuru");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Mikuru");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(button?.textContent).toBe("Updated");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Updated");
+  });
+
+  it("renders default slot content in child components", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Card title="Greeting">
+      <p>Hello {{ name }}</p>
+    </Card>
+    <button @click="rename">Rename</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const name = ref("Mikuru");
+
+const Card = {
+  mount(target, props) {
+    const article = document.createElement("article");
+    const heading = document.createElement("h2");
+    const body = document.createElement("div");
+    heading.textContent = props.title;
+    article.appendChild(heading);
+    article.appendChild(body);
+    const cleanup = props.children?.(body);
+    target.appendChild(article);
+    return {
+      element: article,
+      unmount() {
+        cleanup?.();
+        article.remove();
+      }
+    };
+  }
+};
+
+function rename() {
+  name.value = "Slot";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(fixture.root.querySelector("h2")?.textContent).toBe("Greeting");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Hello Mikuru");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Hello Slot");
+  });
+
+  it("reads component props through defineProps", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <span>{{ message }}:{{ count }}</span>
+    <em>{{ localProps.label }}</em>
+  </section>
+</template>
+
+<script>
+const { message, count } = defineProps();
+const localProps = defineProps();
+</script>`);
+
+    fixture.module.mount(fixture.root, { message: "Hello", count: 3, label: "Alias" });
+
+    expect(fixture.root.querySelector("span")?.textContent).toBe("Hello:3");
+    expect(fixture.root.querySelector("em")?.textContent).toBe("Alias");
+  });
+
+  it("keeps destructured defineProps values reactive", () => {
+    const fixture = compileForDom(`<template>
+  <p>{{ count }}</p>
+</template>
+
+<script>
+const { count } = defineProps();
+</script>`);
+    const count = ref(1);
+
+    fixture.module.mount(fixture.root, {
+      get count() {
+        return count.value;
+      }
+    });
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("1");
+
+    count.value = 2;
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("2");
+  });
+
+  it("supports aliases and defaults in defineProps destructuring", () => {
+    const fixture = compileForDom(`<template>
+  <p>{{ heading }}:{{ active }}:{{ total }}</p>
+</template>
+
+<script>
+const { title: heading, active = false, count: total = 0 } = defineProps();
+</script>`);
+    const title = ref("First");
+
+    fixture.module.mount(fixture.root, {
+      get title() {
+        return title.value;
+      }
+    });
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("First:false:0");
+
+    title.value = "Second";
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Second:false:0");
+  });
+
+  it("emits component events with defineEmits", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="select">Select</button>
+    <button @click="selectItem">Select item</button>
+  </section>
+</template>
+
+<script>
+const emit = defineEmits();
+
+function select() {
+  emit("select", "plain");
+}
+
+function selectItem() {
+  emit("item-select", "kebab");
+}
+</script>`);
+
+    const selected = ref("none");
+    fixture.module.mount(fixture.root, {
+      onSelect(value: string) {
+        selected.value = value;
+      },
+      onItemSelect(value: string) {
+        selected.value = value;
+      }
+    });
+    const buttons = fixture.root.querySelectorAll("button");
+
+    buttons[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(selected.value).toBe("plain");
+
+    buttons[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(selected.value).toBe("kebab");
+  });
+
+  it("maps colon emit names to camel case handler props", () => {
+    const fixture = compileForDom(`<template>
+  <button @click="update">Update</button>
+</template>
+
+<script>
+const emit = defineEmits(["update:modelValue"]);
+
+function update() {
+  emit("update:modelValue", "next");
+}
+</script>`);
+
+    const value = ref("initial");
+    fixture.module.mount(fixture.root, {
+      onUpdateModelValue(next: string) {
+        value.value = next;
+      }
+    });
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(value.value).toBe("next");
+  });
+});
+
+function compileForDom(source: string): CompiledFixture {
+  const window = new Window();
+  const document = window.document;
+  const root = document.createElement("div");
+  const { code } = compile(source, { filename: "GeneratedDom.mikuru" });
+  const domDocument = document as unknown as Document;
+  const module = loadCompiledModule(code, domDocument);
+
+  document.body.appendChild(root);
+
+  return { document: domDocument, module, root: root as unknown as HTMLDivElement, window };
+}
+
+function createEvent(window: Window, type: string, options?: EventInit): Event {
+  return new window.Event(type, options) as unknown as Event;
+}
+
+function loadCompiledModule(code: string, document: Document): CompiledModule {
+  const executableCode = code
+    .replace(/import\s+\{[^}]+\}\s+from\s+["'][^"']*(?:mikuru|mikuru)[^"']*["'];?\n+/g, "")
+    .replace("export function mount", "function mount")
+    .replace(/\nexport default __mikuru_component;\n?$/, "\n");
+  const factory = new Function(
+    "computed",
+    "effect",
+    "ref",
+    "setAttribute",
+    "unwrap",
+    "document",
+    `${executableCode}\nreturn { mount };`
+  ) as (
+    computedArg: typeof computed,
+    effectArg: typeof effect,
+    refArg: typeof ref,
+    setAttributeArg: typeof setAttribute,
+    unwrapArg: typeof unwrap,
+    documentArg: Document
+  ) => CompiledModule;
+
+  return factory(computed, effect, ref, setAttribute, unwrap, document);
+}

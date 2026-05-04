@@ -1,0 +1,11 @@
+.cursor/
+node_modules/
+dist/
+examples/basic/dist/
+examples/dogfood/dist/
+examples/realworld/dist/
+examples/mikuru-sample/dist/
+examples/mikuru-vue-like/dist/
+test-results/
+playwright-report/
+*.tsbuildinfo
