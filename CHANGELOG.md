@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+- Added a starter favicon to projects created with `mikuru create`.
+- Added CLI `--version`, create help, `--template starter`, and clearer create errors.
+
 ## 1.0.3
 
 - Added `mikuru/env` for package-provided `.mikuru` TypeScript declarations.
