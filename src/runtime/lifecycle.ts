@@ -4,6 +4,13 @@ export type WatchSource<T = unknown> = (() => T) | { value: T } | T;
 export type WatchOptions = {
   immediate?: boolean;
 };
+export type WatchCleanup = () => void;
+export type WatchCleanupRegistrar = (cleanup: WatchCleanup) => void;
+export type WatchCallback<T = unknown> = (
+  newV: T | unknown,
+  oldV: T | unknown,
+  onCleanup: WatchCleanupRegistrar
+) => void;
 
 export function nextTick(fn?: () => void): Promise<void> {
   const p = Promise.resolve().then(() => {
@@ -22,21 +29,42 @@ function isRefLike(value: unknown): value is { value: unknown } {
 
 export function watch<T = unknown>(
   source: WatchSource<T> | WatchSource<T>[],
-  cb: (newV: T | unknown, oldV: T | unknown) => void,
+  cb: WatchCallback<T>,
   options: WatchOptions = {}
 ): () => void {
   const sources = Array.isArray(source) ? source : [source as WatchSource<T>];
 
   let oldVals: unknown[] = sources.map((s) => (isRefLike(s) ? (s as any).value : typeof s === "function" ? (s as any)() : s));
   let stopped = false;
+  let cleanup: WatchCleanup | undefined;
 
-  if (options.immediate) {
-    const curr = oldVals.length === 1 ? oldVals[0] : oldVals.slice();
+  const onCleanup: WatchCleanupRegistrar = (fn) => {
+    cleanup = fn;
+  };
+
+  const runCleanup = () => {
+    if (!cleanup) return;
+    const fn = cleanup;
+    cleanup = undefined;
     try {
-      cb(curr as any, undefined);
+      fn();
     } catch (e) {
       setTimeout(() => { throw e; });
     }
+  };
+
+  const runCallback = (next: unknown, previous: unknown) => {
+    runCleanup();
+    try {
+      cb(next as any, previous as any, onCleanup);
+    } catch (e) {
+      setTimeout(() => { throw e; });
+    }
+  };
+
+  if (options.immediate) {
+    const curr = oldVals.length === 1 ? oldVals[0] : oldVals.slice();
+    runCallback(curr, undefined);
   }
 
   const stopEffect = effect(() => {
@@ -53,16 +81,14 @@ export function watch<T = unknown>(
       const prev = oldVals.length === 1 ? oldVals[0] : oldVals.slice();
       const curr = nextVals.length === 1 ? nextVals[0] : nextVals.slice();
       oldVals = nextVals;
-      try {
-        cb(curr as any, prev as any);
-      } catch (e) {
-        setTimeout(() => { throw e; });
-      }
+      runCallback(curr, prev);
     }
   });
 
   return () => {
+    if (stopped) return;
     stopped = true;
+    runCleanup();
     stopEffect();
   };
 }

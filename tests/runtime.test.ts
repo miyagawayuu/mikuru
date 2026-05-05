@@ -125,6 +125,31 @@ describe("runtime reactivity", () => {
     ]);
   });
 
+  it("runs watch cleanup before the next callback and when stopped", () => {
+    const count = ref(0);
+    const calls: string[] = [];
+    const stop = watch(count, (next, previous, onCleanup) => {
+      calls.push(`callback:${String(previous)}->${String(next)}`);
+      onCleanup(() => {
+        calls.push(`cleanup:${String(next)}`);
+      });
+    }, { immediate: true });
+
+    count.value = 1;
+    count.value = 2;
+    stop();
+    count.value = 3;
+
+    expect(calls).toEqual([
+      "callback:undefined->0",
+      "cleanup:0",
+      "callback:0->1",
+      "cleanup:1",
+      "callback:1->2",
+      "cleanup:2"
+    ]);
+  });
+
   it("registers lifecycle callbacks with the current mount registrar", () => {
     const mounted: Array<() => void> = [];
     const beforeUnmount: Array<() => void> = [];

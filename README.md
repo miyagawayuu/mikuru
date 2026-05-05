@@ -135,7 +135,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
 - `v-model` for common form controls and child components
 - Component props, events, `defineProps`, `defineEmits`, default slots, named slots, and slot props
-- Runtime helpers including `ref`, `computed`, `effect`, `watch`, `nextTick`, lifecycle callbacks, `provide`, and `inject`
+- Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, and `inject`
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, and code frames
 

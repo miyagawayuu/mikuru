@@ -76,9 +76,11 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 
 ## Next Patch Draft
 
-The next patch release is expected to focus on the `mikuru create` experience rather than core compiler behavior.
+The next patch release is expected to focus on the `mikuru create` experience, runtime watcher ergonomics, and clearer guidance for unsupported template syntax.
 
 - Template discovery: `mikuru --list-templates`, template descriptions, and `-t` shorthand.
 - Safer creation: interactive project/template prompts, `--yes` defaults, typo suggestions, and `--dry-run` previews.
 - Generated app checks: starter/basic templates include `npm run typecheck`, `tsconfig.json`, and CSS import declarations.
+- Runtime watchers: `watch(..., { immediate: true })` and cleanup callbacks for work that must be canceled before the next watcher run or stop.
+- Compiler guidance: unsupported `v-html`, dynamic components, and misplaced `v-slot` errors include actionable alternatives.
 - Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.

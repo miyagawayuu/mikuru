@@ -146,8 +146,24 @@ v1では、`effect` は停止関数を返し、生成された `mount` は `unmo
 v1では、アプリ側の実用性を補うために小さな監視・ライフサイクルAPIを提供する。
 
 - `watch(source, cb)` はref風の値、getter、通常値、またはそれらの配列を監視し、変更時にコールバックを呼ぶ。
+- `watch(source, cb, { immediate: true })` は現在値で初回コールバックを即時実行する。
+- `watch` のコールバックは第3引数 `onCleanup(fn)` を受け取り、次のコールバック直前または停止時にcleanupを実行できる。
 - `onMounted(fn)`、`onBeforeUnmount(fn)`、`onUnmounted(fn)` はmount中のMikuruコンポーネントに対してコールバックを登録する。
 - `provide(key, value)` と `inject(key, fallback?)` はruntime-level helperであり、v1ではコンポーネントツリー単位のスコープを持たない。
+
+```js
+const stop = watch(count, (next, previous, onCleanup) => {
+  const timer = setTimeout(() => {
+    console.log(next, previous);
+  }, 100);
+
+  onCleanup(() => {
+    clearTimeout(timer);
+  });
+}, { immediate: true });
+
+stop();
+```
 
 ## 非目標
 

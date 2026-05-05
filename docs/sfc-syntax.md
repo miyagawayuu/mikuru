@@ -301,3 +301,25 @@ v1では、曖昧な構文を黙って無視しない。
 - 複数の同種ブロックはコンパイルエラーにする。
 - ルート要素が複数ある場合はコンパイルエラーにする。
 - テンプレート式の解析に失敗した場合は、対象式を含めてエラーを出す。
+
+未対応構文では、できるだけ次に取れる選択肢もエラーに含める。
+
+```mikuru
+<div v-html="html"></div>
+```
+
+`v-html` はv1対象外。プレーンテキストなら補間を使い、HTMLを扱う場合はscript側でサニタイズ済みのDOM更新として明示する。
+
+```mikuru
+<component :is="current" />
+```
+
+動的コンポーネントはv1対象外。importした明示的なコンポーネントをテンプレートに書く。
+
+```mikuru
+<Panel v-slot:header>
+  Header
+</Panel>
+```
+
+コンポーネント本体に付けた `v-slot` はv1対象外。named slotは `<template #header>...</template>` または `<template v-slot:header>...</template>` で渡す。
