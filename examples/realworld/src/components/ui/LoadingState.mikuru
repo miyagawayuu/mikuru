@@ -1,0 +1,34 @@
+<template>
+  <section class="loading-state" aria-live="polite">
+    <span class="spinner"></span>
+    <p>{{ message }}</p>
+  </section>
+</template>
+
+<script>
+const { message = "Loading..." } = defineProps();
+</script>
+
+<style scoped>
+.loading-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #eff6ff;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #93c5fd;
+  border-top-color: #2563eb;
+  border-radius: 999px;
+}
+
+p {
+  margin: 0;
+}
+</style>

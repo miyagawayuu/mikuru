@@ -1,0 +1,18 @@
+<template>
+  <p v-if="message" class="inline-error" role="alert">{{ message }}</p>
+</template>
+
+<script>
+const { message = "" } = defineProps();
+</script>
+
+<style scoped>
+.inline-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+}
+</style>

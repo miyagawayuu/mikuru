@@ -1,0 +1,7 @@
+<template>
+  <DashboardPage />
+</template>
+
+<script>
+import DashboardPage from "./pages/DashboardPage.mikuru";
+</script>

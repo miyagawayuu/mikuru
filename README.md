@@ -197,4 +197,5 @@ npm run dev:mikuru-vue-like
 
 - `CHANGELOG.md` lists published package changes.
 - `docs/npm-usage.md` shows a manual Vite setup for package consumers.
+- `docs/app-architecture.md` describes how to keep larger Mikuru apps split across components, API modules, stores, forms, auth, and tests.
 - `docs/v1-api-contract.md` describes the v1 compatibility boundary used by this repository.

@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+
+import { createReleaseTask, listReleaseTasks } from "../examples/realworld/src/features/tasks/tasksApi.js";
+import { createTasksStore } from "../examples/realworld/src/features/tasks/tasksStore.js";
+
+describe("realworld architecture layers", () => {
+  it("loads typed tasks through the feature API module", async () => {
+    const tasks = await listReleaseTasks();
+
+    expect(tasks).toHaveLength(3);
+    expect(tasks[0]).toMatchObject({
+      id: "frames",
+      owner: "Compiler",
+      priority: "high"
+    });
+  });
+
+  it("validates task creation outside of .mikuru components", async () => {
+    await expect(createReleaseTask({ title: "  ", owner: "DX" })).rejects.toThrow(/Task title is required/);
+
+    await expect(createReleaseTask({ title: "Document app architecture", owner: "DX" })).resolves.toMatchObject({
+      title: "Document app architecture",
+      owner: "DX",
+      priority: "medium"
+    });
+  });
+
+  it("keeps loading, filtering, and mutation state in the task store", async () => {
+    const store = createTasksStore();
+
+    expect(store.loading.value).toBe(false);
+
+    const loadingPromise = store.loadTasks();
+    expect(store.loading.value).toBe(true);
+    await loadingPromise;
+
+    expect(store.loading.value).toBe(false);
+    expect(store.tasks.value).toHaveLength(3);
+
+    store.search.value = "package";
+    expect(store.filteredTasks.value).toHaveLength(1);
+    expect(store.filteredTasks.value[0]?.owner).toBe("DX");
+
+    store.newTitle.value = "Add architecture tests";
+    store.newOwner.value = "Runtime";
+    await store.addTask();
+
+    expect(store.formError.value).toBeNull();
+    expect(store.tasks.value.at(-1)).toMatchObject({
+      title: "Add architecture tests",
+      owner: "Runtime"
+    });
+    expect(store.newTitle.value).toBe("");
+  });
+});

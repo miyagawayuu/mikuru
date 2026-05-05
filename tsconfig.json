@@ -11,6 +11,8 @@
     "rootDir": ".",
     "baseUrl": ".",
     "paths": {
+      "mikuru": ["src/index.ts"],
+      "mikuru/runtime": ["src/runtime/index.ts"],
       "@mikuru-src/runtime": ["src/runtime/index.ts"],
       "@mikuru-src/*": ["src/*"]
     },

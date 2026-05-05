@@ -1,0 +1,43 @@
+<template>
+  <button class="ui-button" :class="{ secondary: variant === 'secondary' }" :disabled="disabled || loading" @click="handleClick">
+    <slot>{{ loading ? "Working..." : label }}</slot>
+  </button>
+</template>
+
+<script>
+const { label = "", variant = "primary", disabled = false, loading = false } = defineProps();
+const emit = defineEmits(["click"]);
+
+function handleClick() {
+  if (disabled || loading) {
+    return;
+  }
+
+  emit("click");
+}
+</script>
+
+<style scoped>
+.ui-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.ui-button.secondary {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #172033;
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+</style>

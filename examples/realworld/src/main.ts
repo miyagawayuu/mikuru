@@ -1,4 +1,4 @@
-import App from "../App.mikuru";
+import App from "./App.mikuru";
 
 const root = document.getElementById("app");
 

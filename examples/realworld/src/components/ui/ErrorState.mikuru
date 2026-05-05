@@ -1,0 +1,38 @@
+<template>
+  <section class="error-state" role="alert">
+    <div>
+      <strong>Something went wrong</strong>
+      <p>{{ message }}</p>
+    </div>
+    <UiButton variant="secondary" @click="retry">Retry</UiButton>
+  </section>
+</template>
+
+<script>
+import UiButton from "./Button.mikuru";
+
+const { message = "Please try again." } = defineProps();
+const emit = defineEmits(["retry"]);
+
+function retry() {
+  emit("retry");
+}
+</script>
+
+<style scoped>
+.error-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+p {
+  margin: 4px 0 0;
+}
+</style>
