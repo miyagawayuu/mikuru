@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.8
+
+- Added a realworld app architecture guide and split the realworld example into page, feature, API, store, UI, and test layers.
+- Added realworld routing, auth guard, 404 page, form validation helper, and API auth header examples.
+- Expanded realworld E2E coverage for task interactions, validation, protected routes, and missing routes.
+- Added object-form `v-bind` and `v-on` support for DOM elements and child components.
+
 ## 1.0.7
 
 - Added fallback children for `<slot>` outlets when no matching parent slot is provided.

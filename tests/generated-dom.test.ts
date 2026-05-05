@@ -184,6 +184,83 @@ function toggle() {
     expect(button?.textContent).toBe("active");
   });
 
+  it("supports object-form v-bind on DOM elements", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p class="static" v-bind="attrs">bound</p>
+    <button @click="update">Update</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const attrs = ref({
+  title: "Initial",
+  "data-state": "ready"
+});
+
+function update() {
+  attrs.value = {
+    title: "Updated",
+    hidden: false
+  };
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(paragraph?.getAttribute("title")).toBe("Initial");
+    expect(paragraph?.getAttribute("data-state")).toBe("ready");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.getAttribute("title")).toBe("Updated");
+    expect(paragraph?.hasAttribute("data-state")).toBe(false);
+    expect(paragraph?.hasAttribute("hidden")).toBe(false);
+  });
+
+  it("supports object-form v-on on DOM elements", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button v-on="listeners">Select</button>
+    <button @click="swap">Swap</button>
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref("none");
+const listeners = ref({
+  click() {
+    selected.value = "first";
+  }
+});
+
+function swap() {
+  listeners.value = {
+    click() {
+      selected.value = "second";
+    }
+  };
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const buttons = fixture.root.querySelectorAll("button");
+
+    buttons[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("first");
+
+    buttons[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("second");
+  });
+
   it("supports prevent and stop event modifiers on DOM events", () => {
     const fixture = compileForDom(`<template>
   <form @submit.prevent="submit">
@@ -1155,6 +1232,57 @@ function select(value) {
     button?.dispatchEvent(createEvent(fixture.window, "click"));
 
     expect(paragraph?.textContent).toBe("child");
+  });
+
+  it("passes object-form component props and event handlers", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child v-bind="childProps" v-on="childListeners" title="Explicit" />
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref("none");
+const childProps = ref({
+  title: "Object title",
+  detail: "from object"
+});
+const childListeners = ref({
+  select(value) {
+    selected.value = value;
+  }
+});
+
+const Child = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    const stop = effect(() => {
+      button.textContent = props.title + ":" + props.detail;
+    });
+    button.addEventListener("click", () => props.onSelect("object"));
+    target.appendChild(button);
+    return {
+      element: button,
+      unmount() {
+        stop();
+        button.remove();
+      }
+    };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(button?.textContent).toBe("Explicit:from object");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("object");
   });
 
   it("passes component v-model as modelValue and update handler props", () => {

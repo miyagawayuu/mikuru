@@ -335,6 +335,16 @@ function generateElement(
       continue;
     }
 
+    if (isObjectBindAttr(attr)) {
+      emitObjectBind(context, elementVar, attr, cleanupVar, indent);
+      continue;
+    }
+
+    if (isObjectOnAttr(attr)) {
+      emitObjectListeners(context, elementVar, attr, cleanupVar, indent);
+      continue;
+    }
+
     const event = parseEventDirective(attr.name);
 
     if (event) {
@@ -412,6 +422,82 @@ function generateText(
 
   appendNode(context, parentVar, textVar, indent, beforeVar);
   return textVar;
+}
+
+function emitObjectBind(
+  context: GenerateContext,
+  elementVar: string,
+  attr: TemplateAttribute,
+  cleanupVar: string,
+  indent: number
+): void {
+  const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+  const prevKeysVar = nextVar(context, "boundKeys");
+  const stopVar = nextVar(context, "stop");
+  const attrsVar = nextVar(context, "attrs");
+  const nextKeysVar = nextVar(context, "boundKeys");
+  const keyVar = nextVar(context, "key");
+  const valueVar = nextVar(context, "value");
+  const staleKeyVar = nextVar(context, "key");
+  emit(context, indent, `const ${prevKeysVar} = new Set();`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${attrsVar} = unwrap(${expression}) ?? {};`);
+  emit(context, indent + 1, `const ${nextKeysVar} = new Set();`);
+  emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
+  emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${attrsVar})) {`);
+  emit(context, indent + 3, `${nextKeysVar}.add(${keyVar});`);
+  emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
+  emit(context, indent + 2, "}");
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `for (const ${staleKeyVar} of ${prevKeysVar}) {`);
+  emit(context, indent + 2, `if (!${nextKeysVar}.has(${staleKeyVar})) {`);
+  emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
+  emit(context, indent + 2, "}");
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `${prevKeysVar}.clear();`);
+  emit(context, indent + 1, `for (const ${keyVar} of ${nextKeysVar}) {`);
+  emit(context, indent + 2, `${prevKeysVar}.add(${keyVar});`);
+  emit(context, indent + 1, "}");
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+}
+
+function emitObjectListeners(
+  context: GenerateContext,
+  elementVar: string,
+  attr: TemplateAttribute,
+  cleanupVar: string,
+  indent: number
+): void {
+  const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+  const listenersVar = nextVar(context, "listeners");
+  const stopVar = nextVar(context, "stop");
+  const sourceVar = nextVar(context, "listeners");
+  const eventVar = nextVar(context, "event");
+  const handlerVar = nextVar(context, "handler");
+  emit(context, indent, `const ${listenersVar} = new Map();`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `for (const [${eventVar}, ${handlerVar}] of ${listenersVar}) {`);
+  emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar});`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `${listenersVar}.clear();`);
+  emit(context, indent + 1, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
+  emit(context, indent + 1, `if (${sourceVar} && typeof ${sourceVar} === "object") {`);
+  emit(context, indent + 2, `for (const [${eventVar}, ${handlerVar}] of Object.entries(${sourceVar})) {`);
+  emit(context, indent + 3, `if (typeof ${handlerVar} === "function") {`);
+  emit(context, indent + 4, `${elementVar}.addEventListener(${eventVar}, ${handlerVar});`);
+  emit(context, indent + 4, `${listenersVar}.set(${eventVar}, ${handlerVar});`);
+  emit(context, indent + 3, "}");
+  emit(context, indent + 2, "}");
+  emit(context, indent + 1, "}");
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${stopVar}();`);
+  emit(context, indent + 1, `for (const [${eventVar}, ${handlerVar}] of ${listenersVar}) {`);
+  emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar});`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `${listenersVar}.clear();`);
+  emit(context, indent, "});");
 }
 
 function generateChildren(
@@ -1181,10 +1267,14 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   const props = node.attrs
     .filter((attr) => !isStructuralAttr(attr))
     .flatMap((attr) => componentPropEntries(context, attr));
+  const objectBindAttrs = node.attrs.filter((attr) => isObjectBindAttr(attr));
+  const objectOnAttrs = node.attrs.filter((attr) => isObjectOnAttr(attr));
   const slots = collectComponentSlots(context, node);
   const defaultSlot = slots.find((slot) => slot.name === "default");
+  const needsProxy = objectBindAttrs.length > 0 || objectOnAttrs.length > 0;
+  const propsTargetVar = needsProxy ? nextVar(context, "propsBase") : propsVar;
 
-  emit(context, indent, `const ${propsVar} = {`);
+  emit(context, indent, `const ${propsTargetVar} = {`);
 
   for (const prop of props) {
     emit(context, indent + 1, `${prop},`);
@@ -1205,6 +1295,59 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   }
 
   emit(context, indent, "};");
+
+  if (needsProxy) {
+    emitComponentPropsProxy(context, propsVar, propsTargetVar, objectBindAttrs, objectOnAttrs, indent);
+  }
+}
+
+function emitComponentPropsProxy(
+  context: GenerateContext,
+  propsVar: string,
+  propsTargetVar: string,
+  objectBindAttrs: TemplateAttribute[],
+  objectOnAttrs: TemplateAttribute[],
+  indent: number
+): void {
+  const keyVar = nextVar(context, "key");
+  const sourceVar = nextVar(context, "source");
+  const eventNameVar = nextVar(context, "eventName");
+  const handlerVar = nextVar(context, "handler");
+  const propNameVar = nextVar(context, "propName");
+  emit(context, indent, `const ${propsVar} = new Proxy(${propsTargetVar}, {`);
+  emit(context, indent + 1, `get(target, ${keyVar}) {`);
+  emit(context, indent + 2, `if (typeof ${keyVar} === "symbol" || ${keyVar} in target) {`);
+  emit(context, indent + 3, `return target[${keyVar}];`);
+  emit(context, indent + 2, "}");
+
+  for (const attr of objectBindAttrs) {
+    const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    emit(context, indent + 2, `{`);
+    emit(context, indent + 3, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
+    emit(context, indent + 3, `if (${sourceVar} && typeof ${sourceVar} === "object" && ${keyVar} in ${sourceVar}) {`);
+    emit(context, indent + 4, `return unwrap(${sourceVar}[${keyVar}]);`);
+    emit(context, indent + 3, "}");
+    emit(context, indent + 2, `}`);
+  }
+
+  for (const attr of objectOnAttrs) {
+    const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    emit(context, indent + 2, `{`);
+    emit(context, indent + 3, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
+    emit(context, indent + 3, `if (${sourceVar} && typeof ${sourceVar} === "object") {`);
+    emit(context, indent + 4, `for (const [${eventNameVar}, ${handlerVar}] of Object.entries(${sourceVar})) {`);
+    emit(context, indent + 5, `const ${propNameVar} = "on" + String(${eventNameVar}).split(/[-:]/).filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join("");`);
+    emit(context, indent + 5, `if (${propNameVar} === ${keyVar} && typeof ${handlerVar} === "function") {`);
+    emit(context, indent + 6, `return ${handlerVar};`);
+    emit(context, indent + 5, "}");
+    emit(context, indent + 4, "}");
+    emit(context, indent + 3, "}");
+    emit(context, indent + 2, `}`);
+  }
+
+  emit(context, indent + 2, "return undefined;");
+  emit(context, indent + 1, "}");
+  emit(context, indent, "});");
 }
 
 function emitSlotFunction(context: GenerateContext, propertyName: string, slot: SlotDefinition, indent: number): void {
@@ -1404,6 +1547,10 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
     throwTemplateError("v-slot must be used on a <template> child in Mikuru", context, attr.loc);
   }
 
+  if (isObjectBindAttr(attr) || isObjectOnAttr(attr)) {
+    return [];
+  }
+
   if (attr.name === "v-model") {
     const expression = validateAssignableExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     const valueExpression = compileTemplateExpression(expression, attr.name, toExpressionContext(context, attr.valueLoc));
@@ -1479,9 +1626,19 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
     attr.name === "v-for" ||
     attr.name === "v-show" ||
     attr.name === "v-model" ||
+    isObjectBindAttr(attr) ||
+    isObjectOnAttr(attr) ||
     Boolean(parseEventDirective(attr.name)) ||
     Boolean(getBindingName(attr.name))
   );
+}
+
+function isObjectBindAttr(attr: TemplateAttribute): boolean {
+  return attr.name === "v-bind";
+}
+
+function isObjectOnAttr(attr: TemplateAttribute): boolean {
+  return attr.name === "v-on";
 }
 
 function parseEventDirective(name: string): EventDirective | undefined {

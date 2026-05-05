@@ -140,10 +140,6 @@ function rejectUnsupportedAttribute(node: ElementNode, attr: TemplateAttribute, 
     throwTemplateError("v-html is not supported in v1", attr.loc, options);
   }
 
-  if (attr.name === "v-bind" || attr.name === "v-on") {
-    throwTemplateError(`Object-form ${attr.name} is not supported in v1`, attr.loc, options);
-  }
-
   if ((attr.name === "v-slot" || attr.name.startsWith("v-slot:") || attr.name.startsWith("#")) && node.tag !== "template") {
     throwTemplateError("v-slot must be used on a <template> child in Mikuru", attr.loc, options);
   }
