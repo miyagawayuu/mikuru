@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Made generated project templates use the installed Mikuru package version instead of hard-coded release versions.
+- Added a template version smoke test to prevent future template/package version drift.
+- Added `mikuru --list-templates`, `mikuru create --list-templates`, and `mikuru create -t <name>` for template discovery and shorthand selection.
+- Improved `mikuru create .` output so it does not print an unnecessary `cd .` next step.
+
 ## 1.0.9
 
 - Updated generated project templates to depend on Mikuru `^1.0.9`.
