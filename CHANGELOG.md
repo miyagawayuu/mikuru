@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.6
+
+- Added named slots with `<slot name="...">`, `<template #name>`, and `<template v-slot:name>`.
+- Added simple slot props with identifier and object destructuring scope bindings.
+- Updated v1 docs and release notes to list named slots and slot props as supported.
+
 ## 1.0.5
 
 - Added a `basic` project template for `mikuru create --template basic`.
