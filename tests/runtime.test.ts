@@ -108,6 +108,23 @@ describe("runtime reactivity", () => {
     ]);
   });
 
+  it("supports immediate watch callbacks", () => {
+    const count = ref(2);
+    const calls: Array<{ next: unknown; previous: unknown }> = [];
+    const stop = watch(count, (next, previous) => {
+      calls.push({ next, previous });
+    }, { immediate: true });
+
+    count.value = 3;
+    stop();
+    count.value = 4;
+
+    expect(calls).toEqual([
+      { next: 2, previous: undefined },
+      { next: 3, previous: 2 }
+    ]);
+  });
+
   it("registers lifecycle callbacks with the current mount registrar", () => {
     const mounted: Array<() => void> = [];
     const beforeUnmount: Array<() => void> = [];

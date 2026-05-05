@@ -131,17 +131,29 @@ function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemp
 
 function rejectUnsupportedNodeFeatures(node: ElementNode, options: AnalyzeTemplateOptions): void {
   if (node.tag === "component") {
-    throwTemplateError("Dynamic components are not supported in v1", node.loc, options);
+    throwTemplateError(
+      "Dynamic components are not supported in v1. Import and render an explicit component instead.",
+      node.loc,
+      options
+    );
   }
 }
 
 function rejectUnsupportedAttribute(node: ElementNode, attr: TemplateAttribute, options: AnalyzeTemplateOptions): void {
   if (attr.name === "v-html") {
-    throwTemplateError("v-html is not supported in v1", attr.loc, options);
+    throwTemplateError(
+      "v-html is not supported in v1. Use text interpolation for plain text or set sanitized HTML from script code.",
+      attr.loc,
+      options
+    );
   }
 
   if ((attr.name === "v-slot" || attr.name.startsWith("v-slot:") || attr.name.startsWith("#")) && node.tag !== "template") {
-    throwTemplateError("v-slot must be used on a <template> child in Mikuru", attr.loc, options);
+    throwTemplateError(
+      "v-slot must be used on a <template> child in Mikuru. Wrap slot content in <template #name>...</template>.",
+      attr.loc,
+      options
+    );
   }
 }
 
