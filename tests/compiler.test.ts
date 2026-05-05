@@ -131,6 +131,21 @@ describe("compiler", () => {
     expect(result.code).toContain("unmount()");
   });
 
+  it("keeps runtime helper imports available inside normalized scripts", () => {
+    const result = compile(`<template><p>{{ status }}</p></template>
+<script>
+import { onBeforeUnmount, ref, watch } from "mikuru";
+
+const status = ref("idle");
+const stop = watch(status, () => {});
+onBeforeUnmount(stop);
+</script>`);
+
+    expect(result.code).toContain("onBeforeUnmount");
+    expect(result.code).toContain("watch");
+    expect(result.code).toContain("const stop = watch(status");
+  });
+
   it("returns a source map with original SFC contents", () => {
     const result = compile(counterSource, { filename: "Counter.mikuru" });
 
