@@ -63,12 +63,13 @@ Prefer `.value` in `<script>` code. In templates, avoid using object properties 
 
 ## Events
 
-Use `@event` or `v-on:event` for DOM events.
+Use `@event` or `v-on:event` for DOM events. Use `v-on="listeners"` when an object should provide multiple DOM or component event handlers.
 
 ```mikuru
 <button @click="save">Save</button>
 <form @submit.prevent="save">...</form>
 <button @click.stop="select">Select</button>
+<button v-on="listeners">Select</button>
 ```
 
 Supported DOM event modifiers are:
@@ -86,10 +87,11 @@ Mikuru validates event expressions as JavaScript expressions. Statements and ass
 
 ## Attributes and Classes
 
-Use `:attr` or `v-bind:attr` for dynamic attributes.
+Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when an object should provide multiple DOM attributes or component props.
 
 ```mikuru
 <p :title="message">{{ message }}</p>
+<p v-bind="attrs">{{ message }}</p>
 <article class="card" :class="{ archived: note.archived }">
   {{ note.title }}
 </article>

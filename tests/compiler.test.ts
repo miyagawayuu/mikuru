@@ -195,6 +195,26 @@ p { color: red; }
     expect(result.code).toContain("onUpdateModelValue: ($value) => { name.value = $value; }");
   });
 
+  it("generates object-form v-bind and v-on for elements and components", () => {
+    const element = compile(`<template><button v-bind="attrs" v-on="listeners">Save</button></template>
+<script>
+const attrs = { title: "Save" };
+const listeners = { click() {} };
+</script>`);
+    const component = compile(`<template><Child v-bind="childProps" v-on="childListeners" title="Explicit" /></template>
+<script>
+import Child from "./Child.mikuru";
+const childProps = { title: "Object title" };
+const childListeners = { select() {} };
+</script>`);
+
+    expect(element.code).toContain("Object.entries");
+    expect(element.code).toContain("removeEventListener");
+    expect(component.code).toContain("new Proxy");
+    expect(component.code).toContain("childProps");
+    expect(component.code).toContain("childListeners");
+  });
+
   it("generates named slots and slot props", () => {
     const result = compile(`<template>
   <Panel>
@@ -425,12 +445,6 @@ const count = 0;
 
   it("rejects unsupported v1 template constructs explicitly", () => {
     expect(() => compile(`<template><section v-html="html"></section></template>`)).toThrow(/v-html is not supported in v1/);
-    expect(() => compile(`<template><section v-bind="attrs"></section></template>`)).toThrow(
-      /Object-form v-bind is not supported in v1/
-    );
-    expect(() => compile(`<template><section v-on="listeners"></section></template>`)).toThrow(
-      /Object-form v-on is not supported in v1/
-    );
     expect(() => compile(`<template><component :is="current" /></template>`)).toThrow(
       /Dynamic components are not supported in v1/
     );

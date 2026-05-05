@@ -71,6 +71,5 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 - Transitions and devtools.
 - Dynamic components.
 - `v-html`.
-- Object-form `v-bind` and `v-on`.
 - Full Vue compatibility.
 - Precise source-map segment mapping.

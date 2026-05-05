@@ -22,8 +22,10 @@ Supported in v1:
 
 - Text interpolation with `{{ expression }}`.
 - DOM events with `@event` and `v-on:event`.
+- Object-form events with `v-on="listeners"`.
 - DOM event modifiers `.prevent` and `.stop`.
 - Attribute bindings with `:name` and `v-bind:name`.
+- Object-form attributes and component props with `v-bind="attrs"`.
 - `v-if`, `v-else-if`, `v-else`, and `v-show`.
 - `v-for` with `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
 - `:key` / `v-bind:key` on `v-for` for keyed DOM reuse.
@@ -35,7 +37,6 @@ Supported in v1:
 Unsupported in v1:
 
 - Multiple template roots.
-- Object-form `v-bind` and `v-on`.
 - `v-html`.
 - Dynamic components and transitions.
 - Component `v-show`.
