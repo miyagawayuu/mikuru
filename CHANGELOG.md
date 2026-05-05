@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+## 1.0.12 - 2026-05-06
+
 - Added a `watch` cleanup usage example to the basic example app.
 - Added a basic example E2E smoke test for `watch` cleanup behavior.
+- Fixed generated scripts so runtime helpers imported from `mikuru` or `mikuru/runtime`, such as `watch` and `onBeforeUnmount`, stay available after compile-time import normalization.
 
 ## 1.0.11 - 2026-05-06
 
