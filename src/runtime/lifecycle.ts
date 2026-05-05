@@ -1,6 +1,9 @@
 import { effect } from "./reactivity.js";
 
 export type WatchSource<T = unknown> = (() => T) | { value: T } | T;
+export type WatchOptions = {
+  immediate?: boolean;
+};
 
 export function nextTick(fn?: () => void): Promise<void> {
   const p = Promise.resolve().then(() => {
@@ -17,11 +20,24 @@ function isRefLike(value: unknown): value is { value: unknown } {
   return typeof value === "object" && value !== null && "value" in value;
 }
 
-export function watch<T = unknown>(source: WatchSource<T> | WatchSource<T>[], cb: (newV: T | unknown, oldV: T | unknown) => void): () => void {
+export function watch<T = unknown>(
+  source: WatchSource<T> | WatchSource<T>[],
+  cb: (newV: T | unknown, oldV: T | unknown) => void,
+  options: WatchOptions = {}
+): () => void {
   const sources = Array.isArray(source) ? source : [source as WatchSource<T>];
 
   let oldVals: unknown[] = sources.map((s) => (isRefLike(s) ? (s as any).value : typeof s === "function" ? (s as any)() : s));
   let stopped = false;
+
+  if (options.immediate) {
+    const curr = oldVals.length === 1 ? oldVals[0] : oldVals.slice();
+    try {
+      cb(curr as any, undefined);
+    } catch (e) {
+      setTimeout(() => { throw e; });
+    }
+  }
 
   const stopEffect = effect(() => {
     if (stopped) return;

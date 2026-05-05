@@ -412,7 +412,9 @@ function setup() {
       line: 3,
       column: 14
     });
-    expect(error.message).toMatch(/v-html is not supported in v1 \(UnsupportedSyntax\.mikuru:3:14\)/);
+    expect(error.message).toMatch(/v-html is not supported in v1/);
+    expect(error.message).toMatch(/Use text interpolation/);
+    expect(error.message).toMatch(/UnsupportedSyntax\.mikuru:3:14/);
     expect(error.frame).toContain('<article v-html="html"></article>');
     expect(error.frame).toContain("^");
   });
@@ -444,12 +446,12 @@ const count = 0;
   });
 
   it("rejects unsupported v1 template constructs explicitly", () => {
-    expect(() => compile(`<template><section v-html="html"></section></template>`)).toThrow(/v-html is not supported in v1/);
+    expect(() => compile(`<template><section v-html="html"></section></template>`)).toThrow(/Use text interpolation/);
     expect(() => compile(`<template><component :is="current" /></template>`)).toThrow(
-      /Dynamic components are not supported in v1/
+      /Import and render an explicit component/
     );
     expect(() => compile(`<template><Panel v-slot:header>Header</Panel></template>`)).toThrow(
-      /v-slot must be used on a <template> child in Mikuru/
+      /Wrap slot content in <template #name>/
     );
     expect(() =>
       compile(`<template><Panel><template #header>One</template><template v-slot:header>Two</template></Panel></template>`)
