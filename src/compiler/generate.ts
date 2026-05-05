@@ -67,6 +67,18 @@ type EventDirective = {
   modifiers: string[];
 };
 
+type SlotDefinition = {
+  name: string;
+  children: TemplateNode[];
+  scope: string | true;
+  loc?: SourceLocation;
+  scopeLoc?: SourceLocation;
+};
+
+type SlotScopeBinding =
+  | { kind: "props"; alias: string }
+  | { kind: "property"; source: string; alias: string };
+
 export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   const context: GenerateContext = {
     lines: [],
@@ -194,7 +206,7 @@ function generateNode(
   }
 
   if (node.tag === "slot") {
-    return generateSlot(context, parentVar, cleanupVar, indent, beforeVar);
+    return generateSlot(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
   return generateElement(context, node, parentVar, cleanupVar, indent, beforeVar);
@@ -202,6 +214,7 @@ function generateNode(
 
 function generateSlot(
   context: GenerateContext,
+  node: ElementNode,
   parentVar: string,
   cleanupVar: string,
   indent: number,
@@ -209,8 +222,13 @@ function generateSlot(
 ): string {
   const slotVar = nextVar(context, "slot");
   const slotCleanupVar = nextVar(context, "slotCleanup");
+  const slotFnVar = nextVar(context, "slot");
+  const slotPropsVar = nextVar(context, "slotProps");
+  const slotName = getSlotOutletName(node, context);
+  emit(context, indent, `const ${slotFnVar} = ${slotName === "default" ? "props.slots?.default ?? props.children" : `props.slots?.[${quote(slotName)}]`};`);
+  emitSlotOutletProps(context, node, slotPropsVar, indent);
   emit(context, indent, `const ${slotVar} = document.createDocumentFragment();`);
-  emit(context, indent, `const ${slotCleanupVar} = props.children ? props.children(${slotVar}) : undefined;`);
+  emit(context, indent, `const ${slotCleanupVar} = ${slotFnVar} ? ${slotFnVar}(${slotVar}, ${slotPropsVar}) : undefined;`);
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `if (${slotCleanupVar}) {`);
   emit(context, indent + 2, `${slotCleanupVar}();`);
@@ -252,6 +270,12 @@ function generateElement(
   indent: number,
   beforeVar?: string
 ): string {
+  const slotDirectiveAttr = node.attrs.find((attr) => isSlotDirectiveAttr(attr));
+
+  if (slotDirectiveAttr) {
+    throwTemplateError("v-slot must be used on a <template> child in Mikuru", context, slotDirectiveAttr.loc);
+  }
+
   validateAttributes(node);
 
   const elementVar = nextVar(context, "el");
@@ -1152,7 +1176,8 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   const props = node.attrs
     .filter((attr) => !isStructuralAttr(attr))
     .flatMap((attr) => componentPropEntries(context, attr));
-  const hasChildren = hasMeaningfulChildren(node);
+  const slots = collectComponentSlots(context, node);
+  const defaultSlot = slots.find((slot) => slot.name === "default");
 
   emit(context, indent, `const ${propsVar} = {`);
 
@@ -1160,21 +1185,220 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
     emit(context, indent + 1, `${prop},`);
   }
 
-  if (hasChildren) {
-    const slotTargetVar = nextVar(context, "slotTarget");
-    const slotCleanupVar = nextVar(context, "slotCleanup");
-    emit(context, indent + 1, `children(${slotTargetVar}) {`);
-    emit(context, indent + 2, `const ${slotCleanupVar} = [];`);
-    generateChildren(context, node.children, slotTargetVar, slotCleanupVar, indent + 2);
+  if (defaultSlot) {
+    emitSlotFunction(context, "children", defaultSlot, indent + 1);
+  }
 
-    emit(context, indent + 2, `return () => __mikuru_runCleanup(${slotCleanupVar});`);
+  if (slots.length > 0) {
+    emit(context, indent + 1, "slots: {");
+
+    for (const slot of slots) {
+      emitSlotFunction(context, quotePropertyName(slot.name), slot, indent + 2);
+    }
+
     emit(context, indent + 1, "},");
   }
 
   emit(context, indent, "};");
 }
 
+function emitSlotFunction(context: GenerateContext, propertyName: string, slot: SlotDefinition, indent: number): void {
+  const slotTargetVar = nextVar(context, "slotTarget");
+  const slotPropsVar = nextVar(context, "slotProps");
+  const slotCleanupVar = nextVar(context, "slotCleanup");
+  emit(context, indent, `${propertyName}(${slotTargetVar}, ${slotPropsVar} = {}) {`);
+  emit(context, indent + 1, `const ${slotCleanupVar} = [];`);
+  emitSlotScopeBindings(context, slot, slotPropsVar, indent + 1);
+  generateChildren(context, slot.children, slotTargetVar, slotCleanupVar, indent + 1);
+  emit(context, indent + 1, `return () => __mikuru_runCleanup(${slotCleanupVar});`);
+  emit(context, indent, "},");
+}
+
+function emitSlotScopeBindings(context: GenerateContext, slot: SlotDefinition, slotPropsVar: string, indent: number): void {
+  for (const binding of parseSlotScopeBindings(slot.scope, context, slot.scopeLoc ?? slot.loc)) {
+    if (binding.kind === "props") {
+      emit(context, indent, `const ${binding.alias} = ${slotPropsVar};`);
+      continue;
+    }
+
+    emit(context, indent, `const ${binding.alias} = { get value() { return ${slotPropsVar}.${binding.source}; } };`);
+  }
+}
+
+function collectComponentSlots(context: GenerateContext, node: ElementNode): SlotDefinition[] {
+  const slots: SlotDefinition[] = [];
+  const usedNames = new Set<string>();
+  const defaultChildren: TemplateNode[] = [];
+
+  for (const child of node.children) {
+    if (child.type === "element") {
+      const slotDirective = getSlotTemplateDirective(child, context);
+
+      if (slotDirective) {
+        if (usedNames.has(slotDirective.name)) {
+          throwTemplateError(`Duplicate slot template: ${slotDirective.name}`, context, slotDirective.loc);
+        }
+
+        usedNames.add(slotDirective.name);
+        slots.push({
+          name: slotDirective.name,
+          children: child.children,
+          scope: slotDirective.scope,
+          loc: child.loc,
+          scopeLoc: slotDirective.scopeLoc
+        });
+        continue;
+      }
+    }
+
+    defaultChildren.push(child);
+  }
+
+  if (hasMeaningfulTemplateChildren(defaultChildren)) {
+    if (usedNames.has("default")) {
+      throwTemplateError("Duplicate slot template: default", context, node.loc);
+    }
+
+    slots.unshift({
+      name: "default",
+      children: defaultChildren,
+      scope: true,
+      loc: node.loc
+    });
+  }
+
+  return slots;
+}
+
+function getSlotTemplateDirective(
+  node: ElementNode,
+  context: GenerateContext
+): { name: string; scope: string | true; loc?: SourceLocation; scopeLoc?: SourceLocation } | undefined {
+  if (node.tag !== "template") {
+    return undefined;
+  }
+
+  const slotAttrs = node.attrs.filter((attr) => isSlotDirectiveAttr(attr));
+
+  if (slotAttrs.length === 0) {
+    return undefined;
+  }
+
+  if (slotAttrs.length > 1) {
+    throwTemplateError("A slot template can only declare one slot target", context, slotAttrs[1]?.loc);
+  }
+
+  const attr = slotAttrs[0]!;
+  const name = getSlotTemplateName(attr);
+
+  return {
+    name,
+    scope: attr.value,
+    loc: attr.loc,
+    scopeLoc: attr.valueLoc
+  };
+}
+
+function getSlotTemplateName(attr: TemplateAttribute): string {
+  if (attr.name === "v-slot") {
+    return "default";
+  }
+
+  if (attr.name.startsWith("v-slot:")) {
+    return attr.name.slice("v-slot:".length) || "default";
+  }
+
+  if (attr.name.startsWith("#")) {
+    return attr.name.slice(1) || "default";
+  }
+
+  return "default";
+}
+
+function parseSlotScopeBindings(scope: string | true, context: GenerateContext, location: SourceLocation | undefined): SlotScopeBinding[] {
+  if (scope === true || !scope.trim()) {
+    return [];
+  }
+
+  const source = scope.trim();
+
+  if (isIdentifier(source)) {
+    return [{ kind: "props", alias: source }];
+  }
+
+  if (!source.startsWith("{") || !source.endsWith("}")) {
+    throwTemplateError("Slot scope must be an identifier or object destructuring pattern", context, location);
+  }
+
+  const body = source.slice(1, -1).trim();
+
+  if (!body) {
+    return [];
+  }
+
+  return body.split(",").map((part) => {
+    const sourcePart = part.trim();
+    const match = /^([A-Za-z_$][\w$]*)(?:\s*:\s*([A-Za-z_$][\w$]*))?$/.exec(sourcePart);
+
+    if (!match) {
+      throwTemplateError("Slot scope destructuring only supports identifiers and simple aliases", context, location);
+    }
+
+    return {
+      kind: "property",
+      source: match[1],
+      alias: match[2] ?? match[1]
+    };
+  });
+}
+
+function emitSlotOutletProps(context: GenerateContext, node: ElementNode, propsVar: string, indent: number): void {
+  const entries = node.attrs
+    .filter((attr) => attr.name !== "name")
+    .map((attr) => slotOutletPropEntry(context, attr));
+
+  emit(context, indent, `const ${propsVar} = {`);
+
+  for (const entry of entries) {
+    emit(context, indent + 1, `${entry},`);
+  }
+
+  emit(context, indent, "};");
+}
+
+function slotOutletPropEntry(context: GenerateContext, attr: TemplateAttribute): string {
+  const bindingName = getBindingName(attr.name);
+
+  if (bindingName) {
+    if (bindingName === "name") {
+      throwTemplateError("Dynamic slot names are not supported", context, attr.loc);
+    }
+
+    const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    return `get ${quotePropertyName(bindingName)}() { return unwrap(${expression}); }`;
+  }
+
+  if (isSupportedDirectiveAttr(attr) || attr.name.startsWith("@") || attr.name.startsWith("v-")) {
+    throwTemplateError(`Unsupported slot directive ${attr.name}`, context, attr.loc);
+  }
+
+  return `${quotePropertyName(attr.name)}: ${quote(attr.value === true ? true : attr.value)}`;
+}
+
+function getSlotOutletName(node: ElementNode, context: GenerateContext): string {
+  if (hasAttr(node, ":name") || hasAttr(node, "v-bind:name")) {
+    const attr = node.attrs.find((candidate) => candidate.name === ":name" || candidate.name === "v-bind:name");
+    throwTemplateError("Dynamic slot names are not supported", context, attr?.loc);
+  }
+
+  return getStaticAttrValue(node, "name") ?? "default";
+}
+
 function componentPropEntries(context: GenerateContext, attr: TemplateAttribute): string[] {
+  if (isSlotDirectiveAttr(attr)) {
+    throwTemplateError("v-slot must be used on a <template> child in Mikuru", context, attr.loc);
+  }
+
   if (attr.name === "v-model") {
     const expression = validateAssignableExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     const valueExpression = compileTemplateExpression(expression, attr.name, toExpressionContext(context, attr.valueLoc));
@@ -1210,8 +1434,8 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
   return [`${quotePropertyName(attr.name)}: ${quote(attr.value === true ? true : attr.value)}`];
 }
 
-function hasMeaningfulChildren(node: ElementNode): boolean {
-  return node.children.some((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+function hasMeaningfulTemplateChildren(children: TemplateNode[]): boolean {
+  return children.some((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
 }
 
 function toComponentEventProp(eventName: string): string {
@@ -1236,6 +1460,10 @@ function isDirectiveAttr(attr: TemplateAttribute): boolean {
 
 function isStructuralAttr(attr: TemplateAttribute): boolean {
   return attr.name === "v-if" || attr.name === "v-else-if" || attr.name === "v-else" || attr.name === "v-for";
+}
+
+function isSlotDirectiveAttr(attr: TemplateAttribute): boolean {
+  return attr.name === "v-slot" || attr.name.startsWith("v-slot:") || attr.name.startsWith("#");
 }
 
 function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {

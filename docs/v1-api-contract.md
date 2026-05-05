@@ -29,13 +29,15 @@ Supported in v1:
 - `:key` / `v-bind:key` on `v-for` for keyed DOM reuse.
 - `v-model` for text input, textarea, checkbox, select, and child components.
 - Default slots through `<slot />`.
+- Named slots through `<slot name="header" />` and `<template #header>`.
+- Slot props through bound `<slot>` attributes and simple slot scope bindings.
 
 Unsupported in v1:
 
 - Multiple template roots.
 - Object-form `v-bind` and `v-on`.
 - `v-html`.
-- Named slots, slot props, dynamic components, and transitions.
+- Dynamic components and transitions.
 - Component `v-show`.
 - Full HTML parser compatibility.
 

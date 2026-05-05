@@ -195,6 +195,21 @@ p { color: red; }
     expect(result.code).toContain("onUpdateModelValue: ($value) => { name.value = $value; }");
   });
 
+  it("generates named slots and slot props", () => {
+    const result = compile(`<template>
+  <Panel>
+    <template #header="{ title }">
+      <h2>{{ title }}</h2>
+    </template>
+  </Panel>
+</template>
+<script>import Panel from "./Panel.mikuru";</script>`);
+
+    expect(result.code).toContain("slots: {");
+    expect(result.code).toContain("header(slotTarget");
+    expect(result.code).toContain("const title = { get value() { return slotProps");
+  });
+
   it("rejects event modifiers on component events", () => {
     expect(() =>
       compile(`<template><Child @select.stop="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`, {
@@ -399,10 +414,7 @@ const count = 0;
       /Dynamic components are not supported in v1/
     );
     expect(() => compile(`<template><Panel v-slot:header>Header</Panel></template>`)).toThrow(
-      /Named slots and slot props are not supported in v1/
-    );
-    expect(() => compile(`<template><slot name="header" /></template>`)).toThrow(
-      /Named slots and slot props are not supported in v1/
+      /v-slot must be used on a <template> child in Mikuru/
     );
   });
 

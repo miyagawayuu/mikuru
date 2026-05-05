@@ -217,13 +217,15 @@ function select(value) {
 
 子要素はdefault slotとして `props.children` に渡される。子コンポーネント側では `<slot />` の位置に親から渡されたDOM断片を描画する。
 
+子コンポーネント側では `<slot name="header" />` でnamed slotを描画する。親コンポーネント側では `<template #header>` または `<template v-slot:header>` で渡す。`<slot name="header" :title="title" />` のようにslot propsを渡し、親側では `<template #header="{ title }">` のような識別子または単純な分割代入で受け取る。
+
 制約:
 
 - v1ではdefault importされたコンポーネントを想定する。
 - 静的属性と `:prop` / `v-bind:prop` をpropsとして渡す。
 - `@select="select"` / `v-on:select="select"` は `props.onSelect` として子へ渡す。
 - `v-model="value"` は `modelValue` と `onUpdateModelValue` を渡す。子側は `defineProps()` で `modelValue` を読み、`defineEmits(["update:modelValue"])` で更新を通知する。
-- named slot、slot props、専用emit API、動的コンポーネントは後続課題にする。
+- 専用emit API、動的コンポーネントは後続課題にする。
 
 ### Props宣言
 
@@ -287,9 +289,7 @@ function flip() {
 - `v-model` 修飾子
 - `v-bind` オブジェクト展開
 - `v-on` オブジェクト展開
-- `v-slot`
 - `v-html`
-- named slot / slot props
 - dynamic component
 - transition
 

@@ -117,7 +117,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Attribute bindings with `:class` and `v-bind:class`
 - `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
 - `v-model` for common form controls and child components
-- Component props, events, `defineProps`, `defineEmits`, and default slots
+- Component props, events, `defineProps`, `defineEmits`, default slots, named slots, and slot props
 - Runtime helpers including `ref`, `computed`, `effect`, `watch`, `nextTick`, lifecycle callbacks, `provide`, and `inject`
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, and code frames
@@ -158,7 +158,7 @@ npx mikuru create my-basic-app --template basic
 
 ## Not Included in v1
 
-Mikuru does not claim Vue compatibility. The v1 package does not include SSR, hydration, transitions, devtools, named slots, slot props, dynamic components, `v-html`, object-form `v-bind` / `v-on`, or full template type checking.
+Mikuru does not claim Vue compatibility. The v1 package does not include SSR, hydration, transitions, devtools, dynamic components, `v-html`, object-form `v-bind` / `v-on`, or full template type checking.
 
 Scoped CSS is a basic selector rewrite, not a full CSS compiler. Avoid relying on `:global()`, deep selectors, complex nesting, CSS Modules, or preprocessors in v1.
 

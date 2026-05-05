@@ -42,7 +42,7 @@ Confirm these exports work from the packed package:
 
 - No SSR, hydration, transitions, or devtools.
 - No Vue compatibility guarantee.
-- No named slots, slot props, dynamic components, `v-html`, or object-form `v-bind` / `v-on`.
+- No dynamic components, `v-html`, or object-form `v-bind` / `v-on`.
 - Component `v-show` is unsupported.
 - Source maps include original SFC content but have coarse segment precision.
 - Scoped CSS is a basic selector rewrite, not a full CSS compiler.

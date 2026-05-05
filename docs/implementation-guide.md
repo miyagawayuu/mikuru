@@ -251,7 +251,7 @@ Unsupported in v1:
 
 ## Slots
 
-Mikuru supports a default slot with `<slot />`.
+Mikuru supports default slots, named slots, and simple slot props.
 
 ```mikuru
 <!-- Parent -->
@@ -270,7 +270,30 @@ Mikuru supports a default slot with `<slot />`.
 </template>
 ```
 
-Named slots and slot props are not supported in v1.
+Use `<slot name="header" />` in a child component and `<template #header>` in the parent for named content.
+
+```mikuru
+<!-- Parent -->
+<Panel>
+  <template #header="{ title }">
+    <h2>{{ title }}</h2>
+  </template>
+</Panel>
+```
+
+```mikuru
+<!-- Panel.mikuru -->
+<template>
+  <section>
+    <header>
+      <slot name="header" :title="title" />
+    </header>
+    <slot />
+  </section>
+</template>
+```
+
+Slot scope bindings support an identifier such as `slotProps` or simple object destructuring such as `{ title }` and `{ title: heading }`.
 
 ## Styles
 

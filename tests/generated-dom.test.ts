@@ -865,6 +865,66 @@ function toggle() {
     expect(fixture.root.querySelector("p")?.textContent).toBe("1");
   });
 
+  it("renders named slots with reactive slot props", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Card>
+      <template #header="{ title }">
+        <h2>{{ title }}</h2>
+      </template>
+      <template #default="{ count }">
+        <p>count: {{ count }}</p>
+      </template>
+    </Card>
+    <button @click="rename">Rename</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const title = ref("Initial");
+const count = ref(1);
+
+const Card = {
+  mount(target, props) {
+    const article = document.createElement("article");
+    const header = document.createElement("header");
+    const body = document.createElement("div");
+    const cleanups = [
+      props.slots.header(header, { get title() { return title.value; } }),
+      props.children(body, { get count() { return count.value; } })
+    ];
+    article.appendChild(header);
+    article.appendChild(body);
+    target.appendChild(article);
+    return {
+      element: article,
+      unmount() {
+        for (const cleanup of cleanups) cleanup();
+        article.remove();
+      }
+    };
+  }
+};
+
+function rename() {
+  title.value = "Updated";
+  count.value += 1;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("h2")?.textContent).toBe("Initial");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("count: 1");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("h2")?.textContent).toBe("Updated");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("count: 2");
+  });
+
   it("injects component styles once per compiled component", () => {
     const fixture = compileForDom(`<template>
   <button>Styled</button>
