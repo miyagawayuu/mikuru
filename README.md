@@ -28,7 +28,7 @@ Use the `basic` template when you want a small component composition example:
 npx mikuru create my-basic-app --template basic
 ```
 
-`mikuru create` also accepts `--force` for non-empty directories and `--yes` / `-y` to use default answers for prompts.
+`mikuru create` also accepts `-t` as a short alias for `--template`, `--list-templates` to print available templates, `--force` for non-empty directories, and `--yes` / `-y` to use default answers for prompts.
 
 ## Add Mikuru to a Vite App
 
@@ -153,7 +153,8 @@ The package also provides the `mikuru` binary:
 
 ```sh
 npx mikuru create my-app
-npx mikuru create my-basic-app --template basic
+npx mikuru create my-basic-app -t basic
+npx mikuru --list-templates
 ```
 
 ## Not Included in v1

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const availableTemplates = ["starter", "basic"] as const;
@@ -23,6 +23,11 @@ if (command === "--help" || command === "-h" || !command) {
 
 if (command === "--version" || command === "-v") {
   console.log(readPackageVersion());
+  process.exit(0);
+}
+
+if (command === "--list-templates") {
+  printTemplates();
   process.exit(0);
 }
 
@@ -57,7 +62,10 @@ console.log(`  Template: ${templateName}`);
 console.log(`  Location: ${targetDir}`);
 console.log("");
 console.log("Next steps:");
-console.log(`  cd ${basename(targetDir)}`);
+const relativeTargetDir = relative(process.cwd(), targetDir);
+if (relativeTargetDir && relativeTargetDir !== ".") {
+  console.log(`  cd ${relativeTargetDir}`);
+}
 console.log("  npm install");
 console.log("  npm run dev");
 
@@ -66,13 +74,15 @@ function printHelp(): void {
   mikuru create [project-name] [--template starter|basic]
   mikuru --version
   mikuru --help
+  mikuru --list-templates
 
 Commands:
   create    Create a new Mikuru app.
 
 Options:
-  -h, --help       Show help.
-  -v, --version    Show the installed Mikuru version.`);
+  -h, --help          Show help.
+  -v, --version       Show the installed Mikuru version.
+  --list-templates    List available create templates.`);
 }
 
 function printCreateHelp(): void {
@@ -80,10 +90,15 @@ function printCreateHelp(): void {
   mikuru create [project-name] [--template starter|basic]
 
 Options:
-  --template <name>    Template to use. Available: ${availableTemplates.join(", ")}.
+  -t, --template <name>  Template to use. Available: ${availableTemplates.join(", ")}.
+  --list-templates       List available create templates.
   --force              Create into a non-empty directory and overwrite template files.
   -y, --yes            Use default answers for prompts. Currently accepted for future compatibility.
   -h, --help           Show create help.`);
+}
+
+function printTemplates(): void {
+  console.log(availableTemplates.join("\n"));
 }
 
 function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
@@ -110,10 +125,15 @@ function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
       continue;
     }
 
-    if (arg === "--template") {
+    if (arg === "--list-templates") {
+      printTemplates();
+      process.exit(0);
+    }
+
+    if (arg === "--template" || arg === "-t") {
       const nextValue = createArgs[++i];
       if (!nextValue) {
-        console.error("Missing value for --template.");
+        console.error(`Missing value for ${arg}.`);
         printCreateHelp();
         return undefined;
       }

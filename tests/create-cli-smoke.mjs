@@ -15,16 +15,24 @@ try {
   const versionOutput = runCli(cliPath, ["--version"], tempRoot);
   const rootHelpOutput = runCli(cliPath, ["--help"], tempRoot);
   const createHelpOutput = runCli(cliPath, ["create", "--help"], tempRoot);
+  const rootTemplateListOutput = runCli(cliPath, ["--list-templates"], tempRoot);
+  const createTemplateListOutput = runCli(cliPath, ["create", "--list-templates"], tempRoot);
 
   assert.equal(versionOutput.trim(), rootPackageJson.version);
   assert.match(rootHelpOutput, /mikuru create \[project-name\]/);
   assert.match(rootHelpOutput, /starter\|basic/);
+  assert.match(rootHelpOutput, /--list-templates/);
   assert.match(createHelpOutput, /--template <name>/);
+  assert.match(createHelpOutput, /-t, --template <name>/);
   assert.match(createHelpOutput, /starter, basic/);
+  assert.match(createHelpOutput, /--list-templates/);
   assert.match(createHelpOutput, /--force/);
   assert.match(createHelpOutput, /--yes/);
+  assert.equal(rootTemplateListOutput.trim(), "starter\nbasic");
+  assert.equal(createTemplateListOutput.trim(), "starter\nbasic");
 
-  runCli(cliPath, ["create", "hello-mikuru"], tempRoot);
+  const createOutput = runCli(cliPath, ["create", "hello-mikuru"], tempRoot);
+  assert.match(createOutput, /cd hello-mikuru/);
 
   const appRoot = join(tempRoot, "hello-mikuru");
   const packageJson = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8"));
@@ -40,8 +48,14 @@ try {
   assert.match(appSource, /@click="increment"/);
   assert.match(viteConfig, /mikuru\/vite/);
 
-  runCli(cliPath, ["create", "--template", "starter", "template-app"], tempRoot);
+  runCli(cliPath, ["create", "-t", "starter", "template-app"], tempRoot);
   assert.equal(existsSync(join(tempRoot, "template-app", "package.json")), true);
+
+  const dotRoot = join(tempRoot, "dot-app");
+  mkdirSync(dotRoot);
+  const dotCreateOutput = runCli(cliPath, ["create", ".", "--force"], dotRoot);
+  assert.doesNotMatch(dotCreateOutput, /cd \./);
+  assert.equal(JSON.parse(readFileSync(join(dotRoot, "package.json"), "utf8")).name, "dot-app");
 
   runCli(cliPath, ["create", "basic-app", "--template=basic", "--yes"], tempRoot);
   const basicPackageJson = JSON.parse(readFileSync(join(tempRoot, "basic-app", "package.json"), "utf8"));
@@ -64,7 +78,7 @@ try {
   assert.equal(existsSync(join(nonEmptyRoot, "README.md")), true);
 
   assert.match(
-    runCliError(cliPath, ["create", "--template", "unknown", "unknown-template"], tempRoot),
+    runCliError(cliPath, ["create", "-t", "unknown", "unknown-template"], tempRoot),
     /Unknown template: unknown/
   );
 } finally {
