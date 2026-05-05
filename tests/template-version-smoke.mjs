@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const templatesRoot = join(root, "templates");
 const rootPackageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-const cliSource = readFileSync(join(root, "src", "cli.ts"), "utf8");
+const templatesSource = readFileSync(join(root, "src", "cli", "templates.ts"), "utf8");
 const templateNames = readdirSync(templatesRoot).sort();
-const availableTemplates = parseAvailableTemplates(cliSource).sort();
+const availableTemplates = parseAvailableTemplates(templatesSource).sort();
 
 assert.deepEqual(
   availableTemplates,
@@ -21,6 +21,11 @@ for (const templateName of templateNames) {
   const packageJsonText = readFileSync(packageJsonPath, "utf8");
   const packageJson = JSON.parse(packageJsonText);
 
+  assert.equal(
+    packageJson.scripts?.typecheck,
+    "tsc --noEmit",
+    `${templateName} template should include a typecheck script`
+  );
   assert.equal(
     packageJson.dependencies?.mikuru,
     "^__MIKURU_VERSION__",
@@ -35,6 +40,6 @@ for (const templateName of templateNames) {
 
 function parseAvailableTemplates(source) {
   const match = source.match(/const availableTemplates = \[([^\]]+)\] as const;/);
-  assert.ok(match, "src/cli.ts should define availableTemplates as a const tuple");
+  assert.ok(match, "src/cli/templates.ts should define availableTemplates as a const tuple");
   return [...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]);
 }

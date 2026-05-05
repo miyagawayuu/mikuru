@@ -125,5 +125,6 @@ function installAndBuildGeneratedApp(appRoot, tarball) {
   appPackageJson.dependencies.mikuru = `file:${tarball.replace(/\\/g, "/")}`;
   writeFileSync(packageJsonPath, `${JSON.stringify(appPackageJson, null, 2)}\n`);
   runNpm(["install", "--no-audit", "--no-fund"], appRoot);
+  runNpm(["run", "typecheck"], appRoot);
   runNpm(["run", "build"], appRoot);
 }

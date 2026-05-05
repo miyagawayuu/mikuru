@@ -18,6 +18,7 @@ for (const [name, content] of [
   assert.match(content, /-t basic/, `${name} should document the template shorthand`);
   assert.match(content, /--dry-run/, `${name} should document dry-run`);
   assert.match(content, /skip interactive prompts/, `${name} should explain --yes behavior`);
+  assert.match(content, /npm run typecheck/, `${name} should document generated app typecheck`);
 }
 
 assert.match(releaseChecklist, /Push `master`/, "release checklist should mention pushing master");
