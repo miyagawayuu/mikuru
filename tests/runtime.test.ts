@@ -190,4 +190,37 @@ describe("runtime reactivity", () => {
 
     expect(inject(key, "fallback")).toBe("provided");
   });
+
+  it("uses the current component registrar for scoped provide and inject", () => {
+    const key = Symbol("key");
+    const parentProvides = new Map<unknown, unknown>([[key, "parent"]]);
+    const childProvides = new Map<unknown, unknown>();
+    const previousRegistrar = (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar;
+
+    try {
+      (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar = {
+        provide(nextKey: unknown, value: unknown) {
+          childProvides.set(nextKey, value);
+        },
+        inject(nextKey: unknown) {
+          if (childProvides.has(nextKey)) {
+            return { found: true, value: childProvides.get(nextKey) };
+          }
+
+          if (parentProvides.has(nextKey)) {
+            return { found: true, value: parentProvides.get(nextKey) };
+          }
+
+          return { found: false };
+        }
+      };
+
+      expect(inject(key, "fallback")).toBe("parent");
+      provide(key, "child");
+      expect(inject(key, "fallback")).toBe("child");
+      expect(inject(Symbol("missing"), "fallback")).toBe("fallback");
+    } finally {
+      (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar = previousRegistrar;
+    }
+  });
 });

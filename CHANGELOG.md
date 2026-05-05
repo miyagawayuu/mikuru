@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added component-tree scoped `provide` / `inject` during Mikuru component mounting.
+- Expanded runtime helper import coverage for `.mikuru` scripts.
+- Documented the post-publish generated app smoke check in the release checklist.
+
 ## 1.0.12 - 2026-05-06
 
 - Added a `watch` cleanup usage example to the basic example app.

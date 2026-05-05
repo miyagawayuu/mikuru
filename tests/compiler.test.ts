@@ -134,15 +134,29 @@ describe("compiler", () => {
   it("keeps runtime helper imports available inside normalized scripts", () => {
     const result = compile(`<template><p>{{ status }}</p></template>
 <script>
-import { onBeforeUnmount, ref, watch } from "mikuru";
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, onUnmounted, provide, ref, watch } from "mikuru";
+import { nextTick as tick } from "mikuru/runtime";
 
 const status = ref("idle");
+const ready = computed(() => status.value);
 const stop = watch(status, () => {});
+provide("status", ready.value);
+inject("status");
+nextTick(() => {});
+tick(() => {});
+onMounted(() => {});
 onBeforeUnmount(stop);
+onUnmounted(() => {});
 </script>`);
 
+    expect(result.code).toContain("computed");
+    expect(result.code).toContain("inject");
+    expect(result.code).toContain("nextTick");
+    expect(result.code).toContain("nextTick as tick");
+    expect(result.code).toContain("onMounted");
     expect(result.code).toContain("onBeforeUnmount");
-    expect(result.code).toContain("watch");
+    expect(result.code).toContain("onUnmounted");
+    expect(result.code).toContain("provide");
     expect(result.code).toContain("const stop = watch(status");
   });
 

@@ -47,7 +47,7 @@ Confirm these exports work from the packed package:
 - Component `v-show` is unsupported.
 - Source maps include original SFC content but have coarse segment precision.
 - Scoped CSS is a basic selector rewrite, not a full CSS compiler.
-- `provide` / `inject` are runtime-level helpers and are not component-tree scoped in v1.
+- `provide` / `inject` are scoped to the current component tree when called during Mikuru component mounting.
 
 ## Release Steps
 
@@ -62,6 +62,20 @@ Confirm these exports work from the packed package:
 9. Create the GitHub Release for the release tag and attach the release notes.
 10. Delete merged release or Codex work branches after `master` and the tag are confirmed.
 11. Optionally verify the published package with `npx mikuru@latest create` in a disposable directory.
+
+## Published Package Smoke
+
+After `npm publish`, verify the package from a clean disposable app:
+
+```sh
+npx -y mikuru@<version> create <temp-app> --yes
+cd <temp-app>
+npm install
+npm run typecheck
+npm run build
+```
+
+Confirm the generated app installs, typechecks, and builds against the just-published package version.
 
 ## Current Residual Warning
 

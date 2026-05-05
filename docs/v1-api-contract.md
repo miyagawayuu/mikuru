@@ -57,7 +57,7 @@ Unsupported in v1:
 - `watch(source, cb)` accepts a ref-like value, getter, raw value, or array of sources and returns a stop function.
 - `nextTick(fn?)` schedules an optional callback in a microtask and returns a promise.
 - `onMounted`, `onBeforeUnmount`, and `onUnmounted` register callbacks with the currently mounting Mikuru component when one is active.
-- `provide` and `inject` are simple runtime-level dependency helpers. They are not component-tree scoped in v1.
+- `provide` and `inject` are component-tree scoped when called while a Mikuru component is mounting; child components can read values from their parent chain.
 
 ## Macro Contract
 
