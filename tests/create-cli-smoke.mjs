@@ -26,10 +26,24 @@ try {
   assert.match(createHelpOutput, /-t, --template <name>/);
   assert.match(createHelpOutput, /starter, basic/);
   assert.match(createHelpOutput, /--list-templates/);
+  assert.match(createHelpOutput, /--dry-run/);
   assert.match(createHelpOutput, /--force/);
-  assert.match(createHelpOutput, /non-interactive/);
+  assert.match(createHelpOutput, /skip interactive prompts/);
   assert.equal(rootTemplateListOutput.trim(), "starter - minimal Vite app\nbasic - component composition example");
   assert.equal(createTemplateListOutput.trim(), "starter - minimal Vite app\nbasic - component composition example");
+
+  const defaultCreateOutput = runCli(cliPath, ["create", "--yes"], tempRoot);
+  assert.match(defaultCreateOutput, /Created mikuru-app/);
+  assert.equal(existsSync(join(tempRoot, "mikuru-app", "package.json")), true);
+
+  const promptedCreateOutput = runCliWithInput(cliPath, ["create"], "prompted-app\nbasic\n", tempRoot, {
+    MIKURU_TEST_FORCE_PROMPTS: "1"
+  });
+  assert.match(promptedCreateOutput, /Project name \(mikuru-app\):/);
+  assert.match(promptedCreateOutput, /Template \(starter\):/);
+  assert.match(promptedCreateOutput, /Created prompted-app/);
+  assert.match(promptedCreateOutput, /Template: basic/);
+  assert.equal(existsSync(join(tempRoot, "prompted-app", "src", "MoodBadge.mikuru")), true);
 
   const createOutput = runCli(cliPath, ["create", "hello-mikuru"], tempRoot);
   assert.match(createOutput, /cd hello-mikuru/);
@@ -51,6 +65,14 @@ try {
 
   runCli(cliPath, ["create", "-t", "starter", "template-app"], tempRoot);
   assert.equal(existsSync(join(tempRoot, "template-app", "package.json")), true);
+
+  const dryRunRoot = join(tempRoot, "dry-run-app");
+  const dryRunOutput = runCli(cliPath, ["create", dryRunRoot, "-t", "basic", "--dry-run"], tempRoot);
+  assert.match(dryRunOutput, /Dry run: no files will be written/);
+  assert.match(dryRunOutput, /Template: basic - component composition example/);
+  assert.match(dryRunOutput, /package\.json/);
+  assert.match(dryRunOutput, /src[\\/]MoodBadge\.mikuru/);
+  assert.equal(existsSync(dryRunRoot), false);
 
   const dotRoot = join(tempRoot, "dot-app");
   mkdirSync(dotRoot);
@@ -87,6 +109,10 @@ try {
     runCliError(cliPath, ["create", "--template=unknown", "unknown-template"], tempRoot),
     /starter - minimal Vite app[\s\S]*basic - component composition example[\s\S]*--list-templates/
   );
+  assert.match(
+    runCliError(cliPath, ["create", "--template=startre", "typo-template"], tempRoot),
+    /Did you mean starter\?/
+  );
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
 }
@@ -96,6 +122,16 @@ function runCli(cliPath, args, cwd) {
     cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"]
+  });
+}
+
+function runCliWithInput(cliPath, args, input, cwd, env = {}) {
+  return execFileSync(node, [cliPath, ...args], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+    input,
+    stdio: ["pipe", "pipe", "pipe"]
   });
 }
 

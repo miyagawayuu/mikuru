@@ -31,7 +31,13 @@ starter - minimal Vite app
 basic - component composition example
 ```
 
-`mikuru create` also accepts `--template <name>`, `--force` for non-empty directories, and `--yes` / `-y` for npm create compatibility. The create flow is currently non-interactive.
+Preview a create run without writing files:
+
+```sh
+npx mikuru create my-app -t basic --dry-run
+```
+
+When run in a terminal, `mikuru create` asks for a project name and template if they are omitted. Use `--yes` / `-y` to skip interactive prompts and accept defaults. `mikuru create` also accepts `--template <name>` and `--force` for non-empty directories.
 
 For an existing Vite application, install the package manually:
 

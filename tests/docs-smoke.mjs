@@ -16,7 +16,8 @@ for (const [name, content] of [
   assert.match(content, /starter - minimal Vite app/, `${name} should document the starter template`);
   assert.match(content, /basic - component composition example/, `${name} should document the basic template`);
   assert.match(content, /-t basic/, `${name} should document the template shorthand`);
-  assert.match(content, /non-interactive/, `${name} should explain --yes behavior`);
+  assert.match(content, /--dry-run/, `${name} should document dry-run`);
+  assert.match(content, /skip interactive prompts/, `${name} should explain --yes behavior`);
 }
 
 assert.match(releaseChecklist, /Push `master`/, "release checklist should mention pushing master");
