@@ -2,7 +2,20 @@ import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 
 import { compile } from "../src/compiler/index.js";
-import { computed, effect, ref, setAttribute, unwrap } from "../src/runtime/index.js";
+import {
+  computed,
+  effect,
+  inject,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onUnmounted,
+  provide,
+  ref,
+  setAttribute,
+  unwrap,
+  watch
+} from "../src/runtime/index.js";
 
 type CompiledModule = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): MikuruComponentInstance;
@@ -1507,6 +1520,58 @@ function update() {
 
     expect(value.value).toBe("next");
   });
+
+  it("passes scoped provide context to child components without leaking between mounts", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child />
+  </section>
+</template>
+
+<script>
+import { provide } from "mikuru";
+
+const key = "theme";
+const { theme } = defineProps();
+
+provide(key, theme);
+
+const Child = {
+  mount(target, props) {
+    const paragraph = document.createElement("p");
+    let context = props.__mikuru_context;
+    let value = "missing";
+
+    while (context) {
+      if (context.provides.has(key)) {
+        value = context.provides.get(key);
+        break;
+      }
+
+      context = context.parent;
+    }
+
+    paragraph.textContent = value?.value ?? value;
+    target.appendChild(paragraph);
+
+    return {
+      element: paragraph,
+      unmount() {
+        paragraph.remove();
+      }
+    };
+  }
+};
+</script>`);
+    const secondRoot = fixture.document.createElement("div");
+
+    fixture.document.body.appendChild(secondRoot);
+    fixture.module.mount(fixture.root, { theme: "first-theme" });
+    fixture.module.mount(secondRoot, { theme: "second-theme" });
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("first-theme");
+    expect(secondRoot.querySelector("p")?.textContent).toBe("second-theme");
+  });
 });
 
 function compileForDom(source: string): CompiledFixture {
@@ -1534,19 +1599,47 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
   const factory = new Function(
     "computed",
     "effect",
+    "inject",
+    "nextTick",
+    "onBeforeUnmount",
+    "onMounted",
+    "onUnmounted",
+    "provide",
     "ref",
     "setAttribute",
     "unwrap",
+    "watch",
     "document",
     `${executableCode}\nreturn { mount };`
   ) as (
     computedArg: typeof computed,
     effectArg: typeof effect,
+    injectArg: typeof inject,
+    nextTickArg: typeof nextTick,
+    onBeforeUnmountArg: typeof onBeforeUnmount,
+    onMountedArg: typeof onMounted,
+    onUnmountedArg: typeof onUnmounted,
+    provideArg: typeof provide,
     refArg: typeof ref,
     setAttributeArg: typeof setAttribute,
     unwrapArg: typeof unwrap,
+    watchArg: typeof watch,
     documentArg: Document
   ) => CompiledModule;
 
-  return factory(computed, effect, ref, setAttribute, unwrap, document);
+  return factory(
+    computed,
+    effect,
+    inject,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    onUnmounted,
+    provide,
+    ref,
+    setAttribute,
+    unwrap,
+    watch,
+    document
+  );
 }

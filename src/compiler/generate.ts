@@ -104,16 +104,27 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 1, "const __mikuru_cleanup = [];");
   emit(context, 1, "const __mikuru_afterUnmount = [];");
   emit(context, 1, "const __mikuru_mounted = [];");
+  emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map() };");
   emit(context, 1, "const __mikuru_runCleanup = (cleanups) => {");
   emit(context, 2, "for (const cleanup of cleanups.splice(0).reverse()) {");
   emit(context, 3, "cleanup();");
   emit(context, 2, "}");
   emit(context, 1, "};");
-  emit(context, 1, "// expose a lightweight registrar for runtime lifecycle helpers (onMounted, onBeforeUnmount, onUnmounted, watch)");
+  emit(context, 1, "// expose a lightweight registrar for runtime lifecycle and provide/inject helpers");
+  emit(context, 1, "const __mikuru_previousRegistrar = globalThis.__mikuru_currentRegistrar;");
   emit(context, 1, "globalThis.__mikuru_currentRegistrar = {");
   emit(context, 2, "registerMounted: (fn) => __mikuru_mounted.push(fn),");
   emit(context, 2, "registerBeforeUnmount: (fn) => __mikuru_cleanup.push(fn),");
   emit(context, 2, "registerUnmounted: (fn) => __mikuru_afterUnmount.push(fn),");
+  emit(context, 2, "provide: (key, value) => __mikuru_context.provides.set(key, value),");
+  emit(context, 2, "inject: (key) => {");
+  emit(context, 3, "for (let context = __mikuru_context; context; context = context.parent) {");
+  emit(context, 4, "if (context.provides.has(key)) {");
+  emit(context, 5, "return { found: true, value: context.provides.get(key) };");
+  emit(context, 4, "}");
+  emit(context, 3, "}");
+  emit(context, 3, "return { found: false };");
+  emit(context, 2, "},");
   emit(context, 2, "registerEffect: (fn) => Promise.resolve().then(fn)");
   emit(context, 1, "};");
   emit(context, 1, "");
@@ -145,7 +156,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   const rootVar = generateNode(context, root, "target", "__mikuru_cleanup", 1);
   emit(context, 1, "// call mounted callbacks registered during setup and remove registrar");
   emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { try { cb(); } catch (e) { setTimeout(() => { throw e; }); } }");
-  emit(context, 1, "delete globalThis.__mikuru_currentRegistrar;");
+  emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
   emit(context, 1, "return {");
   emit(context, 2, `element: ${rootVar},`);
   emit(context, 2, "unmount() {");
@@ -1314,6 +1325,7 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   const propsTargetVar = needsProxy ? nextVar(context, "propsBase") : propsVar;
 
   emit(context, indent, `const ${propsTargetVar} = {`);
+  emit(context, indent + 1, "__mikuru_context,");
 
   for (const prop of props) {
     emit(context, indent + 1, `${prop},`);

@@ -149,7 +149,7 @@ v1では、アプリ側の実用性を補うために小さな監視・ライフ
 - `watch(source, cb, { immediate: true })` は現在値で初回コールバックを即時実行する。
 - `watch` のコールバックは第3引数 `onCleanup(fn)` を受け取り、次のコールバック直前または停止時にcleanupを実行できる。
 - `onMounted(fn)`、`onBeforeUnmount(fn)`、`onUnmounted(fn)` はmount中のMikuruコンポーネントに対してコールバックを登録する。
-- `provide(key, value)` と `inject(key, fallback?)` はruntime-level helperであり、v1ではコンポーネントツリー単位のスコープを持たない。
+- `provide(key, value)` と `inject(key, fallback?)` は現在mount中のコンポーネントツリーにスコープされ、子コンポーネントは親から提供された値を参照できる。
 
 ```js
 const stop = watch(count, (next, previous, onCleanup) => {
@@ -170,5 +170,4 @@ stop();
 - Proxyによる深いリアクティビティ
 - Vue互換の `reactive`
 - effect全体の非同期バッチング
-- コンポーネントツリー単位でスコープされる `provide` / `inject`
 - devtools連携
