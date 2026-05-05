@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.13 - 2026-05-06
+
 - Added component-tree scoped `provide` / `inject` during Mikuru component mounting.
 - Expanded runtime helper import coverage for `.mikuru` scripts.
 - Documented the post-publish generated app smoke check in the release checklist.
