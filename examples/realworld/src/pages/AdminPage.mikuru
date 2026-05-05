@@ -1,0 +1,28 @@
+<template>
+  <main class="page">
+    <p class="eyebrow">Protected route</p>
+    <h1>Admin</h1>
+    <p>If this renders, the route guard allowed the request.</p>
+  </main>
+</template>
+
+<style scoped>
+.page {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+  margin: 48px auto;
+  padding: 0 20px;
+  color: #172033;
+  font-family: system-ui, sans-serif;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #667085;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+</style>

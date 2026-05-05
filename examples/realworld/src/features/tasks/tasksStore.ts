@@ -1,6 +1,7 @@
-import { computed, ref } from "mikuru";
+import { computed, ref } from "mikuru/runtime";
 
-import { createReleaseTask, listReleaseTasks } from "./tasksApi.js";
+import { createReleaseTask, listReleaseTasks, seedTasks } from "./tasksApi.js";
+import { validateCreateTaskInput } from "./tasksForm.js";
 import { errorMessage } from "../../lib/errors.js";
 import type { OwnerFilter, ReleaseTask, TaskOwner } from "./tasksTypes.js";
 
@@ -10,11 +11,12 @@ export function createTasksStore() {
   const compact = ref(false);
   const newTitle = ref("");
   const newOwner = ref<TaskOwner>("Compiler");
-  const tasks = ref<ReleaseTask[]>([]);
+  const tasks = ref<ReleaseTask[]>(seedTasks.map((task) => ({ ...task })));
   const loading = ref(false);
   const saving = ref(false);
   const loadError = ref<string | null>(null);
   const formError = ref<string | null>(null);
+  const titleError = ref<string | null>(null);
 
   const densityLabel = computed(() => (compact.value ? "Comfortable" : "Compact"));
 
@@ -52,12 +54,20 @@ export function createTasksStore() {
 
     saving.value = true;
     formError.value = null;
+    titleError.value = null;
 
     try {
-      const task = await createReleaseTask({
+      const validation = validateCreateTaskInput({
         title: newTitle.value,
         owner: newOwner.value
       });
+
+      if (!validation.valid) {
+        titleError.value = validation.fieldErrors.title ?? null;
+        return;
+      }
+
+      const task = await createReleaseTask(validation.values);
 
       tasks.value = [...tasks.value, task];
       newTitle.value = "";
@@ -84,6 +94,7 @@ export function createTasksStore() {
     saving,
     loadError,
     formError,
+    titleError,
     densityLabel,
     loadTasks,
     addTask,

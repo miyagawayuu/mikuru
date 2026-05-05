@@ -2,7 +2,7 @@ import { AppError } from "../../lib/errors.js";
 import { mockJson, requestJson } from "../../lib/apiClient.js";
 import type { CreateTaskInput, ReleaseTask } from "./tasksTypes.js";
 
-const seedTasks: ReleaseTask[] = [
+export const seedTasks: ReleaseTask[] = [
   {
     id: "frames",
     title: "Code frames for parser failures",
@@ -27,7 +27,7 @@ const seedTasks: ReleaseTask[] = [
 ];
 
 export async function listReleaseTasks(): Promise<ReleaseTask[]> {
-  return requestJson(() => mockJson(seedTasks.map((task) => ({ ...task }))));
+  return requestJson(() => mockJson(seedTasks.map((task) => ({ ...task }))), { auth: true });
 }
 
 export async function createReleaseTask(input: CreateTaskInput): Promise<ReleaseTask> {
@@ -37,13 +37,15 @@ export async function createReleaseTask(input: CreateTaskInput): Promise<Release
     throw new AppError("Task title is required", "VALIDATION_ERROR");
   }
 
-  return requestJson(() =>
-    mockJson({
-      id: `task-${Date.now()}`,
-      title,
-      owner: input.owner,
-      priority: "medium",
-      detail: `${input.owner} / medium`
-    })
+  return requestJson(
+    ({ headers }) =>
+      mockJson({
+        id: `task-${Date.now()}`,
+        title,
+        owner: input.owner,
+        priority: "medium",
+        detail: headers.Authorization ? `${input.owner} / medium / authenticated` : `${input.owner} / medium`
+      }),
+    { auth: true }
   );
 }
