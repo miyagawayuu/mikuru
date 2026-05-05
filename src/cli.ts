@@ -3,14 +3,15 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSyn
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-
-const availableTemplates = ["starter", "basic"] as const;
-type TemplateName = (typeof availableTemplates)[number];
-
-const templateDescriptions: Record<TemplateName, string> = {
-  starter: "minimal Vite app",
-  basic: "component composition example"
-};
+import {
+  availableTemplates,
+  formatTemplateList,
+  formatTemplatesForError,
+  isTemplateName,
+  suggestTemplateName,
+  templateDescriptions,
+  type TemplateName
+} from "./cli/templates.js";
 
 type CreateOptions = {
   dryRun: boolean;
@@ -105,7 +106,7 @@ Options:
 }
 
 function printTemplates(): void {
-  console.log(availableTemplates.map((name) => `${name} - ${templateDescriptions[name]}`).join("\n"));
+  console.log(formatTemplateList());
 }
 
 function printTemplateNextStep(templateName: TemplateName): void {
@@ -201,14 +202,6 @@ function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
   return { dryRun, force, targetArg, templateName, templateProvided, yes };
 }
 
-function isTemplateName(value: string): value is TemplateName {
-  return (availableTemplates as readonly string[]).includes(value);
-}
-
-function formatTemplatesForError(): string {
-  return availableTemplates.map((name) => `  ${name} - ${templateDescriptions[name]}`).join("\n");
-}
-
 async function resolveCreateOptions(options: CreateOptions): Promise<CreateOptions> {
   if (options.yes || !canPrompt()) {
     return options;
@@ -289,41 +282,6 @@ function resolveCreateOptionsFromInput(options: CreateOptions, answers: string[]
 
 function canPrompt(): boolean {
   return process.env.MIKURU_TEST_FORCE_PROMPTS === "1" || Boolean(process.stdin.isTTY && process.stdout.isTTY);
-}
-
-function suggestTemplateName(value: string): TemplateName | undefined {
-  let bestName: TemplateName | undefined;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (const templateName of availableTemplates) {
-    const distance = levenshtein(value, templateName);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestName = templateName;
-    }
-  }
-
-  return bestDistance <= 2 ? bestName : undefined;
-}
-
-function levenshtein(left: string, right: string): number {
-  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
-  const current = Array.from({ length: right.length + 1 }, () => 0);
-
-  for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
-    current[0] = leftIndex;
-    for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
-      const cost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
-      current[rightIndex] = Math.min(
-        current[rightIndex - 1] + 1,
-        previous[rightIndex] + 1,
-        previous[rightIndex - 1] + cost
-      );
-    }
-    previous.splice(0, previous.length, ...current);
-  }
-
-  return previous[right.length];
 }
 
 function printCreateSuccess(targetDir: string, appName: string, templateName: TemplateName): void {

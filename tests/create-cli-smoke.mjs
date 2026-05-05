@@ -51,12 +51,15 @@ try {
 
   const appRoot = join(tempRoot, "hello-mikuru");
   const packageJson = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8"));
+  const tsconfig = readFileSync(join(appRoot, "tsconfig.json"), "utf8");
   const indexHtml = readFileSync(join(appRoot, "index.html"), "utf8");
   const appSource = readFileSync(join(appRoot, "src", "App.mikuru"), "utf8");
   const viteConfig = readFileSync(join(appRoot, "vite.config.ts"), "utf8");
 
   assert.equal(packageJson.name, "hello-mikuru");
+  assert.equal(packageJson.scripts.typecheck, "tsc --noEmit");
   assert.equal(packageJson.dependencies.mikuru, `^${rootPackageJson.version}`);
+  assert.match(tsconfig, /src\/\*\*\/\*\.ts/);
   assert.match(indexHtml, /href="\/favicon\.svg"/);
   assert.equal(existsSync(join(appRoot, "public", "favicon.svg")), true);
   assert.match(appSource, /Mikuru is ready/);
@@ -83,10 +86,13 @@ try {
   const basicCreateOutput = runCli(cliPath, ["create", "basic-app", "--template=basic", "--yes"], tempRoot);
   assert.match(basicCreateOutput, /edit src\/App\.mikuru and src\/MoodBadge\.mikuru/);
   const basicPackageJson = JSON.parse(readFileSync(join(tempRoot, "basic-app", "package.json"), "utf8"));
+  const basicTsconfig = readFileSync(join(tempRoot, "basic-app", "tsconfig.json"), "utf8");
   const basicAppSource = readFileSync(join(tempRoot, "basic-app", "src", "App.mikuru"), "utf8");
   const basicMoodBadgeSource = readFileSync(join(tempRoot, "basic-app", "src", "MoodBadge.mikuru"), "utf8");
   assert.equal(basicPackageJson.name, "basic-app");
+  assert.equal(basicPackageJson.scripts.typecheck, "tsc --noEmit");
   assert.equal(basicPackageJson.dependencies.mikuru, `^${rootPackageJson.version}`);
+  assert.match(basicTsconfig, /DOM\.Iterable/);
   assert.match(basicAppSource, /Mikuru Counter/);
   assert.match(basicMoodBadgeSource, /defineProps/);
 

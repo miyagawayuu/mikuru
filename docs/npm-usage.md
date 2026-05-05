@@ -14,6 +14,7 @@ For a new application, prefer the starter CLI:
 npx mikuru create my-app
 cd my-app
 npm install
+npm run typecheck
 npm run dev
 ```
 
@@ -38,6 +39,8 @@ npx mikuru create my-app -t basic --dry-run
 ```
 
 When run in a terminal, `mikuru create` asks for a project name and template if they are omitted. Use `--yes` / `-y` to skip interactive prompts and accept defaults. `mikuru create` also accepts `--template <name>` and `--force` for non-empty directories.
+
+Generated apps include `npm run typecheck` for a quick TypeScript validation pass before running or building.
 
 For an existing Vite application, install the package manually:
 

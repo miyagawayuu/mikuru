@@ -10,6 +10,7 @@
 - Added docs smoke coverage for CLI documentation and release checklist expectations.
 - Removed the Windows npm pack smoke path that triggered Node's `DEP0190` shell warning.
 - Added interactive `mikuru create` prompts for missing project name/template values, `--yes` defaulting, template typo suggestions, and `--dry-run` file previews.
+- Added generated app `npm run typecheck` scripts and split create-template metadata out of the CLI entrypoint.
 
 ## 1.0.9
 
