@@ -9,6 +9,7 @@
 - Added template descriptions, friendlier unknown-template errors, template-specific create next steps, and clearer `--yes` documentation.
 - Added docs smoke coverage for CLI documentation and release checklist expectations.
 - Removed the Windows npm pack smoke path that triggered Node's `DEP0190` shell warning.
+- Added interactive `mikuru create` prompts for missing project name/template values, `--yes` defaulting, template typo suggestions, and `--dry-run` file previews.
 
 ## 1.0.9
 
