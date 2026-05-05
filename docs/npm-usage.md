@@ -21,7 +21,7 @@ For a small component composition example, use the `basic` template:
 npx mikuru create my-basic-app --template basic
 ```
 
-`mikuru create` also accepts `--force` for non-empty directories and `--yes` / `-y` to use default answers for prompts.
+`mikuru create` also accepts `-t` as a short alias for `--template`, `--list-templates` to print available templates, `--force` for non-empty directories, and `--yes` / `-y` to use default answers for prompts.
 
 For an existing Vite application, install the package manually:
 
