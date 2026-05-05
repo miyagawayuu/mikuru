@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a `watch` cleanup usage example to the basic example app.
+
 ## 1.0.11 - 2026-05-06
 
 - Improved unsupported template syntax errors with actionable alternatives for `v-html`, dynamic components, and misplaced `v-slot`.

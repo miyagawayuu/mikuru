@@ -4,16 +4,30 @@
     <button @click="increment">count: {{ count }}</button>
     <MoodBadge label="Mood" v-model="mood">
       <span>Current mood is {{ mood }}</span>
+      <span>Settled mood is {{ delayedMood }}</span>
     </MoodBadge>
   </section>
 </template>
 
 <script>
-import { ref } from "mikuru";
+import { onBeforeUnmount, ref, watch } from "mikuru";
 import MoodBadge from "./MoodBadge.mikuru";
 
 const count = ref(0);
 const mood = ref("curious");
+const delayedMood = ref(mood.value);
+
+const stopMoodWatch = watch(mood, (nextMood, _previousMood, onCleanup) => {
+  const timer = setTimeout(() => {
+    delayedMood.value = nextMood;
+  }, 200);
+
+  onCleanup(() => {
+    clearTimeout(timer);
+  });
+}, { immediate: true });
+
+onBeforeUnmount(stopMoodWatch);
 
 function increment() {
   count.value += 1;
