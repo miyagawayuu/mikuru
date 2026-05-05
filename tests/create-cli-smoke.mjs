@@ -27,12 +27,13 @@ try {
   assert.match(createHelpOutput, /starter, basic/);
   assert.match(createHelpOutput, /--list-templates/);
   assert.match(createHelpOutput, /--force/);
-  assert.match(createHelpOutput, /--yes/);
-  assert.equal(rootTemplateListOutput.trim(), "starter\nbasic");
-  assert.equal(createTemplateListOutput.trim(), "starter\nbasic");
+  assert.match(createHelpOutput, /non-interactive/);
+  assert.equal(rootTemplateListOutput.trim(), "starter - minimal Vite app\nbasic - component composition example");
+  assert.equal(createTemplateListOutput.trim(), "starter - minimal Vite app\nbasic - component composition example");
 
   const createOutput = runCli(cliPath, ["create", "hello-mikuru"], tempRoot);
   assert.match(createOutput, /cd hello-mikuru/);
+  assert.match(createOutput, /edit src\/App\.mikuru/);
 
   const appRoot = join(tempRoot, "hello-mikuru");
   const packageJson = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8"));
@@ -57,7 +58,8 @@ try {
   assert.doesNotMatch(dotCreateOutput, /cd \./);
   assert.equal(JSON.parse(readFileSync(join(dotRoot, "package.json"), "utf8")).name, "dot-app");
 
-  runCli(cliPath, ["create", "basic-app", "--template=basic", "--yes"], tempRoot);
+  const basicCreateOutput = runCli(cliPath, ["create", "basic-app", "--template=basic", "--yes"], tempRoot);
+  assert.match(basicCreateOutput, /edit src\/App\.mikuru and src\/MoodBadge\.mikuru/);
   const basicPackageJson = JSON.parse(readFileSync(join(tempRoot, "basic-app", "package.json"), "utf8"));
   const basicAppSource = readFileSync(join(tempRoot, "basic-app", "src", "App.mikuru"), "utf8");
   const basicMoodBadgeSource = readFileSync(join(tempRoot, "basic-app", "src", "MoodBadge.mikuru"), "utf8");
@@ -80,6 +82,10 @@ try {
   assert.match(
     runCliError(cliPath, ["create", "-t", "unknown", "unknown-template"], tempRoot),
     /Unknown template: unknown/
+  );
+  assert.match(
+    runCliError(cliPath, ["create", "--template=unknown", "unknown-template"], tempRoot),
+    /starter - minimal Vite app[\s\S]*basic - component composition example[\s\S]*--list-templates/
   );
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });

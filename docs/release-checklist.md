@@ -57,10 +57,12 @@ Confirm these exports work from the packed package:
 4. Run all required verification commands.
 5. Run `npm publish --dry-run`.
 6. Publish with `npm publish`.
-7. Push `master` and the release tag.
-8. Create the GitHub Release for the release tag and attach the release notes.
-9. Optionally verify the published package with `npx mikuru@latest create` in a disposable directory.
+7. Push `master` to `origin/master`.
+8. Create and push the release tag.
+9. Create the GitHub Release for the release tag and attach the release notes.
+10. Delete merged release or Codex work branches after `master` and the tag are confirmed.
+11. Optionally verify the published package with `npx mikuru@latest create` in a disposable directory.
 
 ## Current Residual Warning
 
-The CI path can emit Node's `DEP0190` warning during the npm pack smoke / Playwright path on Windows. It is currently non-fatal and does not affect the package smoke result.
+The npm pack smoke test avoids Windows `shell: true` npm execution by reusing `npm_execpath` when available. If `DEP0190` appears again, check new `child_process` usage for shell execution with argument arrays.

@@ -6,6 +6,9 @@
 - Added a template version smoke test to prevent future template/package version drift.
 - Added `mikuru --list-templates`, `mikuru create --list-templates`, and `mikuru create -t <name>` for template discovery and shorthand selection.
 - Improved `mikuru create .` output so it does not print an unnecessary `cd .` next step.
+- Added template descriptions, friendlier unknown-template errors, template-specific create next steps, and clearer `--yes` documentation.
+- Added docs smoke coverage for CLI documentation and release checklist expectations.
+- Removed the Windows npm pack smoke path that triggered Node's `DEP0190` shell warning.
 
 ## 1.0.9
 
