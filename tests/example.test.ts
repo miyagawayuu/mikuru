@@ -49,7 +49,9 @@ describe("realworld example", () => {
     const source = readFileSync(resolve("examples/realworld/src/App.mikuru"), "utf8");
     const result = compile(source, { filename: "examples/realworld/src/App.mikuru" });
 
+    expect(result.code).toContain('import { createRouter } from "./app/router";');
     expect(result.code).toContain('import DashboardPage from "./pages/DashboardPage.mikuru";');
+    expect(result.code).toContain('import NotFoundPage from "./pages/NotFoundPage.mikuru";');
     expect(result.code).toContain("DashboardPage.mount");
   });
 
@@ -59,7 +61,7 @@ describe("realworld example", () => {
 
     expect(result.code).toContain('import { createTasksStore } from "../features/tasks/tasksStore";');
     expect(result.code).toContain('import TaskCard from "../features/tasks/TaskCard.mikuru";');
-    expect(result.code).toContain("onUpdateModelValue");
+    expect(result.code).toContain('addEventListener("input", handler');
     expect(result.code).toContain("new Map()");
   });
 });

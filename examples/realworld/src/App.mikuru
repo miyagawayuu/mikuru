@@ -1,7 +1,27 @@
 <template>
-  <DashboardPage />
+  <div>
+    <section v-show="currentPage === 'dashboard'">
+      <DashboardPage @navigate="navigate" />
+    </section>
+    <section v-show="currentPage === 'login'">
+      <LoginPage :redirectPath="redirectTarget" @navigate="navigate" />
+    </section>
+    <section v-show="currentPage === 'admin'">
+      <AdminPage />
+    </section>
+    <section v-show="currentPage === 'notFound'">
+      <NotFoundPage :path="currentPath" @navigate="navigate" />
+    </section>
+  </div>
 </template>
 
 <script>
+import { createRouter } from "./app/router";
+import AdminPage from "./pages/AdminPage.mikuru";
 import DashboardPage from "./pages/DashboardPage.mikuru";
+import LoginPage from "./pages/LoginPage.mikuru";
+import NotFoundPage from "./pages/NotFoundPage.mikuru";
+
+const { currentPage, currentPath, redirectTarget, start, navigate } = createRouter();
+start();
 </script>

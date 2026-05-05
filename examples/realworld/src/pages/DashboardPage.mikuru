@@ -5,11 +5,18 @@
         <p class="eyebrow">Realworld architecture example</p>
         <h1>Release task board</h1>
       </div>
-      <UiButton variant="secondary" @click="toggleDensity">{{ densityLabel }}</UiButton>
+      <nav class="nav" aria-label="Example routes">
+        <UiButton variant="secondary" @click="goAdmin">Admin guard</UiButton>
+        <UiButton variant="secondary" @click="goMissing">404 route</UiButton>
+        <UiButton variant="secondary" @click="toggleDensity">{{ densityLabel }}</UiButton>
+      </nav>
     </header>
 
     <section class="controls">
-      <TextInput label="Search tasks" placeholder="Search tasks" v-model="search" />
+      <label class="field">
+        <span>Search tasks</span>
+        <input v-model="search" placeholder="Search tasks" aria-label="Search tasks" />
+      </label>
 
       <label class="field">
         <span>Owner</span>
@@ -23,7 +30,11 @@
     </section>
 
     <form class="new-task" @submit.prevent="addTask">
-      <TextInput label="New task" placeholder="New task title" v-model="newTitle" />
+      <label class="field">
+        <span>New task</span>
+        <input v-model="newTitle" placeholder="New task title" aria-label="New task" :aria-invalid="titleError ? 'true' : 'false'" />
+        <small v-if="titleError" class="field-error">{{ titleError }}</small>
+      </label>
 
       <label class="field">
         <span>Owner</span>
@@ -34,7 +45,7 @@
         </select>
       </label>
 
-      <UiButton :loading="saving" :disabled="!newTitle.trim()">Add task</UiButton>
+      <UiButton :loading="saving">Add task</UiButton>
     </form>
 
     <InlineError :message="formError" />
@@ -52,16 +63,14 @@
 </template>
 
 <script>
-import { onMounted } from "mikuru";
-
 import UiButton from "../components/ui/Button.mikuru";
 import ErrorState from "../components/ui/ErrorState.mikuru";
 import InlineError from "../components/ui/InlineError.mikuru";
 import LoadingState from "../components/ui/LoadingState.mikuru";
-import TextInput from "../components/ui/TextInput.mikuru";
 import TaskCard from "../features/tasks/TaskCard.mikuru";
 import { createTasksStore } from "../features/tasks/tasksStore";
 
+const emit = defineEmits(["navigate"]);
 const {
   search,
   owner,
@@ -73,13 +82,20 @@ const {
   saving,
   loadError,
   formError,
+  titleError,
   densityLabel,
   loadTasks,
   addTask,
   toggleDensity
 } = createTasksStore();
 
-onMounted(loadTasks);
+function goAdmin() {
+  emit("navigate", "/admin");
+}
+
+function goMissing() {
+  emit("navigate", "/missing");
+}
 </script>
 
 <style scoped>
@@ -106,6 +122,12 @@ onMounted(loadTasks);
   justify-content: space-between;
 }
 
+.nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: #667085;
@@ -124,6 +146,7 @@ h1 {
   gap: 6px;
 }
 
+input,
 select {
   min-height: 38px;
   border: 1px solid #cbd5e1;
@@ -131,6 +154,10 @@ select {
   background: #ffffff;
   color: inherit;
   font: inherit;
+}
+
+.field-error {
+  color: #b91c1c;
 }
 
 .tasks {

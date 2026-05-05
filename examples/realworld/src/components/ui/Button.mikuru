@@ -9,7 +9,7 @@ const { label = "", variant = "primary", disabled = false, loading = false } = d
 const emit = defineEmits(["click"]);
 
 function handleClick() {
-  if (disabled || loading) {
+  if (disabled.value || loading.value) {
     return;
   }
 

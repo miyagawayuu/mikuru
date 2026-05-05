@@ -1,12 +1,13 @@
 <template>
   <label class="field">
     <span>{{ label }}</span>
-    <input :value="modelValue" :placeholder="placeholder" :aria-label="label" @input="updateValue" />
+    <input :value="modelValue" :placeholder="placeholder" :aria-label="label" :aria-invalid="error ? 'true' : 'false'" @input="updateValue" />
+    <small v-if="error" class="error">{{ error }}</small>
   </label>
 </template>
 
 <script>
-const { label, modelValue = "", placeholder = "" } = defineProps();
+const { label, modelValue = "", placeholder = "", error = "" } = defineProps();
 const emit = defineEmits(["update:modelValue"]);
 
 function updateValue(event) {
@@ -26,5 +27,9 @@ input {
   border-radius: 8px;
   color: inherit;
   font: inherit;
+}
+
+.error {
+  color: #b91c1c;
 }
 </style>
