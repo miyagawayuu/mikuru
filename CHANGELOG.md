@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added a `watch` cleanup usage example to the basic example app.
+- Added a basic example E2E smoke test for `watch` cleanup behavior.
 
 ## 1.0.11 - 2026-05-06
 

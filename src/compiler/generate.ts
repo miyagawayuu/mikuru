@@ -16,6 +16,7 @@ type GenerateContext = {
 
 type ScriptParts = {
   imports: string[];
+  runtimeImports: string[];
   body: string;
   usesPropsAlias: boolean;
   usesEmitAlias: boolean;
@@ -43,6 +44,9 @@ type ScriptNode = {
   right?: ScriptNode;
   argument?: ScriptNode;
   elements?: Array<ScriptNode | null>;
+  specifiers?: ScriptNode[];
+  imported?: ScriptNode;
+  local?: ScriptNode;
 };
 
 type ScriptEdit = {
@@ -93,7 +97,8 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
     emit(context, 0, importLine);
   }
 
-  emit(context, 0, `import { computed, effect, ref, setAttribute, unwrap } from "mikuru/runtime";`);
+  const runtimeImports = mergeRuntimeImports(["computed", "effect", "ref", "setAttribute", "unwrap"], script.runtimeImports);
+  emit(context, 0, `import { ${runtimeImports.join(", ")} } from "mikuru/runtime";`);
   emit(context, 0, "");
   emit(context, 0, "export function mount(target, props = {}) {");
   emit(context, 1, "const __mikuru_cleanup = [];");
@@ -807,6 +812,7 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
   const source = descriptor.source ?? script;
   const scriptOffset = descriptor.scriptOffset ?? 0;
   const imports: string[] = [];
+  const runtimeImports: string[] = [];
   const edits: ScriptEdit[] = [];
   const transformedMacroStarts = new Set<number>();
   const emitsDeclarations: EmitsDeclaration[] = [];
@@ -828,6 +834,7 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
       edits.push({ start: statement.start, end: statement.end, replacement: "" });
 
       if (importSource === "mikuru" || importSource === "mikuru/runtime") {
+        runtimeImports.push(...extractRuntimeImportSpecifiers(statement));
         continue;
       }
 
@@ -885,10 +892,42 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
 
   return {
     imports,
+    runtimeImports,
     body,
     usesPropsAlias,
     usesEmitAlias
   };
+}
+
+function mergeRuntimeImports(requiredImports: string[], scriptImports: string[]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+
+  for (const importName of [...requiredImports, ...scriptImports]) {
+    if (seen.has(importName)) continue;
+    seen.add(importName);
+    merged.push(importName);
+  }
+
+  return merged;
+}
+
+function extractRuntimeImportSpecifiers(statement: ScriptNode): string[] {
+  const imports: string[] = [];
+
+  for (const specifier of statement.specifiers ?? []) {
+    if (specifier.type !== "ImportSpecifier" || !specifier.imported?.name || !specifier.local?.name) {
+      continue;
+    }
+
+    imports.push(
+      specifier.imported.name === specifier.local.name
+        ? specifier.imported.name
+        : `${specifier.imported.name} as ${specifier.local.name}`
+    );
+  }
+
+  return imports;
 }
 
 function transformDefinePropsDeclaration(declaration: ScriptNode, script: string, descriptor: SfcDescriptor): string {
