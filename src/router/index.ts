@@ -1,0 +1,450 @@
+import { effect, ref, unwrap } from "../runtime/index.js";
+import type { Ref } from "../runtime/index.js";
+
+export type RouteParams = Record<string, string>;
+export type RouteQuery = Record<string, string | string[] | undefined>;
+export type RouteComponent = {
+  mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
+};
+export type RouteRecord = {
+  path: string;
+  name?: string;
+  component?: RouteComponent;
+  meta?: Record<string, unknown>;
+};
+export type RouteLocation = {
+  path: string;
+  fullPath: string;
+  query: RouteQuery;
+  hash: string;
+  params: RouteParams;
+  matched?: RouteRecord;
+  name?: string;
+  meta: Record<string, unknown>;
+};
+export type RouteLocationRaw = string | { path: string; query?: RouteQuery; hash?: string };
+export type NavigationGuardResult = void | boolean | string | RouteLocationRaw;
+export type NavigationGuard = (
+  to: RouteLocation,
+  from: RouteLocation
+) => NavigationGuardResult | Promise<NavigationGuardResult>;
+export type AfterNavigationHook = (to: RouteLocation, from: RouteLocation) => void;
+export type RouterHistory = {
+  mode: "hash" | "history" | "memory";
+  location(): string;
+  push(path: string): void;
+  replace(path: string): void;
+  listen(fn: () => void): () => void;
+  createHref(path: string): string;
+  back(): void;
+  forward(): void;
+};
+export type RouterOptions = {
+  history?: RouterHistory;
+  routes: RouteRecord[];
+  notFound?: RouteComponent;
+};
+export type Router = {
+  currentRoute: Ref<RouteLocation>;
+  routes: RouteRecord[];
+  push(to: RouteLocationRaw): Promise<RouteLocation>;
+  replace(to: RouteLocationRaw): Promise<RouteLocation>;
+  back(): void;
+  forward(): void;
+  resolve(to: RouteLocationRaw): RouteLocation;
+  beforeEach(guard: NavigationGuard): () => void;
+  afterEach(hook: AfterNavigationHook): () => void;
+  listen(): () => void;
+  createHref(to: RouteLocationRaw): string;
+};
+
+type CompiledRoute = {
+  record: RouteRecord;
+  keys: string[];
+  pattern: RegExp;
+};
+
+const notFoundRoute: RouteRecord = { path: "/:pathMatch(.*)*", name: "not-found" };
+
+export function createRouter(options: RouterOptions): Router {
+  const history = options.history ?? createWebHashHistory();
+  const routes = options.notFound ? [...options.routes, { ...notFoundRoute, component: options.notFound }] : options.routes.slice();
+  const matcher = createMatcher(routes);
+  const beforeGuards: NavigationGuard[] = [];
+  const afterHooks: AfterNavigationHook[] = [];
+  const initial = resolveLocation(history.location(), matcher);
+  const currentRoute = ref(initial);
+  let listeningStop: (() => void) | undefined;
+  let navigationId = 0;
+
+  async function navigate(to: RouteLocationRaw, replace: boolean): Promise<RouteLocation> {
+    const target = resolveLocation(stringifyLocation(to), matcher);
+    const from = currentRoute.value;
+    const id = ++navigationId;
+
+    for (const guard of beforeGuards) {
+      const result = await guard(target, from);
+      if (id !== navigationId) return currentRoute.value;
+      if (result === false) return from;
+      if (typeof result === "string" || (result && typeof result === "object")) {
+        return navigate(result, true);
+      }
+    }
+
+    if (replace) history.replace(target.fullPath);
+    else history.push(target.fullPath);
+
+    currentRoute.value = target;
+    for (const hook of afterHooks) {
+      hook(target, from);
+    }
+
+    return target;
+  }
+
+  function syncFromHistory(): void {
+    currentRoute.value = resolveLocation(history.location(), matcher);
+  }
+
+  return {
+    currentRoute,
+    routes,
+    push(to) {
+      return navigate(to, false);
+    },
+    replace(to) {
+      return navigate(to, true);
+    },
+    back() {
+      history.back();
+    },
+    forward() {
+      history.forward();
+    },
+    resolve(to) {
+      return resolveLocation(stringifyLocation(to), matcher);
+    },
+    beforeEach(guard) {
+      beforeGuards.push(guard);
+      return () => removeItem(beforeGuards, guard);
+    },
+    afterEach(hook) {
+      afterHooks.push(hook);
+      return () => removeItem(afterHooks, hook);
+    },
+    listen() {
+      if (listeningStop) return listeningStop;
+      listeningStop = history.listen(syncFromHistory);
+      syncFromHistory();
+      return () => {
+        listeningStop?.();
+        listeningStop = undefined;
+      };
+    },
+    createHref(to) {
+      return history.createHref(stringifyLocation(to));
+    }
+  };
+}
+
+export function createWebHistory(base = ""): RouterHistory {
+  const normalizedBase = normalizeBase(base);
+
+  return {
+    mode: "history",
+    location() {
+      const path = stripBase(globalThis.location?.pathname ?? "/", normalizedBase);
+      return `${path || "/"}${globalThis.location?.search ?? ""}${globalThis.location?.hash ?? ""}`;
+    },
+    push(path) {
+      globalThis.history?.pushState({}, "", `${normalizedBase}${path.replace(/^\//, "")}`);
+    },
+    replace(path) {
+      globalThis.history?.replaceState({}, "", `${normalizedBase}${path.replace(/^\//, "")}`);
+    },
+    listen(fn) {
+      globalThis.addEventListener?.("popstate", fn);
+      return () => globalThis.removeEventListener?.("popstate", fn);
+    },
+    createHref(path) {
+      return `${normalizedBase}${path.replace(/^\//, "")}`;
+    },
+    back() {
+      globalThis.history?.back();
+    },
+    forward() {
+      globalThis.history?.forward();
+    }
+  };
+}
+
+export function createWebHashHistory(base = ""): RouterHistory {
+  const normalizedBase = normalizeBase(base);
+
+  return {
+    mode: "hash",
+    location() {
+      const hash = globalThis.location?.hash ?? "";
+      return normalizePath(hash.startsWith("#") ? hash.slice(1) : hash);
+    },
+    push(path) {
+      globalThis.location.hash = `${normalizedBase.replace(/\/$/, "")}#${normalizePath(path)}`;
+    },
+    replace(path) {
+      const url = `${globalThis.location?.pathname ?? ""}${globalThis.location?.search ?? ""}${normalizedBase.replace(/\/$/, "")}#${normalizePath(path)}`;
+      globalThis.location?.replace?.(url);
+    },
+    listen(fn) {
+      globalThis.addEventListener?.("hashchange", fn);
+      return () => globalThis.removeEventListener?.("hashchange", fn);
+    },
+    createHref(path) {
+      return `${normalizedBase.replace(/\/$/, "")}#${normalizePath(path)}`;
+    },
+    back() {
+      globalThis.history?.back();
+    },
+    forward() {
+      globalThis.history?.forward();
+    }
+  };
+}
+
+export function createMemoryHistory(initial = "/"): RouterHistory {
+  const stack = [normalizePath(initial)];
+  const listeners = new Set<() => void>();
+  let index = 0;
+
+  function notify(): void {
+    for (const listener of listeners) listener();
+  }
+
+  return {
+    mode: "memory",
+    location() {
+      return stack[index] ?? "/";
+    },
+    push(path) {
+      stack.splice(index + 1);
+      stack.push(normalizePath(path));
+      index = stack.length - 1;
+      notify();
+    },
+    replace(path) {
+      stack[index] = normalizePath(path);
+      notify();
+    },
+    listen(fn) {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    createHref(path) {
+      return normalizePath(path);
+    },
+    back() {
+      if (index > 0) {
+        index -= 1;
+        notify();
+      }
+    },
+    forward() {
+      if (index < stack.length - 1) {
+        index += 1;
+        notify();
+      }
+    }
+  };
+}
+
+export const RouterView: RouteComponent = {
+  mount(target, props = {}) {
+    const anchor = document.createComment("mikuru-router-view");
+    const cleanup: Array<() => void> = [];
+    let child: { element: Element | Comment; unmount(): void } | undefined;
+    target.appendChild(anchor);
+
+    const stop = effect(() => {
+      const router = getRouterProp(props);
+      const route = router.currentRoute.value;
+      const component = route.matched?.component;
+      child?.unmount();
+      child = undefined;
+
+      if (!component) return;
+
+      const fragment = document.createDocumentFragment();
+      child = component.mount(fragment, { route, router, __mikuru_context: props.__mikuru_context });
+      anchor.parentNode?.insertBefore(fragment, anchor);
+    });
+
+    cleanup.push(stop, () => child?.unmount(), () => anchor.remove());
+
+    return {
+      element: anchor,
+      unmount() {
+        for (const fn of cleanup.splice(0).reverse()) fn();
+      }
+    };
+  }
+};
+
+export const RouterLink: RouteComponent = {
+  mount(target, props = {}) {
+    const anchor = document.createElement("a");
+    const cleanup: Array<() => void> = [];
+    const text = () => String(unwrap(props.label) ?? unwrap(props.childrenText) ?? unwrap(props.to) ?? "");
+    const navigate = (event: Event) => {
+      const router = getRouterProp(props);
+      event.preventDefault();
+      void router.push(String(unwrap(props.to) ?? "/"));
+    };
+
+    anchor.addEventListener("click", navigate);
+    cleanup.push(() => anchor.removeEventListener("click", navigate));
+
+    const stop = effect(() => {
+      const router = getRouterProp(props);
+      const to = stringifyLocation(String(unwrap(props.to) ?? "/"));
+      anchor.href = router.createHref(to);
+      anchor.textContent = text();
+      if (router.currentRoute.value.fullPath === router.resolve(to).fullPath) {
+        anchor.setAttribute("aria-current", "page");
+        anchor.classList.add("router-link-active");
+      } else {
+        anchor.removeAttribute("aria-current");
+        anchor.classList.remove("router-link-active");
+      }
+    });
+
+    cleanup.push(stop, () => anchor.remove());
+    target.appendChild(anchor);
+
+    return {
+      element: anchor,
+      unmount() {
+        for (const fn of cleanup.splice(0).reverse()) fn();
+      }
+    };
+  }
+};
+
+function getRouterProp(props: Record<string, unknown>): Router {
+  const router = unwrap(props.router);
+  if (!router || typeof router !== "object" || !("currentRoute" in router)) {
+    throw new Error("RouterView and RouterLink require a router prop.");
+  }
+  return router as Router;
+}
+
+function createMatcher(routes: RouteRecord[]): CompiledRoute[] {
+  return routes.map((record) => {
+    const keys: string[] = [];
+    const source = record.path
+      .replace(/\/:([^/(]+)\(\.\*\)\*/g, (_match, key) => {
+        keys.push(key);
+        return "/(.*)";
+      })
+      .replace(/:([^/]+)/g, (_match, key) => {
+        keys.push(key);
+        return "([^/]+)";
+      });
+
+    return {
+      record,
+      keys,
+      pattern: new RegExp(`^${source.replace(/\//g, "\\/")}$`)
+    };
+  });
+}
+
+function resolveLocation(raw: string, matcher: CompiledRoute[]): RouteLocation {
+  const fullPath = normalizePath(raw);
+  const parsed = parsePath(fullPath);
+  const matched = matcher.find((route) => route.pattern.test(parsed.path));
+  const params: RouteParams = {};
+
+  if (matched) {
+    const match = matched.pattern.exec(parsed.path);
+    matched.keys.forEach((key, index) => {
+      params[key] = decodeURIComponent(match?.[index + 1] ?? "");
+    });
+  }
+
+  return {
+    path: parsed.path,
+    fullPath,
+    query: parsed.query,
+    hash: parsed.hash,
+    params,
+    matched: matched?.record,
+    name: matched?.record.name,
+    meta: matched?.record.meta ?? {}
+  };
+}
+
+function parsePath(fullPath: string): { path: string; query: RouteQuery; hash: string } {
+  const [pathAndQuery, rawHash = ""] = fullPath.split("#", 2);
+  const [path = "/", rawQuery = ""] = pathAndQuery.split("?", 2);
+  return {
+    path: normalizePath(path),
+    query: parseQuery(rawQuery),
+    hash: rawHash ? `#${rawHash}` : ""
+  };
+}
+
+function stringifyLocation(to: RouteLocationRaw): string {
+  if (typeof to === "string") return normalizePath(to);
+  const path = normalizePath(to.path);
+  const query = stringifyQuery(to.query ?? {});
+  const hash = to.hash ? (to.hash.startsWith("#") ? to.hash : `#${to.hash}`) : "";
+  return `${path}${query}${hash}`;
+}
+
+function parseQuery(raw: string): RouteQuery {
+  const query: RouteQuery = {};
+  const search = new URLSearchParams(raw);
+
+  for (const [key, value] of search) {
+    const current = query[key];
+    if (Array.isArray(current)) current.push(value);
+    else if (current !== undefined) query[key] = [current, value];
+    else query[key] = value;
+  }
+
+  return query;
+}
+
+function stringifyQuery(query: RouteQuery): string {
+  const search = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      for (const item of value) search.append(key, item);
+    } else if (value !== undefined) {
+      search.set(key, value);
+    }
+  }
+
+  const result = search.toString();
+  return result ? `?${result}` : "";
+}
+
+function normalizePath(path: string): string {
+  const normalized = path.trim() || "/";
+  return normalized.startsWith("/") ? normalized : `/${normalized}`;
+}
+
+function normalizeBase(base: string): string {
+  if (!base) return "/";
+  return base.endsWith("/") ? base : `${base}/`;
+}
+
+function stripBase(path: string, base: string): string {
+  if (base === "/") return path;
+  return path.startsWith(base) ? path.slice(base.length - 1) : path;
+}
+
+function removeItem<T>(items: T[], item: T): void {
+  const index = items.indexOf(item);
+  if (index >= 0) items.splice(index, 1);
+}

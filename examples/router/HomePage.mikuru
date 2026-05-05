@@ -1,0 +1,13 @@
+<template>
+  <section class="page">
+    <h2>Home</h2>
+    <p>RouterView renders the matched component.</p>
+  </section>
+</template>
+
+<style scoped>
+.page {
+  display: grid;
+  gap: 8px;
+}
+</style>

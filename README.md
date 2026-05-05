@@ -136,6 +136,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `v-model` for common form controls and child components
 - Component props, events, `defineProps`, `defineEmits`, default slots, named slots, and slot props
 - Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, and `inject`
+- Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, `RouterView`, and `RouterLink`
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, and code frames
 
@@ -151,6 +152,12 @@ The Vite plugin is available from `mikuru/vite`:
 
 ```ts
 import { mikuru } from "mikuru/vite";
+```
+
+The router is available from `mikuru/router`:
+
+```ts
+import { createRouter, createWebHashHistory, RouterLink, RouterView } from "mikuru/router";
 ```
 
 The `.mikuru` TypeScript declaration is available from `mikuru/env`:
@@ -216,4 +223,5 @@ npm run dev:mikuru-vue-like
 - `CHANGELOG.md` lists published package changes.
 - `docs/npm-usage.md` shows a manual Vite setup for package consumers.
 - `docs/app-architecture.md` describes how to keep larger Mikuru apps split across components, API modules, stores, forms, auth, and tests.
+- `docs/router.md` documents the runtime router.
 - `docs/v1-api-contract.md` describes the v1 compatibility boundary used by this repository.

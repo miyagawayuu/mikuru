@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 const { compile } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
+const { createMemoryHistory, createRouter } = await import("mikuru/router");
 const { effect, nextTick, ref, watch } = await import("mikuru/runtime");
 const { mikuru } = await import("mikuru/vite");
 
@@ -48,6 +49,14 @@ await nextTick(() => {
   ticked = true;
 });
 assert.equal(ticked, true);
+
+const router = createRouter({
+  history: createMemoryHistory("/"),
+  routes: [{ path: "/" }, { path: "/items/:id" }]
+});
+await router.push("/items/7?tab=details");
+assert.equal(router.currentRoute.value.params.id, "7");
+assert.equal(router.currentRoute.value.query.tab, "details");
 
 const plugin = mikuru({ debug: true });
 const transformed = await plugin.transform.call(

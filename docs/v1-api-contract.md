@@ -7,6 +7,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 - `mikuru`: re-exports the compiler entry and runtime reactivity helpers.
 - `mikuru/compiler`: exposes `compile`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
 - `mikuru/runtime`: exposes `ref`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `nextTick`, `watch`, lifecycle callbacks, and simple dependency helpers.
+- `mikuru/router`: exposes `createRouter`, browser and memory histories, `RouterView`, and `RouterLink`.
 - `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export.
 
 ## SFC Contract
@@ -49,6 +50,16 @@ Unsupported in v1:
 - Component events are passed as `onEventName` props.
 - Component `v-model` passes `modelValue` and `onUpdateModelValue`.
 - Child component instances must return `{ element, unmount }` from `mount`.
+
+## Router Contract
+
+- `createRouter({ history, routes, notFound? })` creates a router with a reactive `currentRoute`.
+- `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
+- Routes support static paths, dynamic params, query parsing, and hash parsing.
+- `router.push`, `router.replace`, `router.back`, `router.forward`, and `router.resolve` are public navigation APIs.
+- `router.beforeEach` and `router.afterEach` register navigation hooks and return unsubscribe functions.
+- `RouterView` renders the matched route component and passes `route` and `router` props.
+- `RouterLink` renders an anchor, calls `router.push()` on click, and marks exact active links with `aria-current="page"`.
 
 ## Runtime Contract
 
