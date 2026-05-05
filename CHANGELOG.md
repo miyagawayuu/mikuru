@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.11 - 2026-05-06
+
 - Improved unsupported template syntax errors with actionable alternatives for `v-html`, dynamic components, and misplaced `v-slot`.
 - Added `watch(..., { immediate: true })` for runtime watchers that need an initial callback.
 - Added `watch` cleanup callbacks that run before the next watcher callback and when the watcher is stopped.
