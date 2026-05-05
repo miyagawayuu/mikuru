@@ -43,3 +43,23 @@ describe("dogfood example", () => {
     expect(result.code).toContain("children(slotTarget");
   });
 });
+
+describe("realworld example", () => {
+  it("keeps App.mikuru as a small page composition root", () => {
+    const source = readFileSync(resolve("examples/realworld/src/App.mikuru"), "utf8");
+    const result = compile(source, { filename: "examples/realworld/src/App.mikuru" });
+
+    expect(result.code).toContain('import DashboardPage from "./pages/DashboardPage.mikuru";');
+    expect(result.code).toContain("DashboardPage.mount");
+  });
+
+  it("compiles the dashboard page with architecture-layer imports", () => {
+    const source = readFileSync(resolve("examples/realworld/src/pages/DashboardPage.mikuru"), "utf8");
+    const result = compile(source, { filename: "examples/realworld/src/pages/DashboardPage.mikuru" });
+
+    expect(result.code).toContain('import { createTasksStore } from "../features/tasks/tasksStore";');
+    expect(result.code).toContain('import TaskCard from "../features/tasks/TaskCard.mikuru";');
+    expect(result.code).toContain("onUpdateModelValue");
+    expect(result.code).toContain("new Map()");
+  });
+});

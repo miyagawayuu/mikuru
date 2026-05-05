@@ -1,0 +1,30 @@
+<template>
+  <label class="field">
+    <span>{{ label }}</span>
+    <input :value="modelValue" :placeholder="placeholder" :aria-label="label" @input="updateValue" />
+  </label>
+</template>
+
+<script>
+const { label, modelValue = "", placeholder = "" } = defineProps();
+const emit = defineEmits(["update:modelValue"]);
+
+function updateValue(event) {
+  emit("update:modelValue", event.target.value);
+}
+</script>
+
+<style scoped>
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+input {
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+}
+</style>

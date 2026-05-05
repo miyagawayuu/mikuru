@@ -360,6 +360,7 @@ Use the dogfood app as a reference for practical Mikuru patterns:
 
 ## Practical Guidelines
 
+- For larger applications, use `docs/app-architecture.md` as the project structure guide for component boundaries, API modules, stores, forms, auth, loading states, errors, and tests.
 - Keep template expressions simple.
 - Prefer functions in `<script>` for non-trivial logic.
 - Use `computed` for filtered or derived lists.

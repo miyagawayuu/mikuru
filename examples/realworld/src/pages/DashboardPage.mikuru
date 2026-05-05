@@ -1,0 +1,149 @@
+<template>
+  <main class="board" :class="{ compact }">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Realworld architecture example</p>
+        <h1>Release task board</h1>
+      </div>
+      <UiButton variant="secondary" @click="toggleDensity">{{ densityLabel }}</UiButton>
+    </header>
+
+    <section class="controls">
+      <TextInput label="Search tasks" placeholder="Search tasks" v-model="search" />
+
+      <label class="field">
+        <span>Owner</span>
+        <select v-model="owner" aria-label="Owner">
+          <option value="all">All</option>
+          <option value="Compiler">Compiler</option>
+          <option value="Runtime">Runtime</option>
+          <option value="DX">DX</option>
+        </select>
+      </label>
+    </section>
+
+    <form class="new-task" @submit.prevent="addTask">
+      <TextInput label="New task" placeholder="New task title" v-model="newTitle" />
+
+      <label class="field">
+        <span>Owner</span>
+        <select v-model="newOwner" aria-label="New task owner">
+          <option value="Compiler">Compiler</option>
+          <option value="Runtime">Runtime</option>
+          <option value="DX">DX</option>
+        </select>
+      </label>
+
+      <UiButton :loading="saving" :disabled="!newTitle.trim()">Add task</UiButton>
+    </form>
+
+    <InlineError :message="formError" />
+
+    <LoadingState v-if="loading" message="Loading release tasks..." />
+    <ErrorState v-else-if="loadError" :message="loadError" @retry="loadTasks" />
+    <section v-else-if="filteredTasks.length === 0" class="empty-state">
+      <strong>No tasks found</strong>
+      <p>Try a different search term or owner filter.</p>
+    </section>
+    <section v-else class="tasks" aria-label="Release tasks">
+      <TaskCard v-for="task in filteredTasks" :key="task.id" :task="task" />
+    </section>
+  </main>
+</template>
+
+<script>
+import { onMounted } from "mikuru";
+
+import UiButton from "../components/ui/Button.mikuru";
+import ErrorState from "../components/ui/ErrorState.mikuru";
+import InlineError from "../components/ui/InlineError.mikuru";
+import LoadingState from "../components/ui/LoadingState.mikuru";
+import TextInput from "../components/ui/TextInput.mikuru";
+import TaskCard from "../features/tasks/TaskCard.mikuru";
+import { createTasksStore } from "../features/tasks/tasksStore";
+
+const {
+  search,
+  owner,
+  compact,
+  newTitle,
+  newOwner,
+  filteredTasks,
+  loading,
+  saving,
+  loadError,
+  formError,
+  densityLabel,
+  loadTasks,
+  addTask,
+  toggleDensity
+} = createTasksStore();
+
+onMounted(loadTasks);
+</script>
+
+<style scoped>
+.board {
+  display: grid;
+  gap: 18px;
+  max-width: 960px;
+  margin: 36px auto;
+  padding: 0 20px;
+  color: #172033;
+  font-family: system-ui, sans-serif;
+}
+
+.topbar,
+.controls,
+.new-task {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.topbar {
+  justify-content: space-between;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #667085;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+select {
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+}
+
+.tasks {
+  display: grid;
+  gap: 12px;
+}
+
+.empty-state {
+  display: grid;
+  gap: 4px;
+  padding: 18px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+</style>
