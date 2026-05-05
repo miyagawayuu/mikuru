@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const tempRoot = mkdtempSync(join(tmpdir(), "mikuru-pack-smoke-"));
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmCli = process.env.npm_execpath;
 const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
 try {
@@ -110,7 +111,12 @@ function increment() {
 }
 
 function runNpm(args, cwd) {
-  execFileSync(npm, args, { cwd, stdio: "ignore", shell: process.platform === "win32" });
+  if (npmCli) {
+    execFileSync(process.execPath, [npmCli, ...args], { cwd, stdio: "ignore" });
+    return;
+  }
+
+  execFileSync(npm, args, { cwd, stdio: "ignore" });
 }
 
 function installAndBuildGeneratedApp(appRoot, tarball) {

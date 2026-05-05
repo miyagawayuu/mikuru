@@ -6,11 +6,15 @@ import { fileURLToPath } from "node:url";
 const availableTemplates = ["starter", "basic"] as const;
 type TemplateName = (typeof availableTemplates)[number];
 
+const templateDescriptions: Record<TemplateName, string> = {
+  starter: "minimal Vite app",
+  basic: "component composition example"
+};
+
 type CreateOptions = {
   force: boolean;
   targetArg?: string;
   templateName: TemplateName;
-  yes: boolean;
 };
 
 const args = process.argv.slice(2);
@@ -68,6 +72,7 @@ if (relativeTargetDir && relativeTargetDir !== ".") {
 }
 console.log("  npm install");
 console.log("  npm run dev");
+printTemplateNextStep(templateName);
 
 function printHelp(): void {
   console.log(`Usage:
@@ -82,7 +87,7 @@ Commands:
 Options:
   -h, --help          Show help.
   -v, --version       Show the installed Mikuru version.
-  --list-templates    List available create templates.`);
+  --list-templates    List available create templates with descriptions.`);
 }
 
 function printCreateHelp(): void {
@@ -91,21 +96,29 @@ function printCreateHelp(): void {
 
 Options:
   -t, --template <name>  Template to use. Available: ${availableTemplates.join(", ")}.
-  --list-templates       List available create templates.
-  --force              Create into a non-empty directory and overwrite template files.
-  -y, --yes            Use default answers for prompts. Currently accepted for future compatibility.
-  -h, --help           Show create help.`);
+  --list-templates       List available create templates with descriptions.
+  --force                Create into a non-empty directory and overwrite template files.
+  -y, --yes              Accepted for npm create compatibility; create is currently non-interactive.
+  -h, --help             Show create help.`);
 }
 
 function printTemplates(): void {
-  console.log(availableTemplates.join("\n"));
+  console.log(availableTemplates.map((name) => `${name} - ${templateDescriptions[name]}`).join("\n"));
+}
+
+function printTemplateNextStep(templateName: TemplateName): void {
+  if (templateName === "basic") {
+    console.log("  edit src/App.mikuru and src/MoodBadge.mikuru");
+    return;
+  }
+
+  console.log("  edit src/App.mikuru");
 }
 
 function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
   let force = false;
   let targetArg: string | undefined;
   let templateName = "starter";
-  let yes = false;
 
   for (let i = 0; i < createArgs.length; i++) {
     const arg = createArgs[i];
@@ -121,7 +134,6 @@ function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
     }
 
     if (arg === "--yes" || arg === "-y") {
-      yes = true;
       continue;
     }
 
@@ -163,15 +175,21 @@ function parseCreateArgs(createArgs: string[]): CreateOptions | undefined {
 
   if (!isTemplateName(templateName)) {
     console.error(`Unknown template: ${templateName}`);
-    console.error(`Available templates: ${availableTemplates.join(", ")}`);
+    console.error("Available templates:");
+    console.error(formatTemplatesForError());
+    console.error("Run `mikuru create --list-templates` to see template descriptions.");
     return undefined;
   }
 
-  return { force, targetArg, templateName, yes };
+  return { force, targetArg, templateName };
 }
 
 function isTemplateName(value: string): value is TemplateName {
   return (availableTemplates as readonly string[]).includes(value);
+}
+
+function formatTemplatesForError(): string {
+  return availableTemplates.map((name) => `  ${name} - ${templateDescriptions[name]}`).join("\n");
 }
 
 function copyTemplate(sourceDir: string, targetDir: string, variables: { appName: string; packageVersion: string }): void {

@@ -6,6 +6,8 @@ This guide explains how to use Mikuru from a published npm package in a Vite app
 
 Mikuru requires Node.js 22 or newer.
 
+## Create CLI
+
 For a new application, prefer the starter CLI:
 
 ```sh
@@ -18,10 +20,18 @@ npm run dev
 For a small component composition example, use the `basic` template:
 
 ```sh
-npx mikuru create my-basic-app --template basic
+npx mikuru create my-basic-app -t basic
 ```
 
-`mikuru create` also accepts `-t` as a short alias for `--template`, `--list-templates` to print available templates, `--force` for non-empty directories, and `--yes` / `-y` to use default answers for prompts.
+List available templates:
+
+```sh
+npx mikuru --list-templates
+starter - minimal Vite app
+basic - component composition example
+```
+
+`mikuru create` also accepts `--template <name>`, `--force` for non-empty directories, and `--yes` / `-y` for npm create compatibility. The create flow is currently non-interactive.
 
 For an existing Vite application, install the package manually:
 
