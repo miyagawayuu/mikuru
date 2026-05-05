@@ -1,0 +1,17 @@
+<template>
+  <section class="page">
+    <h2>Not found</h2>
+    <p>{{ route.path }} does not match a route.</p>
+  </section>
+</template>
+
+<script>
+const { route } = defineProps();
+</script>
+
+<style scoped>
+.page {
+  display: grid;
+  gap: 8px;
+}
+</style>

@@ -25,6 +25,10 @@
       "types": "./dist/runtime/index.d.ts",
       "default": "./dist/runtime/index.js"
     },
+    "./router": {
+      "types": "./dist/router/index.d.ts",
+      "default": "./dist/router/index.js"
+    },
     "./env": {
       "types": "./types/env.d.ts",
       "default": "./dist/env.js"
@@ -52,18 +56,21 @@
     "build:basic": "vite build --config examples/basic/vite.config.ts",
     "build:dogfood": "vite build --config examples/dogfood/vite.config.ts",
     "build:realworld": "vite build --config examples/realworld/vite.config.ts",
+    "build:router": "vite build --config examples/router/vite.config.ts",
     "build:mikuru-sample": "vite build --config examples/mikuru-sample/vite.config.ts",
     "build:mikuru-vue-like": "vite build --config examples/mikuru-vue-like/vite.config.ts",
-    "ci": "npm run typecheck && npm test && npm run test:templates && npm run test:docs && npm run build && npm run test:create && npm run build:basic && npm run build:realworld && npm run build:dogfood && npm run test:package && npm run test:pack && npm run test:e2e && npm run test:e2e:basic && npm run test:e2e:dogfood",
+    "ci": "npm run typecheck && npm test && npm run test:templates && npm run test:docs && npm run build && npm run test:create && npm run build:basic && npm run build:realworld && npm run build:dogfood && npm run build:router && npm run test:package && npm run test:pack && npm run test:e2e && npm run test:e2e:basic && npm run test:e2e:dogfood && npm run test:e2e:router",
     "dev:basic": "vite --config examples/basic/vite.config.ts",
     "dev:dogfood": "vite --config examples/dogfood/vite.config.ts",
     "dev:realworld": "vite --config examples/realworld/vite.config.ts",
+    "dev:router": "vite --config examples/router/vite.config.ts",
     "dev:mikuru-sample": "vite --config examples/mikuru-sample/vite.config.ts",
     "dev:mikuru-vue-like": "vite --config examples/mikuru-vue-like/vite.config.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:basic": "playwright test --config playwright.basic.config.ts",
     "test:e2e:dogfood": "playwright test --config playwright.dogfood.config.ts",
+    "test:e2e:router": "playwright test --config playwright.router.config.ts",
     "test:create": "node tests/create-cli-smoke.mjs",
     "test:docs": "node tests/docs-smoke.mjs",
     "test:pack": "node tests/npm-pack-smoke.mjs",

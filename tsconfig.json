@@ -13,12 +13,13 @@
     "paths": {
       "mikuru": ["src/index.ts"],
       "mikuru/runtime": ["src/runtime/index.ts"],
+      "mikuru/router": ["src/router/index.ts"],
       "@mikuru-src/runtime": ["src/runtime/index.ts"],
       "@mikuru-src/*": ["src/*"]
     },
     "ignoreDeprecations": "6.0",
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "vite.config.ts", "playwright.config.ts", "playwright.dogfood.config.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "vite.config.ts", "playwright.config.ts", "playwright.basic.config.ts", "playwright.dogfood.config.ts", "playwright.router.config.ts"],
   "exclude": ["dist", "node_modules"]
 }

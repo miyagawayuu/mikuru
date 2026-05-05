@@ -1,0 +1,66 @@
+<template>
+  <main class="app">
+    <header>
+      <h1>Mikuru Router</h1>
+      <nav>
+        <RouterLink :router="router" to="/" label="Home" />
+        <RouterLink :router="router" to="/users/42?tab=profile" label="User" />
+        <RouterLink :router="router" to="/missing" label="Missing" />
+      </nav>
+    </header>
+
+    <RouterView :router="router" />
+  </main>
+</template>
+
+<script>
+import { onBeforeUnmount } from "mikuru";
+import { createMemoryHistory, createRouter, RouterLink, RouterView } from "mikuru/router";
+import HomePage from "./HomePage.mikuru";
+import NotFoundPage from "./NotFoundPage.mikuru";
+import UserPage from "./UserPage.mikuru";
+
+const router = createRouter({
+  history: createMemoryHistory("/"),
+  routes: [
+    { path: "/", component: HomePage },
+    { path: "/users/:id", component: UserPage }
+  ],
+  notFound: NotFoundPage
+});
+
+const stopRouter = router.listen();
+
+onBeforeUnmount(stopRouter);
+</script>
+
+<style scoped>
+.app {
+  display: grid;
+  gap: 24px;
+  max-width: 720px;
+  margin: 48px auto;
+  padding: 0 20px;
+  font-family: system-ui, sans-serif;
+}
+
+header {
+  display: grid;
+  gap: 12px;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+a {
+  color: #2454c6;
+}
+
+a[aria-current="page"] {
+  color: #111827;
+  font-weight: 700;
+}
+</style>

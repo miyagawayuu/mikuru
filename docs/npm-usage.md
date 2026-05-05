@@ -173,6 +173,12 @@ import { compile } from "mikuru/compiler";
 import { effect, nextTick, ref, unwrap, watch } from "mikuru/runtime";
 ```
 
+Routing helpers are available from `mikuru/router`:
+
+```ts
+import { createRouter, createWebHashHistory, RouterLink, RouterView } from "mikuru/router";
+```
+
 ## Run the App
 
 ```sh

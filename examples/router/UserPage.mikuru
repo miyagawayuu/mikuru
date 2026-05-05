@@ -1,0 +1,17 @@
+<template>
+  <section class="page">
+    <h2>User {{ route.params.id }}</h2>
+    <p>Tab: {{ route.query.tab }}</p>
+  </section>
+</template>
+
+<script>
+const { route } = defineProps();
+</script>
+
+<style scoped>
+.page {
+  display: grid;
+  gap: 8px;
+}
+</style>

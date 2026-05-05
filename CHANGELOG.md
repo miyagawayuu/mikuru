@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added `mikuru/router` with route matching, hash/history/memory histories, guards, `RouterView`, and `RouterLink`.
+- Added a router example app with E2E coverage.
+
 ## 1.0.13 - 2026-05-06
 
 - Added component-tree scoped `provide` / `inject` during Mikuru component mounting.
