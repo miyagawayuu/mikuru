@@ -925,6 +925,57 @@ function rename() {
     expect(fixture.root.querySelector("p")?.textContent).toBe("count: 2");
   });
 
+  it("renders slot fallback content when no slot is provided", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <slot>
+      <p>{{ message }}</p>
+      <button @click="rename">Rename fallback</button>
+    </slot>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const message = ref("Fallback");
+
+function rename() {
+  message.value = "Updated fallback";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Fallback");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Updated fallback");
+  });
+
+  it("uses provided default slot content instead of fallback content", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <slot>
+      <p>Fallback</p>
+    </slot>
+  </section>
+</template>`);
+
+    fixture.module.mount(fixture.root, {
+      children(target: DocumentFragment) {
+        const provided = fixture.document.createElement("strong");
+        provided.textContent = "Provided";
+        target.appendChild(provided);
+        return () => provided.remove();
+      }
+    });
+
+    expect(fixture.root.querySelector("strong")?.textContent).toBe("Provided");
+    expect(fixture.root.querySelector("p")).toBeNull();
+  });
+
   it("injects component styles once per compiled component", () => {
     const fixture = compileForDom(`<template>
   <button>Styled</button>

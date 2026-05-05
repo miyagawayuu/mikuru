@@ -222,18 +222,23 @@ function generateSlot(
 ): string {
   const slotVar = nextVar(context, "slot");
   const slotCleanupVar = nextVar(context, "slotCleanup");
+  const slotCleanupResultVar = nextVar(context, "slotCleanup");
   const slotFnVar = nextVar(context, "slot");
   const slotPropsVar = nextVar(context, "slotProps");
   const slotName = getSlotOutletName(node, context);
   emit(context, indent, `const ${slotFnVar} = ${slotName === "default" ? "props.slots?.default ?? props.children" : `props.slots?.[${quote(slotName)}]`};`);
   emitSlotOutletProps(context, node, slotPropsVar, indent);
   emit(context, indent, `const ${slotVar} = document.createDocumentFragment();`);
-  emit(context, indent, `const ${slotCleanupVar} = ${slotFnVar} ? ${slotFnVar}(${slotVar}, ${slotPropsVar}) : undefined;`);
-  emit(context, indent, `${cleanupVar}.push(() => {`);
-  emit(context, indent + 1, `if (${slotCleanupVar}) {`);
-  emit(context, indent + 2, `${slotCleanupVar}();`);
+  emit(context, indent, `const ${slotCleanupVar} = [];`);
+  emit(context, indent, `if (${slotFnVar}) {`);
+  emit(context, indent + 1, `const ${slotCleanupResultVar} = ${slotFnVar}(${slotVar}, ${slotPropsVar});`);
+  emit(context, indent + 1, `if (${slotCleanupResultVar}) {`);
+  emit(context, indent + 2, `${slotCleanupVar}.push(${slotCleanupResultVar});`);
   emit(context, indent + 1, "}");
-  emit(context, indent, "});");
+  emit(context, indent, "} else {");
+  generateChildren(context, node.children, slotVar, slotCleanupVar, indent + 1);
+  emit(context, indent, "}");
+  emit(context, indent, `${cleanupVar}.push(() => __mikuru_runCleanup(${slotCleanupVar}));`);
   appendNode(context, parentVar, slotVar, indent, beforeVar);
   return slotVar;
 }

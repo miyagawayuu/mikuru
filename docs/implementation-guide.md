@@ -270,7 +270,7 @@ Mikuru supports default slots, named slots, and simple slot props.
 </template>
 ```
 
-Use `<slot name="header" />` in a child component and `<template #header>` in the parent for named content.
+Use `<slot name="header" />` in a child component and `<template #header>` or `<template v-slot:header>` in the parent for named content.
 
 ```mikuru
 <!-- Parent -->
@@ -294,6 +294,14 @@ Use `<slot name="header" />` in a child component and `<template #header>` in th
 ```
 
 Slot scope bindings support an identifier such as `slotProps` or simple object destructuring such as `{ title }` and `{ title: heading }`.
+
+`<slot>` can also include fallback children. Mikuru renders those children only when the parent does not provide the corresponding default or named slot.
+
+```mikuru
+<slot name="header">
+  <h2>Untitled</h2>
+</slot>
+```
 
 ## Styles
 

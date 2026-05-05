@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7
+
+- Added fallback children for `<slot>` outlets when no matching parent slot is provided.
+- Kept fallback slot content reactive and covered cleanup behavior through generated DOM tests.
+- Documented fallback slot behavior alongside named slots and slot props.
+
 ## 1.0.6
 
 - Added named slots with `<slot name="...">`, `<template #name>`, and `<template v-slot:name>`.

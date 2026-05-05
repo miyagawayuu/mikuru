@@ -210,6 +210,27 @@ p { color: red; }
     expect(result.code).toContain("const title = { get value() { return slotProps");
   });
 
+  it("generates long-form slot templates and slot fallback branches", () => {
+    const parent = compile(`<template>
+  <Panel>
+    <template v-slot:header="slotProps">
+      <h2>{{ slotProps.title }}</h2>
+    </template>
+  </Panel>
+</template>
+<script>import Panel from "./Panel.mikuru";</script>`);
+    const child = compile(`<template>
+  <section>
+    <slot name="header">Fallback header</slot>
+  </section>
+</template>`);
+
+    expect(parent.code).toContain("header(slotTarget");
+    expect(parent.code).toContain("const slotProps = slotProps");
+    expect(child.code).toContain("} else {");
+    expect(child.code).toContain("Fallback header");
+  });
+
   it("rejects event modifiers on component events", () => {
     expect(() =>
       compile(`<template><Child @select.stop="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`, {
@@ -416,6 +437,12 @@ const count = 0;
     expect(() => compile(`<template><Panel v-slot:header>Header</Panel></template>`)).toThrow(
       /v-slot must be used on a <template> child in Mikuru/
     );
+    expect(() =>
+      compile(`<template><Panel><template #header>One</template><template v-slot:header>Two</template></Panel></template>`)
+    ).toThrow(/Duplicate slot template: header/);
+    expect(() =>
+      compile(`<template><Panel><template #default="{ title = 'x' }">Bad</template></Panel></template>`)
+    ).toThrow(/Slot scope destructuring only supports identifiers and simple aliases/);
   });
 
   it("adds generated source URLs in Vite debug mode", async () => {
