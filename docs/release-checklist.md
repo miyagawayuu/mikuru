@@ -7,6 +7,7 @@ Use this checklist before publishing a Mikuru v1 release.
 - Run `npm run ci`.
 - Run `npm run build:mikuru-sample`.
 - Run `npm run build:mikuru-vue-like`.
+- Confirm `npm run test:templates` passes so generated templates use the package version placeholder.
 - Run `npm pack --dry-run` and confirm the tarball only includes package files.
 - Run `npm publish --dry-run` before the real publish.
 
@@ -56,7 +57,9 @@ Confirm these exports work from the packed package:
 4. Run all required verification commands.
 5. Run `npm publish --dry-run`.
 6. Publish with `npm publish`.
-7. Create the release tag and attach the release notes.
+7. Push `master` and the release tag.
+8. Create the GitHub Release for the release tag and attach the release notes.
+9. Optionally verify the published package with `npx mikuru@latest create` in a disposable directory.
 
 ## Current Residual Warning
 

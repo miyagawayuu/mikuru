@@ -40,6 +40,7 @@ if (!createOptions) {
 const { force, targetArg, templateName } = createOptions;
 const targetDir = resolve(process.cwd(), targetArg ?? "mikuru-app");
 const appName = toPackageName(basename(targetDir));
+const packageVersion = readPackageVersion();
 
 if (!force && existsSync(targetDir) && readdirSync(targetDir).length > 0) {
   console.error(`Cannot create a Mikuru app in a non-empty directory: ${targetDir}`);
@@ -49,7 +50,7 @@ if (!force && existsSync(targetDir) && readdirSync(targetDir).length > 0) {
 
 const templateDir = resolve(dirname(fileURLToPath(import.meta.url)), `../templates/${templateName}`);
 
-copyTemplate(templateDir, targetDir, { appName });
+copyTemplate(templateDir, targetDir, { appName, packageVersion });
 
 console.log(`Created ${appName}`);
 console.log(`  Template: ${templateName}`);
@@ -153,7 +154,7 @@ function isTemplateName(value: string): value is TemplateName {
   return (availableTemplates as readonly string[]).includes(value);
 }
 
-function copyTemplate(sourceDir: string, targetDir: string, variables: { appName: string }): void {
+function copyTemplate(sourceDir: string, targetDir: string, variables: { appName: string; packageVersion: string }): void {
   mkdirSync(targetDir, { recursive: true });
 
   for (const entry of readdirSync(sourceDir)) {
@@ -168,7 +169,9 @@ function copyTemplate(sourceDir: string, targetDir: string, variables: { appName
     }
 
     if (isTextTemplate(sourcePath)) {
-      const content = readFileSync(sourcePath, "utf8").replaceAll("__MIKURU_APP_NAME__", variables.appName);
+      const content = readFileSync(sourcePath, "utf8")
+        .replaceAll("__MIKURU_APP_NAME__", variables.appName)
+        .replaceAll("__MIKURU_VERSION__", variables.packageVersion);
       writeFileSync(targetPath, content);
       continue;
     }
