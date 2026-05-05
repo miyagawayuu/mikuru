@@ -73,3 +73,12 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 - `v-html`.
 - Full Vue compatibility.
 - Precise source-map segment mapping.
+
+## Next Patch Draft
+
+The next patch release is expected to focus on the `mikuru create` experience rather than core compiler behavior.
+
+- Template discovery: `mikuru --list-templates`, template descriptions, and `-t` shorthand.
+- Safer creation: interactive project/template prompts, `--yes` defaults, typo suggestions, and `--dry-run` previews.
+- Generated app checks: starter/basic templates include `npm run typecheck`, `tsconfig.json`, and CSS import declarations.
+- Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.

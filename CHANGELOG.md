@@ -2,15 +2,25 @@
 
 ## Unreleased
 
+### Added
+
+- Added template discovery with `mikuru --list-templates`, `mikuru create --list-templates`, template descriptions, and `mikuru create -t <name>`.
+- Added interactive `mikuru create` prompts for missing project name/template values, with `--yes` / `-y` defaulting for non-interactive runs.
+- Added `mikuru create --dry-run` to preview the target, selected template, and generated files without writing them.
+- Added generated app `npm run typecheck` scripts, template `tsconfig.json` files, and CSS module declarations.
+- Added template version, generated app typecheck, docs smoke, and package smoke coverage for the create flow.
+
+### Changed
+
 - Made generated project templates use the installed Mikuru package version instead of hard-coded release versions.
-- Added a template version smoke test to prevent future template/package version drift.
-- Added `mikuru --list-templates`, `mikuru create --list-templates`, and `mikuru create -t <name>` for template discovery and shorthand selection.
 - Improved `mikuru create .` output so it does not print an unnecessary `cd .` next step.
-- Added template descriptions, friendlier unknown-template errors, template-specific create next steps, and clearer `--yes` documentation.
-- Added docs smoke coverage for CLI documentation and release checklist expectations.
+- Split create-template metadata out of the CLI entrypoint to keep future CLI options easier to add.
+- Clarified release checklist steps for pushing `master`, pushing tags, creating GitHub Releases, and deleting merged work branches.
+
+### Fixed
+
+- Added friendlier unknown-template errors with typo suggestions such as `Did you mean starter?`.
 - Removed the Windows npm pack smoke path that triggered Node's `DEP0190` shell warning.
-- Added interactive `mikuru create` prompts for missing project name/template values, `--yes` defaulting, template typo suggestions, and `--dry-run` file previews.
-- Added generated app `npm run typecheck` scripts and split create-template metadata out of the CLI entrypoint.
 
 ## 1.0.9
 
