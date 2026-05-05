@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.9
+
+- Updated generated project templates to depend on Mikuru `^1.0.9`.
+
 ## 1.0.8
 
 - Added a realworld app architecture guide and split the realworld example into page, feature, API, store, UI, and test layers.
