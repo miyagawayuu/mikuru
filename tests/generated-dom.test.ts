@@ -1635,6 +1635,7 @@ const aboutRoute = { name: "about" };
     try {
       Object.defineProperty(globalThis, "document", { configurable: true, value: fixture.document });
       fixture.module.mount(fixture.root);
+      await Promise.resolve();
 
       expect(fixture.root.querySelector("p")?.textContent).toBe("Current: /");
       expect(fixture.root.textContent).toContain("Current: /");

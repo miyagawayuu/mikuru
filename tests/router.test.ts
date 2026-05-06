@@ -38,6 +38,14 @@ function expectRoute(result: NavigationResult): RouteLocation {
   return result;
 }
 
+function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 describe("router", () => {
   it("matches dynamic params and parses query and hash", () => {
     const router = createRouter({
@@ -427,6 +435,7 @@ describe("router", () => {
       RouterLink.mount(root, { router, to: "/about", label: "About" });
       RouterView.mount(root, { router });
       document.body.appendChild(root);
+      await Promise.resolve();
 
       expect(root.textContent).toContain("AboutHome");
       root.querySelector("a")?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }) as unknown as Event);
@@ -464,6 +473,7 @@ describe("router", () => {
       RouterLink.mount(root, { __mikuru_context: context, to: "/about", label: "About" });
       RouterView.mount(root, { __mikuru_context: context });
       document.body.appendChild(root);
+      await Promise.resolve();
 
       expect(root.textContent).toContain("AboutHome");
       root.querySelector("a")?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }) as unknown as Event);
@@ -504,6 +514,89 @@ describe("router", () => {
       } else {
         (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar = previousRegistrar;
       }
+    }
+  });
+
+  it("renders and caches lazy route components", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    let loads = 0;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const lazyPage = textComponent("Lazy");
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          {
+            path: "/lazy",
+            component: async () => {
+              loads += 1;
+              return { default: lazyPage };
+            }
+          }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+      expect(root.textContent).toContain("Home");
+
+      expectRoute(await router.push("/lazy"));
+      await Promise.resolve();
+      expect(root.textContent).toContain("Lazy");
+
+      expectRoute(await router.push("/"));
+      await Promise.resolve();
+      expectRoute(await router.push("/lazy"));
+      await Promise.resolve();
+
+      expect(root.textContent).toContain("Lazy");
+      expect(loads).toBe(1);
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("ignores stale lazy route components after navigation changes", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    const slow = deferred<RouteComponent>();
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          { path: "/slow", component: () => slow.promise },
+          { path: "/fast", component: textComponent("Fast") }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expectRoute(await router.push("/slow"));
+      expect(root.textContent).not.toContain("Slow");
+      expectRoute(await router.push("/fast"));
+      await Promise.resolve();
+      expect(root.textContent).toContain("Fast");
+
+      slow.resolve(textComponent("Slow"));
+      await Promise.resolve();
+
+      expect(root.textContent).toContain("Fast");
+      expect(root.textContent).not.toContain("Slow");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }
   });
 

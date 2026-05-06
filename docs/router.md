@@ -104,6 +104,20 @@ const route = useRoute();
 
 Routes support static paths, dynamic params such as `/users/:id`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
 
+Route components can also be lazy loaders. `RouterView` resolves the loader when that route is rendered, caches the resolved component on the route record, and ignores stale loader results if navigation changes while the loader is pending:
+
+```ts
+createRouter({
+  routes: [
+    {
+      path: "/settings",
+      name: "settings",
+      component: () => import("./SettingsPage.mikuru")
+    }
+  ]
+});
+```
+
 Browser history modes support scroll behavior after successful navigation:
 
 ```ts
