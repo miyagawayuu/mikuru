@@ -91,6 +91,7 @@ const route = useRoute();
 - `router.push(to)` and `router.replace(to)` navigate programmatically and resolve to either a `RouteLocation` or `NavigationFailure`.
 - `router.back()` and `router.forward()` delegate to the configured history.
 - `router.resolve(to)` parses a route without navigating.
+- `router.preload(to)` resolves lazy route components without navigating.
 - `router.beforeEach(fn)` registers a navigation guard and returns an unsubscribe function.
 - `router.afterEach(fn)` registers a post-navigation hook and returns an unsubscribe function.
 - `router.onError(fn)` registers a handler for uncaught navigation and lazy route loader errors.
@@ -125,6 +126,18 @@ createRouter({
     }
   ]
 });
+```
+
+Use `router.preload(to)` to resolve lazy route components before navigation. `RouterLink` also accepts `preload`; when true, it preloads the target on hover or focus:
+
+```mikuru
+<template>
+  <RouterLink :to="{ name: 'settings' }" label="Settings" :preload="true" />
+</template>
+```
+
+```ts
+await router.preload({ name: "settings" });
 ```
 
 Lazy routes can render loading and error fallback components. Router-level fallbacks apply to every lazy route, and route records can override them:
@@ -317,9 +330,9 @@ Failure types are:
 - `aborted` when a guard returns `false`.
 - `cancelled` when a newer navigation supersedes an older async navigation.
 
-Duplicated navigations do not call `afterEach`. Aborted navigations call `afterEach(to, from, failure)` and keep `currentRoute` unchanged. Guard redirects resolve to the final route and call `afterEach` for the final navigation only.
+Duplicated navigations do not call `afterEach`. Aborted navigations call `afterEach(to, from, failure)` and keep `currentRoute` unchanged. Guard redirects resolve to the final route and call `afterEach` for the final navigation only. Repeated guard redirects are capped and throw `Too many navigation guard redirects.` through `router.onError()`.
 
-Use `router.onError()` to observe errors thrown by guards, scroll behavior, or lazy route loaders:
+Use `router.onError()` to observe errors thrown by guards, scroll behavior, preload, or lazy route loaders:
 
 ```ts
 const stopErrors = router.onError((error, to, from) => {

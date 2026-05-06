@@ -59,18 +59,19 @@ Unsupported in v1:
 - Route records can define `props` as `true`, a static object, or a route mapping function. `RouterView` passes mapped props together with built-in `route` and `router` props.
 - Route records support eager components and lazy component loaders that resolve to a component or default component export.
 - Lazy routes support router-level and route-level loading and error components. Error components receive the loader error in props.
+- `router.preload` resolves matched lazy route components without navigating. `RouterLink` supports `preload` to preload on hover or focus.
 - `route.meta` is a shallow parent-to-child merge of matched route record `meta`. `route.matched` is the final record, and `route.matchedRecords` is the full parent-to-child chain.
 - `createRouter({ scrollBehavior })` supports successful browser-navigation scroll control and default hash/top scrolling.
-- `router.push`, `router.replace`, `router.back`, `router.forward`, and `router.resolve` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
+- `router.push`, `router.replace`, `router.back`, `router.forward`, `router.resolve`, and `router.preload` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
 - `router.addRoute`, `router.removeRoute`, and `router.hasRoute` provide dynamic route management.
 - `provideRouter`, `useRouter`, and `useRoute` provide router access through component-tree context.
 - `isNavigationFailure` checks duplicated, aborted, and cancelled navigation failures.
 - `router.beforeEach` and `router.afterEach` register navigation hooks and return unsubscribe functions. `afterEach` receives an optional failure argument.
-- `router.onError` registers an error handler for uncaught navigation and lazy route loader errors and returns an unsubscribe function.
+- `router.onError` registers an error handler for uncaught navigation, preload, and lazy route loader errors and returns an unsubscribe function.
 - Route records can define `beforeEnter` as a guard or guard array. Matched route guards run parent-to-child after global `beforeEach` guards.
 - `RouterView` renders the matched route component and passes `route` and `router` props.
 - `RouterView` and `RouterLink` accept an explicit `router` prop or use the provided router context.
-- `RouterLink` renders an anchor, supports default slot children, route location objects, `replace`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
+- `RouterLink` renders an anchor, supports default slot children, route location objects, `replace`, `preload`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
 
 ## Runtime Contract
 

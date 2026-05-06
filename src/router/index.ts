@@ -92,6 +92,7 @@ export type Router = {
   back(): void;
   forward(): void;
   resolve(to: RouteLocationRaw): RouteLocation;
+  preload(to: RouteLocationRaw): Promise<RouteLocation>;
   beforeEach(guard: NavigationGuard): () => void;
   afterEach(hook: AfterNavigationHook): () => void;
   onError(handler: RouterErrorHandler): () => void;
@@ -126,6 +127,7 @@ type RouteMatcher = {
 const notFoundRoute: RouteRecord = { path: "/:pathMatch(.*)*", name: "not-found" };
 const routerKey = Symbol.for("mikuru.router");
 const routerErrorNotifiers = new WeakMap<Router, RouterErrorHandler>();
+const maxNavigationRedirects = 20;
 
 type RouterContext = {
   parent?: RouterContext;
@@ -189,7 +191,7 @@ export function createRouter(options: RouterOptions): Router {
   let listeningStop: (() => void) | undefined;
   let navigationId = 0;
 
-  async function navigate(to: RouteLocationRaw, replace: boolean): Promise<NavigationResult> {
+  async function navigate(to: RouteLocationRaw, replace: boolean, redirectCount = 0): Promise<NavigationResult> {
     const from = currentRoute.value;
     let target = from;
 
@@ -211,7 +213,10 @@ export function createRouter(options: RouterOptions): Router {
           return failure;
         }
         if (typeof result === "string" || (result && typeof result === "object")) {
-          return navigate(result, true);
+          if (redirectCount >= maxNavigationRedirects) {
+            throw new Error("Too many navigation guard redirects.");
+          }
+          return navigate(result, true, redirectCount + 1);
         }
       }
 
@@ -224,6 +229,22 @@ export function createRouter(options: RouterOptions): Router {
       }
       await handleScroll(target, from);
 
+      return target;
+    } catch (error) {
+      notifyRouterError(error, target, from);
+      throw error;
+    }
+  }
+
+  async function preload(to: RouteLocationRaw): Promise<RouteLocation> {
+    const from = currentRoute.value;
+    let target = from;
+
+    try {
+      target = resolveRouteTarget(to);
+      await Promise.all(
+        target.matchedRecords.map((record) => record.component ? resolveRouteComponent(record) : Promise.resolve())
+      );
       return target;
     } catch (error) {
       notifyRouterError(error, target, from);
@@ -345,6 +366,7 @@ export function createRouter(options: RouterOptions): Router {
     resolve(to) {
       return resolveRouteTarget(to);
     },
+    preload,
     beforeEach(guard) {
       beforeGuards.push(guard);
       return () => removeItem(beforeGuards, guard);
@@ -590,9 +612,18 @@ export const RouterLink: RouteComponent = {
       event.preventDefault();
       void (unwrap(props.replace) ? router.replace(readToProp(props)) : router.push(readToProp(props)));
     };
+    const preload = () => {
+      if (!unwrap(props.preload)) return;
+      const router = getRouterProp(props);
+      void router.preload(readToProp(props)).catch(() => undefined);
+    };
 
     anchor.addEventListener("click", navigate);
+    anchor.addEventListener("mouseenter", preload);
+    anchor.addEventListener("focus", preload);
     cleanup.push(() => anchor.removeEventListener("click", navigate));
+    cleanup.push(() => anchor.removeEventListener("mouseenter", preload));
+    cleanup.push(() => anchor.removeEventListener("focus", preload));
 
     if (hasChildren) {
       const cleanupResult = (props.children as (target: Element, props?: Record<string, unknown>) => void | (() => void))(anchor, {});

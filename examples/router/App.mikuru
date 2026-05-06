@@ -11,7 +11,7 @@
         <RouterLink to="/legacy-user" label="Redirect" />
         <RouterLink :to="{ name: 'settings-profile' }" label="Settings" />
         <RouterLink :to="{ name: 'dynamic' }" label="Dynamic" />
-        <RouterLink :to="{ name: 'lazy' }" label="Lazy" />
+        <RouterLink :to="{ name: 'lazy' }" label="Lazy" :preload="true" />
         <RouterLink :to="{ name: 'lazy-error' }" label="Lazy Error" />
         <RouterLink :to="{ name: 'admin' }" label="Admin" />
         <RouterLink :to="{ name: 'beta' }" label="Beta" />
