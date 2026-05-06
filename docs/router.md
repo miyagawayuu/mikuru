@@ -104,6 +104,21 @@ const route = useRoute();
 
 Routes support static paths, dynamic params such as `/users/:id`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
 
+Browser history modes support scroll behavior after successful navigation:
+
+```ts
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+  scrollBehavior(to) {
+    if (to.hash) return undefined;
+    return { left: 0, top: 0 };
+  }
+});
+```
+
+Without a custom `scrollBehavior`, browser navigation scrolls to a matching hash element or to the page top. A custom `scrollBehavior(to, from)` can return a `ScrollToOptions` object, `false`, or `undefined`. Returning `false` or `undefined` skips scrolling. Memory history does not run scroll behavior.
+
 Programmatic navigation accepts strings or route location objects:
 
 ```ts

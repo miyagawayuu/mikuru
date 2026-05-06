@@ -50,6 +50,11 @@ export type NavigationFailure = {
 };
 export type NavigationResult = RouteLocation | NavigationFailure;
 export type AfterNavigationHook = (to: RouteLocation, from: RouteLocation, failure?: NavigationFailure) => void;
+export type ScrollPosition = ScrollToOptions;
+export type ScrollBehavior = (
+  to: RouteLocation,
+  from: RouteLocation
+) => ScrollPosition | false | void | Promise<ScrollPosition | false | void>;
 export type RouterHistory = {
   mode: "hash" | "history" | "memory";
   location(): string;
@@ -64,6 +69,7 @@ export type RouterOptions = {
   history?: RouterHistory;
   routes: RouteRecord[];
   notFound?: RouteComponent;
+  scrollBehavior?: ScrollBehavior;
 };
 export type Router = {
   currentRoute: Ref<RouteLocation>;
@@ -187,6 +193,7 @@ export function createRouter(options: RouterOptions): Router {
     for (const hook of afterHooks) {
       hook(target, from);
     }
+    await handleScroll(target, from);
 
     return target;
   }
@@ -272,6 +279,19 @@ export function createRouter(options: RouterOptions): Router {
     replaceMatcher();
     syncCurrentRoute();
     return true;
+  }
+
+  async function handleScroll(to: RouteLocation, from: RouteLocation): Promise<void> {
+    if (history.mode === "memory") return;
+
+    if (options.scrollBehavior) {
+      const position = await options.scrollBehavior(to, from);
+      if (!position) return;
+      scrollToPosition(position);
+      return;
+    }
+
+    scrollToDefaultPosition(to);
   }
 
   return {
@@ -763,6 +783,24 @@ function createNavigationFailure(type: NavigationFailureType, to: RouteLocation,
     from,
     message: `Navigation ${type} from ${from.fullPath} to ${to.fullPath}.`
   };
+}
+
+function scrollToDefaultPosition(to: RouteLocation): void {
+  if (to.hash) {
+    const id = decodeURIComponent(to.hash.slice(1));
+    const element = globalThis.document?.getElementById?.(id);
+    if (element) {
+      element.scrollIntoView();
+      return;
+    }
+  }
+
+  scrollToPosition({ left: 0, top: 0 });
+}
+
+function scrollToPosition(position: ScrollPosition): void {
+  const scrollTo = globalThis.scrollTo ?? globalThis.window?.scrollTo;
+  (scrollTo as ((options: ScrollToOptions) => void) | undefined)?.call(globalThis.window ?? globalThis, position);
 }
 
 function stripBase(path: string, base: string): string {
