@@ -103,7 +103,15 @@ const route = useRoute();
 - `useRouter()` returns the provided router.
 - `useRoute()` returns a reactive proxy of `router.currentRoute.value`.
 
-Routes support static paths, dynamic params such as `/users/:id`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
+Routes support static paths, dynamic params such as `/users/:id`, optional params such as `/users/:id?`, repeat params such as `/tags/:tags+`, catch-all params such as `/files/:pathMatch(.*)*`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
+
+Repeat and catch-all params resolve to arrays:
+
+```ts
+const route = router.resolve("/tags/design/system");
+
+route.params.tags; // ["design", "system"]
+```
 
 Route components can also be lazy loaders. `RouterView` resolves the loader when that route is rendered, caches the resolved component on the route record, and ignores stale loader results if navigation changes while the loader is pending:
 
@@ -192,6 +200,13 @@ await router.push({
   params: { id: "42" },
   query: { tab: "profile" }
 });
+```
+
+Optional params can be omitted. Repeat params use arrays:
+
+```ts
+await router.push({ name: "optional-user" });
+await router.push({ name: "tags", params: { tags: ["design", "system"] } });
 ```
 
 Redirect routes can point to a string, route location object, or function:

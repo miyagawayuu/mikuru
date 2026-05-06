@@ -1,8 +1,8 @@
 import { effect, inject, provide, ref, unwrap } from "../runtime/index.js";
 import type { Ref } from "../runtime/index.js";
 
-export type RouteParams = Record<string, string>;
-export type RouteParamsRaw = Record<string, string | number | boolean>;
+export type RouteParams = Record<string, string | string[]>;
+export type RouteParamsRaw = Record<string, string | number | boolean | Array<string | number | boolean>>;
 export type RouteQuery = Record<string, string | string[] | undefined>;
 export type RouteComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
@@ -109,8 +109,13 @@ type CompiledRoute = {
   record: RouteRecord;
   records: RouteRecord[];
   path: string;
-  keys: string[];
+  keys: RouteParamKey[];
   pattern: RegExp;
+};
+
+type RouteParamKey = {
+  name: string;
+  repeat: boolean;
 };
 
 type RouteMatcher = {
@@ -698,28 +703,106 @@ function resolveRouteProps(record: RouteRecord, route: RouteLocation): Record<st
   return {};
 }
 
+function compileRoutePath(path: string): { keys: RouteParamKey[]; pattern: RegExp } {
+  const keys: RouteParamKey[] = [];
+  const normalized = normalizePath(path);
+  if (normalized === "/") return { keys, pattern: /^\/$/ };
+
+  const source = normalized
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => compileRouteSegment(segment, keys))
+    .join("");
+
+  return { keys, pattern: new RegExp(`^${source}$`) };
+}
+
+function compileRouteSegment(segment: string, keys: RouteParamKey[]): string {
+  const param = parseRouteParamSegment(segment);
+  if (!param) return `/${escapeRegExp(segment)}`;
+
+  keys.push({ name: param.name, repeat: param.repeat });
+
+  if (param.pattern === ".*") {
+    return param.optional ? "(?:/(.*))?" : "/(.*)";
+  }
+
+  if (param.repeat) {
+    const repeated = "([^/]+(?:/[^/]+)*)";
+    return param.optional ? `(?:/${repeated})?` : `/${repeated}`;
+  }
+
+  return param.optional ? "(?:/([^/]+))?" : "/([^/]+)";
+}
+
+function parseRouteParamSegment(
+  segment: string
+): { name: string; pattern?: string; optional: boolean; repeat: boolean } | undefined {
+  const match = /^:([^()+*?]+)(?:\((\.\*)\))?([?+*])?$/.exec(segment);
+  if (!match) return undefined;
+
+  const modifier = match[3] ?? "";
+  return {
+    name: match[1],
+    pattern: match[2],
+    optional: modifier === "?" || modifier === "*",
+    repeat: modifier === "+" || modifier === "*" || match[2] === ".*"
+  };
+}
+
+function stringifyRoutePath(path: string, params: RouteParamsRaw): string {
+  const normalized = normalizePath(path);
+  if (normalized === "/") return "/";
+
+  const segments = normalized.split("/").filter(Boolean);
+  const resolved: string[] = [];
+
+  for (const segment of segments) {
+    const param = parseRouteParamSegment(segment);
+    if (!param) {
+      resolved.push(segment);
+      continue;
+    }
+
+    const value = params[param.name];
+    if (value === undefined) {
+      if (param.optional) continue;
+      throw new Error(`Missing route param: ${param.name}`);
+    }
+
+    const values = Array.isArray(value) ? value : [value];
+    if (values.length === 0) {
+      if (param.optional) continue;
+      throw new Error(`Missing route param: ${param.name}`);
+    }
+
+    if (values.length > 1 && !param.repeat) {
+      throw new Error(`Route param is not repeatable: ${param.name}`);
+    }
+
+    resolved.push(...values.map((item) => encodeURIComponent(String(item))));
+  }
+
+  return normalizePath(resolved.join("/"));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function createMatcher(routes: RouteRecord[]): RouteMatcher {
   const compiled: CompiledRoute[] = [];
   const byName = new Map<string, CompiledRoute>();
 
   function addCompiledRoute(record: RouteRecord, path: string, parents: RouteRecord[], registerName: boolean): CompiledRoute {
-    const keys: string[] = [];
-    const source = path
-      .replace(/\/:([^/(]+)\(\.\*\)\*/g, (_match, key) => {
-        keys.push(key);
-        return "/(.*)";
-      })
-      .replace(/:([^/]+)/g, (_match, key) => {
-        keys.push(key);
-        return "([^/]+)";
-      });
+    const compiledPath = compileRoutePath(path);
 
     const route = {
       record,
       records: [...parents, record],
       path,
-      keys,
-      pattern: new RegExp(`^${source.replace(/\//g, "\\/")}$`)
+      keys: compiledPath.keys,
+      pattern: compiledPath.pattern
     };
 
     compiled.push(route);
@@ -765,7 +848,9 @@ function resolveLocation(raw: string, matcher: RouteMatcher): RouteLocation {
   if (matched) {
     const match = matched.pattern.exec(parsed.path);
     matched.keys.forEach((key, index) => {
-      params[key] = decodeURIComponent(match?.[index + 1] ?? "");
+      const value = match?.[index + 1];
+      if (value === undefined || value === "") return;
+      params[key.name] = key.repeat ? value.split("/").map((part) => decodeURIComponent(part)) : decodeURIComponent(value);
     });
   }
 
@@ -809,14 +894,7 @@ function stringifyNamedLocation(
     throw new Error(`Unknown route name: ${to.name}`);
   }
 
-  return route.path.replace(/:([^/]+)/g, (_match, key) => {
-    const value = to.params?.[key];
-    if (value === undefined) {
-      throw new Error(`Missing route param: ${key}`);
-    }
-
-    return encodeURIComponent(String(value));
-  });
+  return stringifyRoutePath(route.path, to.params ?? {});
 }
 
 function parseQuery(raw: string): RouteQuery {

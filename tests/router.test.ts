@@ -103,6 +103,48 @@ describe("router", () => {
     expect(route.query).toEqual({ tab: "posts", tag: ["a", "b"] });
   });
 
+  it("matches optional, repeat, and catch-all params", () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/users/:id?", name: "optional-user" },
+        { path: "/tags/:tags+", name: "tags" },
+        { path: "/files/:pathMatch(.*)*", name: "files" }
+      ]
+    });
+
+    const optionalMissing = router.resolve("/users");
+    const optionalPresent = router.resolve("/users/42");
+    const repeat = router.resolve("/tags/design/system");
+    const catchAll = router.resolve("/files/docs/router/guide");
+
+    expect(optionalMissing.name).toBe("optional-user");
+    expect(optionalMissing.params).toEqual({});
+    expect(optionalPresent.params).toEqual({ id: "42" });
+    expect(repeat.params).toEqual({ tags: ["design", "system"] });
+    expect(catchAll.params).toEqual({ pathMatch: ["docs", "router", "guide"] });
+  });
+
+  it("resolves named routes with optional and repeat params", () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/users/:id?", name: "optional-user" },
+        { path: "/tags/:tags+", name: "tags" },
+        { path: "/files/:pathMatch(.*)*", name: "files" }
+      ]
+    });
+
+    expect(router.resolve({ name: "optional-user" }).fullPath).toBe("/users");
+    expect(router.resolve({ name: "optional-user", params: { id: "42" } }).fullPath).toBe("/users/42");
+    expect(router.resolve({ name: "tags", params: { tags: ["design", "system"] } }).fullPath).toBe("/tags/design/system");
+    expect(router.resolve({ name: "files", params: { pathMatch: ["docs", "router"] } }).fullPath).toBe("/files/docs/router");
+    expect(() => router.resolve({ name: "tags" })).toThrow("Missing route param: tags");
+    expect(() => router.resolve({ name: "optional-user", params: { id: ["a", "b"] } })).toThrow(
+      "Route param is not repeatable: id"
+    );
+  });
+
   it("navigates with guards and after hooks", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
