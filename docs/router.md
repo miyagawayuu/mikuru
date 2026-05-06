@@ -93,6 +93,7 @@ const route = useRoute();
 - `router.resolve(to)` parses a route without navigating.
 - `router.beforeEach(fn)` registers a navigation guard and returns an unsubscribe function.
 - `router.afterEach(fn)` registers a post-navigation hook and returns an unsubscribe function.
+- `router.onError(fn)` registers a handler for uncaught navigation and lazy route loader errors.
 - `router.addRoute(record)` adds a top-level route and returns a remove callback.
 - `router.addRoute(parentName, record)` adds a nested route under a named parent and returns a remove callback.
 - `router.removeRoute(name)` removes a named route and its children.
@@ -137,6 +138,24 @@ createRouter({
 ```
 
 Loading components receive `{ route, router }` props. Error components receive `{ error, route, router }` props. If no error component is configured, lazy loader errors are thrown asynchronously.
+
+Route records can map route data into component props. `props: true` passes route params, object props are passed as static values, and a function can map params, query, hash, or meta into the component's props:
+
+```ts
+createRouter({
+  routes: [
+    { path: "/users/:id", component: UserPage, props: true },
+    { path: "/reports", component: ReportsPage, props: { mode: "summary" } },
+    {
+      path: "/search",
+      component: SearchPage,
+      props: (route) => ({ q: route.query.q, page: route.query.page ?? "1" })
+    }
+  ]
+});
+```
+
+Route components still receive `route` and `router` props, and those built-in props take priority over mapped route props.
 
 Browser history modes support scroll behavior after successful navigation:
 
@@ -284,6 +303,14 @@ Failure types are:
 - `cancelled` when a newer navigation supersedes an older async navigation.
 
 Duplicated navigations do not call `afterEach`. Aborted navigations call `afterEach(to, from, failure)` and keep `currentRoute` unchanged. Guard redirects resolve to the final route and call `afterEach` for the final navigation only.
+
+Use `router.onError()` to observe errors thrown by guards, scroll behavior, or lazy route loaders:
+
+```ts
+const stopErrors = router.onError((error, to, from) => {
+  console.error("Router error", error, to.fullPath, from?.fullPath);
+});
+```
 
 ## Current Limits
 

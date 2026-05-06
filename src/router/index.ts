@@ -8,6 +8,10 @@ export type RouteComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
 };
 export type LazyRouteComponent = () => Promise<RouteComponent | { default: RouteComponent }>;
+export type RoutePropsOption =
+  | boolean
+  | Record<string, unknown>
+  | ((route: RouteLocation) => Record<string, unknown> | undefined);
 export type RouteRecord = {
   path: string;
   name?: string;
@@ -18,6 +22,7 @@ export type RouteRecord = {
   alias?: string | string[];
   meta?: Record<string, unknown>;
   beforeEnter?: NavigationGuard | NavigationGuard[];
+  props?: RoutePropsOption;
   children?: RouteRecord[];
   __mikuru_resolvedComponent?: RouteComponent;
 };
@@ -55,6 +60,7 @@ export type NavigationFailure = {
 };
 export type NavigationResult = RouteLocation | NavigationFailure;
 export type AfterNavigationHook = (to: RouteLocation, from: RouteLocation, failure?: NavigationFailure) => void;
+export type RouterErrorHandler = (error: unknown, to: RouteLocation, from?: RouteLocation) => void;
 export type ScrollPosition = ScrollToOptions;
 export type ScrollBehavior = (
   to: RouteLocation,
@@ -88,6 +94,7 @@ export type Router = {
   resolve(to: RouteLocationRaw): RouteLocation;
   beforeEach(guard: NavigationGuard): () => void;
   afterEach(hook: AfterNavigationHook): () => void;
+  onError(handler: RouterErrorHandler): () => void;
   addRoute(record: RouteRecord): () => void;
   addRoute(parentName: string, record: RouteRecord): () => void;
   removeRoute(name: string): boolean;
@@ -113,6 +120,7 @@ type RouteMatcher = {
 
 const notFoundRoute: RouteRecord = { path: "/:pathMatch(.*)*", name: "not-found" };
 const routerKey = Symbol.for("mikuru.router");
+const routerErrorNotifiers = new WeakMap<Router, RouterErrorHandler>();
 
 type RouterContext = {
   parent?: RouterContext;
@@ -170,44 +178,52 @@ export function createRouter(options: RouterOptions): Router {
   let matcher = createMatcher(readMatcherRoutes());
   const beforeGuards: NavigationGuard[] = [];
   const afterHooks: AfterNavigationHook[] = [];
+  const errorHandlers: RouterErrorHandler[] = [];
   const initial = resolveRouteTarget(history.location());
   const currentRoute = ref(initial);
   let listeningStop: (() => void) | undefined;
   let navigationId = 0;
 
   async function navigate(to: RouteLocationRaw, replace: boolean): Promise<NavigationResult> {
-    let target = resolveRouteTarget(to);
     const from = currentRoute.value;
-    const id = ++navigationId;
+    let target = from;
 
-    if (target.fullPath === from.fullPath) {
-      return createNavigationFailure(NavigationFailureType.duplicated, target, from);
-    }
+    try {
+      target = resolveRouteTarget(to);
+      const id = ++navigationId;
 
-    const guards = [...beforeGuards, ...readBeforeEnterGuards(target.matchedRecords)];
-    for (const guard of guards) {
-      const result = await guard(target, from);
-      if (id !== navigationId) return createNavigationFailure(NavigationFailureType.cancelled, target, from);
-      if (result === false) {
-        const failure = createNavigationFailure(NavigationFailureType.aborted, target, from);
-        for (const hook of afterHooks) hook(target, from, failure);
-        return failure;
+      if (target.fullPath === from.fullPath) {
+        return createNavigationFailure(NavigationFailureType.duplicated, target, from);
       }
-      if (typeof result === "string" || (result && typeof result === "object")) {
-        return navigate(result, true);
+
+      const guards = [...beforeGuards, ...readBeforeEnterGuards(target.matchedRecords)];
+      for (const guard of guards) {
+        const result = await guard(target, from);
+        if (id !== navigationId) return createNavigationFailure(NavigationFailureType.cancelled, target, from);
+        if (result === false) {
+          const failure = createNavigationFailure(NavigationFailureType.aborted, target, from);
+          for (const hook of afterHooks) hook(target, from, failure);
+          return failure;
+        }
+        if (typeof result === "string" || (result && typeof result === "object")) {
+          return navigate(result, true);
+        }
       }
+
+      if (replace) history.replace(target.fullPath);
+      else history.push(target.fullPath);
+
+      currentRoute.value = target;
+      for (const hook of afterHooks) {
+        hook(target, from);
+      }
+      await handleScroll(target, from);
+
+      return target;
+    } catch (error) {
+      notifyRouterError(error, target, from);
+      throw error;
     }
-
-    if (replace) history.replace(target.fullPath);
-    else history.push(target.fullPath);
-
-    currentRoute.value = target;
-    for (const hook of afterHooks) {
-      hook(target, from);
-    }
-    await handleScroll(target, from);
-
-    return target;
   }
 
   function syncFromHistory(): void {
@@ -306,7 +322,7 @@ export function createRouter(options: RouterOptions): Router {
     scrollToDefaultPosition(to);
   }
 
-  return {
+  const router: Router = {
     currentRoute,
     routes,
     push(to) {
@@ -332,6 +348,10 @@ export function createRouter(options: RouterOptions): Router {
       afterHooks.push(hook);
       return () => removeItem(afterHooks, hook);
     },
+    onError(handler) {
+      errorHandlers.push(handler);
+      return () => removeItem(errorHandlers, handler);
+    },
     addRoute,
     removeRoute,
     hasRoute(name) {
@@ -352,6 +372,20 @@ export function createRouter(options: RouterOptions): Router {
     loadingComponent,
     errorComponent
   };
+  routerErrorNotifiers.set(router, notifyRouterError);
+  return router;
+
+  function notifyRouterError(error: unknown, to: RouteLocation, from?: RouteLocation): void {
+    for (const handler of errorHandlers) {
+      try {
+        handler(error, to, from);
+      } catch (handlerError) {
+        setTimeout(() => {
+          throw handlerError;
+        });
+      }
+    }
+  }
 }
 
 export function createWebHistory(base = ""): RouterHistory {
@@ -498,7 +532,7 @@ export const RouterView: RouteComponent = {
           child = undefined;
 
           const fragment = anchor.ownerDocument.createDocumentFragment();
-          child = component.mount(fragment, { route, router, __mikuru_context: props.__mikuru_context });
+          child = component.mount(fragment, createRouteComponentProps(record, route, router, props.__mikuru_context));
           anchor.parentNode?.insertBefore(fragment, anchor);
         })
         .catch((error) => {
@@ -506,6 +540,7 @@ export const RouterView: RouteComponent = {
           child?.unmount();
           child = undefined;
 
+          routerErrorNotifiers.get(router)?.(error, route);
           const errorComponent = record.errorComponent ?? router.errorComponent;
           if (!errorComponent) {
             setTimeout(() => {
@@ -640,6 +675,27 @@ function isRouteComponent(component: unknown): component is RouteComponent {
 
 function isLazyRouteComponent(component: unknown): component is LazyRouteComponent {
   return typeof component === "function";
+}
+
+function createRouteComponentProps(
+  record: RouteRecord,
+  route: RouteLocation,
+  router: Router,
+  context: unknown
+): Record<string, unknown> {
+  return {
+    ...resolveRouteProps(record, route),
+    route,
+    router,
+    __mikuru_context: context
+  };
+}
+
+function resolveRouteProps(record: RouteRecord, route: RouteLocation): Record<string, unknown> {
+  if (record.props === true) return { ...route.params };
+  if (typeof record.props === "function") return record.props(route) ?? {};
+  if (record.props && typeof record.props === "object") return { ...record.props };
+  return {};
 }
 
 function createMatcher(routes: RouteRecord[]): RouteMatcher {
