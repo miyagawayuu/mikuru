@@ -12,6 +12,11 @@ test("router example navigates through RouterLink and RouterView", async ({ page
   await expect(page.getByText("Tab: profile")).toBeVisible();
   await expect(page.getByRole("link", { name: "User" })).toHaveAttribute("aria-current", "page");
 
+  await page.getByRole("link", { name: "Settings" }).click();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
+  await expect(page.getByText("Nested RouterView rendered this page.")).toBeVisible();
+
   await page.getByRole("link", { name: "Missing" }).click();
   await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
   await expect(page.getByText("/missing does not match a route.")).toBeVisible();

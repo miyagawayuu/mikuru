@@ -81,6 +81,38 @@ describe("router", () => {
     expect(route.hash).toBe("#bio");
   });
 
+  it("resolves named routes with params", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/users/:id", name: "user" }]
+    });
+
+    const route = await router.push({ name: "user", params: { id: 9 }, query: { tab: "profile" } });
+
+    expect(route.fullPath).toBe("/users/9?tab=profile");
+    expect(route.name).toBe("user");
+    expect(route.params).toEqual({ id: "9" });
+  });
+
+  it("matches nested route records for nested RouterView depth", () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        {
+          path: "/settings",
+          name: "settings",
+          component: textComponent("Settings"),
+          children: [{ path: "profile", name: "settings-profile", component: textComponent("Profile") }]
+        }
+      ]
+    });
+
+    const route = router.resolve({ name: "settings-profile" });
+
+    expect(route.fullPath).toBe("/settings/profile");
+    expect(route.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-profile"]);
+  });
+
   it("supports memory back and forward navigation", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
@@ -178,6 +210,37 @@ describe("router", () => {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
       Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
       Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+    }
+  });
+
+  it("renders RouterLink children instead of label text", () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [{ path: "/" }]
+      });
+      const root = document.createElement("main");
+
+      RouterLink.mount(root, {
+        router,
+        to: "/",
+        children(target: Element) {
+          const strong = document.createElement("strong");
+          strong.textContent = "Slot Home";
+          target.appendChild(strong);
+          return () => strong.remove();
+        }
+      });
+
+      expect(root.querySelector("a")?.textContent).toBe("Slot Home");
+      expect(root.querySelector("strong")?.textContent).toBe("Slot Home");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }
   });
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added named route navigation, nested routes, and RouterLink default slot support.
+
 ## 1.0.14 - 2026-05-06
 
 - Added `mikuru/router` with route matching, hash/history/memory histories, guards, `RouterView`, and `RouterLink`.

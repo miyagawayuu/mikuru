@@ -32,6 +32,9 @@ router.listen();
     <nav>
       <RouterLink :router="router" to="/" label="Home" />
       <RouterLink :router="router" to="/users/42?tab=profile" label="User" />
+      <RouterLink :router="router" :to="{ name: 'user', params: { id: '42' }, query: { tab: 'profile' } }">
+        <strong>User</strong>
+      </RouterLink>
       <RouterLink :router="router" to="/settings" label="Settings" :replace="true" activeClass="is-active" exactActiveClass="is-exact" />
     </nav>
 
@@ -49,7 +52,7 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: "/", component: HomePage },
-    { path: "/users/:id", component: UserPage }
+    { path: "/users/:id", name: "user", component: UserPage }
   ]
 });
 
@@ -96,7 +99,28 @@ await router.push({
 });
 ```
 
-`RouterLink` accepts `replace`, `activeClass`, and `exactActiveClass` props. Active links receive `router-link-active` by default. Exact active links also receive `router-link-exact-active` and `aria-current="page"`.
+`RouterLink` accepts default slot children, route location objects, `replace`, `activeClass`, and `exactActiveClass` props. Active links receive `router-link-active` by default. Exact active links also receive `router-link-exact-active` and `aria-current="page"`.
+
+Named routes use the route record's `name` plus `params`:
+
+```ts
+await router.push({
+  name: "user",
+  params: { id: "42" },
+  query: { tab: "profile" }
+});
+```
+
+Nested routes use `children` and nested `RouterView` instances. Pass `depth="1"` to the child view:
+
+```mikuru
+<template>
+  <section>
+    <h2>Settings</h2>
+    <RouterView :router="router" depth="1" />
+  </section>
+</template>
+```
 
 Navigation guards can return:
 
@@ -106,7 +130,6 @@ Navigation guards can return:
 
 ## Current Limits
 
-- No nested route records.
-- No route aliases or named-route navigation.
+- No route aliases.
 - `RouterView` and `RouterLink` require an explicit `router` prop.
 - SSR and hydration are outside v1 scope.

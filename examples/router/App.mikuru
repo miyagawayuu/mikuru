@@ -4,7 +4,10 @@
       <h1>Mikuru Router</h1>
       <nav>
         <RouterLink :router="router" to="/" label="Home" />
-        <RouterLink :router="router" to="/users/42?tab=profile" label="User" />
+        <RouterLink :router="router" :to="userRoute">
+          <span>User</span>
+        </RouterLink>
+        <RouterLink :router="router" :to="{ name: 'settings-profile' }" label="Settings" />
         <RouterLink :router="router" to="/missing" label="Missing" />
       </nav>
     </header>
@@ -18,13 +21,23 @@ import { onBeforeUnmount } from "mikuru";
 import { createMemoryHistory, createRouter, RouterLink, RouterView } from "mikuru/router";
 import HomePage from "./HomePage.mikuru";
 import NotFoundPage from "./NotFoundPage.mikuru";
+import ProfilePage from "./ProfilePage.mikuru";
+import SettingsPage from "./SettingsPage.mikuru";
 import UserPage from "./UserPage.mikuru";
+
+const userRoute = { name: "user", params: { id: "42" }, query: { tab: "profile" } };
 
 const router = createRouter({
   history: createMemoryHistory("/"),
   routes: [
-    { path: "/", component: HomePage },
-    { path: "/users/:id", component: UserPage }
+    { path: "/", name: "home", component: HomePage },
+    { path: "/users/:id", name: "user", component: UserPage },
+    {
+      path: "/settings",
+      name: "settings",
+      component: SettingsPage,
+      children: [{ path: "profile", name: "settings-profile", component: ProfilePage }]
+    }
   ],
   notFound: NotFoundPage
 });
