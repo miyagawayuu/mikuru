@@ -25,6 +25,10 @@ test("router example navigates through RouterLink and RouterView", async ({ page
   await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
   await expect(page.getByText("Nested RouterView rendered this page.")).toBeVisible();
 
+  await page.getByRole("link", { name: "Dynamic" }).click();
+  await expect(page.getByRole("heading", { name: "Dynamic" })).toBeVisible();
+  await expect(page.getByText("This page was registered with router.addRoute().")).toBeVisible();
+
   await page.getByRole("link", { name: "Missing" }).click();
   await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
   await expect(page.getByText("/missing does not match a route.")).toBeVisible();

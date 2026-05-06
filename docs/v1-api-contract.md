@@ -57,6 +57,7 @@ Unsupported in v1:
 - `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
 - Routes support static paths, dynamic params, named routes, nested children, aliases, redirects, query parsing, and hash parsing.
 - `router.push`, `router.replace`, `router.back`, `router.forward`, and `router.resolve` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
+- `router.addRoute`, `router.removeRoute`, and `router.hasRoute` provide dynamic route management.
 - `isNavigationFailure` checks duplicated, aborted, and cancelled navigation failures.
 - `router.beforeEach` and `router.afterEach` register navigation hooks and return unsubscribe functions. `afterEach` receives an optional failure argument.
 - `RouterView` renders the matched route component and passes `route` and `router` props.

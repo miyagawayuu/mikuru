@@ -75,6 +75,10 @@ export type Router = {
   resolve(to: RouteLocationRaw): RouteLocation;
   beforeEach(guard: NavigationGuard): () => void;
   afterEach(hook: AfterNavigationHook): () => void;
+  addRoute(record: RouteRecord): () => void;
+  addRoute(parentName: string, record: RouteRecord): () => void;
+  removeRoute(name: string): boolean;
+  hasRoute(name: string): boolean;
   listen(): () => void;
   createHref(to: RouteLocationRaw): string;
 };
@@ -108,8 +112,9 @@ export function isNavigationFailure(value: unknown, type?: NavigationFailureType
 
 export function createRouter(options: RouterOptions): Router {
   const history = options.history ?? createWebHashHistory();
-  const routes = options.notFound ? [...options.routes, { ...notFoundRoute, component: options.notFound }] : options.routes.slice();
-  const matcher = createMatcher(routes);
+  const routes = options.routes.slice();
+  const fallbackRoute = options.notFound ? { ...notFoundRoute, component: options.notFound } : undefined;
+  let matcher = createMatcher(readMatcherRoutes());
   const beforeGuards: NavigationGuard[] = [];
   const afterHooks: AfterNavigationHook[] = [];
   const initial = resolveRouteTarget(history.location());
@@ -154,6 +159,14 @@ export function createRouter(options: RouterOptions): Router {
     currentRoute.value = resolveRouteTarget(history.location());
   }
 
+  function syncCurrentRoute(): void {
+    currentRoute.value = resolveRouteTarget(currentRoute.value.fullPath);
+  }
+
+  function readMatcherRoutes(): RouteRecord[] {
+    return fallbackRoute ? [...routes, fallbackRoute] : routes;
+  }
+
   function resolveRouteTarget(to: RouteLocationRaw): RouteLocation {
     let target = resolveLocation(stringifyLocation(to, matcher), matcher);
 
@@ -165,6 +178,64 @@ export function createRouter(options: RouterOptions): Router {
     }
 
     throw new Error("Too many route redirects.");
+  }
+
+  function replaceMatcher(nextRoutes = routes): void {
+    matcher = createMatcher(fallbackRoute ? [...nextRoutes, fallbackRoute] : nextRoutes);
+  }
+
+  function addRoute(record: RouteRecord): () => void;
+  function addRoute(parentName: string, record: RouteRecord): () => void;
+  function addRoute(parentOrRecord: string | RouteRecord, record?: RouteRecord): () => void {
+    if (typeof parentOrRecord !== "string") {
+      const nextRoutes = [...routes, parentOrRecord];
+      replaceMatcher(nextRoutes);
+      routes.push(parentOrRecord);
+      syncCurrentRoute();
+      return () => {
+        if (parentOrRecord.name) removeRoute(parentOrRecord.name);
+        else if (removeRouteRecord(routes, parentOrRecord)) {
+          replaceMatcher();
+          syncCurrentRoute();
+        }
+      };
+    }
+
+    if (!record) {
+      throw new Error("router.addRoute(parentName, record) requires a route record.");
+    }
+
+    const parent = matcher.byName.get(parentOrRecord)?.record;
+    if (!parent) {
+      throw new Error(`Unknown route name: ${parentOrRecord}`);
+    }
+
+    const nextChildren = [...(parent.children ?? []), record];
+    const previousChildren = parent.children;
+    parent.children = nextChildren;
+
+    try {
+      replaceMatcher();
+    } catch (error) {
+      parent.children = previousChildren;
+      replaceMatcher();
+      throw error;
+    }
+
+    syncCurrentRoute();
+    return () => {
+      if (record.name) removeRoute(record.name);
+      else if (parent.children && removeRouteRecord(parent.children, record)) syncCurrentRoute();
+    };
+  }
+
+  function removeRoute(name: string): boolean {
+    if (!matcher.byName.has(name)) return false;
+    const removed = removeRouteByName(routes, name);
+    if (!removed) return false;
+    replaceMatcher();
+    syncCurrentRoute();
+    return true;
   }
 
   return {
@@ -192,6 +263,11 @@ export function createRouter(options: RouterOptions): Router {
     afterEach(hook) {
       afterHooks.push(hook);
       return () => removeItem(afterHooks, hook);
+    },
+    addRoute,
+    removeRoute,
+    hasRoute(name) {
+      return matcher.byName.has(name);
     },
     listen() {
       if (listeningStop) return listeningStop;
@@ -592,6 +668,40 @@ function readToProp(props: Record<string, unknown>): RouteLocationRaw {
 function readAliases(record: RouteRecord): string[] {
   if (!record.alias) return [];
   return Array.isArray(record.alias) ? record.alias : [record.alias];
+}
+
+function removeRouteByName(routes: RouteRecord[], name: string): boolean {
+  for (let index = 0; index < routes.length; index += 1) {
+    const route = routes[index];
+    if (!route) continue;
+
+    if (route.name === name) {
+      routes.splice(index, 1);
+      return true;
+    }
+
+    if (route.children && removeRouteByName(route.children, name)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function removeRouteRecord(routes: RouteRecord[], record: RouteRecord): boolean {
+  const index = routes.indexOf(record);
+  if (index >= 0) {
+    routes.splice(index, 1);
+    return true;
+  }
+
+  for (const route of routes) {
+    if (route.children && removeRouteRecord(route.children, record)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function createNavigationFailure(type: NavigationFailureType, to: RouteLocation, from: RouteLocation): NavigationFailure {

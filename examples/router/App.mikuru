@@ -10,6 +10,7 @@
         </RouterLink>
         <RouterLink :router="router" to="/legacy-user" label="Redirect" />
         <RouterLink :router="router" :to="{ name: 'settings-profile' }" label="Settings" />
+        <RouterLink :router="router" :to="{ name: 'dynamic' }" label="Dynamic" />
         <RouterLink :router="router" to="/missing" label="Missing" />
       </nav>
     </header>
@@ -21,6 +22,7 @@
 <script>
 import { onBeforeUnmount } from "mikuru";
 import { createMemoryHistory, createRouter, RouterLink, RouterView } from "mikuru/router";
+import DynamicPage from "./DynamicPage.mikuru";
 import HomePage from "./HomePage.mikuru";
 import NotFoundPage from "./NotFoundPage.mikuru";
 import ProfilePage from "./ProfilePage.mikuru";
@@ -45,6 +47,8 @@ const router = createRouter({
   ],
   notFound: NotFoundPage
 });
+
+router.addRoute({ path: "/dynamic", name: "dynamic", component: DynamicPage });
 
 const stopRouter = router.listen();
 
