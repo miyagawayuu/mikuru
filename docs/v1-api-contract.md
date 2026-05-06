@@ -7,7 +7,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 - `mikuru`: re-exports the compiler entry and runtime reactivity helpers.
 - `mikuru/compiler`: exposes `compile`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
 - `mikuru/runtime`: exposes `ref`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `nextTick`, `watch`, lifecycle callbacks, and simple dependency helpers.
-- `mikuru/router`: exposes `createRouter`, browser and memory histories, `RouterView`, and `RouterLink`.
+- `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
 - `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export.
 
 ## SFC Contract
@@ -59,9 +59,11 @@ Unsupported in v1:
 - `route.meta` is a shallow parent-to-child merge of matched route record `meta`. `route.matched` is the final record, and `route.matchedRecords` is the full parent-to-child chain.
 - `router.push`, `router.replace`, `router.back`, `router.forward`, and `router.resolve` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
 - `router.addRoute`, `router.removeRoute`, and `router.hasRoute` provide dynamic route management.
+- `provideRouter`, `useRouter`, and `useRoute` provide router access through component-tree context.
 - `isNavigationFailure` checks duplicated, aborted, and cancelled navigation failures.
 - `router.beforeEach` and `router.afterEach` register navigation hooks and return unsubscribe functions. `afterEach` receives an optional failure argument.
 - `RouterView` renders the matched route component and passes `route` and `router` props.
+- `RouterView` and `RouterLink` accept an explicit `router` prop or use the provided router context.
 - `RouterLink` renders an anchor, supports default slot children, route location objects, `replace`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
 
 ## Runtime Contract

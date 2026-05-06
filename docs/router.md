@@ -31,21 +31,21 @@ router.listen();
 <template>
   <main>
     <nav>
-      <RouterLink :router="router" to="/" label="Home" />
-      <RouterLink :router="router" to="/users/42?tab=profile" label="User" />
-      <RouterLink :router="router" :to="{ name: 'user', params: { id: '42' }, query: { tab: 'profile' } }">
+      <RouterLink to="/" label="Home" />
+      <RouterLink to="/users/42?tab=profile" label="User" />
+      <RouterLink :to="{ name: 'user', params: { id: '42' }, query: { tab: 'profile' } }">
         <strong>User</strong>
       </RouterLink>
-      <RouterLink :router="router" to="/settings" label="Settings" :replace="true" activeClass="is-active" exactActiveClass="is-exact" />
+      <RouterLink to="/settings" label="Settings" :replace="true" activeClass="is-active" exactActiveClass="is-exact" />
     </nav>
 
-    <RouterView :router="router" />
+    <RouterView />
   </main>
 </template>
 
 <script>
 import { onBeforeUnmount } from "mikuru";
-import { createRouter, createWebHashHistory, RouterLink, RouterView } from "mikuru/router";
+import { createRouter, createWebHashHistory, provideRouter, RouterLink, RouterView } from "mikuru/router";
 import HomePage from "./HomePage.mikuru";
 import UserPage from "./UserPage.mikuru";
 
@@ -57,12 +57,15 @@ const router = createRouter({
   ]
 });
 
+provideRouter(router);
 const stopRouter = router.listen();
 onBeforeUnmount(stopRouter);
 </script>
 ```
 
-Route components receive `route` and `router` props from `RouterView`.
+`provideRouter(router)` makes `RouterView`, `RouterLink`, `useRouter()`, and `useRoute()` work through the component tree. A direct `router` prop is still accepted and takes priority when you need an explicit router instance.
+
+Route components receive `route` and `router` props from `RouterView`. Components can also call `useRoute()` and `useRouter()` after an ancestor calls `provideRouter(router)`.
 
 ```mikuru
 <template>
@@ -73,7 +76,9 @@ Route components receive `route` and `router` props from `RouterView`.
 </template>
 
 <script>
-const { route } = defineProps();
+import { useRoute } from "mikuru/router";
+
+const route = useRoute();
 </script>
 ```
 
@@ -93,6 +98,9 @@ const { route } = defineProps();
 - `router.removeRoute(name)` removes a named route and its children.
 - `router.hasRoute(name)` checks whether a named route exists.
 - `router.listen()` starts syncing browser or memory history events and returns a stop function.
+- `provideRouter(router)` provides a router to descendant components.
+- `useRouter()` returns the provided router.
+- `useRoute()` returns a reactive proxy of `router.currentRoute.value`.
 
 Routes support static paths, dynamic params such as `/users/:id`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
 
@@ -147,7 +155,7 @@ Nested routes use `children` and nested `RouterView` instances. Pass `depth="1"`
 <template>
   <section>
     <h2>Settings</h2>
-    <RouterView :router="router" depth="1" />
+    <RouterView depth="1" />
   </section>
 </template>
 ```
@@ -211,5 +219,4 @@ Duplicated navigations do not call `afterEach`. Aborted navigations call `afterE
 
 ## Current Limits
 
-- `RouterView` and `RouterLink` require an explicit `router` prop.
 - SSR and hydration are outside v1 scope.

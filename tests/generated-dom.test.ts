@@ -2,7 +2,7 @@ import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 
 import { compile } from "../src/compiler/index.js";
-import { createMemoryHistory, createRouter, RouterLink, RouterView } from "../src/router/index.js";
+import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterView, useRoute, useRouter } from "../src/router/index.js";
 import {
   computed,
   effect,
@@ -1577,15 +1577,16 @@ const Child = {
   it("renders router components from generated DOM code", async () => {
     const fixture = compileForDom(`<template>
   <section>
-    <RouterLink :router="router" :to="aboutRoute">
+    <RouterLink :to="aboutRoute">
       <strong>About</strong>
     </RouterLink>
-    <RouterView :router="router" />
+    <p>Current: {{ route.path }}</p>
+    <RouterView />
   </section>
 </template>
 
 <script>
-import { createMemoryHistory, createRouter, RouterLink, RouterView } from "mikuru/router";
+import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterView, useRoute, useRouter } from "mikuru/router";
 
 const HomePage = {
   mount(target) {
@@ -1623,6 +1624,9 @@ const router = createRouter({
   ]
 });
 
+provideRouter(router);
+const injectedRouter = useRouter();
+const route = useRoute();
 const aboutRoute = { name: "about" };
 </script>`);
 
@@ -1632,12 +1636,15 @@ const aboutRoute = { name: "about" };
       Object.defineProperty(globalThis, "document", { configurable: true, value: fixture.document });
       fixture.module.mount(fixture.root);
 
-      expect(fixture.root.textContent).toContain("AboutHome");
+      expect(fixture.root.querySelector("p")?.textContent).toBe("Current: /");
+      expect(fixture.root.textContent).toContain("Current: /");
+      expect(fixture.root.textContent).toContain("Home");
       expect(fixture.root.querySelector("strong")?.textContent).toBe("About");
       fixture.root.querySelector("a")?.dispatchEvent(createEvent(fixture.window, "click", { bubbles: true, cancelable: true }));
       await Promise.resolve();
 
-      expect(fixture.root.textContent).toContain("AboutAbout page");
+      expect(fixture.root.textContent).toContain("About page");
+      expect(fixture.root.textContent).toContain("Current: /about");
       expect(fixture.root.querySelector("a")?.getAttribute("aria-current")).toBe("page");
     } finally {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
@@ -1678,11 +1685,14 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "onMounted",
     "onUnmounted",
     "provide",
+    "provideRouter",
     "ref",
     "setAttribute",
     "unwrap",
     "RouterLink",
     "RouterView",
+    "useRoute",
+    "useRouter",
     "watch",
     "document",
     `${executableCode}\nreturn { mount };`
@@ -1697,11 +1707,14 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     onMountedArg: typeof onMounted,
     onUnmountedArg: typeof onUnmounted,
     provideArg: typeof provide,
+    provideRouterArg: typeof provideRouter,
     refArg: typeof ref,
     setAttributeArg: typeof setAttribute,
     unwrapArg: typeof unwrap,
     RouterLinkArg: typeof RouterLink,
     RouterViewArg: typeof RouterView,
+    useRouteArg: typeof useRoute,
+    useRouterArg: typeof useRouter,
     watchArg: typeof watch,
     documentArg: Document
   ) => CompiledModule;
@@ -1717,11 +1730,14 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     onMounted,
     onUnmounted,
     provide,
+    provideRouter,
     ref,
     setAttribute,
     unwrap,
     RouterLink,
     RouterView,
+    useRoute,
+    useRouter,
     watch,
     document
   );

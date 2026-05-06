@@ -1,4 +1,4 @@
-import { effect, ref, unwrap } from "../runtime/index.js";
+import { effect, inject, provide, ref, unwrap } from "../runtime/index.js";
 import type { Ref } from "../runtime/index.js";
 
 export type RouteParams = Record<string, string>;
@@ -97,6 +97,42 @@ type RouteMatcher = {
 };
 
 const notFoundRoute: RouteRecord = { path: "/:pathMatch(.*)*", name: "not-found" };
+const routerKey = Symbol.for("mikuru.router");
+
+type RouterContext = {
+  parent?: RouterContext;
+  provides: Map<unknown, unknown>;
+};
+
+export function provideRouter(router: Router): void {
+  provide(routerKey, router);
+}
+
+export function useRouter(): Router {
+  const router = inject<Router>(routerKey);
+  if (!router) {
+    throw new Error("No router was provided. Call provideRouter(router) in an ancestor component.");
+  }
+  return router;
+}
+
+export function useRoute(): RouteLocation {
+  const router = useRouter();
+  return new Proxy({} as RouteLocation, {
+    get(_target, key) {
+      return router.currentRoute.value[key as keyof RouteLocation];
+    },
+    has(_target, key) {
+      return key in router.currentRoute.value;
+    },
+    ownKeys() {
+      return Reflect.ownKeys(router.currentRoute.value);
+    },
+    getOwnPropertyDescriptor(_target, key) {
+      return Object.getOwnPropertyDescriptor(router.currentRoute.value, key);
+    }
+  });
+}
 
 export function isNavigationFailure(value: unknown, type?: NavigationFailureType): value is NavigationFailure {
   const failure = value as NavigationFailure | undefined;
@@ -489,9 +525,21 @@ export const RouterLink: RouteComponent = {
 function getRouterProp(props: Record<string, unknown>): Router {
   const router = unwrap(props.router);
   if (!router || typeof router !== "object" || !("currentRoute" in router)) {
-    throw new Error("RouterView and RouterLink require a router prop.");
+    const contextRouter = injectRouterFromContext(props.__mikuru_context);
+    if (contextRouter) return contextRouter;
+    throw new Error("RouterView and RouterLink require a router prop or provided router context.");
   }
   return router as Router;
+}
+
+function injectRouterFromContext(context: unknown): Router | undefined {
+  for (let current = context as RouterContext | undefined; current; current = current.parent) {
+    const router = current.provides?.get(routerKey);
+    if (router && typeof router === "object" && "currentRoute" in router) {
+      return router as Router;
+    }
+  }
+  return undefined;
 }
 
 function createMatcher(routes: RouteRecord[]): RouteMatcher {

@@ -7,8 +7,11 @@ import {
   createWebHashHistory,
   isNavigationFailure,
   NavigationFailureType,
+  provideRouter,
   RouterLink,
-  RouterView
+  RouterView,
+  useRoute,
+  useRouter
 } from "../src/router/index.js";
 import type { NavigationResult, RouteComponent, RouteLocation } from "../src/router/index.js";
 
@@ -437,6 +440,69 @@ describe("router", () => {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
       Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
       Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+    }
+  });
+
+  it("renders RouterView and RouterLink from provided router context", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          { path: "/about", component: textComponent("About") }
+        ]
+      });
+      const context = { parent: undefined, provides: new Map([[Symbol.for("mikuru.router"), router]]) };
+      const root = document.createElement("main");
+
+      RouterLink.mount(root, { __mikuru_context: context, to: "/about", label: "About" });
+      RouterView.mount(root, { __mikuru_context: context });
+      document.body.appendChild(root);
+
+      expect(root.textContent).toContain("AboutHome");
+      root.querySelector("a")?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }) as unknown as Event);
+      await Promise.resolve();
+
+      expect(router.currentRoute.value.path).toBe("/about");
+      expect(root.textContent).toContain("AboutAbout");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("provides router helpers through runtime injection", async () => {
+    const previousRegistrar = (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar;
+    const provides = new Map<unknown, unknown>();
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/about" }]
+    });
+
+    try {
+      (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar = {
+        provide: (key: unknown, value: unknown) => provides.set(key, value),
+        inject: (key: unknown) => provides.has(key) ? { found: true, value: provides.get(key) } : { found: false }
+      };
+
+      provideRouter(router);
+      const injectedRouter = useRouter();
+      const route = useRoute();
+
+      expect(injectedRouter).toBe(router);
+      expect(route.path).toBe("/");
+      expectRoute(await router.push("/about"));
+      expect(route.path).toBe("/about");
+    } finally {
+      if (previousRegistrar === undefined) {
+        delete (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar;
+      } else {
+        (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar = previousRegistrar;
+      }
     }
   });
 

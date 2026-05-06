@@ -3,26 +3,26 @@
     <header>
       <h1>Mikuru Router</h1>
       <nav>
-        <RouterLink :router="router" to="/" label="Home" />
-        <RouterLink :router="router" to="/start" label="Alias" />
-        <RouterLink :router="router" :to="userRoute">
+        <RouterLink to="/" label="Home" />
+        <RouterLink to="/start" label="Alias" />
+        <RouterLink :to="userRoute">
           <span>User</span>
         </RouterLink>
-        <RouterLink :router="router" to="/legacy-user" label="Redirect" />
-        <RouterLink :router="router" :to="{ name: 'settings-profile' }" label="Settings" />
-        <RouterLink :router="router" :to="{ name: 'dynamic' }" label="Dynamic" />
-        <RouterLink :router="router" :to="{ name: 'admin' }" label="Admin" />
-        <RouterLink :router="router" to="/missing" label="Missing" />
+        <RouterLink to="/legacy-user" label="Redirect" />
+        <RouterLink :to="{ name: 'settings-profile' }" label="Settings" />
+        <RouterLink :to="{ name: 'dynamic' }" label="Dynamic" />
+        <RouterLink :to="{ name: 'admin' }" label="Admin" />
+        <RouterLink to="/missing" label="Missing" />
       </nav>
     </header>
 
-    <RouterView :router="router" />
+    <RouterView />
   </main>
 </template>
 
 <script>
 import { onBeforeUnmount } from "mikuru";
-import { createMemoryHistory, createRouter, RouterLink, RouterView } from "mikuru/router";
+import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterView } from "mikuru/router";
 import AdminPage from "./AdminPage.mikuru";
 import DynamicPage from "./DynamicPage.mikuru";
 import HomePage from "./HomePage.mikuru";
@@ -55,6 +55,7 @@ const router = createRouter({
 });
 
 router.addRoute({ path: "/dynamic", name: "dynamic", component: DynamicPage });
+provideRouter(router);
 router.beforeEach((to) => {
   if (to.meta.requiresAuth && !isLoggedIn) {
     return { name: "login", query: { redirect: to.fullPath } };

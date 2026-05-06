@@ -136,7 +136,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `v-model` for common form controls and child components
 - Component props, events, `defineProps`, `defineEmits`, default slots, named slots, and slot props
 - Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, and `inject`
-- Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, `RouterView`, and `RouterLink`
+- Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, and code frames
 
@@ -157,7 +157,7 @@ import { mikuru } from "mikuru/vite";
 The router is available from `mikuru/router`:
 
 ```ts
-import { createRouter, createWebHashHistory, RouterLink, RouterView } from "mikuru/router";
+import { createRouter, createWebHashHistory, provideRouter, RouterLink, RouterView, useRoute, useRouter } from "mikuru/router";
 ```
 
 The `.mikuru` TypeScript declaration is available from `mikuru/env`:
