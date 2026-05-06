@@ -2,6 +2,7 @@ import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 
 import { compile } from "../src/compiler/index.js";
+import { createMemoryHistory, createRouter, RouterLink, RouterView } from "../src/router/index.js";
 import {
   computed,
   effect,
@@ -1572,6 +1573,71 @@ const Child = {
     expect(fixture.root.querySelector("p")?.textContent).toBe("first-theme");
     expect(secondRoot.querySelector("p")?.textContent).toBe("second-theme");
   });
+
+  it("renders router components from generated DOM code", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <RouterLink :router="router" to="/about" label="About" />
+    <RouterView :router="router" />
+  </section>
+</template>
+
+<script>
+import { createMemoryHistory, createRouter, RouterLink, RouterView } from "mikuru/router";
+
+const HomePage = {
+  mount(target) {
+    const element = document.createElement("p");
+    element.textContent = "Home";
+    target.appendChild(element);
+    return {
+      element,
+      unmount() {
+        element.remove();
+      }
+    };
+  }
+};
+
+const AboutPage = {
+  mount(target) {
+    const element = document.createElement("p");
+    element.textContent = "About page";
+    target.appendChild(element);
+    return {
+      element,
+      unmount() {
+        element.remove();
+      }
+    };
+  }
+};
+
+const router = createRouter({
+  history: createMemoryHistory("/"),
+  routes: [
+    { path: "/", component: HomePage },
+    { path: "/about", component: AboutPage }
+  ]
+});
+</script>`);
+
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: fixture.document });
+      fixture.module.mount(fixture.root);
+
+      expect(fixture.root.textContent).toContain("AboutHome");
+      fixture.root.querySelector("a")?.dispatchEvent(createEvent(fixture.window, "click", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+
+      expect(fixture.root.textContent).toContain("AboutAbout page");
+      expect(fixture.root.querySelector("a")?.getAttribute("aria-current")).toBe("page");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
 });
 
 function compileForDom(source: string): CompiledFixture {
@@ -1598,6 +1664,8 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     .replace(/\nexport default __mikuru_component;\n?$/, "\n");
   const factory = new Function(
     "computed",
+    "createMemoryHistory",
+    "createRouter",
     "effect",
     "inject",
     "nextTick",
@@ -1608,11 +1676,15 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "ref",
     "setAttribute",
     "unwrap",
+    "RouterLink",
+    "RouterView",
     "watch",
     "document",
     `${executableCode}\nreturn { mount };`
   ) as (
     computedArg: typeof computed,
+    createMemoryHistoryArg: typeof createMemoryHistory,
+    createRouterArg: typeof createRouter,
     effectArg: typeof effect,
     injectArg: typeof inject,
     nextTickArg: typeof nextTick,
@@ -1623,12 +1695,16 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     refArg: typeof ref,
     setAttributeArg: typeof setAttribute,
     unwrapArg: typeof unwrap,
+    RouterLinkArg: typeof RouterLink,
+    RouterViewArg: typeof RouterView,
     watchArg: typeof watch,
     documentArg: Document
   ) => CompiledModule;
 
   return factory(
     computed,
+    createMemoryHistory,
+    createRouter,
     effect,
     inject,
     nextTick,
@@ -1639,6 +1715,8 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     ref,
     setAttribute,
     unwrap,
+    RouterLink,
+    RouterView,
     watch,
     document
   );

@@ -32,6 +32,7 @@ router.listen();
     <nav>
       <RouterLink :router="router" to="/" label="Home" />
       <RouterLink :router="router" to="/users/42?tab=profile" label="User" />
+      <RouterLink :router="router" to="/settings" label="Settings" :replace="true" activeClass="is-active" exactActiveClass="is-exact" />
     </nav>
 
     <RouterView :router="router" />
@@ -84,6 +85,18 @@ const { route } = defineProps();
 - `router.listen()` starts syncing browser or memory history events and returns a stop function.
 
 Routes support static paths, dynamic params such as `/users/:id`, query parsing, and hash parsing. Use `notFound` to provide a fallback component for unmatched paths.
+
+Programmatic navigation accepts strings or route location objects:
+
+```ts
+await router.push({
+  path: "/users/42",
+  query: { tab: "profile", tag: ["a", "b"] },
+  hash: "bio"
+});
+```
+
+`RouterLink` accepts `replace`, `activeClass`, and `exactActiveClass` props. Active links receive `router-link-active` by default. Exact active links also receive `router-link-exact-active` and `aria-current="page"`.
 
 Navigation guards can return:
 
