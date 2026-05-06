@@ -9,6 +9,7 @@
 - Added optional, repeat, and catch-all route params for `mikuru/router`.
 - Added lazy route preloading and capped navigation guard redirects for `mikuru/router`.
 - Improved router index route matching and coverage for redirects, guards, and not found rendering.
+- Added relative path navigation for `mikuru/router`.
 
 ## 1.0.15 - 2026-05-07
 

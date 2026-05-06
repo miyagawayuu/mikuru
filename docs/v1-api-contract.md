@@ -63,6 +63,7 @@ Unsupported in v1:
 - `route.meta` is a shallow parent-to-child merge of matched route record `meta`. `route.matched` is the final record, and `route.matchedRecords` is the full parent-to-child chain.
 - `createRouter({ scrollBehavior })` supports successful browser-navigation scroll control and default hash/top scrolling.
 - `router.push`, `router.replace`, `router.back`, `router.forward`, `router.resolve`, and `router.preload` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
+- String and path-object navigation support `./` and `../` relative paths from the current route.
 - `router.addRoute`, `router.removeRoute`, and `router.hasRoute` provide dynamic route management.
 - `provideRouter`, `useRouter`, and `useRoute` provide router access through component-tree context.
 - `isNavigationFailure` checks duplicated, aborted, and cancelled navigation failures.

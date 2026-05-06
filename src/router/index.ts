@@ -196,7 +196,7 @@ export function createRouter(options: RouterOptions): Router {
     let target = from;
 
     try {
-      target = resolveRouteTarget(to);
+      target = resolveRouteTarget(to, from.path);
       const id = ++navigationId;
 
       if (target.fullPath === from.fullPath) {
@@ -241,7 +241,7 @@ export function createRouter(options: RouterOptions): Router {
     let target = from;
 
     try {
-      target = resolveRouteTarget(to);
+      target = resolveRouteTarget(to, from.path);
       await Promise.all(
         target.matchedRecords.map((record) => record.component ? resolveRouteComponent(record) : Promise.resolve())
       );
@@ -257,21 +257,21 @@ export function createRouter(options: RouterOptions): Router {
   }
 
   function syncCurrentRoute(): void {
-    currentRoute.value = resolveRouteTarget(currentRoute.value.fullPath);
+    currentRoute.value = resolveRouteTarget(currentRoute.value.fullPath, currentRoute.value.path);
   }
 
   function readMatcherRoutes(): RouteRecord[] {
     return fallbackRoute ? [...routes, fallbackRoute] : routes;
   }
 
-  function resolveRouteTarget(to: RouteLocationRaw): RouteLocation {
-    let target = resolveLocation(stringifyLocation(to, matcher), matcher);
+  function resolveRouteTarget(to: RouteLocationRaw, basePath?: string): RouteLocation {
+    let target = resolveLocation(stringifyLocation(to, matcher, basePath), matcher);
 
     for (let redirects = 0; redirects < 10; redirects += 1) {
       const redirect = target.matched?.redirect;
       if (!redirect) return target;
       const next = typeof redirect === "function" ? redirect(target) : redirect;
-      target = resolveLocation(stringifyLocation(next, matcher), matcher);
+      target = resolveLocation(stringifyLocation(next, matcher, target.path), matcher);
     }
 
     throw new Error("Too many route redirects.");
@@ -364,7 +364,7 @@ export function createRouter(options: RouterOptions): Router {
       history.forward();
     },
     resolve(to) {
-      return resolveRouteTarget(to);
+      return resolveRouteTarget(to, currentRoute.value.path);
     },
     preload,
     beforeEach(guard) {
@@ -394,7 +394,7 @@ export function createRouter(options: RouterOptions): Router {
       };
     },
     createHref(to) {
-      return history.createHref(stringifyLocation(to, matcher));
+      return history.createHref(stringifyLocation(to, matcher, currentRoute.value.path));
     },
     loadingComponent,
     errorComponent
@@ -913,12 +913,20 @@ function parsePath(fullPath: string): { path: string; query: RouteQuery; hash: s
   };
 }
 
-function stringifyLocation(to: RouteLocationRaw, matcher?: RouteMatcher): string {
-  if (typeof to === "string") return normalizePath(to);
-  const path = "name" in to ? stringifyNamedLocation(to, matcher) : normalizePath(to.path);
+function stringifyLocation(to: RouteLocationRaw, matcher?: RouteMatcher, basePath?: string): string {
+  if (typeof to === "string") return stringifyPathLocation(to, basePath);
+  const path = "name" in to ? stringifyNamedLocation(to, matcher) : normalizeRelativePath(to.path, basePath);
   const query = stringifyQuery(to.query ?? {});
   const hash = to.hash ? (to.hash.startsWith("#") ? to.hash : `#${to.hash}`) : "";
   return `${path}${query}${hash}`;
+}
+
+function stringifyPathLocation(raw: string, basePath?: string): string {
+  const [pathAndQuery, rawHash = ""] = raw.split("#", 2);
+  const [path = "/", rawQuery = ""] = pathAndQuery.split("?", 2);
+  const query = rawQuery ? `?${rawQuery}` : "";
+  const hash = rawHash ? `#${rawHash}` : "";
+  return `${normalizeRelativePath(path, basePath)}${query}${hash}`;
 }
 
 function stringifyNamedLocation(
@@ -965,6 +973,27 @@ function stringifyQuery(query: RouteQuery): string {
 function normalizePath(path: string): string {
   const normalized = path.trim() || "/";
   return normalized.startsWith("/") ? normalized : `/${normalized}`;
+}
+
+function normalizeRelativePath(path: string, basePath?: string): string {
+  const normalized = path.trim() || "/";
+  if (!isRelativePath(normalized)) return normalizePath(normalized);
+
+  const segments = normalizePath(basePath ?? "/")
+    .split("/")
+    .filter(Boolean);
+
+  for (const segment of normalized.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") segments.pop();
+    else segments.push(segment);
+  }
+
+  return normalizePath(segments.map((segment) => encodeURIComponent(decodeURIComponent(segment))).join("/"));
+}
+
+function isRelativePath(path: string): boolean {
+  return path === "." || path === ".." || path.startsWith("./") || path.startsWith("../");
 }
 
 function normalizeBase(base: string): string {
