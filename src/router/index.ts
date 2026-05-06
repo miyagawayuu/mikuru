@@ -11,6 +11,8 @@ export type RouteRecord = {
   path: string;
   name?: string;
   component?: RouteComponent;
+  redirect?: RouteLocationRaw | ((to: RouteLocation) => RouteLocationRaw);
+  alias?: string | string[];
   meta?: Record<string, unknown>;
   children?: RouteRecord[];
 };
@@ -85,13 +87,13 @@ export function createRouter(options: RouterOptions): Router {
   const matcher = createMatcher(routes);
   const beforeGuards: NavigationGuard[] = [];
   const afterHooks: AfterNavigationHook[] = [];
-  const initial = resolveLocation(history.location(), matcher);
+  const initial = resolveRouteTarget(history.location());
   const currentRoute = ref(initial);
   let listeningStop: (() => void) | undefined;
   let navigationId = 0;
 
   async function navigate(to: RouteLocationRaw, replace: boolean): Promise<RouteLocation> {
-    const target = resolveLocation(stringifyLocation(to, matcher), matcher);
+    let target = resolveRouteTarget(to);
     const from = currentRoute.value;
     const id = ++navigationId;
 
@@ -116,7 +118,20 @@ export function createRouter(options: RouterOptions): Router {
   }
 
   function syncFromHistory(): void {
-    currentRoute.value = resolveLocation(history.location(), matcher);
+    currentRoute.value = resolveRouteTarget(history.location());
+  }
+
+  function resolveRouteTarget(to: RouteLocationRaw): RouteLocation {
+    let target = resolveLocation(stringifyLocation(to, matcher), matcher);
+
+    for (let redirects = 0; redirects < 10; redirects += 1) {
+      const redirect = target.matched?.redirect;
+      if (!redirect) return target;
+      const next = typeof redirect === "function" ? redirect(target) : redirect;
+      target = resolveLocation(stringifyLocation(next, matcher), matcher);
+    }
+
+    throw new Error("Too many route redirects.");
   }
 
   return {
@@ -135,7 +150,7 @@ export function createRouter(options: RouterOptions): Router {
       history.forward();
     },
     resolve(to) {
-      return resolveLocation(stringifyLocation(to, matcher), matcher);
+      return resolveRouteTarget(to);
     },
     beforeEach(guard) {
       beforeGuards.push(guard);
@@ -374,8 +389,7 @@ function createMatcher(routes: RouteRecord[]): RouteMatcher {
   const compiled: CompiledRoute[] = [];
   const byName = new Map<string, CompiledRoute>();
 
-  function addRoute(record: RouteRecord, parentPath: string, parents: RouteRecord[]): void {
-    const path = joinRoutePath(parentPath, record.path);
+  function addCompiledRoute(record: RouteRecord, path: string, parents: RouteRecord[], registerName: boolean): CompiledRoute {
     const keys: string[] = [];
     const source = path
       .replace(/\/:([^/(]+)\(\.\*\)\*/g, (_match, key) => {
@@ -397,16 +411,29 @@ function createMatcher(routes: RouteRecord[]): RouteMatcher {
 
     compiled.push(route);
 
-    if (record.name) {
+    if (registerName && record.name) {
       if (byName.has(record.name)) {
         throw new Error(`Duplicate route name: ${record.name}`);
       }
       byName.set(record.name, route);
     }
 
-    for (const child of record.children ?? []) {
-      addRoute(child, path, [...parents, record]);
-    }
+    return route;
+  }
+
+  function addRoute(record: RouteRecord, parentPath: string, parents: RouteRecord[], registerNames = true): void {
+    const path = joinRoutePath(parentPath, record.path);
+    const paths = [path, ...readAliases(record).map((alias) => joinRoutePath(parentPath, alias))];
+
+    paths.forEach((routePath, index) => {
+      addCompiledRoute(record, routePath, parents, registerNames && index === 0);
+    });
+
+    paths.forEach((routePath, index) => {
+      for (const child of record.children ?? []) {
+        addRoute(child, routePath, [...parents, record], registerNames && index === 0);
+      }
+    });
   }
 
   for (const route of routes) {
@@ -527,6 +554,11 @@ function joinRoutePath(parentPath: string, path: string): string {
 
 function readToProp(props: Record<string, unknown>): RouteLocationRaw {
   return (unwrap(props.to) as RouteLocationRaw | undefined) ?? "/";
+}
+
+function readAliases(record: RouteRecord): string[] {
+  if (!record.alias) return [];
+  return Array.isArray(record.alias) ? record.alias : [record.alias];
 }
 
 function stripBase(path: string, base: string): string {

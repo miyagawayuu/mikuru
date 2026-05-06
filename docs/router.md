@@ -12,8 +12,9 @@ import UserPage from "./UserPage.mikuru";
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: "/", component: HomePage },
-    { path: "/users/:id", component: UserPage }
+    { path: "/", alias: "/start", component: HomePage },
+    { path: "/legacy-user", redirect: { name: "user", params: { id: "42" } } },
+    { path: "/users/:id", name: "user", component: UserPage }
   ]
 });
 
@@ -87,7 +88,7 @@ const { route } = defineProps();
 - `router.afterEach(fn)` registers a post-navigation hook and returns an unsubscribe function.
 - `router.listen()` starts syncing browser or memory history events and returns a stop function.
 
-Routes support static paths, dynamic params such as `/users/:id`, query parsing, and hash parsing. Use `notFound` to provide a fallback component for unmatched paths.
+Routes support static paths, dynamic params such as `/users/:id`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
 
 Programmatic navigation accepts strings or route location objects:
 
@@ -111,6 +112,29 @@ await router.push({
 });
 ```
 
+Redirect routes can point to a string, route location object, or function:
+
+```ts
+createRouter({
+  routes: [
+    { path: "/old-home", redirect: "/" },
+    { path: "/legacy/:id", redirect: (to) => ({ name: "user", params: { id: to.params.id } }) },
+    { path: "/users/:id", name: "user", component: UserPage }
+  ]
+});
+```
+
+Aliases render the same route record from another path. Named navigation still uses the route's canonical `path`:
+
+```ts
+createRouter({
+  routes: [
+    { path: "/", name: "home", alias: ["/home", "/start"], component: HomePage },
+    { path: "/users/:id", name: "user", alias: "/members/:id", component: UserPage }
+  ]
+});
+```
+
 Nested routes use `children` and nested `RouterView` instances. Pass `depth="1"` to the child view:
 
 ```mikuru
@@ -130,6 +154,5 @@ Navigation guards can return:
 
 ## Current Limits
 
-- No route aliases.
 - `RouterView` and `RouterLink` require an explicit `router` prop.
 - SSR and hydration are outside v1 scope.
