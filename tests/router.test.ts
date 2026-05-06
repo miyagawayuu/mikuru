@@ -5,6 +5,7 @@ import {
   createMemoryHistory,
   createRouter,
   createWebHashHistory,
+  createWebHistory,
   isNavigationFailure,
   NavigationFailureType,
   provideRouter,
@@ -596,6 +597,124 @@ describe("router", () => {
     } finally {
       Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
       Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+    }
+  });
+
+  it("runs scroll behavior after successful browser navigation", async () => {
+    const window = new Window();
+    const previousLocation = globalThis.location;
+    const previousHistory = globalThis.history;
+    const previousScrollTo = globalThis.scrollTo;
+    const scrolls: unknown[] = [];
+
+    try {
+      Object.defineProperty(globalThis, "location", { configurable: true, value: window.location });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: window.history });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: (position: unknown) => scrolls.push(position) });
+      window.history.replaceState({}, "", "/");
+
+      const router = createRouter({
+        history: createWebHistory(),
+        routes: [{ path: "/" }, { path: "/next" }],
+        scrollBehavior(to) {
+          return { left: 2, top: to.path.length };
+        }
+      });
+
+      expectRoute(await router.push("/next"));
+
+      expect(scrolls).toEqual([{ left: 2, top: 5 }]);
+    } finally {
+      Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: previousScrollTo });
+    }
+  });
+
+  it("uses default browser scroll behavior for anchors and top", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    const previousLocation = globalThis.location;
+    const previousHistory = globalThis.history;
+    const previousScrollTo = globalThis.scrollTo;
+    const scrolls: unknown[] = [];
+    let anchorScrolls = 0;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+      Object.defineProperty(globalThis, "location", { configurable: true, value: window.location });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: window.history });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: (position: unknown) => scrolls.push(position) });
+      window.history.replaceState({}, "", "/");
+
+      const anchor = document.createElement("section");
+      anchor.id = "details";
+      anchor.scrollIntoView = () => {
+        anchorScrolls += 1;
+      };
+      document.body.appendChild(anchor);
+
+      const router = createRouter({
+        history: createWebHistory(),
+        routes: [{ path: "/" }, { path: "/next" }]
+      });
+
+      expectRoute(await router.push("/next#details"));
+      expectRoute(await router.push("/"));
+
+      expect(anchorScrolls).toBe(1);
+      expect(scrolls).toEqual([{ left: 0, top: 0 }]);
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+      Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: previousScrollTo });
+    }
+  });
+
+  it("skips scroll behavior for memory, duplicated, and aborted navigation", async () => {
+    const window = new Window();
+    const previousLocation = globalThis.location;
+    const previousHistory = globalThis.history;
+    const previousScrollTo = globalThis.scrollTo;
+    const scrolls: unknown[] = [];
+    let memoryScrolls = 0;
+
+    try {
+      const memoryRouter = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [{ path: "/" }, { path: "/next" }],
+        scrollBehavior() {
+          memoryScrolls += 1;
+          return { top: 10 };
+        }
+      });
+
+      expectRoute(await memoryRouter.push("/next"));
+      expect(memoryScrolls).toBe(0);
+
+      Object.defineProperty(globalThis, "location", { configurable: true, value: window.location });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: window.history });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: (position: unknown) => scrolls.push(position) });
+      window.history.replaceState({}, "", "/");
+
+      const browserRouter = createRouter({
+        history: createWebHistory(),
+        routes: [{ path: "/" }, { path: "/blocked" }],
+        scrollBehavior() {
+          return { top: 20 };
+        }
+      });
+      browserRouter.beforeEach((to) => to.path === "/blocked" ? false : undefined);
+
+      await browserRouter.push(browserRouter.currentRoute.value.fullPath);
+      await browserRouter.push("/blocked");
+
+      expect(scrolls).toEqual([]);
+    } finally {
+      Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: previousScrollTo });
     }
   });
 });
