@@ -1,14 +1,12 @@
 <template>
   <section class="page">
     <h2>Settings</h2>
-    <RouterView :router="router" depth="1" />
+    <RouterView depth="1" />
   </section>
 </template>
 
 <script>
 import { RouterView } from "mikuru/router";
-
-const { router } = defineProps();
 </script>
 
 <style scoped>

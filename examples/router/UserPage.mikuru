@@ -6,7 +6,9 @@
 </template>
 
 <script>
-const { route } = defineProps();
+import { useRoute } from "mikuru/router";
+
+const route = useRoute();
 </script>
 
 <style scoped>
