@@ -203,6 +203,14 @@ await router.push({
 });
 ```
 
+Path navigation supports `./` and `../` relative paths from the current route:
+
+```ts
+await router.push("./details");
+await router.push("../billing");
+await router.push({ path: "../profile", query: { tab: "summary" }, hash: "bio" });
+```
+
 `RouterLink` accepts default slot children, route location objects, `replace`, `activeClass`, and `exactActiveClass` props. Active links receive `router-link-active` by default. Exact active links also receive `router-link-exact-active` and `aria-current="page"`.
 
 Named routes use the route record's `name` plus `params`:

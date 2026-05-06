@@ -181,6 +181,28 @@ describe("router", () => {
     expect(route.hash).toBe("#bio");
   });
 
+  it("resolves relative string and object paths from the current route", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/settings/profile"),
+      routes: [
+        { path: "/" },
+        { path: "/settings" },
+        { path: "/settings/profile" },
+        { path: "/settings/billing" },
+        { path: "/settings/profile/details" }
+      ]
+    });
+
+    expect(router.resolve("./details?tab=activity#top").fullPath).toBe("/settings/profile/details?tab=activity#top");
+    expect(router.createHref("../billing")).toBe("/settings/billing");
+
+    const billing = expectRoute(await router.push("../billing"));
+    const profile = expectRoute(await router.push({ path: "../profile", query: { tab: "summary" }, hash: "bio" }));
+
+    expect(billing.fullPath).toBe("/settings/billing");
+    expect(profile.fullPath).toBe("/settings/profile?tab=summary#bio");
+  });
+
   it("resolves named routes with params", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
@@ -1208,6 +1230,32 @@ describe("router", () => {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
       Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
       Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+    }
+  });
+
+  it("supports RouterLink relative targets", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/settings/profile"),
+        routes: [{ path: "/settings/profile" }, { path: "/settings/billing" }]
+      });
+      const root = document.createElement("main");
+
+      RouterLink.mount(root, { router, to: "../billing", label: "Billing" });
+      document.body.appendChild(root);
+
+      expect(root.querySelector("a")?.getAttribute("href")).toBe("/settings/billing");
+      root.querySelector("a")?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }) as unknown as Event);
+      await Promise.resolve();
+
+      expect(router.currentRoute.value.path).toBe("/settings/billing");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }
   });
 
