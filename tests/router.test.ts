@@ -565,6 +565,28 @@ describe("router", () => {
     expect(router.currentRoute.value.path).toBe("/fast");
   });
 
+  it("detects navigation guard redirect loops", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/one" }, { path: "/two" }]
+    });
+    const errors: string[] = [];
+
+    router.beforeEach((to) => {
+      if (to.path === "/one") return "/two";
+      if (to.path === "/two") return "/one";
+      return undefined;
+    });
+    router.onError((error, to, from) => {
+      errors.push(`${error instanceof Error ? error.message : String(error)}:${from?.path}->${to.path}`);
+    });
+
+    await expect(router.push("/one")).rejects.toThrow("Too many navigation guard redirects.");
+
+    expect(router.currentRoute.value.path).toBe("/");
+    expect(errors).toEqual(["Too many navigation guard redirects.:/->/one"]);
+  });
+
   it("notifies onError handlers for guard errors and supports unsubscribe", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
@@ -802,6 +824,75 @@ describe("router", () => {
     } finally {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }
+  });
+
+  it("preloads lazy route components without navigating", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    let loads = 0;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const lazyPage = textComponent("Lazy");
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          {
+            path: "/lazy",
+            component: async () => {
+              loads += 1;
+              return lazyPage;
+            }
+          }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      const preloaded = await router.preload("/lazy");
+      await router.preload("/lazy");
+
+      expect(preloaded.path).toBe("/lazy");
+      expect(router.currentRoute.value.path).toBe("/");
+      expect(loads).toBe(1);
+
+      expectRoute(await router.push("/lazy"));
+      await Promise.resolve();
+
+      expect(root.textContent).toContain("Lazy");
+      expect(loads).toBe(1);
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("notifies onError handlers for preload errors", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/" },
+        {
+          path: "/broken",
+          component: async () => {
+            throw new Error("preload exploded");
+          }
+        }
+      ]
+    });
+    const errors: string[] = [];
+
+    router.onError((error, to, from) => {
+      errors.push(`${error instanceof Error ? error.message : String(error)}:${from?.path}->${to.path}`);
+    });
+
+    await expect(router.preload("/broken")).rejects.toThrow("preload exploded");
+
+    expect(errors).toEqual(["preload exploded:/->/broken"]);
   });
 
   it("ignores stale lazy route components after navigation changes", async () => {
@@ -1043,6 +1134,44 @@ describe("router", () => {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
       Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
       Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+    }
+  });
+
+  it("preloads RouterLink targets on hover and focus", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    let loads = 0;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/" },
+          {
+            path: "/lazy",
+            component: async () => {
+              loads += 1;
+              return textComponent("Lazy");
+            }
+          }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterLink.mount(root, { router, to: "/lazy", label: "Lazy", preload: true });
+      document.body.appendChild(root);
+
+      root.querySelector("a")?.dispatchEvent(new window.MouseEvent("mouseenter", { bubbles: true }) as unknown as Event);
+      await flushPromises();
+      root.querySelector("a")?.dispatchEvent(new window.FocusEvent("focus", { bubbles: true }) as unknown as Event);
+      await flushPromises();
+
+      expect(router.currentRoute.value.path).toBe("/");
+      expect(loads).toBe(1);
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }
   });
 

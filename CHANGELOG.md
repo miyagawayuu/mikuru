@@ -7,6 +7,7 @@
 - Added route-level `beforeEnter` guards for `mikuru/router`.
 - Added route component props mapping and `router.onError()` for `mikuru/router`.
 - Added optional, repeat, and catch-all route params for `mikuru/router`.
+- Added lazy route preloading and capped navigation guard redirects for `mikuru/router`.
 
 ## 1.0.15 - 2026-05-07
 
