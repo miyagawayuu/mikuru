@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added lazy route component support for `mikuru/router`.
+
 ## 1.0.15 - 2026-05-07
 
 - Added named route navigation, nested routes, and RouterLink default slot support.

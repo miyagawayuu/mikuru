@@ -7,14 +7,16 @@ export type RouteQuery = Record<string, string | string[] | undefined>;
 export type RouteComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
 };
+export type LazyRouteComponent = () => Promise<RouteComponent | { default: RouteComponent }>;
 export type RouteRecord = {
   path: string;
   name?: string;
-  component?: RouteComponent;
+  component?: RouteComponent | LazyRouteComponent;
   redirect?: RouteLocationRaw | ((to: RouteLocation) => RouteLocationRaw);
   alias?: string | string[];
   meta?: Record<string, unknown>;
   children?: RouteRecord[];
+  __mikuru_resolvedComponent?: RouteComponent;
 };
 export type RouteLocation = {
   path: string;
@@ -454,21 +456,33 @@ export const RouterView: RouteComponent = {
     const anchor = document.createComment("mikuru-router-view");
     const cleanup: Array<() => void> = [];
     let child: { element: Element | Comment; unmount(): void } | undefined;
+    let renderId = 0;
     target.appendChild(anchor);
 
     const stop = effect(() => {
       const router = getRouterProp(props);
       const route = router.currentRoute.value;
       const depth = Number(unwrap(props.depth) ?? 0);
-      const component = route.matchedRecords[depth]?.component;
+      const record = route.matchedRecords[depth];
+      const id = ++renderId;
       child?.unmount();
       child = undefined;
 
-      if (!component) return;
+      if (!record?.component) return;
 
-      const fragment = document.createDocumentFragment();
-      child = component.mount(fragment, { route, router, __mikuru_context: props.__mikuru_context });
-      anchor.parentNode?.insertBefore(fragment, anchor);
+      void resolveRouteComponent(record)
+        .then((component) => {
+          if (id !== renderId) return;
+
+          const fragment = anchor.ownerDocument.createDocumentFragment();
+          child = component.mount(fragment, { route, router, __mikuru_context: props.__mikuru_context });
+          anchor.parentNode?.insertBefore(fragment, anchor);
+        })
+        .catch((error) => {
+          setTimeout(() => {
+            throw error;
+          });
+        });
     });
 
     cleanup.push(stop, () => child?.unmount(), () => anchor.remove());
@@ -560,6 +574,33 @@ function injectRouterFromContext(context: unknown): Router | undefined {
     }
   }
   return undefined;
+}
+
+async function resolveRouteComponent(record: RouteRecord): Promise<RouteComponent> {
+  if (record.__mikuru_resolvedComponent) return record.__mikuru_resolvedComponent;
+  const component = record.component;
+
+  if (!component) {
+    throw new Error(`Route ${record.path} does not have a component.`);
+  }
+
+  if (isRouteComponent(component)) {
+    record.__mikuru_resolvedComponent = component;
+    return component;
+  }
+
+  const loaded = await component();
+  const resolved = isRouteComponent(loaded) ? loaded : loaded.default;
+  if (!isRouteComponent(resolved)) {
+    throw new Error(`Lazy route component for ${record.path} did not resolve to a component.`);
+  }
+
+  record.__mikuru_resolvedComponent = resolved;
+  return resolved;
+}
+
+function isRouteComponent(component: unknown): component is RouteComponent {
+  return !!component && typeof component === "object" && typeof (component as RouteComponent).mount === "function";
 }
 
 function createMatcher(routes: RouteRecord[]): RouteMatcher {
