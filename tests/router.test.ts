@@ -272,6 +272,31 @@ describe("router", () => {
     expect(aliasRoute.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-profile"]);
   });
 
+  it("matches empty child routes as index routes before their parent record", () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        {
+          path: "/settings",
+          name: "settings",
+          component: textComponent("Settings"),
+          children: [
+            { path: "", name: "settings-index", component: textComponent("Settings index") },
+            { path: "profile", name: "settings-profile", component: textComponent("Profile") }
+          ]
+        }
+      ]
+    });
+
+    const route = router.resolve("/settings");
+    const named = router.resolve({ name: "settings-index" });
+
+    expect(route.name).toBe("settings-index");
+    expect(route.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-index"]);
+    expect(named.fullPath).toBe("/settings");
+    expect(named.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-index"]);
+  });
+
   it("merges nested route meta from parent to child", () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
@@ -331,6 +356,31 @@ describe("router", () => {
     expect(redirected.fullPath).toBe("/login?redirect=%2Faccount%2Fbilling");
     expect(allowed.fullPath).toBe("/account/billing");
     expect(allowed.meta).toEqual({ requiresAuth: true, title: "Billing" });
+  });
+
+  it("runs guards on the final route after redirects", async () => {
+    const calls: string[] = [];
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/", name: "home" },
+        { path: "/legacy-admin", redirect: "/admin" },
+        {
+          path: "/admin",
+          name: "admin",
+          beforeEnter: (to, from) => {
+            calls.push(`${from.path}->${to.path}`);
+            return "/login";
+          }
+        },
+        { path: "/login", name: "login" }
+      ]
+    });
+
+    const route = expectRoute(await router.push("/legacy-admin"));
+
+    expect(route.path).toBe("/login");
+    expect(calls).toEqual(["/->/admin"]);
   });
 
   it("runs route beforeEnter guards in matched order", async () => {
@@ -745,6 +795,30 @@ describe("router", () => {
       await Promise.resolve();
 
       expect(root.textContent).toContain("7:profile");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("passes route and router props to not found components", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/missing"),
+        routes: [{ path: "/", component: textComponent("Home") }],
+        notFound: propsTextComponent((props) => `${(props.route as RouteLocation).path}:${Boolean(props.router)}`)
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expect(root.textContent).toContain("/missing:true");
     } finally {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }
