@@ -94,6 +94,61 @@ describe("router", () => {
     expect(route.params).toEqual({ id: "9" });
   });
 
+  it("follows route redirects", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/" },
+        { path: "/old", redirect: "/new?from=old" },
+        { path: "/legacy/:id", redirect: (to) => ({ name: "user", params: { id: to.params.id } }) },
+        { path: "/new", name: "new" },
+        { path: "/users/:id", name: "user" }
+      ]
+    });
+
+    const staticRoute = await router.push("/old");
+    const dynamicRoute = await router.push("/legacy/42");
+
+    expect(staticRoute.fullPath).toBe("/new?from=old");
+    expect(staticRoute.name).toBe("new");
+    expect(dynamicRoute.fullPath).toBe("/users/42");
+    expect(dynamicRoute.name).toBe("user");
+  });
+
+  it("detects redirect loops", () => {
+    const router = createRouter({
+      history: createMemoryHistory("/safe"),
+      routes: [
+        { path: "/safe" },
+        { path: "/", redirect: "/one" },
+        { path: "/one", redirect: "/two" },
+        { path: "/two", redirect: "/one" }
+      ]
+    });
+
+    expect(() => router.resolve("/")).toThrow("Too many route redirects.");
+  });
+
+  it("matches route aliases", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/", name: "home", alias: ["/home", "/start"] },
+        { path: "/users/:id", name: "user", alias: "/members/:id" }
+      ]
+    });
+
+    const home = router.resolve("/start");
+    const user = await router.push("/members/42");
+
+    expect(home.path).toBe("/start");
+    expect(home.name).toBe("home");
+    expect(user.path).toBe("/members/42");
+    expect(user.name).toBe("user");
+    expect(user.params).toEqual({ id: "42" });
+    expect(router.resolve({ name: "user", params: { id: "7" } }).path).toBe("/users/7");
+  });
+
   it("matches nested route records for nested RouterView depth", () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
@@ -101,6 +156,7 @@ describe("router", () => {
         {
           path: "/settings",
           name: "settings",
+          alias: "/preferences",
           component: textComponent("Settings"),
           children: [{ path: "profile", name: "settings-profile", component: textComponent("Profile") }]
         }
@@ -108,9 +164,12 @@ describe("router", () => {
     });
 
     const route = router.resolve({ name: "settings-profile" });
+    const aliasRoute = router.resolve("/preferences/profile");
 
     expect(route.fullPath).toBe("/settings/profile");
     expect(route.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-profile"]);
+    expect(aliasRoute.fullPath).toBe("/preferences/profile");
+    expect(aliasRoute.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-profile"]);
   });
 
   it("supports memory back and forward navigation", async () => {
