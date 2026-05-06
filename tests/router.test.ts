@@ -180,6 +180,67 @@ describe("router", () => {
     expect(aliasRoute.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-profile"]);
   });
 
+  it("merges nested route meta from parent to child", () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        {
+          path: "/settings",
+          name: "settings",
+          meta: { layout: "app", requiresAuth: true, title: "Settings" },
+          children: [
+            {
+              path: "billing",
+              name: "settings-billing",
+              meta: { title: "Billing", feature: "billing" }
+            }
+          ]
+        }
+      ]
+    });
+
+    const route = router.resolve({ name: "settings-billing" });
+
+    expect(route.meta).toEqual({
+      layout: "app",
+      requiresAuth: true,
+      title: "Billing",
+      feature: "billing"
+    });
+    expect(route.matched?.name).toBe("settings-billing");
+    expect(route.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-billing"]);
+  });
+
+  it("lets guards use merged route meta", async () => {
+    let isLoggedIn = false;
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/", name: "home" },
+        { path: "/login", name: "login" },
+        {
+          path: "/account",
+          name: "account",
+          meta: { requiresAuth: true },
+          children: [{ path: "billing", name: "account-billing", meta: { title: "Billing" } }]
+        }
+      ]
+    });
+
+    router.beforeEach((to) => {
+      if (to.meta.requiresAuth && !isLoggedIn) return { name: "login", query: { redirect: to.fullPath } };
+      return undefined;
+    });
+
+    const redirected = expectRoute(await router.push({ name: "account-billing" }));
+    isLoggedIn = true;
+    const allowed = expectRoute(await router.push({ name: "account-billing" }));
+
+    expect(redirected.fullPath).toBe("/login?redirect=%2Faccount%2Fbilling");
+    expect(allowed.fullPath).toBe("/account/billing");
+    expect(allowed.meta).toEqual({ requiresAuth: true, title: "Billing" });
+  });
+
   it("adds and removes routes dynamically", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),

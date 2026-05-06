@@ -574,7 +574,7 @@ function resolveLocation(raw: string, matcher: RouteMatcher): RouteLocation {
     matched: matched?.record,
     matchedRecords: matched?.records ?? [],
     name: matched?.record.name,
-    meta: matched?.record.meta ?? {}
+    meta: mergeMeta(matched?.records ?? [])
   };
 }
 
@@ -668,6 +668,10 @@ function readToProp(props: Record<string, unknown>): RouteLocationRaw {
 function readAliases(record: RouteRecord): string[] {
   if (!record.alias) return [];
   return Array.isArray(record.alias) ? record.alias : [record.alias];
+}
+
+function mergeMeta(records: RouteRecord[]): Record<string, unknown> {
+  return records.reduce<Record<string, unknown>>((meta, record) => ({ ...meta, ...(record.meta ?? {}) }), {});
 }
 
 function removeRouteByName(routes: RouteRecord[], name: string): boolean {

@@ -11,6 +11,7 @@
         <RouterLink :router="router" to="/legacy-user" label="Redirect" />
         <RouterLink :router="router" :to="{ name: 'settings-profile' }" label="Settings" />
         <RouterLink :router="router" :to="{ name: 'dynamic' }" label="Dynamic" />
+        <RouterLink :router="router" :to="{ name: 'admin' }" label="Admin" />
         <RouterLink :router="router" to="/missing" label="Missing" />
       </nav>
     </header>
@@ -22,21 +23,26 @@
 <script>
 import { onBeforeUnmount } from "mikuru";
 import { createMemoryHistory, createRouter, RouterLink, RouterView } from "mikuru/router";
+import AdminPage from "./AdminPage.mikuru";
 import DynamicPage from "./DynamicPage.mikuru";
 import HomePage from "./HomePage.mikuru";
+import LoginPage from "./LoginPage.mikuru";
 import NotFoundPage from "./NotFoundPage.mikuru";
 import ProfilePage from "./ProfilePage.mikuru";
 import SettingsPage from "./SettingsPage.mikuru";
 import UserPage from "./UserPage.mikuru";
 
 const userRoute = { name: "user", params: { id: "42" }, query: { tab: "profile" } };
+const isLoggedIn = false;
 
 const router = createRouter({
   history: createMemoryHistory("/"),
   routes: [
     { path: "/", name: "home", alias: "/start", component: HomePage },
+    { path: "/login", name: "login", component: LoginPage },
     { path: "/legacy-user", redirect: userRoute },
     { path: "/users/:id", name: "user", component: UserPage },
+    { path: "/admin", name: "admin", meta: { requiresAuth: true }, component: AdminPage },
     {
       path: "/settings",
       name: "settings",
@@ -49,6 +55,12 @@ const router = createRouter({
 });
 
 router.addRoute({ path: "/dynamic", name: "dynamic", component: DynamicPage });
+router.beforeEach((to) => {
+  if (to.meta.requiresAuth && !isLoggedIn) {
+    return { name: "login", query: { redirect: to.fullPath } };
+  }
+  return undefined;
+});
 
 const stopRouter = router.listen();
 

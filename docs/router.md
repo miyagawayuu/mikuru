@@ -77,6 +77,8 @@ const { route } = defineProps();
 </script>
 ```
 
+`route.matched` is the final matched route record. `route.matchedRecords` contains the full parent-to-child chain. `route.meta` is a shallow merge of every matched record's `meta`, with child records overriding parent keys.
+
 ## API
 
 - `createRouter({ history, routes, notFound? })` creates a router.
@@ -175,6 +177,17 @@ Navigation guards can return:
 - `false` to cancel navigation.
 - A string or route location object to redirect.
 - `undefined` to continue.
+
+Because nested route meta is merged, guards can check parent and child metadata from `to.meta`:
+
+```ts
+router.beforeEach((to) => {
+  if (to.meta.requiresAuth && !isLoggedIn) {
+    return { name: "login", query: { redirect: to.fullPath } };
+  }
+  return undefined;
+});
+```
 
 Navigation failures can be checked with `isNavigationFailure()`:
 
