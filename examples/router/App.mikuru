@@ -12,6 +12,7 @@
         <RouterLink :to="{ name: 'settings-profile' }" label="Settings" />
         <RouterLink :to="{ name: 'dynamic' }" label="Dynamic" />
         <RouterLink :to="{ name: 'lazy' }" label="Lazy" />
+        <RouterLink :to="{ name: 'lazy-error' }" label="Lazy Error" />
         <RouterLink :to="{ name: 'admin' }" label="Admin" />
         <RouterLink to="/missing" label="Missing" />
       </nav>
@@ -26,7 +27,9 @@ import { onBeforeUnmount } from "mikuru";
 import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterView } from "mikuru/router";
 import AdminPage from "./AdminPage.mikuru";
 import DynamicPage from "./DynamicPage.mikuru";
+import ErrorPage from "./ErrorPage.mikuru";
 import HomePage from "./HomePage.mikuru";
+import LoadingPage from "./LoadingPage.mikuru";
 import LoginPage from "./LoginPage.mikuru";
 import NotFoundPage from "./NotFoundPage.mikuru";
 import ProfilePage from "./ProfilePage.mikuru";
@@ -43,7 +46,15 @@ const router = createRouter({
     { path: "/login", name: "login", component: LoginPage },
     { path: "/legacy-user", redirect: userRoute },
     { path: "/users/:id", name: "user", component: UserPage },
-    { path: "/lazy", name: "lazy", component: () => import("./LazyPage.mikuru") },
+    { path: "/lazy", name: "lazy", component: () => import("./LazyPage.mikuru"), loadingComponent: LoadingPage },
+    {
+      path: "/lazy-error",
+      name: "lazy-error",
+      component: async () => {
+        throw new Error("Lazy route failed to load.");
+      },
+      errorComponent: ErrorPage
+    },
     { path: "/admin", name: "admin", meta: { requiresAuth: true }, component: AdminPage },
     {
       path: "/settings",

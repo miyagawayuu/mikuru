@@ -118,6 +118,26 @@ createRouter({
 });
 ```
 
+Lazy routes can render loading and error fallback components. Router-level fallbacks apply to every lazy route, and route records can override them:
+
+```ts
+createRouter({
+  routes: [
+    {
+      path: "/reports",
+      name: "reports",
+      component: () => import("./ReportsPage.mikuru"),
+      loadingComponent: ReportsLoading,
+      errorComponent: ReportsError
+    }
+  ],
+  loadingComponent: PageLoading,
+  errorComponent: PageError
+});
+```
+
+Loading components receive `{ route, router }` props. Error components receive `{ error, route, router }` props. If no error component is configured, lazy loader errors are thrown asynchronously.
+
 Browser history modes support scroll behavior after successful navigation:
 
 ```ts

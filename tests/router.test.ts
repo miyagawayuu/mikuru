@@ -32,6 +32,23 @@ function textComponent(text: string): RouteComponent {
   };
 }
 
+function propTextComponent(propName: string): RouteComponent {
+  return {
+    mount(target, props = {}) {
+      const element = document.createElement("p");
+      const value = props[propName];
+      element.textContent = value instanceof Error ? value.message : String(value ?? "");
+      target.appendChild(element);
+      return {
+        element,
+        unmount() {
+          element.remove();
+        }
+      };
+    }
+  };
+}
+
 function expectRoute(result: NavigationResult): RouteLocation {
   expect(isNavigationFailure(result)).toBe(false);
   if (isNavigationFailure(result)) throw new Error(result.message);
@@ -44,6 +61,11 @@ function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
     resolve = done;
   });
   return { promise, resolve };
+}
+
+async function flushPromises(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 describe("router", () => {
@@ -587,14 +609,134 @@ describe("router", () => {
       expectRoute(await router.push("/slow"));
       expect(root.textContent).not.toContain("Slow");
       expectRoute(await router.push("/fast"));
-      await Promise.resolve();
+      await flushPromises();
       expect(root.textContent).toContain("Fast");
 
       slow.resolve(textComponent("Slow"));
-      await Promise.resolve();
+      await flushPromises();
 
       expect(root.textContent).toContain("Fast");
       expect(root.textContent).not.toContain("Slow");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("renders loading and error components for lazy routes", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    const lazy = deferred<RouteComponent>();
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          { path: "/lazy", component: () => lazy.promise }
+        ],
+        loadingComponent: textComponent("Loading")
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expectRoute(await router.push("/lazy"));
+      expect(root.textContent).toContain("Loading");
+
+      lazy.resolve(textComponent("Lazy done"));
+      await flushPromises();
+
+      expect(root.textContent).toContain("Lazy done");
+      expect(root.textContent).not.toContain("Loading");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("uses route-level loading and error components before router defaults", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          {
+            path: "/broken",
+            component: async () => {
+              throw new Error("broken lazy route");
+            },
+            loadingComponent: textComponent("Route loading"),
+            errorComponent: propTextComponent("error")
+          }
+        ],
+        loadingComponent: textComponent("Default loading"),
+        errorComponent: textComponent("Default error")
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expectRoute(await router.push("/broken"));
+      expect(root.textContent).toContain("Route loading");
+      await flushPromises();
+
+      expect(root.textContent).toContain("broken lazy route");
+      expect(root.textContent).not.toContain("Default error");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("ignores stale lazy loading and error states after navigation changes", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    const slow = deferred<RouteComponent>();
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          {
+            path: "/slow",
+            component: () => slow.promise,
+            loadingComponent: textComponent("Slow loading"),
+            errorComponent: textComponent("Slow error")
+          },
+          { path: "/fast", component: textComponent("Fast") }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expectRoute(await router.push("/slow"));
+      expect(root.textContent).toContain("Slow loading");
+      expectRoute(await router.push("/fast"));
+      await flushPromises();
+      expect(root.textContent).toContain("Fast");
+
+      slow.resolve(textComponent("Slow"));
+      await flushPromises();
+
+      expect(root.textContent).toContain("Fast");
+      expect(root.textContent).not.toContain("Slow");
+      expect(root.textContent).not.toContain("Slow loading");
+      expect(root.textContent).not.toContain("Slow error");
     } finally {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }

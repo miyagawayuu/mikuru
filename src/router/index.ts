@@ -12,6 +12,8 @@ export type RouteRecord = {
   path: string;
   name?: string;
   component?: RouteComponent | LazyRouteComponent;
+  loadingComponent?: RouteComponent;
+  errorComponent?: RouteComponent;
   redirect?: RouteLocationRaw | ((to: RouteLocation) => RouteLocationRaw);
   alias?: string | string[];
   meta?: Record<string, unknown>;
@@ -72,6 +74,8 @@ export type RouterOptions = {
   routes: RouteRecord[];
   notFound?: RouteComponent;
   scrollBehavior?: ScrollBehavior;
+  loadingComponent?: RouteComponent;
+  errorComponent?: RouteComponent;
 };
 export type Router = {
   currentRoute: Ref<RouteLocation>;
@@ -89,6 +93,8 @@ export type Router = {
   hasRoute(name: string): boolean;
   listen(): () => void;
   createHref(to: RouteLocationRaw): string;
+  loadingComponent?: RouteComponent;
+  errorComponent?: RouteComponent;
 };
 
 type CompiledRoute = {
@@ -158,6 +164,8 @@ export function createRouter(options: RouterOptions): Router {
   const history = options.history ?? createWebHashHistory();
   const routes = options.routes.slice();
   const fallbackRoute = options.notFound ? { ...notFoundRoute, component: options.notFound } : undefined;
+  const loadingComponent = options.loadingComponent;
+  const errorComponent = options.errorComponent;
   let matcher = createMatcher(readMatcherRoutes());
   const beforeGuards: NavigationGuard[] = [];
   const afterHooks: AfterNavigationHook[] = [];
@@ -338,7 +346,9 @@ export function createRouter(options: RouterOptions): Router {
     },
     createHref(to) {
       return history.createHref(stringifyLocation(to, matcher));
-    }
+    },
+    loadingComponent,
+    errorComponent
   };
 }
 
@@ -470,18 +480,41 @@ export const RouterView: RouteComponent = {
 
       if (!record?.component) return;
 
+      if (isLazyRouteComponent(record.component)) {
+        const loadingComponent = record.loadingComponent ?? router.loadingComponent;
+        if (loadingComponent) {
+          const fragment = anchor.ownerDocument.createDocumentFragment();
+          child = loadingComponent.mount(fragment, { route, router, __mikuru_context: props.__mikuru_context });
+          anchor.parentNode?.insertBefore(fragment, anchor);
+        }
+      }
+
       void resolveRouteComponent(record)
         .then((component) => {
           if (id !== renderId) return;
+          child?.unmount();
+          child = undefined;
 
           const fragment = anchor.ownerDocument.createDocumentFragment();
           child = component.mount(fragment, { route, router, __mikuru_context: props.__mikuru_context });
           anchor.parentNode?.insertBefore(fragment, anchor);
         })
         .catch((error) => {
-          setTimeout(() => {
-            throw error;
-          });
+          if (id !== renderId) return;
+          child?.unmount();
+          child = undefined;
+
+          const errorComponent = record.errorComponent ?? router.errorComponent;
+          if (!errorComponent) {
+            setTimeout(() => {
+              throw error;
+            });
+            return;
+          }
+
+          const fragment = anchor.ownerDocument.createDocumentFragment();
+          child = errorComponent.mount(fragment, { error, route, router, __mikuru_context: props.__mikuru_context });
+          anchor.parentNode?.insertBefore(fragment, anchor);
         });
     });
 
@@ -601,6 +634,10 @@ async function resolveRouteComponent(record: RouteRecord): Promise<RouteComponen
 
 function isRouteComponent(component: unknown): component is RouteComponent {
   return !!component && typeof component === "object" && typeof (component as RouteComponent).mount === "function";
+}
+
+function isLazyRouteComponent(component: unknown): component is LazyRouteComponent {
+  return typeof component === "function";
 }
 
 function createMatcher(routes: RouteRecord[]): RouteMatcher {
