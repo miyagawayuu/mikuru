@@ -180,6 +180,83 @@ describe("router", () => {
     expect(aliasRoute.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-profile"]);
   });
 
+  it("adds and removes routes dynamically", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/", name: "home" }]
+    });
+
+    expect(router.hasRoute("about")).toBe(false);
+    expect(() => router.resolve({ name: "about" })).toThrow("Unknown route name: about");
+
+    const removeAbout = router.addRoute({ path: "/about", name: "about", alias: "/company" });
+    const route = expectRoute(await router.push({ name: "about" }));
+
+    expect(router.hasRoute("about")).toBe(true);
+    expect(route.path).toBe("/about");
+    expect(router.resolve("/company").name).toBe("about");
+
+    removeAbout();
+
+    expect(router.hasRoute("about")).toBe(false);
+    expect(router.removeRoute("about")).toBe(false);
+    expect(() => router.resolve({ name: "about" })).toThrow("Unknown route name: about");
+  });
+
+  it("adds nested routes dynamically", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/settings", name: "settings", alias: "/preferences" }]
+    });
+
+    const removeBilling = router.addRoute("settings", {
+      path: "billing",
+      name: "settings-billing",
+      component: textComponent("Billing")
+    });
+    const route = expectRoute(await router.push({ name: "settings-billing" }));
+    const aliasRoute = router.resolve("/preferences/billing");
+
+    expect(route.fullPath).toBe("/settings/billing");
+    expect(route.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-billing"]);
+    expect(aliasRoute.matchedRecords.map((record) => record.name)).toEqual(["settings", "settings-billing"]);
+
+    removeBilling();
+
+    expect(router.hasRoute("settings-billing")).toBe(false);
+    expect(() => router.addRoute("missing", { path: "child", name: "missing-child" })).toThrow("Unknown route name: missing");
+  });
+
+  it("updates the current route when dynamic routes change", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/late"),
+      routes: [{ path: "/", name: "home" }],
+      notFound: textComponent("Not found")
+    });
+
+    expect(router.currentRoute.value.name).toBe("not-found");
+
+    router.addRoute({ path: "/late", name: "late" });
+
+    expect(router.currentRoute.value.name).toBe("late");
+    expect(router.currentRoute.value.path).toBe("/late");
+
+    router.removeRoute("late");
+
+    expect(router.currentRoute.value.name).toBe("not-found");
+  });
+
+  it("keeps route table unchanged when dynamic routes are invalid", () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/", name: "home" }]
+    });
+
+    expect(() => router.addRoute({ path: "/start", name: "home" })).toThrow("Duplicate route name: home");
+    expect(router.resolve({ name: "home" }).path).toBe("/");
+    expect(router.routes.map((route) => route.path)).toEqual(["/"]);
+  });
+
   it("supports memory back and forward navigation", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),

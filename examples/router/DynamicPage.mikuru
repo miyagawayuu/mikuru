@@ -1,0 +1,6 @@
+<template>
+  <section>
+    <h2>Dynamic</h2>
+    <p>This page was registered with router.addRoute().</p>
+  </section>
+</template>

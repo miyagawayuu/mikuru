@@ -86,6 +86,10 @@ const { route } = defineProps();
 - `router.resolve(to)` parses a route without navigating.
 - `router.beforeEach(fn)` registers a navigation guard and returns an unsubscribe function.
 - `router.afterEach(fn)` registers a post-navigation hook and returns an unsubscribe function.
+- `router.addRoute(record)` adds a top-level route and returns a remove callback.
+- `router.addRoute(parentName, record)` adds a nested route under a named parent and returns a remove callback.
+- `router.removeRoute(name)` removes a named route and its children.
+- `router.hasRoute(name)` checks whether a named route exists.
 - `router.listen()` starts syncing browser or memory history events and returns a stop function.
 
 Routes support static paths, dynamic params such as `/users/:id`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
@@ -144,6 +148,26 @@ Nested routes use `children` and nested `RouterView` instances. Pass `depth="1"`
     <RouterView :router="router" depth="1" />
   </section>
 </template>
+```
+
+Routes can also be added after router creation. Dynamic route changes rebuild the matcher and re-resolve the current route, so `RouterView`, `RouterLink`, and `router.resolve()` see the updated table immediately:
+
+```ts
+const removeAdmin = router.addRoute({
+  path: "/admin",
+  name: "admin",
+  component: AdminPage
+});
+
+router.addRoute("settings", {
+  path: "billing",
+  name: "settings-billing",
+  component: BillingPage
+});
+
+if (router.hasRoute("admin")) {
+  removeAdmin();
+}
 ```
 
 Navigation guards can return:
