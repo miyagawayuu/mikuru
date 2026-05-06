@@ -1,0 +1,10 @@
+<template>
+  <section>
+    <h2>Login</h2>
+    <p>Guard redirected here from {{ route.query.redirect }}.</p>
+  </section>
+</template>
+
+<script>
+const { route } = defineProps();
+</script>

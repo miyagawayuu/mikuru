@@ -6,6 +6,7 @@
 - Added router route redirects and aliases.
 - Added router navigation failure results for duplicated, aborted, and cancelled navigations.
 - Added dynamic router route management with `addRoute`, `removeRoute`, and `hasRoute`.
+- Added parent-to-child route meta merging for nested routes and guard usage.
 
 ## 1.0.14 - 2026-05-06
 

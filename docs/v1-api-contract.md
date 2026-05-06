@@ -56,6 +56,7 @@ Unsupported in v1:
 - `createRouter({ history, routes, notFound? })` creates a router with a reactive `currentRoute`.
 - `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
 - Routes support static paths, dynamic params, named routes, nested children, aliases, redirects, query parsing, and hash parsing.
+- `route.meta` is a shallow parent-to-child merge of matched route record `meta`. `route.matched` is the final record, and `route.matchedRecords` is the full parent-to-child chain.
 - `router.push`, `router.replace`, `router.back`, `router.forward`, and `router.resolve` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
 - `router.addRoute`, `router.removeRoute`, and `router.hasRoute` provide dynamic route management.
 - `isNavigationFailure` checks duplicated, aborted, and cancelled navigation failures.
