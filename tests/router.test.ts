@@ -49,6 +49,22 @@ function propTextComponent(propName: string): RouteComponent {
   };
 }
 
+function propsTextComponent(read: (props: Record<string, unknown>) => string): RouteComponent {
+  return {
+    mount(target, props = {}) {
+      const element = document.createElement("p");
+      element.textContent = read(props);
+      target.appendChild(element);
+      return {
+        element,
+        unmount() {
+          element.remove();
+        }
+      };
+    }
+  };
+}
+
 function expectRoute(result: NavigationResult): RouteLocation {
   expect(isNavigationFailure(result)).toBe(false);
   if (isNavigationFailure(result)) throw new Error(result.message);
@@ -507,6 +523,28 @@ describe("router", () => {
     expect(router.currentRoute.value.path).toBe("/fast");
   });
 
+  it("notifies onError handlers for guard errors and supports unsubscribe", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/broken" }]
+    });
+    const errors: string[] = [];
+    const stop = router.onError((error, to, from) => {
+      errors.push(`${error instanceof Error ? error.message : String(error)}:${from?.path}->${to.path}`);
+    });
+
+    router.beforeEach((to) => {
+      if (to.path === "/broken") throw new Error("guard exploded");
+      return undefined;
+    });
+
+    await expect(router.push("/broken")).rejects.toThrow("guard exploded");
+    stop();
+    await expect(router.push("/broken")).rejects.toThrow("guard exploded");
+
+    expect(errors).toEqual(["guard exploded:/->/broken"]);
+  });
+
   it("renders RouterView and RouterLink runtime components", async () => {
     const window = new Window();
     const previousDocument = globalThis.document;
@@ -576,6 +614,73 @@ describe("router", () => {
 
       expect(router.currentRoute.value.path).toBe("/about");
       expect(root.textContent).toContain("AboutAbout");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("passes route params as component props when route props is true", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/users/42"),
+        routes: [
+          {
+            path: "/users/:id",
+            component: propsTextComponent((props) => `User ${props.id} ${Boolean(props.route)} ${Boolean(props.router)}`),
+            props: true
+          }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expect(root.textContent).toContain("User 42 true true");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("passes static and function route props to route components", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/static"),
+        routes: [
+          {
+            path: "/static",
+            component: propsTextComponent((props) => `${props.kind}:${props.count}`),
+            props: { kind: "static", count: 2 }
+          },
+          {
+            path: "/users/:id",
+            component: propsTextComponent((props) => `${props.id}:${props.tab}`),
+            props: (route) => ({ id: route.params.id, tab: route.query.tab })
+          }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+      expect(root.textContent).toContain("static:2");
+
+      expectRoute(await router.push("/users/7?tab=profile"));
+      await Promise.resolve();
+
+      expect(root.textContent).toContain("7:profile");
     } finally {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }
@@ -765,6 +870,46 @@ describe("router", () => {
 
       expect(root.textContent).toContain("broken lazy route");
       expect(root.textContent).not.toContain("Default error");
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
+  it("notifies onError handlers for lazy route loader errors", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          {
+            path: "/broken",
+            component: async () => {
+              throw new Error("lazy exploded");
+            },
+            errorComponent: propTextComponent("error")
+          }
+        ]
+      });
+      const errors: string[] = [];
+      const root = document.createElement("main");
+
+      router.onError((error, to) => {
+        errors.push(`${error instanceof Error ? error.message : String(error)}:${to.path}`);
+      });
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expectRoute(await router.push("/broken"));
+      await flushPromises();
+
+      expect(root.textContent).toContain("lazy exploded");
+      expect(errors).toEqual(["lazy exploded:/broken"]);
     } finally {
       Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
     }

@@ -56,6 +56,7 @@ Unsupported in v1:
 - `createRouter({ history, routes, notFound? })` creates a router with a reactive `currentRoute`.
 - `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
 - Routes support static paths, dynamic params, named routes, nested children, aliases, redirects, query parsing, and hash parsing.
+- Route records can define `props` as `true`, a static object, or a route mapping function. `RouterView` passes mapped props together with built-in `route` and `router` props.
 - Route records support eager components and lazy component loaders that resolve to a component or default component export.
 - Lazy routes support router-level and route-level loading and error components. Error components receive the loader error in props.
 - `route.meta` is a shallow parent-to-child merge of matched route record `meta`. `route.matched` is the final record, and `route.matchedRecords` is the full parent-to-child chain.
@@ -65,6 +66,7 @@ Unsupported in v1:
 - `provideRouter`, `useRouter`, and `useRoute` provide router access through component-tree context.
 - `isNavigationFailure` checks duplicated, aborted, and cancelled navigation failures.
 - `router.beforeEach` and `router.afterEach` register navigation hooks and return unsubscribe functions. `afterEach` receives an optional failure argument.
+- `router.onError` registers an error handler for uncaught navigation and lazy route loader errors and returns an unsubscribe function.
 - Route records can define `beforeEnter` as a guard or guard array. Matched route guards run parent-to-child after global `beforeEach` guards.
 - `RouterView` renders the matched route component and passes `route` and `router` props.
 - `RouterView` and `RouterLink` accept an explicit `router` prop or use the provided router context.
