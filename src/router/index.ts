@@ -295,8 +295,9 @@ export const RouterLink: RouteComponent = {
     const text = () => String(unwrap(props.label) ?? unwrap(props.childrenText) ?? unwrap(props.to) ?? "");
     const navigate = (event: Event) => {
       const router = getRouterProp(props);
+      const to = String(unwrap(props.to) ?? "/");
       event.preventDefault();
-      void router.push(String(unwrap(props.to) ?? "/"));
+      void (unwrap(props.replace) ? router.replace(to) : router.push(to));
     };
 
     anchor.addEventListener("click", navigate);
@@ -305,14 +306,20 @@ export const RouterLink: RouteComponent = {
     const stop = effect(() => {
       const router = getRouterProp(props);
       const to = stringifyLocation(String(unwrap(props.to) ?? "/"));
+      const targetRoute = router.resolve(to);
+      const activeClass = String(unwrap(props.activeClass) ?? "router-link-active");
+      const exactActiveClass = String(unwrap(props.exactActiveClass) ?? "router-link-exact-active");
+      const isExactActive = router.currentRoute.value.fullPath === targetRoute.fullPath;
+      const isActive = isExactActive || isPathActive(router.currentRoute.value.path, targetRoute.path);
       anchor.href = router.createHref(to);
       anchor.textContent = text();
-      if (router.currentRoute.value.fullPath === router.resolve(to).fullPath) {
+      anchor.classList.toggle(activeClass, isActive);
+      anchor.classList.toggle(exactActiveClass, isExactActive);
+
+      if (isExactActive) {
         anchor.setAttribute("aria-current", "page");
-        anchor.classList.add("router-link-active");
       } else {
         anchor.removeAttribute("aria-current");
-        anchor.classList.remove("router-link-active");
       }
     });
 
@@ -442,6 +449,11 @@ function normalizeBase(base: string): string {
 function stripBase(path: string, base: string): string {
   if (base === "/") return path;
   return path.startsWith(base) ? path.slice(base.length - 1) : path;
+}
+
+function isPathActive(currentPath: string, targetPath: string): boolean {
+  if (targetPath === "/") return currentPath === "/";
+  return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
 }
 
 function removeItem<T>(items: T[], item: T): void {
