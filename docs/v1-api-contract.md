@@ -55,7 +55,7 @@ Unsupported in v1:
 
 - `createRouter({ history, routes, notFound? })` creates a router with a reactive `currentRoute`.
 - `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
-- Routes support static paths, dynamic params, named routes, nested children, aliases, redirects, query parsing, and hash parsing.
+- Routes support static paths, dynamic params, optional params, repeat params, catch-all params, named routes, nested children, aliases, redirects, query parsing, and hash parsing.
 - Route records can define `props` as `true`, a static object, or a route mapping function. `RouterView` passes mapped props together with built-in `route` and `router` props.
 - Route records support eager components and lazy component loaders that resolve to a component or default component export.
 - Lazy routes support router-level and route-level loading and error components. Error components receive the loader error in props.
