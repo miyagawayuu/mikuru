@@ -65,6 +65,7 @@ Unsupported in v1:
 - `provideRouter`, `useRouter`, and `useRoute` provide router access through component-tree context.
 - `isNavigationFailure` checks duplicated, aborted, and cancelled navigation failures.
 - `router.beforeEach` and `router.afterEach` register navigation hooks and return unsubscribe functions. `afterEach` receives an optional failure argument.
+- Route records can define `beforeEnter` as a guard or guard array. Matched route guards run parent-to-child after global `beforeEach` guards.
 - `RouterView` renders the matched route component and passes `route` and `router` props.
 - `RouterView` and `RouterLink` accept an explicit `router` prop or use the provided router context.
 - `RouterLink` renders an anchor, supports default slot children, route location objects, `replace`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
