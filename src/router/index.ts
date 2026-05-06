@@ -17,6 +17,7 @@ export type RouteRecord = {
   redirect?: RouteLocationRaw | ((to: RouteLocation) => RouteLocationRaw);
   alias?: string | string[];
   meta?: Record<string, unknown>;
+  beforeEnter?: NavigationGuard | NavigationGuard[];
   children?: RouteRecord[];
   __mikuru_resolvedComponent?: RouteComponent;
 };
@@ -183,7 +184,8 @@ export function createRouter(options: RouterOptions): Router {
       return createNavigationFailure(NavigationFailureType.duplicated, target, from);
     }
 
-    for (const guard of beforeGuards) {
+    const guards = [...beforeGuards, ...readBeforeEnterGuards(target.matchedRecords)];
+    for (const guard of guards) {
       const result = await guard(target, from);
       if (id !== navigationId) return createNavigationFailure(NavigationFailureType.cancelled, target, from);
       if (result === false) {
@@ -818,6 +820,13 @@ function readAliases(record: RouteRecord): string[] {
 
 function mergeMeta(records: RouteRecord[]): Record<string, unknown> {
   return records.reduce<Record<string, unknown>>((meta, record) => ({ ...meta, ...(record.meta ?? {}) }), {});
+}
+
+function readBeforeEnterGuards(records: RouteRecord[]): NavigationGuard[] {
+  return records.flatMap((record) => {
+    if (!record.beforeEnter) return [];
+    return Array.isArray(record.beforeEnter) ? record.beforeEnter : [record.beforeEnter];
+  });
 }
 
 function removeRouteByName(routes: RouteRecord[], name: string): boolean {

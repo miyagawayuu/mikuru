@@ -41,6 +41,10 @@ test("router example navigates through RouterLink and RouterView", async ({ page
   await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
   await expect(page.getByText("Guard redirected here from /admin.")).toBeVisible();
 
+  await page.getByRole("link", { name: "Beta" }).click();
+  await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
+  await expect(page.getByText("Guard redirected here from /beta.")).toBeVisible();
+
   await page.getByRole("link", { name: "Missing" }).click();
   await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
   await expect(page.getByText("/missing does not match a route.")).toBeVisible();

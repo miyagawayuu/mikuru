@@ -235,6 +235,25 @@ Navigation guards can return:
 - A string or route location object to redirect.
 - `undefined` to continue.
 
+Route records can also define `beforeEnter` when a guard belongs to a specific route. Parent route guards run before child route guards, after global `beforeEach` guards:
+
+```ts
+createRouter({
+  routes: [
+    {
+      path: "/account",
+      beforeEnter: (to) => {
+        if (!isLoggedIn) return { name: "login", query: { redirect: to.fullPath } };
+        return undefined;
+      },
+      children: [{ path: "billing", component: BillingPage }]
+    }
+  ]
+});
+```
+
+`beforeEnter` can also be an array of guards.
+
 Because nested route meta is merged, guards can check parent and child metadata from `to.meta`:
 
 ```ts

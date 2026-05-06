@@ -14,6 +14,7 @@
         <RouterLink :to="{ name: 'lazy' }" label="Lazy" />
         <RouterLink :to="{ name: 'lazy-error' }" label="Lazy Error" />
         <RouterLink :to="{ name: 'admin' }" label="Admin" />
+        <RouterLink :to="{ name: 'beta' }" label="Beta" />
         <RouterLink to="/missing" label="Missing" />
       </nav>
     </header>
@@ -56,6 +57,12 @@ const router = createRouter({
       errorComponent: ErrorPage
     },
     { path: "/admin", name: "admin", meta: { requiresAuth: true }, component: AdminPage },
+    {
+      path: "/beta",
+      name: "beta",
+      component: AdminPage,
+      beforeEnter: (to) => ({ name: "login", query: { redirect: to.fullPath } })
+    },
     {
       path: "/settings",
       name: "settings",

@@ -275,6 +275,79 @@ describe("router", () => {
     expect(allowed.meta).toEqual({ requiresAuth: true, title: "Billing" });
   });
 
+  it("runs route beforeEnter guards in matched order", async () => {
+    let isLoggedIn = false;
+    const calls: string[] = [];
+    const after: string[] = [];
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        { path: "/", name: "home" },
+        { path: "/login", name: "login" },
+        {
+          path: "/account",
+          name: "account",
+          beforeEnter: (to) => {
+            calls.push(`parent:${to.fullPath}`);
+            return undefined;
+          },
+          children: [
+            {
+              path: "billing",
+              name: "account-billing",
+              beforeEnter: [
+                (to) => {
+                  calls.push(`child:${to.fullPath}`);
+                  return undefined;
+                },
+                (to) => {
+                  if (!isLoggedIn) return { name: "login", query: { redirect: to.fullPath } };
+                  return undefined;
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    router.afterEach((to, from) => {
+      after.push(`${from.path}->${to.path}`);
+    });
+
+    const redirected = expectRoute(await router.push({ name: "account-billing" }));
+    isLoggedIn = true;
+    const allowed = expectRoute(await router.push({ name: "account-billing" }));
+
+    expect(redirected.fullPath).toBe("/login?redirect=%2Faccount%2Fbilling");
+    expect(allowed.fullPath).toBe("/account/billing");
+    expect(calls).toEqual([
+      "parent:/account/billing",
+      "child:/account/billing",
+      "parent:/account/billing",
+      "child:/account/billing"
+    ]);
+    expect(after).toEqual(["/->/login", "/login->/account/billing"]);
+  });
+
+  it("returns aborted navigation failures from route beforeEnter guards", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/blocked", beforeEnter: () => false }]
+    });
+    const after: string[] = [];
+
+    router.afterEach((to, from, failure) => {
+      after.push(`${from.path}->${to.path}:${failure?.type ?? "ok"}`);
+    });
+
+    const failure = await router.push("/blocked");
+
+    expect(isNavigationFailure(failure, NavigationFailureType.aborted)).toBe(true);
+    expect(router.currentRoute.value.path).toBe("/");
+    expect(after).toEqual(["/->/blocked:aborted"]);
+  });
+
   it("adds and removes routes dynamically", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
