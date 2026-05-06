@@ -29,9 +29,13 @@ test("router example navigates through RouterLink and RouterView", async ({ page
   await expect(page.getByRole("heading", { name: "Dynamic" })).toBeVisible();
   await expect(page.getByText("This page was registered with router.addRoute().")).toBeVisible();
 
-  await page.getByRole("link", { name: "Lazy" }).click();
+  await page.getByRole("link", { name: "Lazy", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Lazy" })).toBeVisible();
   await expect(page.getByText("This page was loaded through a lazy route component.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Lazy Error" }).click();
+  await expect(page.getByRole("heading", { name: "Route error" })).toBeVisible();
+  await expect(page.getByText("Lazy route failed to load.")).toBeVisible();
 
   await page.getByRole("link", { name: "Admin" }).click();
   await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();

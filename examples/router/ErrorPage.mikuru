@@ -1,0 +1,10 @@
+<template>
+  <section>
+    <h2>Route error</h2>
+    <p>{{ error.message }}</p>
+  </section>
+</template>
+
+<script>
+const { error } = defineProps();
+</script>

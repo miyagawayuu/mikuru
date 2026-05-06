@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added lazy route component support for `mikuru/router`.
+- Added loading and error fallback components for lazy routes.
 
 ## 1.0.15 - 2026-05-07
 

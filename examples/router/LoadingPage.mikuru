@@ -1,0 +1,6 @@
+<template>
+  <section>
+    <h2>Loading</h2>
+    <p>Loading route component...</p>
+  </section>
+</template>
