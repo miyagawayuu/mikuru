@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.15 - 2026-05-07
 
 - Added named route navigation, nested routes, and RouterLink default slot support.
 - Added router route redirects and aliases.
