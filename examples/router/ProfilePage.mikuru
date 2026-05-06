@@ -1,0 +1,15 @@
+<template>
+  <section class="nested-page">
+    <h3>Profile</h3>
+    <p>Nested RouterView rendered this page.</p>
+  </section>
+</template>
+
+<style scoped>
+.nested-page {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #d7dce2;
+}
+</style>

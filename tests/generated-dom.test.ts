@@ -1577,7 +1577,9 @@ const Child = {
   it("renders router components from generated DOM code", async () => {
     const fixture = compileForDom(`<template>
   <section>
-    <RouterLink :router="router" to="/about" label="About" />
+    <RouterLink :router="router" :to="aboutRoute">
+      <strong>About</strong>
+    </RouterLink>
     <RouterView :router="router" />
   </section>
 </template>
@@ -1616,10 +1618,12 @@ const AboutPage = {
 const router = createRouter({
   history: createMemoryHistory("/"),
   routes: [
-    { path: "/", component: HomePage },
-    { path: "/about", component: AboutPage }
+    { path: "/", name: "home", component: HomePage },
+    { path: "/about", name: "about", component: AboutPage }
   ]
 });
+
+const aboutRoute = { name: "about" };
 </script>`);
 
     const previousDocument = globalThis.document;
@@ -1629,6 +1633,7 @@ const router = createRouter({
       fixture.module.mount(fixture.root);
 
       expect(fixture.root.textContent).toContain("AboutHome");
+      expect(fixture.root.querySelector("strong")?.textContent).toBe("About");
       fixture.root.querySelector("a")?.dispatchEvent(createEvent(fixture.window, "click", { bubbles: true, cancelable: true }));
       await Promise.resolve();
 

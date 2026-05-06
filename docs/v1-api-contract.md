@@ -55,11 +55,11 @@ Unsupported in v1:
 
 - `createRouter({ history, routes, notFound? })` creates a router with a reactive `currentRoute`.
 - `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
-- Routes support static paths, dynamic params, query parsing, and hash parsing.
+- Routes support static paths, dynamic params, named routes, nested children, query parsing, and hash parsing.
 - `router.push`, `router.replace`, `router.back`, `router.forward`, and `router.resolve` are public navigation APIs.
 - `router.beforeEach` and `router.afterEach` register navigation hooks and return unsubscribe functions.
 - `RouterView` renders the matched route component and passes `route` and `router` props.
-- `RouterLink` renders an anchor, supports `replace`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
+- `RouterLink` renders an anchor, supports default slot children, route location objects, `replace`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
 
 ## Runtime Contract
 

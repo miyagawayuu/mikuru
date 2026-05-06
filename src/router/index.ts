@@ -2,6 +2,7 @@ import { effect, ref, unwrap } from "../runtime/index.js";
 import type { Ref } from "../runtime/index.js";
 
 export type RouteParams = Record<string, string>;
+export type RouteParamsRaw = Record<string, string | number | boolean>;
 export type RouteQuery = Record<string, string | string[] | undefined>;
 export type RouteComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
@@ -11,6 +12,7 @@ export type RouteRecord = {
   name?: string;
   component?: RouteComponent;
   meta?: Record<string, unknown>;
+  children?: RouteRecord[];
 };
 export type RouteLocation = {
   path: string;
@@ -19,10 +21,14 @@ export type RouteLocation = {
   hash: string;
   params: RouteParams;
   matched?: RouteRecord;
+  matchedRecords: RouteRecord[];
   name?: string;
   meta: Record<string, unknown>;
 };
-export type RouteLocationRaw = string | { path: string; query?: RouteQuery; hash?: string };
+export type RouteLocationRaw =
+  | string
+  | { path: string; query?: RouteQuery; hash?: string }
+  | { name: string; params?: RouteParamsRaw; query?: RouteQuery; hash?: string };
 export type NavigationGuardResult = void | boolean | string | RouteLocationRaw;
 export type NavigationGuard = (
   to: RouteLocation,
@@ -60,8 +66,15 @@ export type Router = {
 
 type CompiledRoute = {
   record: RouteRecord;
+  records: RouteRecord[];
+  path: string;
   keys: string[];
   pattern: RegExp;
+};
+
+type RouteMatcher = {
+  routes: CompiledRoute[];
+  byName: Map<string, CompiledRoute>;
 };
 
 const notFoundRoute: RouteRecord = { path: "/:pathMatch(.*)*", name: "not-found" };
@@ -78,7 +91,7 @@ export function createRouter(options: RouterOptions): Router {
   let navigationId = 0;
 
   async function navigate(to: RouteLocationRaw, replace: boolean): Promise<RouteLocation> {
-    const target = resolveLocation(stringifyLocation(to), matcher);
+    const target = resolveLocation(stringifyLocation(to, matcher), matcher);
     const from = currentRoute.value;
     const id = ++navigationId;
 
@@ -122,7 +135,7 @@ export function createRouter(options: RouterOptions): Router {
       history.forward();
     },
     resolve(to) {
-      return resolveLocation(stringifyLocation(to), matcher);
+      return resolveLocation(stringifyLocation(to, matcher), matcher);
     },
     beforeEach(guard) {
       beforeGuards.push(guard);
@@ -142,7 +155,7 @@ export function createRouter(options: RouterOptions): Router {
       };
     },
     createHref(to) {
-      return history.createHref(stringifyLocation(to));
+      return history.createHref(stringifyLocation(to, matcher));
     }
   };
 }
@@ -266,7 +279,8 @@ export const RouterView: RouteComponent = {
     const stop = effect(() => {
       const router = getRouterProp(props);
       const route = router.currentRoute.value;
-      const component = route.matched?.component;
+      const depth = Number(unwrap(props.depth) ?? 0);
+      const component = route.matchedRecords[depth]?.component;
       child?.unmount();
       child = undefined;
 
@@ -292,27 +306,40 @@ export const RouterLink: RouteComponent = {
   mount(target, props = {}) {
     const anchor = document.createElement("a");
     const cleanup: Array<() => void> = [];
-    const text = () => String(unwrap(props.label) ?? unwrap(props.childrenText) ?? unwrap(props.to) ?? "");
+    const hasChildren = typeof props.children === "function";
+    const text = () => {
+      const label = unwrap(props.label) ?? unwrap(props.childrenText);
+      if (label !== undefined) return String(label);
+
+      const to = readToProp(props);
+      if (typeof to === "string") return to;
+      if ("name" in to) return to.name;
+      return to.path;
+    };
     const navigate = (event: Event) => {
       const router = getRouterProp(props);
-      const to = String(unwrap(props.to) ?? "/");
       event.preventDefault();
-      void (unwrap(props.replace) ? router.replace(to) : router.push(to));
+      void (unwrap(props.replace) ? router.replace(readToProp(props)) : router.push(readToProp(props)));
     };
 
     anchor.addEventListener("click", navigate);
     cleanup.push(() => anchor.removeEventListener("click", navigate));
 
+    if (hasChildren) {
+      const cleanupResult = (props.children as (target: Element, props?: Record<string, unknown>) => void | (() => void))(anchor, {});
+      if (cleanupResult) cleanup.push(cleanupResult);
+    }
+
     const stop = effect(() => {
       const router = getRouterProp(props);
-      const to = stringifyLocation(String(unwrap(props.to) ?? "/"));
+      const to = readToProp(props);
       const targetRoute = router.resolve(to);
       const activeClass = String(unwrap(props.activeClass) ?? "router-link-active");
       const exactActiveClass = String(unwrap(props.exactActiveClass) ?? "router-link-exact-active");
       const isExactActive = router.currentRoute.value.fullPath === targetRoute.fullPath;
       const isActive = isExactActive || isPathActive(router.currentRoute.value.path, targetRoute.path);
       anchor.href = router.createHref(to);
-      anchor.textContent = text();
+      if (!hasChildren) anchor.textContent = text();
       anchor.classList.toggle(activeClass, isActive);
       anchor.classList.toggle(exactActiveClass, isExactActive);
 
@@ -343,10 +370,14 @@ function getRouterProp(props: Record<string, unknown>): Router {
   return router as Router;
 }
 
-function createMatcher(routes: RouteRecord[]): CompiledRoute[] {
-  return routes.map((record) => {
+function createMatcher(routes: RouteRecord[]): RouteMatcher {
+  const compiled: CompiledRoute[] = [];
+  const byName = new Map<string, CompiledRoute>();
+
+  function addRoute(record: RouteRecord, parentPath: string, parents: RouteRecord[]): void {
+    const path = joinRoutePath(parentPath, record.path);
     const keys: string[] = [];
-    const source = record.path
+    const source = path
       .replace(/\/:([^/(]+)\(\.\*\)\*/g, (_match, key) => {
         keys.push(key);
         return "/(.*)";
@@ -356,18 +387,39 @@ function createMatcher(routes: RouteRecord[]): CompiledRoute[] {
         return "([^/]+)";
       });
 
-    return {
+    const route = {
       record,
+      records: [...parents, record],
+      path,
       keys,
       pattern: new RegExp(`^${source.replace(/\//g, "\\/")}$`)
     };
-  });
+
+    compiled.push(route);
+
+    if (record.name) {
+      if (byName.has(record.name)) {
+        throw new Error(`Duplicate route name: ${record.name}`);
+      }
+      byName.set(record.name, route);
+    }
+
+    for (const child of record.children ?? []) {
+      addRoute(child, path, [...parents, record]);
+    }
+  }
+
+  for (const route of routes) {
+    addRoute(route, "", []);
+  }
+
+  return { routes: compiled, byName };
 }
 
-function resolveLocation(raw: string, matcher: CompiledRoute[]): RouteLocation {
+function resolveLocation(raw: string, matcher: RouteMatcher): RouteLocation {
   const fullPath = normalizePath(raw);
   const parsed = parsePath(fullPath);
-  const matched = matcher.find((route) => route.pattern.test(parsed.path));
+  const matched = matcher.routes.find((route) => route.pattern.test(parsed.path));
   const params: RouteParams = {};
 
   if (matched) {
@@ -384,6 +436,7 @@ function resolveLocation(raw: string, matcher: CompiledRoute[]): RouteLocation {
     hash: parsed.hash,
     params,
     matched: matched?.record,
+    matchedRecords: matched?.records ?? [],
     name: matched?.record.name,
     meta: matched?.record.meta ?? {}
   };
@@ -399,12 +452,31 @@ function parsePath(fullPath: string): { path: string; query: RouteQuery; hash: s
   };
 }
 
-function stringifyLocation(to: RouteLocationRaw): string {
+function stringifyLocation(to: RouteLocationRaw, matcher?: RouteMatcher): string {
   if (typeof to === "string") return normalizePath(to);
-  const path = normalizePath(to.path);
+  const path = "name" in to ? stringifyNamedLocation(to, matcher) : normalizePath(to.path);
   const query = stringifyQuery(to.query ?? {});
   const hash = to.hash ? (to.hash.startsWith("#") ? to.hash : `#${to.hash}`) : "";
   return `${path}${query}${hash}`;
+}
+
+function stringifyNamedLocation(
+  to: Extract<RouteLocationRaw, { name: string }>,
+  matcher: RouteMatcher | undefined
+): string {
+  const route = matcher?.byName.get(to.name);
+  if (!route) {
+    throw new Error(`Unknown route name: ${to.name}`);
+  }
+
+  return route.path.replace(/:([^/]+)/g, (_match, key) => {
+    const value = to.params?.[key];
+    if (value === undefined) {
+      throw new Error(`Missing route param: ${key}`);
+    }
+
+    return encodeURIComponent(String(value));
+  });
 }
 
 function parseQuery(raw: string): RouteQuery {
@@ -444,6 +516,17 @@ function normalizePath(path: string): string {
 function normalizeBase(base: string): string {
   if (!base) return "/";
   return base.endsWith("/") ? base : `${base}/`;
+}
+
+function joinRoutePath(parentPath: string, path: string): string {
+  if (path.startsWith("/")) return normalizePath(path);
+  if (!parentPath) return normalizePath(path);
+  if (!path) return parentPath;
+  return normalizePath(`${parentPath.replace(/\/$/, "")}/${path}`);
+}
+
+function readToProp(props: Record<string, unknown>): RouteLocationRaw {
+  return (unwrap(props.to) as RouteLocationRaw | undefined) ?? "/";
 }
 
 function stripBase(path: string, base: string): string {
