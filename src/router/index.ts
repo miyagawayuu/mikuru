@@ -36,7 +36,20 @@ export type NavigationGuard = (
   to: RouteLocation,
   from: RouteLocation
 ) => NavigationGuardResult | Promise<NavigationGuardResult>;
-export type AfterNavigationHook = (to: RouteLocation, from: RouteLocation) => void;
+export const NavigationFailureType = {
+  aborted: "aborted",
+  cancelled: "cancelled",
+  duplicated: "duplicated"
+} as const;
+export type NavigationFailureType = (typeof NavigationFailureType)[keyof typeof NavigationFailureType];
+export type NavigationFailure = {
+  type: NavigationFailureType;
+  to: RouteLocation;
+  from: RouteLocation;
+  message: string;
+};
+export type NavigationResult = RouteLocation | NavigationFailure;
+export type AfterNavigationHook = (to: RouteLocation, from: RouteLocation, failure?: NavigationFailure) => void;
 export type RouterHistory = {
   mode: "hash" | "history" | "memory";
   location(): string;
@@ -55,8 +68,8 @@ export type RouterOptions = {
 export type Router = {
   currentRoute: Ref<RouteLocation>;
   routes: RouteRecord[];
-  push(to: RouteLocationRaw): Promise<RouteLocation>;
-  replace(to: RouteLocationRaw): Promise<RouteLocation>;
+  push(to: RouteLocationRaw): Promise<NavigationResult>;
+  replace(to: RouteLocationRaw): Promise<NavigationResult>;
   back(): void;
   forward(): void;
   resolve(to: RouteLocationRaw): RouteLocation;
@@ -81,6 +94,18 @@ type RouteMatcher = {
 
 const notFoundRoute: RouteRecord = { path: "/:pathMatch(.*)*", name: "not-found" };
 
+export function isNavigationFailure(value: unknown, type?: NavigationFailureType): value is NavigationFailure {
+  const failure = value as NavigationFailure | undefined;
+  const isFailure =
+    !!failure &&
+    typeof failure === "object" &&
+    typeof failure.type === "string" &&
+    typeof failure.message === "string" &&
+    !!failure.to &&
+    !!failure.from;
+  return isFailure && (!type || failure.type === type);
+}
+
 export function createRouter(options: RouterOptions): Router {
   const history = options.history ?? createWebHashHistory();
   const routes = options.notFound ? [...options.routes, { ...notFoundRoute, component: options.notFound }] : options.routes.slice();
@@ -92,15 +117,23 @@ export function createRouter(options: RouterOptions): Router {
   let listeningStop: (() => void) | undefined;
   let navigationId = 0;
 
-  async function navigate(to: RouteLocationRaw, replace: boolean): Promise<RouteLocation> {
+  async function navigate(to: RouteLocationRaw, replace: boolean): Promise<NavigationResult> {
     let target = resolveRouteTarget(to);
     const from = currentRoute.value;
     const id = ++navigationId;
 
+    if (target.fullPath === from.fullPath) {
+      return createNavigationFailure(NavigationFailureType.duplicated, target, from);
+    }
+
     for (const guard of beforeGuards) {
       const result = await guard(target, from);
-      if (id !== navigationId) return currentRoute.value;
-      if (result === false) return from;
+      if (id !== navigationId) return createNavigationFailure(NavigationFailureType.cancelled, target, from);
+      if (result === false) {
+        const failure = createNavigationFailure(NavigationFailureType.aborted, target, from);
+        for (const hook of afterHooks) hook(target, from, failure);
+        return failure;
+      }
       if (typeof result === "string" || (result && typeof result === "object")) {
         return navigate(result, true);
       }
@@ -559,6 +592,15 @@ function readToProp(props: Record<string, unknown>): RouteLocationRaw {
 function readAliases(record: RouteRecord): string[] {
   if (!record.alias) return [];
   return Array.isArray(record.alias) ? record.alias : [record.alias];
+}
+
+function createNavigationFailure(type: NavigationFailureType, to: RouteLocation, from: RouteLocation): NavigationFailure {
+  return {
+    type,
+    to,
+    from,
+    message: `Navigation ${type} from ${from.fullPath} to ${to.fullPath}.`
+  };
 }
 
 function stripBase(path: string, base: string): string {

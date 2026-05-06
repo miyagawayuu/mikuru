@@ -5,10 +5,12 @@ import {
   createMemoryHistory,
   createRouter,
   createWebHashHistory,
+  isNavigationFailure,
+  NavigationFailureType,
   RouterLink,
   RouterView
 } from "../src/router/index.js";
-import type { RouteComponent } from "../src/router/index.js";
+import type { NavigationResult, RouteComponent, RouteLocation } from "../src/router/index.js";
 
 function textComponent(text: string): RouteComponent {
   return {
@@ -24,6 +26,12 @@ function textComponent(text: string): RouteComponent {
       };
     }
   };
+}
+
+function expectRoute(result: NavigationResult): RouteLocation {
+  expect(isNavigationFailure(result)).toBe(false);
+  if (isNavigationFailure(result)) throw new Error(result.message);
+  return result;
 }
 
 describe("router", () => {
@@ -60,7 +68,7 @@ describe("router", () => {
       after.push(`${from.path}->${to.path}`);
     });
 
-    const route = await router.push("/admin");
+    const route = expectRoute(await router.push("/admin"));
 
     expect(route.path).toBe("/login");
     expect(router.currentRoute.value.path).toBe("/login");
@@ -73,7 +81,7 @@ describe("router", () => {
       routes: [{ path: "/" }, { path: "/users/:id" }]
     });
 
-    const route = await router.push({ path: "/users/7", query: { tab: "details", tag: ["a", "b"] }, hash: "bio" });
+    const route = expectRoute(await router.push({ path: "/users/7", query: { tab: "details", tag: ["a", "b"] }, hash: "bio" }));
 
     expect(route.fullPath).toBe("/users/7?tab=details&tag=a&tag=b#bio");
     expect(route.params).toEqual({ id: "7" });
@@ -87,7 +95,7 @@ describe("router", () => {
       routes: [{ path: "/users/:id", name: "user" }]
     });
 
-    const route = await router.push({ name: "user", params: { id: 9 }, query: { tab: "profile" } });
+    const route = expectRoute(await router.push({ name: "user", params: { id: 9 }, query: { tab: "profile" } }));
 
     expect(route.fullPath).toBe("/users/9?tab=profile");
     expect(route.name).toBe("user");
@@ -106,8 +114,8 @@ describe("router", () => {
       ]
     });
 
-    const staticRoute = await router.push("/old");
-    const dynamicRoute = await router.push("/legacy/42");
+    const staticRoute = expectRoute(await router.push("/old"));
+    const dynamicRoute = expectRoute(await router.push("/legacy/42"));
 
     expect(staticRoute.fullPath).toBe("/new?from=old");
     expect(staticRoute.name).toBe("new");
@@ -139,7 +147,7 @@ describe("router", () => {
     });
 
     const home = router.resolve("/start");
-    const user = await router.push("/members/42");
+    const user = expectRoute(await router.push("/members/42"));
 
     expect(home.path).toBe("/start");
     expect(home.name).toBe("home");
@@ -179,13 +187,79 @@ describe("router", () => {
     });
     const stop = router.listen();
 
-    await router.push("/one");
-    await router.push("/two");
+    expectRoute(await router.push("/one"));
+    expectRoute(await router.push("/two"));
     router.back();
     expect(router.currentRoute.value.path).toBe("/one");
     router.forward();
     expect(router.currentRoute.value.path).toBe("/two");
     stop();
+  });
+
+  it("returns duplicated navigation failures without changing history", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/one" }]
+    });
+    const after: string[] = [];
+
+    router.afterEach((to, from, failure) => {
+      after.push(`${from.path}->${to.path}:${failure?.type ?? "ok"}`);
+    });
+
+    const failure = await router.push("/");
+    const route = expectRoute(await router.push("/one"));
+
+    expect(isNavigationFailure(failure, NavigationFailureType.duplicated)).toBe(true);
+    expect(failure).toMatchObject({ type: "duplicated" });
+    expect(route.path).toBe("/one");
+    expect(after).toEqual(["/->/one:ok"]);
+  });
+
+  it("returns aborted navigation failures from guards", async () => {
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/blocked" }]
+    });
+    const after: string[] = [];
+
+    router.beforeEach((to) => {
+      if (to.path === "/blocked") return false;
+      return undefined;
+    });
+    router.afterEach((to, from, failure) => {
+      after.push(`${from.path}->${to.path}:${failure?.type ?? "ok"}`);
+    });
+
+    const failure = await router.push("/blocked");
+
+    expect(isNavigationFailure(failure, NavigationFailureType.aborted)).toBe(true);
+    expect(router.currentRoute.value.path).toBe("/");
+    expect(after).toEqual(["/->/blocked:aborted"]);
+  });
+
+  it("returns cancelled navigation failures for superseded async guards", async () => {
+    let releaseGuard: (() => void) | undefined;
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/slow" }, { path: "/fast" }]
+    });
+
+    router.beforeEach((to) => {
+      if (to.path !== "/slow") return undefined;
+      return new Promise<void>((resolve) => {
+        releaseGuard = resolve;
+      });
+    });
+
+    const slow = router.push("/slow");
+    const fast = expectRoute(await router.push("/fast"));
+    releaseGuard?.();
+    const failure = await slow;
+
+    expect(fast.path).toBe("/fast");
+    expect(isNavigationFailure(failure, NavigationFailureType.cancelled)).toBe(true);
+    expect(router.currentRoute.value.path).toBe("/fast");
   });
 
   it("renders RouterView and RouterLink runtime components", async () => {
@@ -262,7 +336,7 @@ describe("router", () => {
       expect(root.querySelector("a")?.classList.contains("is-active")).toBe(true);
       expect(root.querySelector("a")?.classList.contains("is-exact")).toBe(true);
 
-      await router.push("/settings/profile");
+      expectRoute(await router.push("/settings/profile"));
       expect(root.querySelector("a")?.classList.contains("is-active")).toBe(true);
       expect(root.querySelector("a")?.classList.contains("is-exact")).toBe(false);
     } finally {
