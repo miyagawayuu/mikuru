@@ -104,7 +104,7 @@ const route = useRoute();
 - `useRouter()` returns the provided router.
 - `useRoute()` returns a reactive proxy of `router.currentRoute.value`.
 
-Routes support static paths, dynamic params such as `/users/:id`, optional params such as `/users/:id?`, repeat params such as `/tags/:tags+`, catch-all params such as `/files/:pathMatch(.*)*`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths.
+Routes support static paths, dynamic params such as `/users/:id`, optional params such as `/users/:id?`, repeat params such as `/tags/:tags+`, catch-all params such as `/files/:pathMatch(.*)*`, query parsing, hash parsing, aliases, and redirects. Use `notFound` to provide a fallback component for unmatched paths. Not found components receive the same `route` and `router` props as matched route components.
 
 Repeat and catch-all params resolve to arrays:
 
@@ -234,6 +234,8 @@ createRouter({
 });
 ```
 
+Navigation guards run on the final route after route redirects are resolved. For example, a redirect from `/legacy-admin` to `/admin` will run the `/admin` `beforeEnter` guard.
+
 Aliases render the same route record from another path. Named navigation still uses the route's canonical `path`:
 
 ```ts
@@ -254,6 +256,20 @@ Nested routes use `children` and nested `RouterView` instances. Pass `depth="1"`
     <RouterView depth="1" />
   </section>
 </template>
+```
+
+Use an empty child path for an index route. The index child is matched before the parent record for the same URL, so `route.matchedRecords` includes both the parent and index child:
+
+```ts
+createRouter({
+  routes: [
+    {
+      path: "/settings",
+      component: SettingsLayout,
+      children: [{ path: "", name: "settings-index", component: SettingsHome }]
+    }
+  ]
+});
 ```
 
 Routes can also be added after router creation. Dynamic route changes rebuild the matcher and re-resolve the current route, so `RouterView`, `RouterLink`, and `router.resolve()` see the updated table immediately:

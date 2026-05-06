@@ -867,6 +867,11 @@ function createMatcher(routes: RouteRecord[]): RouteMatcher {
     addRoute(route, "", []);
   }
 
+  compiled.sort((left, right) => {
+    if (left.path !== right.path) return 0;
+    return right.records.length - left.records.length;
+  });
+
   return { routes: compiled, byName };
 }
 
