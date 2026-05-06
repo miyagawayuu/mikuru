@@ -81,7 +81,7 @@ const { route } = defineProps();
 
 - `createRouter({ history, routes, notFound? })` creates a router.
 - `router.currentRoute` is a `ref` containing the current route.
-- `router.push(to)` and `router.replace(to)` navigate programmatically.
+- `router.push(to)` and `router.replace(to)` navigate programmatically and resolve to either a `RouteLocation` or `NavigationFailure`.
 - `router.back()` and `router.forward()` delegate to the configured history.
 - `router.resolve(to)` parses a route without navigating.
 - `router.beforeEach(fn)` registers a navigation guard and returns an unsubscribe function.
@@ -151,6 +151,26 @@ Navigation guards can return:
 - `false` to cancel navigation.
 - A string or route location object to redirect.
 - `undefined` to continue.
+
+Navigation failures can be checked with `isNavigationFailure()`:
+
+```ts
+import { NavigationFailureType, isNavigationFailure } from "mikuru/router";
+
+const result = await router.push("/settings");
+
+if (isNavigationFailure(result, NavigationFailureType.duplicated)) {
+  // Already on this route.
+}
+```
+
+Failure types are:
+
+- `duplicated` when navigating to the current `fullPath`.
+- `aborted` when a guard returns `false`.
+- `cancelled` when a newer navigation supersedes an older async navigation.
+
+Duplicated navigations do not call `afterEach`. Aborted navigations call `afterEach(to, from, failure)` and keep `currentRoute` unchanged. Guard redirects resolve to the final route and call `afterEach` for the final navigation only.
 
 ## Current Limits
 
