@@ -16,6 +16,7 @@
 - Added DOM event modifiers `.self`, `.once`, `.capture`, and `.passive`.
 - Added component event `.once` modifiers.
 - Added normalized `style` bindings for strings, arrays, and objects.
+- Added dynamic slot names for `<slot :name>`, `<template v-slot:[name]>`, and `<template #[name]>`.
 
 ## 1.0.15 - 2026-05-07
 

@@ -285,7 +285,7 @@ Mikuru supports default slots, named slots, and simple slot props.
 </template>
 ```
 
-Use `<slot name="header" />` in a child component and `<template #header>` or `<template v-slot:header>` in the parent for named content.
+Use `<slot name="header" />` in a child component and `<template #header>` or `<template v-slot:header>` in the parent for named content. Use `:name` on `<slot>` and `v-slot:[name]` / `#[name]` when the slot name should come from an expression.
 
 ```mikuru
 <!-- Parent -->
@@ -303,6 +303,7 @@ Use `<slot name="header" />` in a child component and `<template #header>` or `<
     <header>
       <slot name="header" :title="title" />
     </header>
+    <slot :name="activeSlot" :title="title" />
     <slot />
   </section>
 </template>
