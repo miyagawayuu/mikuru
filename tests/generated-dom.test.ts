@@ -146,6 +146,38 @@ function toggle() {
     expect(paragraph?.className).toBe("note-card archived");
   });
 
+  it("normalizes object and array style bindings", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p :style="[{ color }, { fontSize: size, display: visible ? 'block' : null }]">styled</p>
+    <button @click="update">Update</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const color = ref("red");
+const size = ref("12px");
+const visible = ref(true);
+
+function update() {
+  color.value = "blue";
+  size.value = "16px";
+  visible.value = false;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(paragraph?.getAttribute("style")).toBe("color: red; font-size: 12px; display: block");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.getAttribute("style")).toBe("color: blue; font-size: 16px");
+  });
+
   it("auto-unwraps refs inside event call expressions", () => {
     const fixture = compileForDom(`<template>
   <section>
@@ -318,6 +350,49 @@ function inner() {
     expect(fixture.root.querySelector("p")?.textContent).toBe("true:0:1");
     expect(innerClick.cancelBubble).toBe(true);
     expect(submit.defaultPrevented).toBe(true);
+  });
+
+  it("supports self, once, and capture event modifiers on DOM events", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <div @click.capture="parentCapture" @click.self="selfOnly">
+      <button @click.once="child">Child</button>
+    </div>
+    <p>{{ log }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const log = ref("");
+
+function push(value) {
+  log.value = log.value ? log.value + "," + value : value;
+}
+
+function parentCapture() {
+  push("capture");
+}
+
+function selfOnly() {
+  push("self");
+}
+
+function child() {
+  push("child");
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const div = fixture.root.querySelector("div");
+    const button = fixture.root.querySelector("button");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+    div?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("capture,child,capture,capture,self");
   });
 
   it("syncs text inputs with v-model", () => {

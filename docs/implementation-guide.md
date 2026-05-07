@@ -81,9 +81,11 @@ Event handlers can be a function reference or a simple call expression.
 
 ```mikuru
 <button @click="select(item.id)">Select</button>
+<button @click.self.once="select(item.id)">Select</button>
 ```
 
 Mikuru validates event expressions as JavaScript expressions. Statements and assignments are intentionally rejected.
+DOM events support `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`. `.passive` cannot be combined with `.prevent`.
 
 ## Attributes and Classes
 
@@ -95,9 +97,13 @@ Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when a
 <article class="card" :class="{ archived: note.archived }">
   {{ note.title }}
 </article>
+<article :style="[{ color: tone }, { fontSize: size }]">
+  {{ note.title }}
+</article>
 ```
 
 `class` supports strings, numbers, arrays, and objects. Static `class` and dynamic `:class` can be combined.
+`style` supports strings, numbers, arrays, and objects. Object keys can be camelCase or custom CSS properties.
 
 `null`, `undefined`, and `false` remove attributes. `true` creates a boolean-style attribute.
 

@@ -7,6 +7,7 @@ import {
   inject,
   nextTick,
   normalizeClass,
+  normalizeStyle,
   onBeforeUnmount,
   onMounted,
   onUnmounted,
@@ -69,6 +70,11 @@ describe("runtime reactivity", () => {
     expect(normalizeClass({ active: ref(false), ready: ref(true) })).toBe("ready");
   });
 
+  it("normalizes style values", () => {
+    expect(normalizeStyle([{ color: "red", fontSize: "12px" }, "display: block"])).toBe("color: red; font-size: 12px; display: block");
+    expect(normalizeStyle({ color: ref("blue"), marginTop: null, "--tone": "warm" })).toBe("color: blue; --tone: warm");
+  });
+
   it("sets and removes DOM attributes consistently", () => {
     const element = new Window().document.createElement("button") as unknown as Element;
 
@@ -77,6 +83,12 @@ describe("runtime reactivity", () => {
 
     setAttribute(element, "disabled", false);
     expect(element.hasAttribute("disabled")).toBe(false);
+
+    setAttribute(element, "style", { backgroundColor: "red" });
+    expect(element.getAttribute("style")).toBe("background-color: red");
+
+    setAttribute(element, "style", null);
+    expect(element.hasAttribute("style")).toBe(false);
   });
 
   it("runs nextTick callbacks in a microtask", async () => {

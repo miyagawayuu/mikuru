@@ -98,15 +98,17 @@ button {
 <button v-on:click="increment">Add</button>
 <form @submit.prevent="save">...</form>
 <button @click.stop="select">Select</button>
+<button @click.self.once="select">Select</button>
+<div @scroll.passive.capture="track"></div>
 ```
 
-`@event="handler"` と `v-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent` と `.stop` を使える。
+`@event="handler"` と `v-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent`、`.stop`、`.self`、`.once`、`.capture`、`.passive` を使える。
 
 制約:
 
 - 値は関数名または単純な呼び出し式に限定する。
-- 対応するイベント修飾子は `.prevent` と `.stop`。
-- コンポーネントイベントの修飾子、キー修飾子、capture/passive/onceは後続課題にする。
+- `.passive` と `.prevent` は同時に使えない。
+- コンポーネントイベントの修飾子とキー修飾子は後続課題にする。
 - インライン複文はv1対象外にする。
 
 ### 属性バインド
@@ -115,6 +117,7 @@ button {
 <div :class="className" :id="itemId"></div>
 <div v-bind:class="className"></div>
 <div :class="['base', { active: isActive }]"></div>
+<div :style="[{ color }, { fontSize: size, '--tone': tone }]"></div>
 ```
 
 `:attr="expr"` と `v-bind:attr="expr"` は、依存値が変わったときに属性を更新する。
@@ -123,7 +126,8 @@ button {
 
 - `class`、`id`、`title` など通常属性は `setAttribute` で更新する。
 - `class` は文字列、数値、配列、オブジェクトを正規化する。オブジェクト形式ではtruthyなキーだけclass名にする。
-- 値が `null` または `undefined` の場合の削除挙動は、MVP実装時に明示してテストする。
+- `style` は文字列、数値、配列、オブジェクトを正規化する。オブジェクト形式ではcamelCaseキーをkebab-caseにし、CSS custom propertyはそのまま扱う。
+- 値が `null`、`undefined`、`false` の場合は属性を削除する。
 - DOM propertyバインドと属性バインドの差はv1では扱わない。
 
 ### テキスト入力

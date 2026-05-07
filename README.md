@@ -130,8 +130,8 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `.mikuru` SFCs with `<template>`, `<script>`, and `<style>`
 - Vite plugin support through `mikuru/vite`
 - Template interpolation with `{{ value }}`
-- DOM events with `@click`, `v-on:click`, `.prevent`, and `.stop`
-- Attribute bindings with `:class` and `v-bind:class`
+- DOM events with `@click`, `v-on:click`, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`
+- Attribute bindings with normalized `:class` and `:style`
 - `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
 - `v-model` for common form controls and child components
 - Component props, events, `defineProps`, `defineEmits`, default slots, named slots, and slot props

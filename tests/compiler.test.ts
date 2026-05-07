@@ -72,7 +72,7 @@ describe("compiler", () => {
   });
 
   it("analyzes event modifiers", () => {
-    const ast = parseTemplate(`<form @submit.prevent="save"><button v-on:click.stop="select">Select</button></form>`);
+    const ast = parseTemplate(`<form @submit.prevent="save"><button v-on:click.stop.self.once.capture.passive="select">Select</button></form>`);
 
     expect(analyzeTemplate(ast)).toContainEqual({
       type: "event",
@@ -84,7 +84,7 @@ describe("compiler", () => {
       type: "event",
       event: "click",
       handler: "select",
-      modifiers: ["stop"]
+      modifiers: ["stop", "self", "once", "capture", "passive"]
     });
   });
 
@@ -286,6 +286,22 @@ const childListeners = { select() {} };
         filename: "ComponentEventModifier.mikuru"
       })
     ).toThrow(/Event modifiers are not supported on component events yet/);
+  });
+
+  it("rejects conflicting passive and prevent DOM event modifiers", () => {
+    expect(() =>
+      compile(`<template><form @submit.passive.prevent="save"></form></template><script>function save() {}</script>`, {
+        filename: "PassivePrevent.mikuru"
+      })
+    ).toThrow(/\.passive and \.prevent cannot be combined/);
+  });
+
+  it("emits DOM event listener options for option modifiers", () => {
+    const result = compile(`<template><button @click.capture.once.passive="select">Select</button></template><script>function select() {}</script>`);
+
+    expect(result.code).toContain(`addEventListener("click", handler`);
+    expect(result.code).toContain(`{ capture: true, once: true, passive: true }`);
+    expect(result.code).toContain(`removeEventListener("click", handler`);
   });
 
   it("transforms multiline script macros", () => {
