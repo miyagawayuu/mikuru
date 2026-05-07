@@ -100,15 +100,17 @@ button {
 <button @click.stop="select">Select</button>
 <button @click.self.once="select">Select</button>
 <div @scroll.passive.capture="track"></div>
+<Child @select.once="select" />
 ```
 
 `@event="handler"` と `v-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent`、`.stop`、`.self`、`.once`、`.capture`、`.passive` を使える。
+コンポーネントイベントでは `.once` を使える。
 
 制約:
 
 - 値は関数名または単純な呼び出し式に限定する。
 - `.passive` と `.prevent` は同時に使えない。
-- コンポーネントイベントの修飾子とキー修飾子は後続課題にする。
+- コンポーネントイベントの `.prevent`、`.stop`、`.self`、`.capture`、`.passive` とキー修飾子は後続課題にする。
 - インライン複文はv1対象外にする。
 
 ### 属性バインド

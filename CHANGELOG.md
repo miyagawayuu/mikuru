@@ -14,6 +14,7 @@
 - Expanded router typed helpers for optional, repeat, and nested params.
 - Added `router.isReady()`, per-route `meta.scroll`, and custom query parsing/stringifying for `mikuru/router`.
 - Added DOM event modifiers `.self`, `.once`, `.capture`, and `.passive`.
+- Added component event `.once` modifiers.
 - Added normalized `style` bindings for strings, arrays, and objects.
 
 ## 1.0.15 - 2026-05-07

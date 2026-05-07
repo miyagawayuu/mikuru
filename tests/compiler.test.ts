@@ -280,12 +280,20 @@ const childListeners = { select() {} };
     expect(child.code).toContain("Fallback header");
   });
 
-  it("rejects event modifiers on component events", () => {
+  it("rejects DOM-only event modifiers on component events", () => {
     expect(() =>
       compile(`<template><Child @select.stop="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`, {
         filename: "ComponentEventModifier.mikuru"
       })
-    ).toThrow(/Event modifiers are not supported on component events yet/);
+    ).toThrow(/Event modifier \.stop is only supported on DOM events/);
+  });
+
+  it("emits once wrappers for component events", () => {
+    const result = compile(`<template><Child @select.once="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`);
+
+    expect(result.code).toContain("onSelect: (() =>");
+    expect(result.code).toContain("return (...$args) =>");
+    expect(result.code).toContain("return handler");
   });
 
   it("rejects conflicting passive and prevent DOM event modifiers", () => {
