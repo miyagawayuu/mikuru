@@ -93,6 +93,7 @@ const route = useRoute();
 - `router.back()` and `router.forward()` delegate to the configured history.
 - `router.resolve(to)` parses a route without navigating.
 - `router.preload(to)` resolves lazy route components without navigating.
+- `router.isReady()` waits for pending navigation, preload, lazy route rendering, and async guard/scroll work.
 - `router.beforeEach(fn)` registers a navigation guard and returns an unsubscribe function.
 - `router.afterEach(fn)` registers a post-navigation hook and returns an unsubscribe function.
 - `router.onError(fn)` registers a handler for uncaught navigation and lazy route loader errors.
@@ -194,6 +195,20 @@ const router = createRouter({
 
 Without a custom `scrollBehavior`, browser navigation scrolls to a matching hash element or to the page top. A custom `scrollBehavior(to, from)` can return a `ScrollToOptions` object, `false`, or `undefined`. Returning `false` or `undefined` skips scrolling. Memory history does not run scroll behavior.
 
+Routes can also use `meta.scroll` when no global `scrollBehavior` is configured:
+
+```ts
+createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: "/saved", component: SavedPage, meta: { scroll: { left: 0, top: 120 } } },
+    { path: "/quiet", component: QuietPage, meta: { scroll: false } }
+  ]
+});
+```
+
+`meta.scroll` can be a `ScrollToOptions` object, `false`, or a function.
+
 Programmatic navigation accepts strings or route location objects:
 
 ```ts
@@ -246,6 +261,20 @@ type Names = RouteNames<typeof routes>; // "home" | "user"
 type UserParams = RouteParamNames<"/users/:id">; // "id"
 type UserLocation = RouteLocationForName<typeof routes, "user">;
 ```
+
+`RouteLocationForName` understands optional params, repeat params, and nested parent params. Optional params become optional properties, and repeat/catch-all params use `string[]`.
+
+Custom query parsing and stringifying can be configured on the router:
+
+```ts
+createRouter({
+  routes,
+  parseQuery: (query) => ({ raw: query }),
+  stringifyQuery: (query) => query.raw ? `?raw=${query.raw}` : ""
+});
+```
+
+The default helpers are exported as `parseRouteQuery()` and `stringifyRouteQuery()`.
 
 Redirect routes can point to a string, route location object, or function:
 

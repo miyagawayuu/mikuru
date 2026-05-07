@@ -55,6 +55,7 @@ Unsupported in v1:
 
 - `createRouter({ history, routes, notFound? })` creates a router with a reactive `currentRoute`.
 - `defineRoutes(routes)` returns routes unchanged while preserving route name and path literals for type helpers.
+- `createRouter({ parseQuery, stringifyQuery })` customizes query parsing and stringifying. `parseRouteQuery` and `stringifyRouteQuery` expose the default helpers.
 - `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
 - Routes support static paths, dynamic params, optional params, repeat params, catch-all params, named routes, nested children, index children with empty paths, aliases, redirects, query parsing, and hash parsing.
 - Route records can define `props` as `true`, a static object, or a route mapping function. `RouterView` passes mapped props together with built-in `route` and `router` props.
@@ -62,8 +63,8 @@ Unsupported in v1:
 - Lazy routes support router-level and route-level loading and error components. Error components receive the loader error in props.
 - `router.preload` resolves matched lazy route components without navigating. `RouterLink` supports `preload` to preload on hover or focus.
 - `route.meta` is a shallow parent-to-child merge of matched route record `meta`. `route.matched` is the final record, and `route.matchedRecords` is the full parent-to-child chain.
-- `createRouter({ scrollBehavior })` supports successful browser-navigation scroll control and default hash/top scrolling.
-- `router.push`, `router.replace`, `router.back`, `router.forward`, `router.resolve`, and `router.preload` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
+- `createRouter({ scrollBehavior })` supports successful browser-navigation scroll control and default hash/top scrolling. Route `meta.scroll` can provide per-route scroll behavior when no global scroll behavior is configured.
+- `router.push`, `router.replace`, `router.back`, `router.forward`, `router.resolve`, `router.preload`, and `router.isReady` are public navigation APIs. Programmatic navigation resolves to a `RouteLocation` or `NavigationFailure`.
 - String and path-object navigation support `./` and `../` relative paths from the current route.
 - `router.addRoute`, `router.removeRoute`, and `router.hasRoute` provide dynamic route management.
 - `provideRouter`, `useRouter`, and `useRoute` provide router access through component-tree context.
@@ -74,7 +75,7 @@ Unsupported in v1:
 - `RouterView` renders the matched route component and passes `route` and `router` props.
 - `RouterView` and `RouterLink` accept an explicit `router` prop or use the provided router context.
 - `RouterLink` renders an anchor, supports default slot children, route location objects, `replace`, `preload`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
-- Router type helpers include `RouteNames`, `RouteParamNames`, and `RouteLocationForName`.
+- Router type helpers include `RouteNames`, `RouteParamNames`, and `RouteLocationForName`, including optional params, repeat params, and nested parent path params.
 
 ## Runtime Contract
 

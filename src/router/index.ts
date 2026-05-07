@@ -3,7 +3,8 @@ import type { Ref } from "../runtime/index.js";
 
 export type RouteParams = Record<string, string | string[]>;
 export type RouteParamsRaw = Record<string, string | number | boolean | Array<string | number | boolean>>;
-export type RouteQuery = Record<string, string | string[] | undefined>;
+export type RouteQueryValue = string | string[] | undefined;
+export type RouteQuery = Record<string, RouteQueryValue>;
 export type RouteComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
 };
@@ -28,6 +29,10 @@ export type RouteRecord = {
   props?: RoutePropsOption;
   children?: RouteRecord[];
   __mikuru_resolvedComponent?: RouteComponent;
+};
+export type QueryCodec = {
+  parseQuery?(query: string): RouteQuery;
+  stringifyQuery?(query: RouteQuery): string;
 };
 export type RouteLocation = {
   path: string;
@@ -69,6 +74,9 @@ export type ScrollBehavior = (
   to: RouteLocation,
   from: RouteLocation
 ) => ScrollPosition | false | void | Promise<ScrollPosition | false | void>;
+export type ScrollMeta = {
+  scroll?: ScrollPosition | false | ((to: RouteLocation, from: RouteLocation) => ScrollPosition | false | void | Promise<ScrollPosition | false | void>);
+};
 export type RouterHistory = {
   mode: "hash" | "history" | "memory";
   location(): string;
@@ -84,6 +92,8 @@ export type RouterOptions = {
   routes: readonly RouteRecord[];
   notFound?: RouteComponent;
   scrollBehavior?: ScrollBehavior;
+  parseQuery?: QueryCodec["parseQuery"];
+  stringifyQuery?: QueryCodec["stringifyQuery"];
   loadingComponent?: RouteComponent;
   errorComponent?: RouteComponent;
 };
@@ -96,6 +106,7 @@ export type Router = {
   forward(): void;
   resolve(to: RouteLocationRaw): RouteLocation;
   preload(to: RouteLocationRaw): Promise<RouteLocation>;
+  isReady(): Promise<void>;
   beforeEach(guard: NavigationGuard): () => void;
   afterEach(hook: AfterNavigationHook): () => void;
   onError(handler: RouterErrorHandler): () => void;
@@ -114,45 +125,84 @@ type RouteRecordTree = {
   name?: string;
   children?: readonly RouteRecordTree[];
 };
-type RouteNamedRecords<Routes extends readonly RouteRecordTree[]> = Routes[number] | (Routes[number] extends infer Record
-  ? Record extends { children: infer Children extends readonly RouteRecordTree[] }
-    ? RouteNamedRecords<Children>
+type JoinRouteLiteral<Parent extends string, Path extends string> = Path extends `/${string}`
+  ? Path
+  : Parent extends "" | "/"
+    ? Path extends ""
+      ? "/"
+      : `/${Path}`
+    : Path extends ""
+      ? Parent
+      : `${Parent}/${Path}`;
+type RouteEntries<Routes extends readonly RouteRecordTree[], Parent extends string = ""> = Routes[number] extends infer Record
+  ? Record extends RouteRecordTree
+    ?
+        | (Record extends { name: infer Name extends string }
+            ? { name: Name; path: JoinRouteLiteral<Parent, Record["path"]> }
+            : never)
+        | (Record extends { children: infer Children extends readonly RouteRecordTree[] }
+            ? RouteEntries<Children, JoinRouteLiteral<Parent, Record["path"]>>
+            : never)
     : never
-  : never);
-type RouteNameValue<Record> = Record extends { name: infer Name extends string } ? Name : never;
-type RouteRecordByName<Routes extends readonly RouteRecordTree[], Name extends string> = Extract<
-  RouteNamedRecords<Routes>,
+  : never;
+type RoutePathByName<Routes extends readonly RouteRecordTree[], Name extends string> = Extract<
+  RouteEntries<Routes>,
   { name: Name }
->;
-type RoutePathByName<Routes extends readonly RouteRecordTree[], Name extends string> = RouteRecordByName<
-  Routes,
-  Name
 > extends { path: infer Path extends string }
   ? Path
   : never;
-type RouteParamSegmentName<Segment extends string> =
-  Segment extends `:${infer Name}(${string})${string}`
+type RouteParamInfo<Segment extends string> =
+  Segment extends `:${infer Name}(${string})*`
+    ? { name: Name; optional: true; repeat: true }
+    : Segment extends `:${infer Name}(${string})+`
+      ? { name: Name; optional: false; repeat: true }
+      : Segment extends `:${infer Name}(${string})?`
+        ? { name: Name; optional: true; repeat: false }
+        : Segment extends `:${infer Name}(${string})`
+          ? { name: Name; optional: false; repeat: false }
+          : Segment extends `:${infer Name}?`
+            ? { name: Name; optional: true; repeat: false }
+            : Segment extends `:${infer Name}+`
+              ? { name: Name; optional: false; repeat: true }
+              : Segment extends `:${infer Name}*`
+                ? { name: Name; optional: true; repeat: true }
+                : Segment extends `:${infer Name}`
+                  ? { name: Name; optional: false; repeat: false }
+                  : never;
+type RouteParamInfosFromPath<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
+  ? RouteParamInfo<Segment> | RouteParamInfosFromPath<Rest>
+  : RouteParamInfo<Path>;
+type RequiredRouteParams<Path extends string> = {
+  [Param in RouteParamInfosFromPath<Path> as Param extends { optional: false; name: infer Name extends string }
     ? Name
-    : Segment extends `:${infer Name}?`
-      ? Name
-      : Segment extends `:${infer Name}+`
-        ? Name
-        : Segment extends `:${infer Name}*`
-          ? Name
-          : Segment extends `:${infer Name}`
-            ? Name
-            : never;
-type RouteParamNamesFromPath<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
-  ? RouteParamSegmentName<Segment> | RouteParamNamesFromPath<Rest>
-  : RouteParamSegmentName<Path>;
-export type RouteNames<Routes extends readonly RouteRecordTree[]> = RouteNameValue<RouteNamedRecords<Routes>>;
-export type RouteParamNames<Path extends string> = RouteParamNamesFromPath<Path>;
+    : never]: Param extends { repeat: true } ? string[] : string;
+};
+type OptionalRouteParams<Path extends string> = {
+  [Param in RouteParamInfosFromPath<Path> as Param extends { optional: true; name: infer Name extends string }
+    ? Name
+    : never]?: Param extends { repeat: true } ? string[] : string;
+};
+type RouteParamsForPath<Path extends string> = RequiredRouteParams<Path> & OptionalRouteParams<Path>;
+type HasRouteParams<Path extends string> = keyof RouteParamsForPath<Path> extends never ? false : true;
+type HasRequiredRouteParams<Path extends string> = keyof RequiredRouteParams<Path> extends never ? false : true;
+export type RouteNames<Routes extends readonly RouteRecordTree[]> = RouteEntries<Routes> extends {
+  name: infer Name extends string;
+}
+  ? Name
+  : never;
+export type RouteParamNames<Path extends string> = RouteParamInfosFromPath<Path> extends {
+  name: infer Name extends string;
+}
+  ? Name
+  : never;
 export type RouteLocationForName<
   Routes extends readonly RouteRecordTree[],
   Name extends RouteNames<Routes>
-> = RouteParamNamesFromPath<RoutePathByName<Routes, Name>> extends never
+> = HasRouteParams<RoutePathByName<Routes, Name>> extends false
   ? { name: Name; query?: RouteQuery; hash?: string }
-  : { name: Name; params: Record<RouteParamNamesFromPath<RoutePathByName<Routes, Name>>, string>; query?: RouteQuery; hash?: string };
+  : HasRequiredRouteParams<RoutePathByName<Routes, Name>> extends true
+    ? { name: Name; params: RouteParamsForPath<RoutePathByName<Routes, Name>>; query?: RouteQuery; hash?: string }
+    : { name: Name; params?: RouteParamsForPath<RoutePathByName<Routes, Name>>; query?: RouteQuery; hash?: string };
 
 export function defineRoutes<const Routes extends readonly RouteRecordInput[]>(routes: Routes): Routes {
   return routes;
@@ -179,6 +229,7 @@ type RouteMatcher = {
 const notFoundRoute: RouteRecord = { path: "/:pathMatch(.*)*", name: "not-found" };
 const routerKey = Symbol.for("mikuru.router");
 const routerErrorNotifiers = new WeakMap<Router, RouterErrorHandler>();
+const routerReadyTrackers = new WeakMap<Router, <T>(promise: Promise<T>) => Promise<T>>();
 const maxNavigationRedirects = 20;
 
 type RouterContext = {
@@ -234,12 +285,17 @@ export function createRouter(options: RouterOptions): Router {
   const fallbackRoute = options.notFound ? { ...notFoundRoute, component: options.notFound } : undefined;
   const loadingComponent = options.loadingComponent;
   const errorComponent = options.errorComponent;
+  const queryCodec: Required<QueryCodec> = {
+    parseQuery: options.parseQuery ?? parseRouteQuery,
+    stringifyQuery: options.stringifyQuery ?? stringifyRouteQuery
+  };
   let matcher = createMatcher(readMatcherRoutes());
   const beforeGuards: NavigationGuard[] = [];
   const afterHooks: AfterNavigationHook[] = [];
   const errorHandlers: RouterErrorHandler[] = [];
   const initial = resolveRouteTarget(history.location());
   const currentRoute = ref(initial);
+  const pendingReady = new Set<Promise<unknown>>();
   let listeningStop: (() => void) | undefined;
   let navigationId = 0;
 
@@ -279,7 +335,7 @@ export function createRouter(options: RouterOptions): Router {
       for (const hook of afterHooks) {
         hook(target, from);
       }
-      await handleScroll(target, from);
+      await trackReady(handleScroll(target, from));
 
       return target;
     } catch (error) {
@@ -294,9 +350,9 @@ export function createRouter(options: RouterOptions): Router {
 
     try {
       target = resolveRouteTarget(to, from.path);
-      await Promise.all(
+      await trackReady(Promise.all(
         target.matchedRecords.map((record) => record.component ? resolveRouteComponent(record) : Promise.resolve())
-      );
+      ));
       return target;
     } catch (error) {
       notifyRouterError(error, target, from);
@@ -317,13 +373,13 @@ export function createRouter(options: RouterOptions): Router {
   }
 
   function resolveRouteTarget(to: RouteLocationRaw, basePath?: string): RouteLocation {
-    let target = resolveLocation(stringifyLocation(to, matcher, basePath), matcher);
+    let target = resolveLocation(stringifyLocation(to, matcher, basePath, queryCodec.stringifyQuery), matcher, queryCodec.parseQuery);
 
     for (let redirects = 0; redirects < 10; redirects += 1) {
       const redirect = target.matched?.redirect;
       if (!redirect) return target;
       const next = typeof redirect === "function" ? redirect(target) : redirect;
-      target = resolveLocation(stringifyLocation(next, matcher, target.path), matcher);
+      target = resolveLocation(stringifyLocation(next, matcher, target.path, queryCodec.stringifyQuery), matcher, queryCodec.parseQuery);
     }
 
     throw new Error("Too many route redirects.");
@@ -397,17 +453,30 @@ export function createRouter(options: RouterOptions): Router {
       return;
     }
 
+    const metaScroll = to.meta.scroll as ScrollMeta["scroll"] | undefined;
+    if (metaScroll !== undefined) {
+      const position = typeof metaScroll === "function" ? await metaScroll(to, from) : metaScroll;
+      if (!position) return;
+      scrollToPosition(position);
+      return;
+    }
+
     scrollToDefaultPosition(to);
+  }
+
+  function trackReady<T>(promise: Promise<T>): Promise<T> {
+    pendingReady.add(promise);
+    return promise.finally(() => pendingReady.delete(promise));
   }
 
   const router: Router = {
     currentRoute,
     routes,
     push(to) {
-      return navigate(to, false);
+      return trackReady(navigate(to, false));
     },
     replace(to) {
-      return navigate(to, true);
+      return trackReady(navigate(to, true));
     },
     back() {
       history.back();
@@ -419,6 +488,9 @@ export function createRouter(options: RouterOptions): Router {
       return resolveRouteTarget(to, currentRoute.value.path);
     },
     preload,
+    isReady() {
+      return Promise.all(Array.from(pendingReady)).then(() => undefined);
+    },
     beforeEach(guard) {
       beforeGuards.push(guard);
       return () => removeItem(beforeGuards, guard);
@@ -446,12 +518,13 @@ export function createRouter(options: RouterOptions): Router {
       };
     },
     createHref(to) {
-      return history.createHref(stringifyLocation(to, matcher, currentRoute.value.path));
+      return history.createHref(stringifyLocation(to, matcher, currentRoute.value.path, queryCodec.stringifyQuery));
     },
     loadingComponent,
     errorComponent
   };
   routerErrorNotifiers.set(router, notifyRouterError);
+  routerReadyTrackers.set(router, trackReady);
   return router;
 
   function notifyRouterError(error: unknown, to: RouteLocation, from?: RouteLocation): void {
@@ -604,7 +677,9 @@ export const RouterView: RouteComponent = {
         }
       }
 
-      void resolveRouteComponent(record)
+      const componentPromise = resolveRouteComponent(record);
+      void (routerReadyTrackers.get(router)?.(componentPromise) ?? componentPromise).catch(() => undefined);
+      void componentPromise
         .then((component) => {
           if (id !== renderId) return;
           child?.unmount();
@@ -927,9 +1002,9 @@ function createMatcher(routes: RouteRecord[]): RouteMatcher {
   return { routes: compiled, byName };
 }
 
-function resolveLocation(raw: string, matcher: RouteMatcher): RouteLocation {
+function resolveLocation(raw: string, matcher: RouteMatcher, parseQuery: QueryCodec["parseQuery"] = parseRouteQuery): RouteLocation {
   const fullPath = normalizePath(raw);
-  const parsed = parsePath(fullPath);
+  const parsed = parsePath(fullPath, parseQuery);
   const matched = matcher.routes.find((route) => route.pattern.test(parsed.path));
   const params: RouteParams = {};
 
@@ -955,7 +1030,7 @@ function resolveLocation(raw: string, matcher: RouteMatcher): RouteLocation {
   };
 }
 
-function parsePath(fullPath: string): { path: string; query: RouteQuery; hash: string } {
+function parsePath(fullPath: string, parseQuery: QueryCodec["parseQuery"] = parseRouteQuery): { path: string; query: RouteQuery; hash: string } {
   const [pathAndQuery, rawHash = ""] = fullPath.split("#", 2);
   const [path = "/", rawQuery = ""] = pathAndQuery.split("?", 2);
   return {
@@ -965,7 +1040,12 @@ function parsePath(fullPath: string): { path: string; query: RouteQuery; hash: s
   };
 }
 
-function stringifyLocation(to: RouteLocationRaw, matcher?: RouteMatcher, basePath?: string): string {
+function stringifyLocation(
+  to: RouteLocationRaw,
+  matcher?: RouteMatcher,
+  basePath?: string,
+  stringifyQuery: QueryCodec["stringifyQuery"] = stringifyRouteQuery
+): string {
   if (typeof to === "string") return stringifyPathLocation(to, basePath);
   const path = "name" in to ? stringifyNamedLocation(to, matcher) : normalizeRelativePath(to.path, basePath);
   const query = stringifyQuery(to.query ?? {});
@@ -993,7 +1073,7 @@ function stringifyNamedLocation(
   return stringifyRoutePath(route.path, to.params ?? {});
 }
 
-function parseQuery(raw: string): RouteQuery {
+export function parseRouteQuery(raw: string): RouteQuery {
   const query: RouteQuery = {};
   const search = new URLSearchParams(raw);
 
@@ -1007,7 +1087,7 @@ function parseQuery(raw: string): RouteQuery {
   return query;
 }
 
-function stringifyQuery(query: RouteQuery): string {
+export function stringifyRouteQuery(query: RouteQuery): string {
   const search = new URLSearchParams();
 
   for (const [key, value] of Object.entries(query)) {

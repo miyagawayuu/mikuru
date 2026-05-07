@@ -11,6 +11,8 @@
 - Improved router index route matching and coverage for redirects, guards, and not found rendering.
 - Added relative path navigation for `mikuru/router`.
 - Added typed route helpers for `mikuru/router`.
+- Expanded router typed helpers for optional, repeat, and nested params.
+- Added `router.isReady()`, per-route `meta.scroll`, and custom query parsing/stringifying for `mikuru/router`.
 
 ## 1.0.15 - 2026-05-07
 
