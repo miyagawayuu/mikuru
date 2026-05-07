@@ -25,6 +25,7 @@ Supported in v1:
 - DOM events with `@event` and `v-on:event`.
 - Object-form events with `v-on="listeners"`.
 - DOM event modifiers `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`.
+- Component event modifier `.once`.
 - Attribute bindings with `:name` and `v-bind:name`.
 - Object-form attributes and component props with `v-bind="attrs"`.
 - `class` and `style` binding normalization for strings, arrays, and objects.
@@ -48,7 +49,7 @@ Unsupported in v1:
 
 - Uppercase tags are treated as child components.
 - Static attributes and bound props are passed through `props`.
-- Component events are passed as `onEventName` props.
+- Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue` and `onUpdateModelValue`.
 - Child component instances must return `{ element, unmount }` from `mount`.
 

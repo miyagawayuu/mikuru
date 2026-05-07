@@ -69,6 +69,7 @@ Use `@event` or `v-on:event` for DOM events. Use `v-on="listeners"` when an obje
 <button @click="save">Save</button>
 <form @submit.prevent="save">...</form>
 <button @click.stop="select">Select</button>
+<Child @select.once="select" />
 <button v-on="listeners">Select</button>
 ```
 
@@ -76,6 +77,10 @@ Supported DOM event modifiers are:
 
 - `.prevent`
 - `.stop`
+- `.self`
+- `.once`
+- `.capture`
+- `.passive`
 
 Event handlers can be a function reference or a simple call expression.
 
@@ -86,6 +91,7 @@ Event handlers can be a function reference or a simple call expression.
 
 Mikuru validates event expressions as JavaScript expressions. Statements and assignments are intentionally rejected.
 DOM events support `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`. `.passive` cannot be combined with `.prevent`.
+Component events support `.once`. Other event modifiers are DOM-only because they rely on browser `Event` methods or listener options.
 
 ## Attributes and Classes
 
@@ -221,6 +227,7 @@ Component events are passed as camel-cased handler props. For example:
 
 - `@toggle="handle"` becomes `props.onToggle`
 - `@item-select="handle"` becomes `props.onItemSelect`
+- `@toggle.once="handle"` wraps `props.onToggle` so it calls `handle` only once per child mount
 - `v-model` uses `props.onUpdateModelValue`
 
 ## Props and Emits

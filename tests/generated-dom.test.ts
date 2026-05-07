@@ -1323,6 +1323,53 @@ function select(value) {
     expect(paragraph?.textContent).toBe("child");
   });
 
+  it("supports once modifiers on component events", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child @select.once="select" />
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref("none");
+
+const Child = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = "Select";
+    let count = 0;
+    button.addEventListener("click", () => {
+      count += 1;
+      props.onSelect("child-" + count);
+    });
+    target.appendChild(button);
+    return {
+      element: button,
+      unmount() {
+        button.remove();
+      }
+    };
+  }
+};
+
+function select(value) {
+  selected.value = value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const paragraph = fixture.root.querySelector("p");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.textContent).toBe("child-1");
+  });
+
   it("passes object-form component props and event handlers", () => {
     const fixture = compileForDom(`<template>
   <section>

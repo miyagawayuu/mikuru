@@ -1620,12 +1620,15 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
   const event = parseEventDirective(attr.name);
 
   if (event) {
-    if (event.modifiers.length) {
-      throwTemplateError("Event modifiers are not supported on component events yet", context, attr.loc);
-    }
-
+    validateComponentEventModifiers(event, attr, context);
     const handler = validateTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
-    return [`${quotePropertyName(toComponentEventProp(event.name))}: ${eventHandlerExpression(handler, context, attr.valueLoc)}`];
+    return [
+      `${quotePropertyName(toComponentEventProp(event.name))}: ${componentEventHandlerExpression(
+        event,
+        eventHandlerExpression(handler, context, attr.valueLoc),
+        context
+      )}`
+    ];
   }
 
   const bindingName = getBindingName(attr.name);
@@ -1725,6 +1728,14 @@ function validateEventModifiers(event: EventDirective, attr: TemplateAttribute, 
   }
 }
 
+function validateComponentEventModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext): void {
+  for (const modifier of event.modifiers) {
+    if (modifier !== "once") {
+      throwTemplateError(`Event modifier .${modifier} is only supported on DOM events`, context, attr.loc);
+    }
+  }
+}
+
 function eventListenerOptions(event: EventDirective): string | undefined {
   const options = [
     event.modifiers.includes("capture") ? "capture: true" : undefined,
@@ -1733,6 +1744,16 @@ function eventListenerOptions(event: EventDirective): string | undefined {
   ].filter(Boolean);
 
   return options.length ? `{ ${options.join(", ")} }` : undefined;
+}
+
+function componentEventHandlerExpression(event: EventDirective, handlerExpression: string, context: GenerateContext): string {
+  if (!event.modifiers.includes("once")) {
+    return handlerExpression;
+  }
+
+  const calledVar = nextVar(context, "called");
+  const handlerVar = nextVar(context, "handler");
+  return `(() => { let ${calledVar} = false; const ${handlerVar} = ${handlerExpression}; return (...$args) => { if (${calledVar}) { return; } ${calledVar} = true; return ${handlerVar}(...$args); }; })()`;
 }
 
 function getEventName(name: string): string | undefined {

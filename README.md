@@ -131,6 +131,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Vite plugin support through `mikuru/vite`
 - Template interpolation with `{{ value }}`
 - DOM events with `@click`, `v-on:click`, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`
+- Component events with `@select` and `.once`
 - Attribute bindings with normalized `:class` and `:style`
 - `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
 - `v-model` for common form controls and child components
