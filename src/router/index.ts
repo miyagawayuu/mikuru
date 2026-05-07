@@ -12,6 +12,9 @@ export type RoutePropsOption =
   | boolean
   | Record<string, unknown>
   | ((route: RouteLocation) => Record<string, unknown> | undefined);
+export type RouteRecordInput = Omit<RouteRecord, "children" | "__mikuru_resolvedComponent"> & {
+  children?: readonly RouteRecordInput[];
+};
 export type RouteRecord = {
   path: string;
   name?: string;
@@ -78,7 +81,7 @@ export type RouterHistory = {
 };
 export type RouterOptions = {
   history?: RouterHistory;
-  routes: RouteRecord[];
+  routes: readonly RouteRecord[];
   notFound?: RouteComponent;
   scrollBehavior?: ScrollBehavior;
   loadingComponent?: RouteComponent;
@@ -105,6 +108,55 @@ export type Router = {
   loadingComponent?: RouteComponent;
   errorComponent?: RouteComponent;
 };
+
+type RouteRecordTree = {
+  path: string;
+  name?: string;
+  children?: readonly RouteRecordTree[];
+};
+type RouteNamedRecords<Routes extends readonly RouteRecordTree[]> = Routes[number] | (Routes[number] extends infer Record
+  ? Record extends { children: infer Children extends readonly RouteRecordTree[] }
+    ? RouteNamedRecords<Children>
+    : never
+  : never);
+type RouteNameValue<Record> = Record extends { name: infer Name extends string } ? Name : never;
+type RouteRecordByName<Routes extends readonly RouteRecordTree[], Name extends string> = Extract<
+  RouteNamedRecords<Routes>,
+  { name: Name }
+>;
+type RoutePathByName<Routes extends readonly RouteRecordTree[], Name extends string> = RouteRecordByName<
+  Routes,
+  Name
+> extends { path: infer Path extends string }
+  ? Path
+  : never;
+type RouteParamSegmentName<Segment extends string> =
+  Segment extends `:${infer Name}(${string})${string}`
+    ? Name
+    : Segment extends `:${infer Name}?`
+      ? Name
+      : Segment extends `:${infer Name}+`
+        ? Name
+        : Segment extends `:${infer Name}*`
+          ? Name
+          : Segment extends `:${infer Name}`
+            ? Name
+            : never;
+type RouteParamNamesFromPath<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
+  ? RouteParamSegmentName<Segment> | RouteParamNamesFromPath<Rest>
+  : RouteParamSegmentName<Path>;
+export type RouteNames<Routes extends readonly RouteRecordTree[]> = RouteNameValue<RouteNamedRecords<Routes>>;
+export type RouteParamNames<Path extends string> = RouteParamNamesFromPath<Path>;
+export type RouteLocationForName<
+  Routes extends readonly RouteRecordTree[],
+  Name extends RouteNames<Routes>
+> = RouteParamNamesFromPath<RoutePathByName<Routes, Name>> extends never
+  ? { name: Name; query?: RouteQuery; hash?: string }
+  : { name: Name; params: Record<RouteParamNamesFromPath<RoutePathByName<Routes, Name>>, string>; query?: RouteQuery; hash?: string };
+
+export function defineRoutes<const Routes extends readonly RouteRecordInput[]>(routes: Routes): Routes {
+  return routes;
+}
 
 type CompiledRoute = {
   record: RouteRecord;
