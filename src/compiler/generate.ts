@@ -374,6 +374,10 @@ function generateElement(
         emit(context, indent, `const ${baseHandlerVar} = ${handlerExpression};`);
         emit(context, indent, `const ${handlerVar} = ($event) => {`);
 
+        if (event.modifiers.includes("self")) {
+          emit(context, indent + 1, `if ($event.target !== ${elementVar}) { return; }`);
+        }
+
         if (event.modifiers.includes("prevent")) {
           emit(context, indent + 1, "$event.preventDefault();");
         }
@@ -388,8 +392,9 @@ function generateElement(
         emit(context, indent, `const ${handlerVar} = ${handlerExpression};`);
       }
 
-      emit(context, indent, `${elementVar}.addEventListener(${quote(event.name)}, ${handlerVar});`);
-      emit(context, indent, `${cleanupVar}.push(() => ${elementVar}.removeEventListener(${quote(event.name)}, ${handlerVar}));`);
+      const eventOptions = eventListenerOptions(event);
+      emit(context, indent, `${elementVar}.addEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
+      emit(context, indent, `${cleanupVar}.push(() => ${elementVar}.removeEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}));`);
       continue;
     }
 
@@ -1707,11 +1712,27 @@ function parseEventDirective(name: string): EventDirective | undefined {
 }
 
 function validateEventModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext): void {
+  const supportedModifiers = new Set(["prevent", "stop", "self", "once", "capture", "passive"]);
+
   for (const modifier of event.modifiers) {
-    if (modifier !== "prevent" && modifier !== "stop") {
+    if (!supportedModifiers.has(modifier)) {
       throwTemplateError(`Unsupported event modifier .${modifier}`, context, attr.loc);
     }
   }
+
+  if (event.modifiers.includes("passive") && event.modifiers.includes("prevent")) {
+    throwTemplateError("Event modifiers .passive and .prevent cannot be combined", context, attr.loc);
+  }
+}
+
+function eventListenerOptions(event: EventDirective): string | undefined {
+  const options = [
+    event.modifiers.includes("capture") ? "capture: true" : undefined,
+    event.modifiers.includes("once") ? "once: true" : undefined,
+    event.modifiers.includes("passive") ? "passive: true" : undefined
+  ].filter(Boolean);
+
+  return options.length ? `{ ${options.join(", ")} }` : undefined;
 }
 
 function getEventName(name: string): string | undefined {
