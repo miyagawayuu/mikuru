@@ -54,6 +54,7 @@ Unsupported in v1:
 ## Router Contract
 
 - `createRouter({ history, routes, notFound? })` creates a router with a reactive `currentRoute`.
+- `defineRoutes(routes)` returns routes unchanged while preserving route name and path literals for type helpers.
 - `createWebHistory`, `createWebHashHistory`, and `createMemoryHistory` provide navigation backends.
 - Routes support static paths, dynamic params, optional params, repeat params, catch-all params, named routes, nested children, index children with empty paths, aliases, redirects, query parsing, and hash parsing.
 - Route records can define `props` as `true`, a static object, or a route mapping function. `RouterView` passes mapped props together with built-in `route` and `router` props.
@@ -73,6 +74,7 @@ Unsupported in v1:
 - `RouterView` renders the matched route component and passes `route` and `router` props.
 - `RouterView` and `RouterLink` accept an explicit `router` prop or use the provided router context.
 - `RouterLink` renders an anchor, supports default slot children, route location objects, `replace`, `preload`, `activeClass`, and `exactActiveClass`, and marks exact active links with `aria-current="page"`.
+- Router type helpers include `RouteNames`, `RouteParamNames`, and `RouteLocationForName`.
 
 ## Runtime Contract
 

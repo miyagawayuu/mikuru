@@ -86,6 +86,7 @@ const route = useRoute();
 
 ## API
 
+- `defineRoutes(routes)` returns a route array unchanged while preserving route name and path literal types.
 - `createRouter({ history, routes, notFound? })` creates a router.
 - `router.currentRoute` is a `ref` containing the current route.
 - `router.push(to)` and `router.replace(to)` navigate programmatically and resolve to either a `RouteLocation` or `NavigationFailure`.
@@ -228,6 +229,22 @@ Optional params can be omitted. Repeat params use arrays:
 ```ts
 await router.push({ name: "optional-user" });
 await router.push({ name: "tags", params: { tags: ["design", "system"] } });
+```
+
+`defineRoutes()` preserves route literals for type helpers:
+
+```ts
+import { defineRoutes } from "mikuru/router";
+import type { RouteLocationForName, RouteNames, RouteParamNames } from "mikuru/router";
+
+const routes = defineRoutes([
+  { path: "/", name: "home" },
+  { path: "/users/:id", name: "user" }
+] as const);
+
+type Names = RouteNames<typeof routes>; // "home" | "user"
+type UserParams = RouteParamNames<"/users/:id">; // "id"
+type UserLocation = RouteLocationForName<typeof routes, "user">;
 ```
 
 Redirect routes can point to a string, route location object, or function:
