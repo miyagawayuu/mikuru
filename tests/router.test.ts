@@ -8,9 +8,11 @@ import {
   createWebHistory,
   isNavigationFailure,
   NavigationFailureType,
+  parseRouteQuery,
   provideRouter,
   RouterLink,
   RouterView,
+  stringifyRouteQuery,
   useRoute,
   useRouter
 } from "../src/router/index.js";
@@ -71,12 +73,14 @@ function expectRoute(result: NavigationResult): RouteLocation {
   return result;
 }
 
-function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
+function deferred<T>(): { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void } {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 async function flushPromises(): Promise<void> {
@@ -101,6 +105,28 @@ describe("router", () => {
       hash: "#bio"
     });
     expect(route.query).toEqual({ tab: "posts", tag: ["a", "b"] });
+  });
+
+  it("parses and stringifies query with helpers and custom codecs", async () => {
+    expect(parseRouteQuery("tag=a&tag=b&tab=posts")).toEqual({ tag: ["a", "b"], tab: "posts" });
+    expect(stringifyRouteQuery({ tag: ["a", "b"], tab: "posts", empty: undefined })).toBe("?tag=a&tag=b&tab=posts");
+
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/search" }],
+      parseQuery(query) {
+        return query ? { raw: query } : {};
+      },
+      stringifyQuery(query) {
+        return query.raw ? `?raw=${query.raw}` : "";
+      }
+    });
+
+    const route = router.resolve("/search?encoded=a%2Bb");
+    const next = expectRoute(await router.push({ path: "/search", query: { raw: "hello" } }));
+
+    expect(route.query).toEqual({ raw: "encoded=a%2Bb" });
+    expect(next.fullPath).toBe("/search?raw=hello");
   });
 
   it("matches optional, repeat, and catch-all params", () => {
@@ -637,6 +663,36 @@ describe("router", () => {
     expect(router.currentRoute.value.path).toBe("/fast");
   });
 
+  it("waits for pending async navigation with isReady", async () => {
+    let releaseGuard: (() => void) | undefined;
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [{ path: "/" }, { path: "/slow" }]
+    });
+
+    router.beforeEach((to) => {
+      if (to.path !== "/slow") return undefined;
+      return new Promise<void>((resolve) => {
+        releaseGuard = resolve;
+      });
+    });
+
+    const navigation = router.push("/slow");
+    let ready = false;
+    const readyPromise = router.isReady().then(() => {
+      ready = true;
+    });
+    await flushPromises();
+
+    expect(ready).toBe(false);
+    releaseGuard?.();
+    await navigation;
+    await readyPromise;
+
+    expect(ready).toBe(true);
+    expect(router.currentRoute.value.path).toBe("/slow");
+  });
+
   it("detects navigation guard redirect loops", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
@@ -967,6 +1023,46 @@ describe("router", () => {
     }
   });
 
+  it("waits for lazy RouterView rendering with isReady", async () => {
+    const window = new Window();
+    const previousDocument = globalThis.document;
+    const lazy = deferred<RouteComponent>();
+
+    try {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
+
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("Home") },
+          { path: "/lazy", component: () => lazy.promise }
+        ]
+      });
+      const root = document.createElement("main");
+
+      RouterView.mount(root, { router });
+      document.body.appendChild(root);
+      await Promise.resolve();
+
+      expectRoute(await router.push("/lazy"));
+      let ready = false;
+      const readyPromise = router.isReady().then(() => {
+        ready = true;
+      });
+      await flushPromises();
+
+      expect(ready).toBe(false);
+      lazy.resolve(textComponent("Lazy done"));
+      await readyPromise;
+      await flushPromises();
+
+      expect(root.textContent).toContain("Lazy done");
+      expect(ready).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, "document", { configurable: true, value: previousDocument });
+    }
+  });
+
   it("notifies onError handlers for preload errors", async () => {
     const router = createRouter({
       history: createMemoryHistory("/"),
@@ -1067,6 +1163,7 @@ describe("router", () => {
   it("uses route-level loading and error components before router defaults", async () => {
     const window = new Window();
     const previousDocument = globalThis.document;
+    const broken = deferred<RouteComponent>();
 
     try {
       Object.defineProperty(globalThis, "document", { configurable: true, value: window.document });
@@ -1077,9 +1174,7 @@ describe("router", () => {
           { path: "/", component: textComponent("Home") },
           {
             path: "/broken",
-            component: async () => {
-              throw new Error("broken lazy route");
-            },
+            component: () => broken.promise,
             loadingComponent: textComponent("Route loading"),
             errorComponent: propTextComponent("error")
           }
@@ -1095,6 +1190,7 @@ describe("router", () => {
 
       expectRoute(await router.push("/broken"));
       expect(root.textContent).toContain("Route loading");
+      broken.reject(new Error("broken lazy route"));
       await flushPromises();
 
       expect(root.textContent).toContain("broken lazy route");
@@ -1370,6 +1466,48 @@ describe("router", () => {
       expectRoute(await router.push("/next"));
 
       expect(scrolls).toEqual([{ left: 2, top: 5 }]);
+    } finally {
+      Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: previousScrollTo });
+    }
+  });
+
+  it("uses route meta scroll when no scroll behavior is configured", async () => {
+    const window = new Window();
+    const previousLocation = globalThis.location;
+    const previousHistory = globalThis.history;
+    const previousScrollTo = globalThis.scrollTo;
+    const scrolls: unknown[] = [];
+
+    try {
+      Object.defineProperty(globalThis, "location", { configurable: true, value: window.location });
+      Object.defineProperty(globalThis, "history", { configurable: true, value: window.history });
+      Object.defineProperty(globalThis, "scrollTo", { configurable: true, value: (position: unknown) => scrolls.push(position) });
+      window.history.replaceState({}, "", "/");
+
+      const router = createRouter({
+        history: createWebHistory(),
+        routes: [
+          { path: "/" },
+          { path: "/saved", meta: { scroll: { left: 4, top: 12 } } },
+          {
+            path: "/dynamic",
+            meta: {
+              scroll(to: RouteLocation) {
+                return { left: 1, top: to.path.length };
+              }
+            }
+          },
+          { path: "/skip", meta: { scroll: false } }
+        ]
+      });
+
+      expectRoute(await router.push("/saved"));
+      expectRoute(await router.push("/dynamic"));
+      expectRoute(await router.push("/skip"));
+
+      expect(scrolls).toEqual([{ left: 4, top: 12 }, { left: 1, top: 8 }]);
     } finally {
       Object.defineProperty(globalThis, "location", { configurable: true, value: previousLocation });
       Object.defineProperty(globalThis, "history", { configurable: true, value: previousHistory });

@@ -19,8 +19,9 @@ describe("router type helpers", () => {
       { path: "/", name: "home" },
       { path: "/users/:id", name: "user" },
       { path: "/tags/:tags+", name: "tags" },
+      { path: "/files/:pathMatch(.*)*", name: "files" },
       {
-        path: "/settings",
+        path: "/settings/:section",
         name: "settings",
         children: [{ path: "billing/:invoiceId?", name: "settings-billing" }]
       }
@@ -33,9 +34,16 @@ describe("router type helpers", () => {
     expectType<RouteParamNames<"/files/:pathMatch(.*)*">>("pathMatch");
     expectType<RouteLocationForName<typeof routes, "home">>({ name: "home" });
     expectType<RouteLocationForName<typeof routes, "user">>({ name: "user", params: { id: "42" } });
+    expectType<RouteLocationForName<typeof routes, "tags">>({ name: "tags", params: { tags: ["design", "system"] } });
+    expectType<RouteLocationForName<typeof routes, "files">>({ name: "files" });
+    expectType<RouteLocationForName<typeof routes, "files">>({ name: "files", params: { pathMatch: ["docs", "router"] } });
     expectType<RouteLocationForName<typeof routes, "settings-billing">>({
       name: "settings-billing",
-      params: { invoiceId: "latest" }
+      params: { section: "account" }
+    });
+    expectType<RouteLocationForName<typeof routes, "settings-billing">>({
+      name: "settings-billing",
+      params: { section: "account", invoiceId: "latest" }
     });
 
     // @ts-expect-error unknown route names are rejected by RouteLocationForName.
@@ -44,8 +52,12 @@ describe("router type helpers", () => {
     expectType<RouteLocationForName<typeof routes, "user">>({ name: "user" });
     // @ts-expect-error param keys are inferred from the route path.
     expectType<RouteLocationForName<typeof routes, "user">>({ name: "user", params: { slug: "42" } });
+    // @ts-expect-error repeat params use arrays.
+    expectType<RouteLocationForName<typeof routes, "tags">>({ name: "tags", params: { tags: "design" } });
+    // @ts-expect-error nested route params include parent params.
+    expectType<RouteLocationForName<typeof routes, "settings-billing">>({ name: "settings-billing", params: { invoiceId: "latest" } });
 
-    expect(routes).toHaveLength(4);
+    expect(routes).toHaveLength(5);
   });
 
   it("accepts defined routes in createRouter", () => {
