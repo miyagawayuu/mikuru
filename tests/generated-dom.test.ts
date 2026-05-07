@@ -1091,6 +1091,89 @@ function rename() {
     expect(fixture.root.querySelector("p")?.textContent).toBe("count: 2");
   });
 
+  it("renders parent dynamic slot names", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Card>
+      <template v-slot:[activeSlot]="{ title }">
+        <h2>{{ title }}</h2>
+      </template>
+    </Card>
+  </section>
+</template>
+
+<script>
+const activeSlot = "header";
+const title = "Header title";
+
+const Card = {
+  mount(target, props) {
+    const article = document.createElement("article");
+    const slotTarget = document.createElement("header");
+    const cleanup = props.slots.header(slotTarget, { title });
+    article.appendChild(slotTarget);
+    target.appendChild(article);
+    return {
+      element: article,
+      unmount() {
+        cleanup?.();
+        article.remove();
+      }
+    };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("h2")?.textContent).toBe("Header title");
+  });
+
+  it("renders dynamic slot outlet names", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <slot :name="activeSlot" :title="title">
+      <p>Fallback</p>
+    </slot>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const activeSlot = ref("header");
+const title = ref("Header title");
+
+function toggle() {
+  activeSlot.value = "footer";
+  title.value = "Footer title";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root, {
+      slots: {
+        header(target: Element, props: { title: string }) {
+          const heading = fixture.document.createElement("h2");
+          heading.textContent = props.title;
+          target.appendChild(heading);
+          return () => heading.remove();
+        },
+        footer(target: Element, props: { title: string }) {
+          const heading = fixture.document.createElement("h3");
+          heading.textContent = props.title;
+          target.appendChild(heading);
+          return () => heading.remove();
+        }
+      }
+    });
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("h2")).toBeNull();
+    expect(fixture.root.querySelector("h3")?.textContent).toBe("Footer title");
+  });
+
   it("renders slot fallback content when no slot is provided", () => {
     const fixture = compileForDom(`<template>
   <section>

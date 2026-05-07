@@ -35,6 +35,7 @@ Supported in v1:
 - `v-model` for text input, textarea, checkbox, select, and child components.
 - Default slots through `<slot />`.
 - Named slots through `<slot name="header" />` and `<template #header>`.
+- Dynamic slot names through `<slot :name="name" />`, `<template v-slot:[name]>`, and `<template #[name]>`.
 - Slot props through bound `<slot>` attributes and simple slot scope bindings.
 
 Unsupported in v1:

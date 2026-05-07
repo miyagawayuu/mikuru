@@ -280,6 +280,26 @@ const childListeners = { select() {} };
     expect(child.code).toContain("Fallback header");
   });
 
+  it("generates dynamic slot names for outlets and templates", () => {
+    const parent = compile(`<template>
+  <Panel>
+    <template v-slot:[activeSlot]="{ title }">
+      <h2>{{ title }}</h2>
+    </template>
+  </Panel>
+</template>
+<script>
+import Panel from "./Panel.mikuru";
+const activeSlot = "header";
+</script>`);
+    const child = compile(`<template><slot :name="activeSlot" :title="title" /></template><script>const activeSlot = "header"; const title = "Title";</script>`);
+
+    expect(parent.code).toContain("slots: {");
+    expect(parent.code).toContain("[unwrap(activeSlot)](slotTarget");
+    expect(child.code).toContain("const slotName");
+    expect(child.code).toContain("props.slots?.[slotName");
+  });
+
   it("rejects DOM-only event modifiers on component events", () => {
     expect(() =>
       compile(`<template><Child @select.stop="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`, {

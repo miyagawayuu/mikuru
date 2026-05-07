@@ -73,7 +73,16 @@ type EventDirective = {
 
 type SlotDefinition = {
   name: string;
+  nameExpression?: string;
   children: TemplateNode[];
+  scope: string | true;
+  loc?: SourceLocation;
+  scopeLoc?: SourceLocation;
+};
+
+type SlotTemplateDirective = {
+  name: string;
+  nameExpression?: string;
   scope: string | true;
   loc?: SourceLocation;
   scopeLoc?: SourceLocation;
@@ -236,13 +245,49 @@ function generateSlot(
   indent: number,
   beforeVar?: string
 ): string {
-  const slotVar = nextVar(context, "slot");
   const slotCleanupVar = nextVar(context, "slotCleanup");
   const slotCleanupResultVar = nextVar(context, "slotCleanup");
   const slotFnVar = nextVar(context, "slot");
   const slotPropsVar = nextVar(context, "slotProps");
-  const slotName = getSlotOutletName(node, context);
-  emit(context, indent, `const ${slotFnVar} = ${slotName === "default" ? "props.slots?.default ?? props.children" : `props.slots?.[${quote(slotName)}]`};`);
+  const slotName = getSlotOutletNameExpression(node, context);
+
+  if (slotName.dynamic) {
+    const startVar = nextVar(context, "slotStart");
+    const endVar = nextVar(context, "slotEnd");
+    const slotFragmentVar = nextVar(context, "slot");
+    const slotNameVar = nextVar(context, "slotName");
+    const stopVar = nextVar(context, "stop");
+    emit(context, indent, `const ${startVar} = document.createComment("slot");`);
+    emit(context, indent, `const ${endVar} = document.createComment("/slot");`);
+    appendNode(context, parentVar, startVar, indent, beforeVar);
+    appendNode(context, parentVar, endVar, indent, beforeVar);
+    emit(context, indent, `const ${slotCleanupVar} = [];`);
+    emit(context, indent, `const ${stopVar} = effect(() => {`);
+    emit(context, indent + 1, `__mikuru_runCleanup(${slotCleanupVar});`);
+    emitRemoveBetween(context, indent + 1, startVar, endVar);
+    emit(context, indent + 1, `const ${slotNameVar} = String(unwrap(${slotName.expression}) ?? "default");`);
+    emit(context, indent + 1, `const ${slotFnVar} = ${slotNameVar} === "default" ? props.slots?.default ?? props.children : props.slots?.[${slotNameVar}];`);
+    emitSlotOutletProps(context, node, slotPropsVar, indent + 1);
+    emit(context, indent + 1, `const ${slotFragmentVar} = document.createDocumentFragment();`);
+    emit(context, indent + 1, `if (${slotFnVar}) {`);
+    emit(context, indent + 2, `const ${slotCleanupResultVar} = ${slotFnVar}(${slotFragmentVar}, ${slotPropsVar});`);
+    emit(context, indent + 2, `if (${slotCleanupResultVar}) {`);
+    emit(context, indent + 3, `${slotCleanupVar}.push(${slotCleanupResultVar});`);
+    emit(context, indent + 2, "}");
+    emit(context, indent + 1, "} else {");
+    generateChildren(context, node.children, slotFragmentVar, slotCleanupVar, indent + 2);
+    emit(context, indent + 1, "}");
+    appendNode(context, parentVar, slotFragmentVar, indent + 1, endVar);
+    emit(context, indent, "});");
+    emit(context, indent, `${cleanupVar}.push(() => {`);
+    emit(context, indent + 1, `${stopVar}();`);
+    emit(context, indent + 1, `__mikuru_runCleanup(${slotCleanupVar});`);
+    emit(context, indent, "});");
+    return startVar;
+  }
+
+  const slotVar = nextVar(context, "slot");
+  emit(context, indent, `const ${slotFnVar} = ${slotName.name === "default" ? "props.slots?.default ?? props.children" : `props.slots?.[${quote(slotName.name)}]`};`);
   emitSlotOutletProps(context, node, slotPropsVar, indent);
   emit(context, indent, `const ${slotVar} = document.createDocumentFragment();`);
   emit(context, indent, `const ${slotCleanupVar} = [];`);
@@ -1325,7 +1370,7 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   const objectBindAttrs = node.attrs.filter((attr) => isObjectBindAttr(attr));
   const objectOnAttrs = node.attrs.filter((attr) => isObjectOnAttr(attr));
   const slots = collectComponentSlots(context, node);
-  const defaultSlot = slots.find((slot) => slot.name === "default");
+  const defaultSlot = slots.find((slot) => !slot.nameExpression && slot.name === "default");
   const needsProxy = objectBindAttrs.length > 0 || objectOnAttrs.length > 0;
   const propsTargetVar = needsProxy ? nextVar(context, "propsBase") : propsVar;
 
@@ -1344,7 +1389,7 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
     emit(context, indent + 1, "slots: {");
 
     for (const slot of slots) {
-      emitSlotFunction(context, quotePropertyName(slot.name), slot, indent + 2);
+      emitSlotFunction(context, slot.nameExpression ? `[${slot.nameExpression}]` : quotePropertyName(slot.name), slot, indent + 2);
     }
 
     emit(context, indent + 1, "},");
@@ -1446,6 +1491,7 @@ function collectComponentSlots(context: GenerateContext, node: ElementNode): Slo
         usedNames.add(slotDirective.name);
         slots.push({
           name: slotDirective.name,
+          nameExpression: slotDirective.nameExpression,
           children: child.children,
           scope: slotDirective.scope,
           loc: child.loc,
@@ -1474,10 +1520,7 @@ function collectComponentSlots(context: GenerateContext, node: ElementNode): Slo
   return slots;
 }
 
-function getSlotTemplateDirective(
-  node: ElementNode,
-  context: GenerateContext
-): { name: string; scope: string | true; loc?: SourceLocation; scopeLoc?: SourceLocation } | undefined {
+function getSlotTemplateDirective(node: ElementNode, context: GenerateContext): SlotTemplateDirective | undefined {
   if (node.tag !== "template") {
     return undefined;
   }
@@ -1493,30 +1536,51 @@ function getSlotTemplateDirective(
   }
 
   const attr = slotAttrs[0]!;
-  const name = getSlotTemplateName(attr);
+  const name = getSlotTemplateName(attr, context);
 
   return {
-    name,
+    ...name,
     scope: attr.value,
     loc: attr.loc,
     scopeLoc: attr.valueLoc
   };
 }
 
-function getSlotTemplateName(attr: TemplateAttribute): string {
+function getSlotTemplateName(attr: TemplateAttribute, context: GenerateContext): { name: string; nameExpression?: string } {
   if (attr.name === "v-slot") {
-    return "default";
+    return { name: "default" };
   }
 
   if (attr.name.startsWith("v-slot:")) {
-    return attr.name.slice("v-slot:".length) || "default";
+    return parseSlotTemplateName(attr.name.slice("v-slot:".length) || "default", attr, context);
   }
 
   if (attr.name.startsWith("#")) {
-    return attr.name.slice(1) || "default";
+    return parseSlotTemplateName(attr.name.slice(1) || "default", attr, context);
   }
 
-  return "default";
+  return { name: "default" };
+}
+
+function parseSlotTemplateName(rawName: string, attr: TemplateAttribute, context: GenerateContext): { name: string; nameExpression?: string } {
+  const name = rawName.trim();
+  const dynamicStart = name.indexOf("[");
+  const dynamicEnd = name.lastIndexOf("]");
+
+  if (dynamicStart >= 0 && dynamicEnd > dynamicStart) {
+    const expression = name.slice(dynamicStart + 1, dynamicEnd).trim();
+
+    if (!expression) {
+      throwTemplateError("Dynamic slot name requires an expression", context, attr.loc);
+    }
+
+    return {
+      name: `[${expression}]`,
+      nameExpression: compileTemplateExpression(expression, attr.name, toExpressionContext(context, attr.loc))
+    };
+  }
+
+  return { name };
 }
 
 function parseSlotScopeBindings(scope: string | true, context: GenerateContext, location: SourceLocation | undefined): SlotScopeBinding[] {
@@ -1558,7 +1622,7 @@ function parseSlotScopeBindings(scope: string | true, context: GenerateContext, 
 
 function emitSlotOutletProps(context: GenerateContext, node: ElementNode, propsVar: string, indent: number): void {
   const entries = node.attrs
-    .filter((attr) => attr.name !== "name")
+    .filter((attr) => attr.name !== "name" && getBindingName(attr.name) !== "name")
     .map((attr) => slotOutletPropEntry(context, attr));
 
   emit(context, indent, `const ${propsVar} = {`);
@@ -1574,10 +1638,6 @@ function slotOutletPropEntry(context: GenerateContext, attr: TemplateAttribute):
   const bindingName = getBindingName(attr.name);
 
   if (bindingName) {
-    if (bindingName === "name") {
-      throwTemplateError("Dynamic slot names are not supported", context, attr.loc);
-    }
-
     const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     return `get ${quotePropertyName(bindingName)}() { return unwrap(${expression}); }`;
   }
@@ -1589,13 +1649,24 @@ function slotOutletPropEntry(context: GenerateContext, attr: TemplateAttribute):
   return `${quotePropertyName(attr.name)}: ${quote(attr.value === true ? true : attr.value)}`;
 }
 
-function getSlotOutletName(node: ElementNode, context: GenerateContext): string {
-  if (hasAttr(node, ":name") || hasAttr(node, "v-bind:name")) {
-    const attr = node.attrs.find((candidate) => candidate.name === ":name" || candidate.name === "v-bind:name");
-    throwTemplateError("Dynamic slot names are not supported", context, attr?.loc);
+function getSlotOutletNameExpression(
+  node: ElementNode,
+  context: GenerateContext
+): { dynamic: true; expression: string } | { dynamic: false; name: string } {
+  const dynamicNameAttr = node.attrs.find((candidate) => getBindingName(candidate.name) === "name");
+
+  if (dynamicNameAttr) {
+    return {
+      dynamic: true,
+      expression: compileTemplateExpression(
+        requireAttrValue(dynamicNameAttr),
+        dynamicNameAttr.name,
+        toExpressionContext(context, dynamicNameAttr.valueLoc)
+      )
+    };
   }
 
-  return getStaticAttrValue(node, "name") ?? "default";
+  return { dynamic: false, name: getStaticAttrValue(node, "name") ?? "default" };
 }
 
 function componentPropEntries(context: GenerateContext, attr: TemplateAttribute): string[] {
