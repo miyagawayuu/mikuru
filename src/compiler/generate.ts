@@ -12,6 +12,7 @@ type GenerateContext = {
   source?: string;
   filename?: string;
   scopeAttr?: string;
+  templateRefMode?: "single" | "array";
 };
 
 type ScriptParts = {
@@ -118,6 +119,23 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 2, "for (const cleanup of cleanups.splice(0).reverse()) {");
   emit(context, 3, "cleanup();");
   emit(context, 2, "}");
+  emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_setRef = (target, value, multiple = false) => {");
+  emit(context, 2, "if (typeof target === \"function\") {");
+  emit(context, 3, "target(value);");
+  emit(context, 3, "return () => target(null);");
+  emit(context, 2, "}");
+  emit(context, 2, "if (!target || typeof target !== \"object\" || !(\"value\" in target)) {");
+  emit(context, 3, "return () => {};");
+  emit(context, 2, "}");
+  emit(context, 2, "if (multiple) {");
+  emit(context, 3, "const list = Array.isArray(target.value) ? target.value : [];");
+  emit(context, 3, "if (target.value !== list) { target.value = list; }");
+  emit(context, 3, "list.push(value);");
+  emit(context, 3, "return () => { const index = list.indexOf(value); if (index >= 0) { list.splice(index, 1); } };");
+  emit(context, 2, "}");
+  emit(context, 2, "target.value = value;");
+  emit(context, 2, "return () => { if (target.value === value) { target.value = null; } };");
   emit(context, 1, "};");
   emit(context, 1, "// expose a lightweight registrar for runtime lifecycle and provide/inject helpers");
   emit(context, 1, "const __mikuru_previousRegistrar = globalThis.__mikuru_currentRegistrar;");
@@ -575,7 +593,7 @@ function generateElement(
   }
 
   for (const attr of node.attrs) {
-    if (attr.name === "ref") {
+    if (attr.name === "ref" || getBindingName(attr.name) === "ref") {
       continue;
     }
 
@@ -701,7 +719,7 @@ function generateElement(
 
     if (bindingName) {
       if (bindingName === "ref") {
-        throwTemplateError("Dynamic template refs are not supported yet; use ref=\"name\" with a ref object", context, attr.loc);
+        continue;
       }
 
       const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
@@ -734,16 +752,22 @@ function emitTemplateRef(
     return;
   }
 
-  const refName = requireTemplateRefName(context, refAttr);
-  emit(context, indent, `${refName}.value = ${valueExpression};`);
-  emit(context, indent, `${cleanupVar}.push(() => { if (${refName}.value === ${valueExpression}) { ${refName}.value = null; } });`);
+  const targetExpression = templateRefTargetExpression(context, refAttr);
+  const cleanupRefVar = nextVar(context, "cleanupRef");
+  const multiple = context.templateRefMode === "array";
+  emit(context, indent, `const ${cleanupRefVar} = __mikuru_setRef(${targetExpression}, ${valueExpression}, ${multiple ? "true" : "false"});`);
+  emit(context, indent, `${cleanupVar}.push(${cleanupRefVar});`);
 }
 
 function getTemplateRefAttr(node: ElementNode): TemplateAttribute | undefined {
-  return node.attrs.find((attr) => attr.name === "ref");
+  return node.attrs.find((attr) => attr.name === "ref" || getBindingName(attr.name) === "ref");
 }
 
-function requireTemplateRefName(context: GenerateContext, attr: TemplateAttribute): string {
+function templateRefTargetExpression(context: GenerateContext, attr: TemplateAttribute): string {
+  if (getBindingName(attr.name) === "ref") {
+    return compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+  }
+
   if (attr.value === true || !attr.value.trim()) {
     throwTemplateError("Template ref requires a ref object name, for example ref=\"inputEl\"", context, attr.loc);
   }
@@ -1016,11 +1040,15 @@ function generateFor(
     emit(context, indent + 1, `for (let ${indexVar} = 0; ${indexVar} < ${sourceVar}.length; ${indexVar} += 1) {`);
     emit(context, indent + 2, `const ${itemName} = ${sourceVar}[${indexVar}];`);
     emit(context, indent + 2, `const ${indexName} = ${indexVar};`);
-    generateNode(context, withoutForAttrs(node), parentVar, branchCleanupVar, indent + 2, endVar);
+    withTemplateRefMode(context, "array", () => {
+      generateNode(context, withoutForAttrs(node), parentVar, branchCleanupVar, indent + 2, endVar);
+    });
     emit(context, indent + 1, "}");
   } else {
     emit(context, indent + 1, `for (const ${itemName} of unwrap(${compileTemplateExpression(sourceExpression, "v-for source", toExpressionContext(context, getStringAttrLocation(node, "v-for")))}) ?? []) {`);
-    generateNode(context, withoutForAttrs(node), parentVar, branchCleanupVar, indent + 2, endVar);
+    withTemplateRefMode(context, "array", () => {
+      generateNode(context, withoutForAttrs(node), parentVar, branchCleanupVar, indent + 2, endVar);
+    });
     emit(context, indent + 1, "}");
   }
   emit(context, indent, "});");
@@ -1093,7 +1121,9 @@ function generateKeyedFor(
     emit(context, indent + 4, `const ${indexName} = ${indexRefVar};`);
   }
 
-  const elementVar = generateNode(context, withoutForAttrs(node), parentVar, recordCleanupVar, indent + 4, endVar);
+  const elementVar = withTemplateRefMode(context, "array", () =>
+    generateNode(context, withoutForAttrs(node), parentVar, recordCleanupVar, indent + 4, endVar)
+  );
   emit(context, indent + 4, `${recordVar} = { element: ${elementVar}, cleanups: ${recordCleanupVar}, item: ${itemRefVar}${indexName ? `, index: ${indexRefVar}` : ""} };`);
   emit(context, indent + 3, `}`);
   emit(context, indent + 2, `} else {`);
@@ -1137,6 +1167,17 @@ function emitRemoveBetween(context: GenerateContext, indent: number, startVar: s
   emit(context, indent + 1, `${currentVar}.remove();`);
   emit(context, indent + 1, `${currentVar} = ${nextVarName};`);
   emit(context, indent, "}");
+}
+
+function withTemplateRefMode<T>(context: GenerateContext, mode: "single" | "array", callback: () => T): T {
+  const previousMode = context.templateRefMode;
+  context.templateRefMode = mode;
+
+  try {
+    return callback();
+  } finally {
+    context.templateRefMode = previousMode;
+  }
 }
 
 function appendNode(context: GenerateContext, parentVar: string, nodeVar: string, indent: number, beforeVar?: string): void {
@@ -1982,6 +2023,10 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
     return [];
   }
 
+  if (getBindingName(attr.name) === "ref") {
+    return [];
+  }
+
   if (isObjectBindAttr(attr) || isObjectOnAttr(attr)) {
     return [];
   }
@@ -2022,10 +2067,6 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
   const bindingName = getBindingName(attr.name);
 
   if (bindingName) {
-    if (bindingName === "ref") {
-      throwTemplateError("Dynamic template refs are not supported yet; use ref=\"name\" with a ref object", context, attr.loc);
-    }
-
     const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     return [`get ${quotePropertyName(bindingName)}() { return unwrap(${expression}); }`];
   }

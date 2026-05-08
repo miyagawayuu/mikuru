@@ -248,7 +248,10 @@ Use `ref="name"` to assign a DOM element or child component instance to a ref ob
 ```mikuru
 <template>
   <input ref="inputEl">
+  <li v-for="item in items" ref="itemEls">{{ item.label }}</li>
   <TextField ref="field" />
+  <Dialog :ref="activeDialogRef" />
+  <button :ref="captureButton">Open</button>
 </template>
 
 <script>
@@ -256,11 +259,18 @@ import { ref } from "mikuru";
 import TextField from "./TextField.mikuru";
 
 const inputEl = ref(null);
+const itemEls = ref([]);
 const field = ref(null);
+const activeDialogRef = ref(null);
+const captureButton = (el) => {
+  // called with the element on mount and null on unmount
+};
 </script>
 ```
 
-DOM refs receive the rendered element. Component refs receive the object returned from the child component's `mount`. Mikuru clears the ref back to `null` when that element or component unmounts. Dynamic `:ref` is not supported in v1.
+DOM refs receive the rendered element. Component refs receive the object returned from the child component's `mount`. Mikuru clears a single ref back to `null` when that element or component unmounts.
+
+Inside `v-for`, repeated refs collect values in an array and remove stale entries during cleanup. Dynamic `:ref` can evaluate to a ref object or a callback function. Callback refs receive the value on mount and `null` on unmount.
 
 ## Props and Emits
 

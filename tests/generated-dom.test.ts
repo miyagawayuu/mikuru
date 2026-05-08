@@ -1631,6 +1631,74 @@ function read() {
     expect(storedRef.value).toBeNull();
   });
 
+  it("collects template refs inside v-for and removes stale entries", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="remove">Remove</button>
+    <ul>
+      <li v-for="item in items" ref="itemEls">{{ item }}</li>
+    </ul>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref(["one", "two", "three"]);
+const itemEls = ref([]);
+globalThis.__mikuruItemRefs = itemEls;
+
+function remove() {
+  items.value = ["one", "three"];
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const storedRef = (globalThis as unknown as { __mikuruItemRefs: { value: Element[] } }).__mikuruItemRefs;
+
+    expect(storedRef.value.map((item) => item.textContent)).toEqual(["one", "two", "three"]);
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(storedRef.value.map((item) => item.textContent)).toEqual(["one", "three"]);
+  });
+
+  it("supports dynamic template refs and callback refs", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input :ref="currentRef" value="dynamic">
+    <span :ref="capture">callback</span>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const currentRef = ref(null);
+const dynamicEl = ref(null);
+const callbackValues = ref([]);
+currentRef.value = dynamicEl;
+globalThis.__mikuruDynamicRef = dynamicEl;
+globalThis.__mikuruCallbackValues = callbackValues;
+
+function capture(value) {
+  callbackValues.value = [...callbackValues.value, value?.tagName ?? null];
+}
+</script>`);
+
+    const instance = fixture.module.mount(fixture.root);
+    const dynamicRef = (globalThis as unknown as { __mikuruDynamicRef: { value: Element | null } }).__mikuruDynamicRef;
+    const callbackValues = (globalThis as unknown as { __mikuruCallbackValues: { value: Array<string | null> } }).__mikuruCallbackValues;
+
+    expect(dynamicRef.value).toBe(fixture.root.querySelector("input"));
+    expect(callbackValues.value).toEqual(["SPAN"]);
+
+    instance.unmount();
+
+    expect(dynamicRef.value).toBeNull();
+    expect(callbackValues.value).toEqual(["SPAN", null]);
+  });
+
   it("toggles child component visibility with v-show", () => {
     const fixture = compileForDom(`<template>
   <section>

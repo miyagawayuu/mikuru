@@ -282,11 +282,14 @@ const attrs = { class: "bound", style: { color: "blue" } };
   it("generates template ref assignments and cleanup", () => {
     const result = compile(`<template><input ref="inputEl" /></template><script>const inputEl = ref(null);</script>`);
     const component = compile(`<template><Child ref="childRef" /></template><script>import Child from "./Child.mikuru"; const childRef = ref(null);</script>`);
+    const dynamic = compile(`<template><input :ref="currentRef" /></template><script>const currentRef = ref(null);</script>`);
+    const repeated = compile(`<template><ul><li v-for="item in items" ref="itemEls">{{ item }}</li></ul></template><script>const items = ref(["a"]); const itemEls = ref([]);</script>`);
 
-    expect(result.code).toContain("inputEl.value = el");
-    expect(result.code).toContain("inputEl.value = null");
-    expect(component.code).toContain("childRef.value = component");
-    expect(component.code).toContain("childRef.value = null");
+    expect(result.code).toContain("__mikuru_setRef(inputEl, el");
+    expect(component.code).toContain("__mikuru_setRef(childRef, component");
+    expect(dynamic.code).toContain("__mikuru_setRef(unwrap(currentRef), el");
+    expect(repeated.code).toContain("__mikuru_setRef(itemEls, el");
+    expect(repeated.code).toContain("true");
   });
 
   it("generates named slots and slot props", () => {
@@ -524,9 +527,6 @@ function setup() {
     expect(() => compile(`<template><1bad>Broken</1bad></template>`)).toThrow(/Invalid template tag name/);
     expect(() => compile(`<template><ul><li v-for="({ id }) in items">{{ id }}</li></ul></template>`)).toThrow(
       /Invalid v-for expression/
-    );
-    expect(() => compile(`<template><input :ref="inputEl" /></template><script>const inputEl = ref(null);</script>`)).toThrow(
-      /Dynamic template refs are not supported/
     );
     expect(() => compile(`<template><input ref="input.el" /></template><script>const input = ref(null);</script>`)).toThrow(
       /Template ref must be a simple identifier/
