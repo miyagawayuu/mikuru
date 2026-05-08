@@ -69,7 +69,7 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 ## Not Included In v1
 
 - SSR and hydration.
-- Transitions and devtools.
+- Devtools.
 - Dynamic components.
 - `v-html`.
 - Full Vue compatibility.

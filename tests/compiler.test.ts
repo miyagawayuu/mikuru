@@ -264,7 +264,7 @@ function select() {}
 
     expect(result.code).toContain("__mikuru_applyTransitionEnter");
     expect(result.code).toContain("__mikuru_removeNode");
-    expect(result.code).toContain("__mikuru_transitionName = transitionName");
+    expect(result.code).toContain("__mikuru_transition = transition");
     expect(result.code).toContain("\"fade\"");
   });
 

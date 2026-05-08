@@ -39,7 +39,7 @@ Supported in v1:
 - Named slots through `<slot name="header" />` and `<template #header>`.
 - Dynamic slot names through `<slot :name="name" />`, `<template v-slot:[name]>`, and `<template #[name]>`.
 - Slot props through bound `<slot>` attributes and slot scope bindings with aliases, default values, nested object destructuring, and top-level rest destructuring.
-- CSS class transitions through built-in `<Transition name="fade">`.
+- CSS class transitions through built-in `<Transition name="fade">`, including single children, `v-if` chains, dynamic components, and class override attributes.
 
 Unsupported in v1:
 
