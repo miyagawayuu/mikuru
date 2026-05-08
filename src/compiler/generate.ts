@@ -325,6 +325,7 @@ function generateComponent(
   }
   emitComponentFallthrough(context, node, componentVar, cleanupVar, indent);
   emit(context, indent, `${cleanupVar}.push(() => ${componentVar}.unmount());`);
+  emitTemplateRef(context, node, componentVar, cleanupVar, indent);
   appendNode(context, parentVar, fragmentVar, indent, beforeVar);
   return `${componentVar}.element`;
 }
@@ -546,12 +547,18 @@ function generateElement(
   }
 
   for (const attr of node.attrs) {
+    if (attr.name === "ref") {
+      continue;
+    }
+
     if (isDirectiveAttr(attr)) {
       continue;
     }
 
     emit(context, indent, `setAttribute(${elementVar}, ${quote(attr.name)}, ${quote(attr.value === true ? "" : attr.value)});`);
   }
+
+  emitTemplateRef(context, node, elementVar, cleanupVar, indent);
 
   for (const attr of node.attrs) {
     if (attr.name === "v-model") {
@@ -640,6 +647,10 @@ function generateElement(
     const bindingName = getBindingName(attr.name);
 
     if (bindingName) {
+      if (bindingName === "ref") {
+        throwTemplateError("Dynamic template refs are not supported yet; use ref=\"name\" with a ref object", context, attr.loc);
+      }
+
       const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
       const stopVar = nextVar(context, "stop");
       const valueExpression =
@@ -657,6 +668,42 @@ function generateElement(
 
   appendNode(context, parentVar, elementVar, indent, beforeVar);
   return elementVar;
+}
+
+function emitTemplateRef(
+  context: GenerateContext,
+  node: ElementNode,
+  valueExpression: string,
+  cleanupVar: string,
+  indent: number
+): void {
+  const refAttr = getTemplateRefAttr(node);
+
+  if (!refAttr) {
+    return;
+  }
+
+  const refName = requireTemplateRefName(context, refAttr);
+  emit(context, indent, `${refName}.value = ${valueExpression};`);
+  emit(context, indent, `${cleanupVar}.push(() => { if (${refName}.value === ${valueExpression}) { ${refName}.value = null; } });`);
+}
+
+function getTemplateRefAttr(node: ElementNode): TemplateAttribute | undefined {
+  return node.attrs.find((attr) => attr.name === "ref");
+}
+
+function requireTemplateRefName(context: GenerateContext, attr: TemplateAttribute): string {
+  if (attr.value === true || !attr.value.trim()) {
+    throwTemplateError("Template ref requires a ref object name, for example ref=\"inputEl\"", context, attr.loc);
+  }
+
+  const name = attr.value.trim();
+
+  if (!isIdentifier(name)) {
+    throwTemplateError("Template ref must be a simple identifier that points to a ref object", context, attr.valueLoc ?? attr.loc);
+  }
+
+  return name;
 }
 
 function generateText(
@@ -1876,6 +1923,10 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
     throwTemplateError("v-slot must be used on a <template> child in Mikuru", context, attr.loc);
   }
 
+  if (attr.name === "ref") {
+    return [];
+  }
+
   if (isObjectBindAttr(attr) || isObjectOnAttr(attr)) {
     return [];
   }
@@ -1907,6 +1958,10 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
   const bindingName = getBindingName(attr.name);
 
   if (bindingName) {
+    if (bindingName === "ref") {
+      throwTemplateError("Dynamic template refs are not supported yet; use ref=\"name\" with a ref object", context, attr.loc);
+    }
+
     const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     return [`get ${quotePropertyName(bindingName)}() { return unwrap(${expression}); }`];
   }

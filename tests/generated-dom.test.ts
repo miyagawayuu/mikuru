@@ -1486,6 +1486,95 @@ function toggle() {
     expect(span?.getAttribute("style")).toContain("font-size: 16px");
   });
 
+  it("assigns DOM template refs and clears them on unmount", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input ref="inputEl" value="ready">
+    <button @click="read">Read</button>
+    <p>{{ label }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const inputEl = ref(null);
+const label = ref("none");
+globalThis.__mikuruDomRef = inputEl;
+
+function read() {
+  label.value = inputEl.value?.tagName ?? "none";
+}
+</script>`);
+
+    const instance = fixture.module.mount(fixture.root);
+    const input = fixture.root.querySelector("input");
+    const button = fixture.root.querySelector("button");
+    const storedRef = (globalThis as unknown as { __mikuruDomRef: { value: Element | null } }).__mikuruDomRef;
+
+    expect(storedRef.value).toBe(input);
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("INPUT");
+
+    instance.unmount();
+
+    expect(storedRef.value).toBeNull();
+  });
+
+  it("assigns component template refs to child instances", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child ref="childRef" />
+    <button @click="read">Read</button>
+    <p>{{ label }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const childRef = ref(null);
+const label = ref("none");
+globalThis.__mikuruChildRef = childRef;
+
+const Child = {
+  mount(target) {
+    const span = document.createElement("span");
+    span.textContent = "child";
+    target.appendChild(span);
+    return {
+      element: span,
+      focus() {
+        label.value = "focused";
+      },
+      unmount() {
+        span.remove();
+      }
+    };
+  }
+};
+
+function read() {
+  label.value = childRef.value?.element?.textContent ?? "none";
+}
+</script>`);
+
+    const instance = fixture.module.mount(fixture.root);
+    const storedRef = (globalThis as unknown as { __mikuruChildRef: { value: { element: Element } | null } }).__mikuruChildRef;
+
+    expect(storedRef.value?.element).toBe(fixture.root.querySelector("span"));
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("child");
+
+    instance.unmount();
+
+    expect(storedRef.value).toBeNull();
+  });
+
   it("passes component event handlers as onEvent props", () => {
     const fixture = compileForDom(`<template>
   <section>

@@ -155,6 +155,17 @@ button {
 - 式は `ref` を指す識別子を想定し、生成コードでは `refName.value` へ書き戻す。
 - radio、複数選択select、修飾子は後続課題にする。
 
+### Template refs
+
+```mikuru
+<input ref="inputEl" />
+<Child ref="childRef" />
+```
+
+`ref="name"` は、`<script>` で宣言した `ref(null)` などのrefオブジェクトへ値を代入する。DOM要素では生成されたelement、子コンポーネントでは `mount` が返したinstanceが入る。対象がunmountされると `null` に戻る。
+
+v1では静的な `ref="name"` のみ対応する。`:ref="expr"` や複雑なパス指定は未対応。
+
 ### 条件分岐
 
 ```mikuru
