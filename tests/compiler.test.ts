@@ -363,9 +363,10 @@ const activeSlot = "header";
   it("generates slot scope destructuring defaults", () => {
     const result = compile(`<template>
   <Panel>
-    <template #default="{ title = 'Untitled', count: total = 0 }">
+    <template #default="{ title = 'Untitled', count: total = 0, item: { label, meta: { tone = 'calm' } }, ...rest }">
       <h2>{{ title }}</h2>
       <p>{{ total }}</p>
+      <strong>{{ label }}:{{ tone }}:{{ rest.extra }}</strong>
     </template>
   </Panel>
 </template>
@@ -374,6 +375,9 @@ const activeSlot = "header";
     expect(result.code).toContain("const value = slotProps");
     expect(result.code).toContain("return value === undefined ? ('Untitled') : value");
     expect(result.code).toContain("return value === undefined ? (0) : value");
+    expect(result.code).toContain(".item?.label");
+    expect(result.code).toContain(".item?.meta?.tone");
+    expect(result.code).toContain("delete rest[\"title\"]");
   });
 
   it("rejects DOM-only event modifiers on component events", () => {
@@ -543,6 +547,12 @@ function setup() {
     expect(() => compile(`<template><input ref="input.el" /></template><script>const input = ref(null);</script>`)).toThrow(
       /Template ref must be a simple identifier/
     );
+    expect(() =>
+      compile(`<template><Panel><template #default="{ items: [first] }">{{ first }}</template></Panel></template><script>import Panel from "./Panel.mikuru";</script>`)
+    ).toThrow(/nested object patterns only/);
+    expect(() =>
+      compile(`<template><Panel><template #default="{ ...rest: alias }">{{ alias }}</template></Panel></template><script>import Panel from "./Panel.mikuru";</script>`)
+    ).toThrow(/rest destructuring must use a simple identifier/);
   });
 
   it("reports filename, line, column, and frame for unsupported v1 syntax", () => {
@@ -607,7 +617,7 @@ const count = 0;
     ).toThrow(/Duplicate slot template: header/);
     expect(() =>
       compile(`<template><Panel><template #default="{ title: heading: bad }">Bad</template></Panel></template>`)
-    ).toThrow(/Slot scope destructuring only supports identifiers, simple aliases, and default values/);
+    ).toThrow(/Unsupported slot scope binding/);
   });
 
   it("adds generated source URLs in Vite debug mode", async () => {

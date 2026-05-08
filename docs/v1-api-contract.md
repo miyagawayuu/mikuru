@@ -38,7 +38,7 @@ Supported in v1:
 - Default slots through `<slot />`.
 - Named slots through `<slot name="header" />` and `<template #header>`.
 - Dynamic slot names through `<slot :name="name" />`, `<template v-slot:[name]>`, and `<template #[name]>`.
-- Slot props through bound `<slot>` attributes and slot scope bindings with simple aliases and default values.
+- Slot props through bound `<slot>` attributes and slot scope bindings with aliases, default values, nested object destructuring, and top-level rest destructuring.
 
 Unsupported in v1:
 

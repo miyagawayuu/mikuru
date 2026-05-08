@@ -351,8 +351,9 @@ Use `<slot name="header" />` in a child component and `<template #header>` or `<
 ```mikuru
 <!-- Parent -->
 <Panel>
-  <template #header="{ title }">
+  <template #header="{ item: { title, meta: { tone = 'calm' } }, ...rest }">
     <h2>{{ title }}</h2>
+    <p>{{ tone }} - {{ rest.detail }}</p>
   </template>
 </Panel>
 ```
@@ -369,6 +370,8 @@ Use `<slot name="header" />` in a child component and `<template #header>` or `<
   </section>
 </template>
 ```
+
+Slot scope bindings support an identifier for the whole props object, simple object destructuring, aliases, default values, nested object destructuring, and top-level rest destructuring. Array patterns, computed keys, and mixed nested patterns are intentionally rejected with compile errors.
 
 Slot scope bindings support an identifier such as `slotProps` or object destructuring such as `{ title }`, `{ title: heading }`, `{ title = "Untitled" }`, and `{ title: heading = "Untitled" }`.
 

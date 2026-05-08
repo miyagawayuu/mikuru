@@ -94,7 +94,8 @@ type SlotTemplateDirective = {
 
 type SlotScopeBinding =
   | { kind: "props"; alias: string }
-  | { kind: "property"; source: string; alias: string; defaultValue?: string };
+  | { kind: "property"; path: string[]; alias: string; defaultValue?: string }
+  | { kind: "rest"; alias: string; exclude: string[] };
 
 export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   const context: GenerateContext = {
@@ -1292,6 +1293,86 @@ function withTemplateRefMode<T>(context: GenerateContext, mode: "single" | "arra
   }
 }
 
+function splitTopLevel(source: string, delimiter: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quoteChar = "";
+  let start = 0;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!;
+    const previous = source[index - 1];
+
+    if (quoteChar) {
+      if (char === quoteChar && previous !== "\\") {
+        quoteChar = "";
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      quoteChar = char;
+      continue;
+    }
+
+    if (char === "{" || char === "[" || char === "(") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" || char === "]" || char === ")") {
+      depth -= 1;
+      continue;
+    }
+
+    if (depth === 0 && char === delimiter) {
+      parts.push(source.slice(start, index));
+      start = index + 1;
+    }
+  }
+
+  parts.push(source.slice(start));
+  return parts;
+}
+
+function findTopLevelToken(source: string, token: string): number {
+  let depth = 0;
+  let quoteChar = "";
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!;
+    const previous = source[index - 1];
+
+    if (quoteChar) {
+      if (char === quoteChar && previous !== "\\") {
+        quoteChar = "";
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      quoteChar = char;
+      continue;
+    }
+
+    if (char === "{" || char === "[" || char === "(") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" || char === "]" || char === ")") {
+      depth -= 1;
+      continue;
+    }
+
+    if (depth === 0 && char === token) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 function appendNode(context: GenerateContext, parentVar: string, nodeVar: string, indent: number, beforeVar?: string): void {
   if (beforeVar) {
     emit(context, indent, `${parentVar}.insertBefore(${nodeVar}, ${beforeVar});`);
@@ -1999,13 +2080,27 @@ function emitSlotScopeBindings(context: GenerateContext, slot: SlotDefinition, s
       continue;
     }
 
-    if (binding.defaultValue) {
-      emit(context, indent, `const ${binding.alias} = { get value() { const value = ${slotPropsVar}.${binding.source}; return value === undefined ? (${binding.defaultValue}) : value; } };`);
+    if (binding.kind === "rest") {
+      emit(context, indent, `const ${binding.alias} = { get value() { const rest = { ...${slotPropsVar} }; ${binding.exclude.map((key) => `delete rest[${quote(key)}];`).join(" ")} return rest; } };`);
       continue;
     }
 
-    emit(context, indent, `const ${binding.alias} = { get value() { return ${slotPropsVar}.${binding.source}; } };`);
+    const valueExpression = slotScopePathExpression(slotPropsVar, binding.path);
+
+    if (binding.defaultValue) {
+      emit(context, indent, `const ${binding.alias} = { get value() { const value = ${valueExpression}; return value === undefined ? (${binding.defaultValue}) : value; } };`);
+      continue;
+    }
+
+    emit(context, indent, `const ${binding.alias} = { get value() { return ${valueExpression}; } };`);
   }
+}
+
+function slotScopePathExpression(rootVar: string, path: string[]): string {
+  return path.reduce((expression, key, index) => {
+    const property = /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${quote(key)}]`;
+    return `${expression}${index === 0 ? property : `?.${property.slice(1)}`}`;
+  }, rootVar);
 }
 
 function collectComponentSlots(context: GenerateContext, node: ElementNode): SlotDefinition[] {
@@ -2138,23 +2233,127 @@ function parseSlotScopeBindings(scope: string | true, context: GenerateContext, 
     return [];
   }
 
-  return body.split(",").map((part) => {
-    const sourcePart = part.trim();
-    const match = /^([A-Za-z_$][\w$]*)(?:\s*:\s*([A-Za-z_$][\w$]*))?(?:\s*=\s*(.+))?$/.exec(sourcePart);
+  return parseSlotScopeObjectPattern(body, context, location, []);
+}
 
-    if (!match) {
-      throwTemplateError("Slot scope destructuring only supports identifiers, simple aliases, and default values", context, location);
+function parseSlotScopeObjectPattern(
+  body: string,
+  context: GenerateContext,
+  location: SourceLocation | undefined,
+  pathPrefix: string[]
+): SlotScopeBinding[] {
+  const bindings: SlotScopeBinding[] = [];
+  const excludedTopLevelKeys: string[] = [];
+
+  for (const part of splitTopLevel(body, ",")) {
+    const sourcePart = part.trim();
+
+    if (!sourcePart) {
+      continue;
     }
 
+    if (sourcePart.startsWith("...")) {
+      const alias = sourcePart.slice(3).trim();
+
+      if (pathPrefix.length > 0) {
+        throwTemplateError("Slot scope rest destructuring is only supported at the top level", context, location);
+      }
+
+      if (!isIdentifier(alias)) {
+        throwTemplateError("Slot scope rest destructuring must use a simple identifier like ...rest", context, location);
+      }
+
+      bindings.push({ kind: "rest", alias, exclude: excludedTopLevelKeys });
+      continue;
+    }
+
+    const { left, right } = splitSlotScopeEntry(sourcePart, context, location);
+
+    if (!isIdentifier(left)) {
+      throwTemplateError(`Unsupported slot scope key "${left}". Use identifier keys in slot scope destructuring`, context, location);
+    }
+
+    if (pathPrefix.length === 0) {
+      excludedTopLevelKeys.push(left);
+    }
+
+    const path = [...pathPrefix, left];
+
+    if (right === undefined) {
+      bindings.push(...slotScopeLeafBindings(left, path, context, location));
+      continue;
+    }
+
+    const value = right.trim();
+
+    if (value.startsWith("{") && value.endsWith("}")) {
+      bindings.push(...parseSlotScopeObjectPattern(value.slice(1, -1), context, location, path));
+      continue;
+    }
+
+    if (value.startsWith("[") || value.includes("{")) {
+      throwTemplateError("Slot scope destructuring supports nested object patterns only; array and mixed patterns are not supported", context, location);
+    }
+
+    bindings.push(...slotScopeLeafBindings(value, path, context, location));
+  }
+
+  return bindings;
+}
+
+function splitSlotScopeEntry(
+  source: string,
+  context: GenerateContext,
+  location: SourceLocation | undefined
+): { left: string; right?: string } {
+  const colonIndex = findTopLevelToken(source, ":");
+
+  if (colonIndex >= 0) {
     return {
-      kind: "property",
-      source: match[1],
-      alias: match[2] ?? match[1],
-      defaultValue: match[3]
-        ? compileTemplateExpression(match[3].trim(), "slot scope default", toExpressionContext(context, location))
-        : undefined
+      left: source.slice(0, colonIndex).trim(),
+      right: source.slice(colonIndex + 1).trim()
     };
-  });
+  }
+
+  const equalsIndex = findTopLevelToken(source, "=");
+
+  if (equalsIndex >= 0) {
+    const left = source.slice(0, equalsIndex).trim();
+
+    if (!isIdentifier(left)) {
+      throwTemplateError("Slot scope default values can only be assigned to simple identifiers", context, location);
+    }
+
+    return { left, right: source };
+  }
+
+  return { left: source.trim() };
+}
+
+function slotScopeLeafBindings(
+  source: string,
+  path: string[],
+  context: GenerateContext,
+  location: SourceLocation | undefined
+): SlotScopeBinding[] {
+  const equalsIndex = findTopLevelToken(source, "=");
+  const localSource = equalsIndex >= 0 ? source.slice(0, equalsIndex).trim() : source.trim();
+  const defaultSource = equalsIndex >= 0 ? source.slice(equalsIndex + 1).trim() : undefined;
+
+  if (!isIdentifier(localSource)) {
+    throwTemplateError(`Unsupported slot scope binding "${source}". Use identifiers, aliases, defaults, nested objects, or top-level ...rest`, context, location);
+  }
+
+  return [
+    {
+      kind: "property",
+      path,
+      alias: localSource,
+      defaultValue: defaultSource
+        ? compileTemplateExpression(defaultSource, "slot scope default", toExpressionContext(context, location))
+        : undefined
+    }
+  ];
 }
 
 function emitSlotOutletProps(context: GenerateContext, node: ElementNode, propsVar: string, indent: number): void {

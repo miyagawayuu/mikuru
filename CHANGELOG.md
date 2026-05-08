@@ -22,7 +22,7 @@
 - Added `useAttrs()` and `defineOptions({ inheritAttrs: false })` for manual fallthrough attribute forwarding.
 - Added template refs with `ref="name"`, dynamic `:ref`, callback refs, and `v-for` ref arrays for DOM elements and child component instances.
 - Added dynamic slot names for `<slot :name>`, `<template v-slot:[name]>`, and `<template #[name]>`.
-- Added default values for slot scope destructuring.
+- Added default values, nested object destructuring, top-level rest destructuring, and clearer errors for slot scope destructuring.
 
 ## 1.0.15 - 2026-05-07
 
