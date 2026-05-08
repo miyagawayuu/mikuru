@@ -135,7 +135,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Attribute bindings with normalized `:class` and `:style`
 - `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
 - `v-model` for common form controls and child components
-- Component props, events, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props
+- Component props, events, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
 - Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, and `inject`
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
 - Style injection and basic `<style scoped>` selector rewriting

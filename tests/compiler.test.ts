@@ -300,6 +300,22 @@ const activeSlot = "header";
     expect(child.code).toContain("props.slots?.[slotName");
   });
 
+  it("generates slot scope destructuring defaults", () => {
+    const result = compile(`<template>
+  <Panel>
+    <template #default="{ title = 'Untitled', count: total = 0 }">
+      <h2>{{ title }}</h2>
+      <p>{{ total }}</p>
+    </template>
+  </Panel>
+</template>
+<script>import Panel from "./Panel.mikuru";</script>`);
+
+    expect(result.code).toContain("const value = slotProps");
+    expect(result.code).toContain("return value === undefined ? ('Untitled') : value");
+    expect(result.code).toContain("return value === undefined ? (0) : value");
+  });
+
   it("rejects DOM-only event modifiers on component events", () => {
     expect(() =>
       compile(`<template><Child @select.stop="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`, {
@@ -530,8 +546,8 @@ const count = 0;
       compile(`<template><Panel><template #header>One</template><template v-slot:header>Two</template></Panel></template>`)
     ).toThrow(/Duplicate slot template: header/);
     expect(() =>
-      compile(`<template><Panel><template #default="{ title = 'x' }">Bad</template></Panel></template>`)
-    ).toThrow(/Slot scope destructuring only supports identifiers and simple aliases/);
+      compile(`<template><Panel><template #default="{ title: heading: bad }">Bad</template></Panel></template>`)
+    ).toThrow(/Slot scope destructuring only supports identifiers, simple aliases, and default values/);
   });
 
   it("adds generated source URLs in Vite debug mode", async () => {

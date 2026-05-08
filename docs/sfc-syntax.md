@@ -223,7 +223,7 @@ function select(value) {
 
 子要素はdefault slotとして `props.children` に渡される。子コンポーネント側では `<slot />` の位置に親から渡されたDOM断片を描画する。
 
-子コンポーネント側では `<slot name="header" />` でnamed slotを描画する。親コンポーネント側では `<template #header>` または `<template v-slot:header>` で渡す。動的なslot名は子側の `<slot :name="activeSlot" />` と親側の `<template v-slot:[activeSlot]>` / `<template #[activeSlot]>` で扱う。`<slot name="header" :title="title" />` のようにslot propsを渡し、親側では `<template #header="{ title }">` のような識別子または単純な分割代入で受け取る。親がslotを渡さない場合は、`<slot>Fallback</slot>` の子要素をfallbackとして描画する。
+子コンポーネント側では `<slot name="header" />` でnamed slotを描画する。親コンポーネント側では `<template #header>` または `<template v-slot:header>` で渡す。動的なslot名は子側の `<slot :name="activeSlot" />` と親側の `<template v-slot:[activeSlot]>` / `<template #[activeSlot]>` で扱う。`<slot name="header" :title="title" />` のようにslot propsを渡し、親側では `<template #header="{ title }">`、`<template #header="{ title: heading }">`、`<template #header="{ title = 'Untitled' }">` のような識別子、単純な分割代入、default値つき分割代入で受け取る。親がslotを渡さない場合は、`<slot>Fallback</slot>` の子要素をfallbackとして描画する。
 
 制約:
 
