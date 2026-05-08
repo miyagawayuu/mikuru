@@ -142,10 +142,11 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 2, "setTimeout(finish, 50);");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_applyTransitionEnter = (element, name) => {");
-  emit(context, 2, "if (!element || element.nodeType !== 1 || !name) { return; }");
-  emit(context, 2, "const from = `${name}-enter-from`;");
-  emit(context, 2, "const active = `${name}-enter-active`;");
-  emit(context, 2, "const to = `${name}-enter-to`;");
+  emit(context, 2, "const transition = typeof name === \"object\" ? name : { name };");
+  emit(context, 2, "if (!element || element.nodeType !== 1 || !transition.name) { return; }");
+  emit(context, 2, "const from = transition.enterFromClass || `${transition.name}-enter-from`;");
+  emit(context, 2, "const active = transition.enterActiveClass || `${transition.name}-enter-active`;");
+  emit(context, 2, "const to = transition.enterToClass || `${transition.name}-enter-to`;");
   emit(context, 2, "element.classList.add(from, active);");
   emit(context, 2, "__mikuru_transitionFrame(() => {");
   emit(context, 3, "element.classList.remove(from);");
@@ -155,12 +156,12 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_removeNode = (node) => {");
   emit(context, 2, "if (!node || !node.parentNode) { return; }");
-  emit(context, 2, "if (node.nodeType !== 1 || !node.__mikuru_transitionName || node.__mikuru_transitionLeaving) { node.remove(); return; }");
+  emit(context, 2, "if (node.nodeType !== 1 || !node.__mikuru_transition || node.__mikuru_transitionLeaving) { node.remove(); return; }");
   emit(context, 2, "node.__mikuru_transitionLeaving = true;");
-  emit(context, 2, "const name = node.__mikuru_transitionName;");
-  emit(context, 2, "const from = `${name}-leave-from`;");
-  emit(context, 2, "const active = `${name}-leave-active`;");
-  emit(context, 2, "const to = `${name}-leave-to`;");
+  emit(context, 2, "const transition = node.__mikuru_transition;");
+  emit(context, 2, "const from = transition.leaveFromClass || `${transition.name}-leave-from`;");
+  emit(context, 2, "const active = transition.leaveActiveClass || `${transition.name}-leave-active`;");
+  emit(context, 2, "const to = transition.leaveToClass || `${transition.name}-leave-to`;");
   emit(context, 2, "node.classList.add(from, active);");
   emit(context, 2, "__mikuru_transitionFrame(() => {");
   emit(context, 3, "node.classList.remove(from);");
@@ -325,14 +326,20 @@ function generateTransition(
 ): string {
   validateTransitionAttributes(context, node);
   const children = getTransitionChildren(context, node);
-  const nameExpression = getTransitionNameExpression(context, node);
-  const childVar = generateNode(context, children[0], parentVar, cleanupVar, indent, beforeVar);
-  const transitionNameVar = nextVar(context, "transitionName");
-  emit(context, indent, `const ${transitionNameVar} = String(unwrap(${nameExpression}) ?? "v");`);
-  emit(context, indent, `if (${childVar}?.nodeType === 1) {`);
-  emit(context, indent + 1, `${childVar}.__mikuru_transitionName = ${transitionNameVar};`);
-  emit(context, indent + 1, `__mikuru_applyTransitionEnter(${childVar}, ${transitionNameVar});`);
-  emit(context, indent, "}");
+  const transitionVar = nextVar(context, "transition");
+  emit(context, indent, `const ${transitionVar} = ${getTransitionOptionsExpression(context, node)};`);
+  const child = children[0];
+
+  if (getStringAttr(child, "v-if")) {
+    return generateIfChain(context, getTransitionBranches(context, children), parentVar, cleanupVar, indent, beforeVar, transitionVar);
+  }
+
+  if (child.tag === "component") {
+    return generateDynamicComponent(context, child, parentVar, cleanupVar, indent, beforeVar, transitionVar);
+  }
+
+  const childVar = generateNode(context, child, parentVar, cleanupVar, indent, beforeVar);
+  emitTransitionRegistration(context, childVar, transitionVar, indent);
   return childVar;
 }
 
@@ -440,7 +447,8 @@ function generateDynamicComponent(
   parentVar: string,
   cleanupVar: string,
   indent: number,
-  beforeVar?: string
+  beforeVar?: string,
+  transitionVar?: string
 ): string {
   const isAttr = node.attrs.find((attr) => getBindingName(attr.name) === "is");
 
@@ -497,6 +505,9 @@ function generateDynamicComponent(
   emit(context, indent + 1, `${branchCleanupVar}.push(() => ${componentVar}.unmount());`);
   emitTemplateRef(context, dynamicNode, componentVar, branchCleanupVar, indent + 1);
   appendNode(context, parentVar, fragmentVar, indent + 1, endVar);
+  if (transitionVar) {
+    emitTransitionRegistration(context, `${componentVar}.element`, transitionVar, indent + 1);
+  }
   emit(context, indent + 1, `${currentTypeVar} = ${componentTypeVar};`);
   emit(context, indent + 1, `${currentInstanceVar} = ${componentVar};`);
   emit(context, indent, "});");
@@ -1222,7 +1233,8 @@ function generateIfChain(
   parentVar: string,
   cleanupVar: string,
   indent: number,
-  beforeVar?: string
+  beforeVar?: string,
+  transitionVar?: string
 ): string {
   const startVar = nextVar(context, "ifStart");
   const endVar = nextVar(context, "ifEnd");
@@ -1249,7 +1261,10 @@ function generateIfChain(
       emit(context, indent + 1, `${branchIndex === 0 ? "if" : "else if"} (unwrap(${condition})) {`);
     }
 
-    generateNode(context, withoutAttrs(branch.node, ["v-if", "v-else-if", "v-else"]), parentVar, branchCleanupVar, indent + 2, endVar);
+    const branchVar = generateNode(context, withoutAttrs(branch.node, ["v-if", "v-else-if", "v-else"]), parentVar, branchCleanupVar, indent + 2, endVar);
+    if (transitionVar) {
+      emitTransitionRegistration(context, branchVar, transitionVar, indent + 2);
+    }
     emit(context, indent + 1, "}");
   });
 
@@ -1425,6 +1440,14 @@ function emitRemoveBetween(context: GenerateContext, indent: number, startVar: s
   emit(context, indent + 1, `const ${nextVarName} = ${currentVar}.nextSibling;`);
   emit(context, indent + 1, `__mikuru_removeNode(${currentVar});`);
   emit(context, indent + 1, `${currentVar} = ${nextVarName};`);
+  emit(context, indent, "}");
+}
+
+function emitTransitionRegistration(context: GenerateContext, nodeVar: string, transitionVar: string, indent: number): void {
+  emit(context, indent, `if (${nodeVar}?.nodeType === 1) {`);
+  emit(context, indent + 1, `${nodeVar}.__mikuru_transition = ${transitionVar};`);
+  emit(context, indent + 1, `${nodeVar}.__mikuru_transitionLeaving = false;`);
+  emit(context, indent + 1, `__mikuru_applyTransitionEnter(${nodeVar}, ${transitionVar});`);
   emit(context, indent, "}");
 }
 
@@ -2622,30 +2645,105 @@ function hasMeaningfulTemplateChildren(children: TemplateNode[]): boolean {
 function getTransitionChildren(context: GenerateContext, node: ElementNode): ElementNode[] {
   const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
 
-  if (meaningful.length !== 1 || meaningful[0].type !== "element") {
-    throwTemplateError("<Transition> requires exactly one element or component child", context, node.loc);
+  if (meaningful.length === 0 || meaningful.some((child) => child.type !== "element")) {
+    throwTemplateError("<Transition> requires exactly one element/component child or one v-if chain", context, node.loc);
   }
 
-  return [meaningful[0]];
+  const children = meaningful as ElementNode[];
+  const first = children[0];
+
+  if (children.length === 1) {
+    return children;
+  }
+
+  if (!getStringAttr(first, "v-if")) {
+    throwTemplateError("<Transition> requires exactly one element/component child or one v-if chain", context, node.loc);
+  }
+
+  for (const child of children.slice(1)) {
+    if (!getStringAttr(child, "v-else-if") && !hasAttr(child, "v-else")) {
+      throwTemplateError("<Transition> only accepts multiple children when they form a v-if chain", context, child.loc);
+    }
+  }
+
+  return children;
 }
 
-function getTransitionNameExpression(context: GenerateContext, node: ElementNode): string {
-  const dynamicName = node.attrs.find((attr) => getBindingName(attr.name) === "name");
+function getTransitionBranches(context: GenerateContext, children: ElementNode[]): IfBranch[] {
+  return children.map((child, index) => {
+    if (index === 0) {
+      return { node: child, condition: getStringAttr(child, "v-if"), directive: "v-if" };
+    }
 
-  if (dynamicName) {
-    return compileTemplateExpression(requireAttrValue(dynamicName), dynamicName.name, toExpressionContext(context, dynamicName.valueLoc));
+    const elseIfExpression = getStringAttr(child, "v-else-if");
+
+    if (elseIfExpression) {
+      return { node: child, condition: elseIfExpression, directive: "v-else-if" };
+    }
+
+    validateElseAttribute(child, context);
+    return { node: child, directive: "v-else" };
+  });
+}
+
+function getTransitionOptionsExpression(context: GenerateContext, node: ElementNode): string {
+  const entries = [`name: String(unwrap(${getTransitionAttrExpression(context, node, "name", "v")}) ?? "v")`];
+  const classAttrs = [
+    ["enter-from-class", "enterFromClass"],
+    ["enter-active-class", "enterActiveClass"],
+    ["enter-to-class", "enterToClass"],
+    ["leave-from-class", "leaveFromClass"],
+    ["leave-active-class", "leaveActiveClass"],
+    ["leave-to-class", "leaveToClass"]
+  ] as const;
+
+  for (const [attrName, optionName] of classAttrs) {
+    const expression = getTransitionAttrExpression(context, node, attrName);
+
+    if (expression) {
+      entries.push(`${optionName}: String(unwrap(${expression}) ?? "")`);
+    }
   }
 
-  return quote(getStaticAttrValue(node, "name") ?? "v");
+  return `{ ${entries.join(", ")} }`;
+}
+
+function getTransitionAttrExpression(context: GenerateContext, node: ElementNode, name: string, fallback?: string): string | undefined {
+  const dynamicAttr = node.attrs.find((attr) => getBindingName(attr.name) === name);
+
+  if (dynamicAttr) {
+    return compileTemplateExpression(requireAttrValue(dynamicAttr), dynamicAttr.name, toExpressionContext(context, dynamicAttr.valueLoc));
+  }
+
+  const staticValue = getStaticAttrValue(node, name);
+
+  if (staticValue !== undefined) {
+    return quote(staticValue);
+  }
+
+  return fallback === undefined ? undefined : quote(fallback);
 }
 
 function validateTransitionAttributes(context: GenerateContext, node: ElementNode): void {
+  const supported = new Set([
+    "name",
+    "appear",
+    "enter-from-class",
+    "enter-active-class",
+    "enter-to-class",
+    "leave-from-class",
+    "leave-active-class",
+    "leave-to-class"
+  ]);
+
   for (const attr of node.attrs) {
-    if (attr.name === "name" || getBindingName(attr.name) === "name") {
+    const name = getBindingName(attr.name) ?? attr.name;
+
+    if (supported.has(name)) {
       continue;
     }
 
-    throwTemplateError(`<Transition> only supports name in v1`, context, attr.loc);
+    throwTemplateError(`<Transition> only supports name, appear, and CSS class override attributes in v1`, context, attr.loc);
   }
 }
 

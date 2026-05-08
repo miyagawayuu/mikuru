@@ -2080,6 +2080,101 @@ function hide() {
     expect(fixture.root.querySelector("p")).toBeNull();
   });
 
+  it("transitions v-if branches", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Transition name="fade">
+      <p v-if="visible">Visible</p>
+      <p v-else>Hidden</p>
+    </Transition>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+
+function toggle() {
+  visible.value = !visible.value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Visible");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    const paragraphs = [...fixture.root.querySelectorAll("p")];
+    expect(paragraphs.map((paragraph) => paragraph.textContent)).toEqual(["Visible", "Hidden"]);
+    expect(paragraphs[0]?.classList.contains("fade-leave-active")).toBe(true);
+    expect(paragraphs[1]?.classList.contains("fade-enter-active")).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect([...fixture.root.querySelectorAll("p")].map((paragraph) => paragraph.textContent)).toEqual(["Hidden"]);
+  });
+
+  it("transitions dynamic component switches and custom classes", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Transition
+      name="fade"
+      enter-active-class="is-entering"
+      leave-active-class="is-leaving"
+    >
+      <component :is="current" />
+    </Transition>
+    <button @click="swap">Swap</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+function createChild(name) {
+  return {
+    mount(target) {
+      const article = document.createElement("article");
+      article.textContent = name;
+      target.appendChild(article);
+      return {
+        element: article,
+        unmount() {}
+      };
+    }
+  };
+}
+
+const First = createChild("first");
+const Second = createChild("second");
+const current = ref(First);
+
+function swap() {
+  current.value = Second;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    let articles = [...fixture.root.querySelectorAll("article")];
+
+    expect(articles.map((article) => article.textContent)).toEqual(["first"]);
+    expect(articles[0]?.classList.contains("is-entering")).toBe(true);
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    articles = [...fixture.root.querySelectorAll("article")];
+
+    expect(articles.map((article) => article.textContent)).toEqual(["first", "second"]);
+    expect(articles[0]?.classList.contains("is-leaving")).toBe(true);
+    expect(articles[1]?.classList.contains("is-entering")).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect([...fixture.root.querySelectorAll("article")].map((article) => article.textContent)).toEqual(["second"]);
+  });
+
   it("passes component v-model as modelValue and update handler props", () => {
     const fixture = compileForDom(`<template>
   <section>

@@ -351,13 +351,17 @@ defineOptions({ inheritAttrs: false });
 </template>
 ```
 
-`<Transition>` は1つのelementまたはcomponent childを受け取り、mount時に `fade-enter-from` / `fade-enter-active` / `fade-enter-to`、削除時に `fade-leave-from` / `fade-leave-active` / `fade-leave-to` を付け替える。`name` を省略すると `v` を使う。
+`<Transition>` は1つのelement/component child、または1つの `v-if` chainを受け取り、mount時に `fade-enter-from` / `fade-enter-active` / `fade-enter-to`、削除時に `fade-leave-from` / `fade-leave-active` / `fade-leave-to` を付け替える。`name` を省略すると `v` を使う。
 
 対応形式:
 
 - `<Transition><p>...</p></Transition>`
 - `<Transition name="fade">...</Transition>`
 - `<Transition :name="transitionName">...</Transition>`
+- `<Transition><p v-if="visible">...</p><p v-else>...</p></Transition>`
+- `<Transition><component :is="current" /></Transition>`
+- `enter-from-class` / `enter-active-class` / `enter-to-class`
+- `leave-from-class` / `leave-active-class` / `leave-to-class`
 
 ## v1で扱わない構文
 
