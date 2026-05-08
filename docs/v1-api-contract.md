@@ -40,6 +40,7 @@ Supported in v1:
 - Dynamic slot names through `<slot :name="name" />`, `<template v-slot:[name]>`, and `<template #[name]>`.
 - Slot props through bound `<slot>` attributes and slot scope bindings with aliases, default values, nested object destructuring, and top-level rest destructuring.
 - CSS class transitions through built-in `<Transition name="fade">`, including single children, `v-if` chains, dynamic components, and class override attributes.
+- Teleport through built-in `<Teleport to="#target">`, including dynamic `to` and `disabled`.
 
 Unsupported in v1:
 
@@ -57,6 +58,7 @@ Unsupported in v1:
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present.
 - Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `v-show`.
+- `defineAsyncComponent()` creates component objects from async loaders and supports loading and error fallback components.
 - Child component instances must return `{ element, unmount }` from `mount`.
 
 ## Router Contract

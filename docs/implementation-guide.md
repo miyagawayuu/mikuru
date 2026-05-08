@@ -276,6 +276,32 @@ Use `<component :is="Current" />` when the component type should come from state
 
 Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `v-show` behavior as explicit child component tags.
 
+Use `defineAsyncComponent()` when the component implementation should load later. The loading fallback renders until the loader resolves, and the error fallback receives `{ error, retry }` props if the loader rejects.
+
+```mikuru
+<template>
+  <AsyncPanel message="Hello" />
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const AsyncPanel = defineAsyncComponent({
+  loader: () => import("./Panel.mikuru"),
+  loadingComponent: LoadingPanel,
+  errorComponent: ErrorPanel
+});
+</script>
+```
+
+Use `<Teleport>` when content should render elsewhere in the document while staying owned by the current component.
+
+```mikuru
+<Teleport to="#modal-root" :disabled="inline">
+  <ModalDialog />
+</Teleport>
+```
+
 ## Fallthrough Attributes
 
 Use `useAttrs()` when a component needs to read fallthrough attributes or forward them to a non-root element. Use `defineOptions({ inheritAttrs: false })` to disable automatic root fallthrough.

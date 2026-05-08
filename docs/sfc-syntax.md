@@ -388,6 +388,40 @@ class overrideを使うと、複数のTransitionで同じCSS classを共有で�
 </Transition>
 ```
 
+### Teleport
+
+```mikuru
+<template>
+  <Teleport to="#modal-root" :disabled="inline">
+    <aside>Modal content</aside>
+  </Teleport>
+</template>
+```
+
+`<Teleport>` は子要素を現在のコンポーネントに所有させたまま、別のDOM位置へ描画する。`to` はCSS selector文字列または `Element` を受け取る。`disabled` がtruthyのときは元の位置へ描画する。
+
+対応形式:
+
+- `<Teleport to="#target">...</Teleport>`
+- `<Teleport :to="targetElement">...</Teleport>`
+- `<Teleport to="#target" :disabled="inline">...</Teleport>`
+
+### Async component
+
+```mikuru
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const AsyncPanel = defineAsyncComponent({
+  loader: () => import("./Panel.mikuru"),
+  loadingComponent: LoadingPanel,
+  errorComponent: ErrorPanel
+});
+</script>
+```
+
+`defineAsyncComponent()` は loader が解決するまで `loadingComponent` を描画し、reject時は `errorComponent` を描画する。`errorComponent` には `error` と `retry` propsを渡す。
+
 ## v1で扱わない構文
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`
