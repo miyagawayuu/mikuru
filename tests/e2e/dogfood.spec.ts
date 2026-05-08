@@ -9,6 +9,9 @@ test("dogfood app supports note and filter interactions", async ({ page }) => {
   await page.getByRole("button", { name: "Seed more notes" }).click();
   await expect(page.getByText("Keyed lists keep card identity")).toBeVisible();
   await expect(page.locator(".note-card")).toHaveCount(4);
+  await expect(page.getByText("Loading note stats...")).toBeVisible();
+  await expect(page.getByText("Async note stats")).toBeVisible();
+  await expect(page.getByText("Total: 4")).toBeVisible();
 
   await page.getByRole("button", { name: "Archived", exact: true }).click();
   await expect(page.locator(".note-card")).toHaveCount(1);
@@ -20,4 +23,18 @@ test("dogfood app supports note and filter interactions", async ({ page }) => {
 
   await page.getByLabel("Search").fill("scoped");
   await expect(page.getByText("Scoped CSS works for simple selectors")).toBeVisible();
+});
+
+test("dogfood app teleports the summary modal", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Open summary" }).click();
+
+  const modalRoot = page.locator("#modal-root");
+  await expect(modalRoot.getByRole("dialog")).toBeVisible();
+  await expect(modalRoot.getByText("Teleported summary")).toBeVisible();
+  await expect(modalRoot.getByText("2 active notes and 1 archived notes.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Close summary" }).click();
+  await expect(modalRoot.getByRole("dialog")).toHaveCount(0);
 });

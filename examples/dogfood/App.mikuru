@@ -2,10 +2,19 @@
   <main class="dogfood">
     <header>
       <h1>Dogfood Notes</h1>
-      <button @click="seedMore">Seed more notes</button>
+      <div class="header-actions">
+        <button @click="openSummary">Open summary</button>
+        <button @click="seedMore">Seed more notes</button>
+      </div>
     </header>
 
     <TextField label="Search" v-model="search" />
+
+    <AsyncStats
+      :total="notes.length"
+      :active="activeCount"
+      :archived="archivedCount"
+    />
 
     <nav class="filters">
       <button @click="showAll">All</button>
@@ -24,16 +33,51 @@
         <small>{{ note.statusLabel }}</small>
       </NoteCard>
     </section>
+
+    <Teleport to="#modal-root">
+      <section v-if="summaryOpen" class="summary-modal" role="dialog">
+        <div class="summary-card">
+          <strong>Teleported summary</strong>
+          <p>{{ activeCount }} active notes and {{ archivedCount }} archived notes.</p>
+          <button @click="closeSummary">Close summary</button>
+        </div>
+      </section>
+    </Teleport>
   </main>
 </template>
 
 <script>
-import { computed, ref } from "mikuru";
+import { computed, defineAsyncComponent, ref } from "mikuru";
 import TextField from "./TextField.mikuru";
 import NoteCard from "./NoteCard.mikuru";
 
+const LoadingStats = {
+  mount(target) {
+    const panel = document.createElement("aside");
+    panel.className = "stats-loading";
+    panel.textContent = "Loading note stats...";
+    target.appendChild(panel);
+    return {
+      element: panel,
+      unmount() {
+        panel.remove();
+      }
+    };
+  }
+};
+
+const AsyncStats = defineAsyncComponent({
+  loader: () => new Promise((resolve) => {
+    setTimeout(() => {
+      import("./StatsPanel.mikuru").then(resolve);
+    }, 300);
+  }),
+  loadingComponent: LoadingStats
+});
+
 const search = ref("");
 const filter = ref("all");
+const summaryOpen = ref(false);
 const notes = ref([
   {
     id: "parser",
@@ -76,6 +120,9 @@ const filteredNotes = computed(() => {
   });
 });
 
+const activeCount = computed(() => notes.value.filter((note) => !note.archived).length);
+const archivedCount = computed(() => notes.value.filter((note) => note.archived).length);
+
 function setArchived(id, archived) {
   notes.value = notes.value.map((note) =>
     note.id === id
@@ -114,6 +161,14 @@ function seedMore() {
   ];
 }
 
+function openSummary() {
+  summaryOpen.value = true;
+}
+
+function closeSummary() {
+  summaryOpen.value = false;
+}
+
 function showAll() {
   filter.value = "all";
 }
@@ -149,8 +204,41 @@ header,
   justify-content: flex-start;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .notes {
   display: grid;
   gap: 12px;
+}
+
+.stats-loading {
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #475569;
+  background: #f8fafc;
+}
+
+.summary-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.summary-card {
+  display: grid;
+  gap: 10px;
+  width: min(360px, 100%);
+  padding: 18px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22);
 }
 </style>
