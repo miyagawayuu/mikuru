@@ -130,13 +130,6 @@ function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemp
 }
 
 function rejectUnsupportedNodeFeatures(node: ElementNode, options: AnalyzeTemplateOptions): void {
-  if (node.tag === "component") {
-    throwTemplateError(
-      "Dynamic components are not supported in v1. Import and render an explicit component instead.",
-      node.loc,
-      options
-    );
-  }
 }
 
 function rejectUnsupportedAttribute(node: ElementNode, attr: TemplateAttribute, options: AnalyzeTemplateOptions): void {

@@ -243,6 +243,16 @@ Component events are passed as camel-cased handler props. For example:
 - `@toggle.once="handle"` wraps `props.onToggle` so it calls `handle` only once per child mount
 - `v-model` uses `props.onUpdateModelValue`
 
+Use `<component :is="Current" />` when the component type should come from state. `:is` must resolve to a Mikuru component object with `mount()`. When the value changes, Mikuru unmounts the previous component, cleans up its refs/fallthrough effects/slots, and mounts the next component in the same position.
+
+```mikuru
+<component :is="currentView" :message="message" @select="select">
+  <template #default="{ label }">{{ label }}</template>
+</component>
+```
+
+Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `v-show` behavior as explicit child component tags.
+
 ## Fallthrough Attributes
 
 Use `useAttrs()` when a component needs to read fallthrough attributes or forward them to a non-root element. Use `defineOptions({ inheritAttrs: false })` to disable automatic root fallthrough.

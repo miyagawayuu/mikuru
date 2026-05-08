@@ -345,7 +345,6 @@ defineOptions({ inheritAttrs: false });
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`
 - `v-html`
-- dynamic component
 - transition
 
 ## エラー方針
@@ -365,11 +364,7 @@ v1では、曖昧な構文を黙って無視しない。
 
 `v-html` はv1対象外。プレーンテキストなら補間を使い、HTMLを扱う場合はscript側でサニタイズ済みのDOM更新として明示する。
 
-```mikuru
-<component :is="current" />
-```
-
-動的コンポーネントはv1対象外。importした明示的なコンポーネントをテンプレートに書く。
+`<component :is="current" />` は、`current` が `mount()` を持つコンポーネントオブジェクトへ解決される場合に対応する。文字列タグ名への解決は対象外。
 
 ```mikuru
 <Panel v-slot:header>
