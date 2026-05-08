@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.16 - 2026-05-12
 
 - Added lazy route component support for `mikuru/router`.
 - Added loading and error fallback components for lazy routes.
