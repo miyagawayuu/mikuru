@@ -129,6 +129,7 @@ button {
 - `class`、`id`、`title` など通常属性は `setAttribute` で更新する。
 - `class` は文字列、数値、配列、オブジェクトを正規化する。オブジェクト形式ではtruthyなキーだけclass名にする。
 - `style` は文字列、数値、配列、オブジェクトを正規化する。オブジェクト形式ではcamelCaseキーをkebab-caseにし、CSS custom propertyはそのまま扱う。
+- 子コンポーネントの `class` / `style` は、子の `mount` が返す root element にfallthroughし、root側の既存値とマージする。通常属性、直接バインド、オブジェクト形式の `v-bind` が対象。
 - 値が `null`、`undefined`、`false` の場合は属性を削除する。
 - DOM propertyバインドと属性バインドの差はv1では扱わない。
 

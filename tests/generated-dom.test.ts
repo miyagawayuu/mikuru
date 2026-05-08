@@ -1397,6 +1397,72 @@ function increment() {
     expect(fixture.root.querySelector("section")).toBeNull();
   });
 
+  it("falls component class and style through to the child root", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child
+      class="parent"
+      :class="{ active }"
+      style="border-color: black"
+      :style="{ backgroundColor: active ? 'yellow' : 'white' }"
+      v-bind="attrs"
+    />
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const active = ref(false);
+const attrs = ref({
+  class: "bound",
+  style: { color: "red" }
+});
+
+const Child = {
+  mount(target) {
+    const span = document.createElement("span");
+    span.className = "child-root";
+    span.setAttribute("style", "font-weight: bold");
+    span.textContent = "child";
+    target.appendChild(span);
+    return {
+      element: span,
+      unmount() {
+        span.remove();
+      }
+    };
+  }
+};
+
+function toggle() {
+  active.value = true;
+  attrs.value = {
+    class: ["bound", "later"],
+    style: { color: "blue", fontSize: "16px" }
+  };
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const span = fixture.root.querySelector("span");
+    const button = fixture.root.querySelector("button");
+
+    expect(span?.className).toBe("child-root parent bound");
+    expect(span?.getAttribute("style")).toContain("font-weight: bold");
+    expect(span?.getAttribute("style")).toContain("border-color: black");
+    expect(span?.getAttribute("style")).toContain("background-color: white");
+    expect(span?.getAttribute("style")).toContain("color: red");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(span?.className).toBe("child-root parent active bound later");
+    expect(span?.getAttribute("style")).toContain("background-color: yellow");
+    expect(span?.getAttribute("style")).toContain("color: blue");
+    expect(span?.getAttribute("style")).toContain("font-size: 16px");
+  });
+
   it("passes component event handlers as onEvent props", () => {
     const fixture = compileForDom(`<template>
   <section>
