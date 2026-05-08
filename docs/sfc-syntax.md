@@ -118,11 +118,12 @@ button {
 ```mikuru
 <div :class="className" :id="itemId"></div>
 <div v-bind:class="className"></div>
+<div v-bind="attrs"></div>
 <div :class="['base', { active: isActive }]"></div>
 <div :style="[{ color }, { fontSize: size, '--tone': tone }]"></div>
 ```
 
-`:attr="expr"` と `v-bind:attr="expr"` は、依存値が変わったときに属性を更新する。
+`:attr="expr"` と `v-bind:attr="expr"` は、依存値が変わったときに属性を更新する。`v-bind="attrs"` はオブジェクトのkey/valueをまとめて属性へ反映し、消えたkeyは削除する。
 
 生成方針:
 
@@ -132,6 +133,14 @@ button {
 - 子コンポーネントのDOM向け属性は、子の `mount` が返す root element にfallthroughする。対象は `class`、`style`、`id`、`title`、`role`、`tabindex`、`lang`、`dir`、`hidden`、`aria-*`、`data-*`。通常属性、直接バインド、オブジェクト形式の `v-bind` が対象で、`class` / `style` はroot側の既存値とマージする。
 - 値が `null`、`undefined`、`false` の場合は属性を削除する。
 - DOM propertyバインドと属性バインドの差はv1では扱わない。
+
+### オブジェクトイベント
+
+```mikuru
+<button v-on="listeners">Save</button>
+```
+
+`v-on="listeners"` はオブジェクトのkeyをイベント名、valueをhandlerとして扱う。依存値が変わると古いlistenerを外して新しいlistenerを登録する。子コンポーネントでは `select` が `onSelect` のようなイベントpropsに変換される。
 
 ### テキスト入力
 
@@ -335,8 +344,6 @@ defineOptions({ inheritAttrs: false });
 ## v1で扱わない構文
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`
-- `v-bind` オブジェクト展開
-- `v-on` オブジェクト展開
 - `v-html`
 - dynamic component
 - transition
