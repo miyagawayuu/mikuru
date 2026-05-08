@@ -310,6 +310,26 @@ function flip() {
 - event名はcamelCase propsへ変換する。例: `"toggle"` -> `onToggle`、`"item-select"` -> `onItemSelect`
 - `update:modelValue` は `onUpdateModelValue` へ変換する。
 
+### Fallthrough attrs
+
+```mikuru
+<template>
+  <button v-bind="attrs"><slot /></button>
+</template>
+
+<script>
+const attrs = useAttrs();
+defineOptions({ inheritAttrs: false });
+</script>
+```
+
+`useAttrs()` は親から渡されたDOM向けfallthrough属性を読むコンパイル専用API。`defineOptions({ inheritAttrs: false })` を書くとroot elementへの自動fallthroughを止め、`v-bind="attrs"` で任意の要素へ手動forwardできる。
+
+対応形式:
+
+- `const attrs = useAttrs();`
+- `defineOptions({ inheritAttrs: false });`
+
 ## v1で扱わない構文
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`

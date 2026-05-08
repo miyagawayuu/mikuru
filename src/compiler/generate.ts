@@ -19,7 +19,9 @@ type ScriptParts = {
   imports: string[];
   runtimeImports: string[];
   body: string;
+  inheritAttrs: boolean;
   usesPropsAlias: boolean;
+  usesAttrsAlias: boolean;
   usesEmitAlias: boolean;
 };
 
@@ -44,6 +46,7 @@ type ScriptNode = {
   left?: ScriptNode;
   right?: ScriptNode;
   argument?: ScriptNode;
+  expression?: ScriptNode;
   elements?: Array<ScriptNode | null>;
   specifiers?: ScriptNode[];
   imported?: ScriptNode;
@@ -166,6 +169,10 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
       emit(context, 1, "const __mikuru_props = props;");
     }
 
+    if (script.usesAttrsAlias) {
+      emit(context, 1, "const __mikuru_attrs = props.__mikuru_attrs ?? {};");
+    }
+
     if (script.usesEmitAlias) {
       emit(context, 1, "const __mikuru_emit = (name, ...args) => {");
       emit(context, 2, "const handlerName = \"on\" + String(name).split(/[-:]/).filter(Boolean).map((part) => part[0].toUpperCase() + part.slice(1)).join(\"\");");
@@ -194,7 +201,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 1, "};");
   emit(context, 0, "}");
   emit(context, 0, "");
-  emit(context, 0, "const __mikuru_component = { mount };");
+  emit(context, 0, `const __mikuru_component = { mount${script.inheritAttrs ? "" : ", inheritAttrs: false"} };`);
   emit(context, 0, "export default __mikuru_component;");
 
   return `${context.lines.join("\n")}\n`;
@@ -331,17 +338,21 @@ function generateComponent(
   beforeVar?: string
 ): string {
   const fragmentVar = nextVar(context, "fragment");
+  const attrsVar = nextVar(context, "attrs");
   const propsVar = nextVar(context, "props");
   const componentVar = nextVar(context, "component");
   emit(context, indent, `const ${fragmentVar} = document.createDocumentFragment();`);
-  emitComponentProps(context, node, propsVar, indent);
+  emitComponentAttrs(context, node, attrsVar, indent);
+  emitComponentProps(context, node, propsVar, attrsVar, indent);
   emit(context, indent, `const ${componentVar} = ${node.tag}.mount(${fragmentVar}, ${propsVar});`);
   if (context.scopeAttr) {
     emit(context, indent, `if (${componentVar}.element?.nodeType === 1) {`);
     emit(context, indent + 1, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
     emit(context, indent, "}");
   }
-  emitComponentFallthrough(context, node, componentVar, cleanupVar, indent);
+  emit(context, indent, `if (${node.tag}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context, node, componentVar, cleanupVar, indent + 1);
+  emit(context, indent, "}");
   emitComponentShow(context, node, componentVar, cleanupVar, indent);
   emit(context, indent, `${cleanupVar}.push(() => ${componentVar}.unmount());`);
   emitTemplateRef(context, node, componentVar, cleanupVar, indent);
@@ -374,6 +385,97 @@ function emitComponentShow(
   emit(context, indent + 1, "});");
   emit(context, indent + 1, `${cleanupVar}.push(${stopVar});`);
   emit(context, indent, "}");
+}
+
+function emitComponentAttrs(context: GenerateContext, node: ElementNode, attrsVar: string, indent: number): void {
+  const objectBindExpressions = node.attrs
+    .filter((attr) => isObjectBindAttr(attr))
+    .map((attr) => compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc)));
+  const classParts = componentFallthroughExpressions(context, node, "class", objectBindExpressions);
+  const styleParts = componentFallthroughExpressions(context, node, "style", objectBindExpressions);
+  const directAttrs = componentDirectAttributeFallthroughs(context, node);
+  const baseVar = objectBindExpressions.length > 0 ? nextVar(context, "attrsBase") : attrsVar;
+
+  emit(context, indent, `const ${baseVar} = {`);
+
+  if (classParts.length > 0) {
+    emit(context, indent + 1, `get class() { return [${classParts.join(", ")}]; },`);
+  }
+
+  if (styleParts.length > 0) {
+    emit(context, indent + 1, `get style() { return [${styleParts.join(", ")}]; },`);
+  }
+
+  for (const attr of directAttrs) {
+    if (attr.dynamic) {
+      emit(context, indent + 1, `get ${quotePropertyName(attr.name)}() { return unwrap(${attr.expression}); },`);
+    } else {
+      emit(context, indent + 1, `${quotePropertyName(attr.name)}: ${attr.expression},`);
+    }
+  }
+
+  emit(context, indent, "};");
+
+  if (objectBindExpressions.length > 0) {
+    emitComponentAttrsProxy(context, attrsVar, baseVar, objectBindExpressions, indent);
+  }
+}
+
+function emitComponentAttrsProxy(
+  context: GenerateContext,
+  attrsVar: string,
+  baseVar: string,
+  objectBindExpressions: string[],
+  indent: number
+): void {
+  const keyVar = nextVar(context, "key");
+  const sourceVar = nextVar(context, "source");
+  const keysVar = nextVar(context, "keys");
+  const descriptorVar = nextVar(context, "descriptor");
+  emit(context, indent, `const ${attrsVar} = new Proxy(${baseVar}, {`);
+  emit(context, indent + 1, `get(target, ${keyVar}) {`);
+  emit(context, indent + 2, `if (typeof ${keyVar} === "symbol" || ${keyVar} in target) {`);
+  emit(context, indent + 3, `return target[${keyVar}];`);
+  emit(context, indent + 2, "}");
+
+  for (const expression of objectBindExpressions) {
+    emit(context, indent + 2, `{`);
+    emit(context, indent + 3, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
+    emit(context, indent + 3, `if (${sourceVar} && typeof ${sourceVar} === "object" && ${keyVar} in ${sourceVar} && (${keyVar} === "class" || ${keyVar} === "style" || ${componentFallthroughAttributeNameExpression(keyVar)})) {`);
+    emit(context, indent + 4, `return unwrap(${sourceVar}[${keyVar}]);`);
+    emit(context, indent + 3, "}");
+    emit(context, indent + 2, `}`);
+  }
+
+  emit(context, indent + 2, "return undefined;");
+  emit(context, indent + 1, "},");
+  emit(context, indent + 1, "ownKeys(target) {");
+  emit(context, indent + 2, `const ${keysVar} = new Set(Reflect.ownKeys(target));`);
+
+  for (const expression of objectBindExpressions) {
+    emit(context, indent + 2, `{`);
+    emit(context, indent + 3, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
+    emit(context, indent + 3, `if (${sourceVar} && typeof ${sourceVar} === "object") {`);
+    emit(context, indent + 4, `for (const ${keyVar} of Object.keys(${sourceVar})) {`);
+    emit(context, indent + 5, `if (${keyVar} === "class" || ${keyVar} === "style" || ${componentFallthroughAttributeNameExpression(keyVar)}) {`);
+    emit(context, indent + 6, `${keysVar}.add(${keyVar});`);
+    emit(context, indent + 5, "}");
+    emit(context, indent + 4, "}");
+    emit(context, indent + 3, "}");
+    emit(context, indent + 2, `}`);
+  }
+
+  emit(context, indent + 2, `return Array.from(${keysVar});`);
+  emit(context, indent + 1, "},");
+  emit(context, indent + 1, `getOwnPropertyDescriptor(target, ${keyVar}) {`);
+  emit(context, indent + 2, `const ${descriptorVar} = Reflect.getOwnPropertyDescriptor(target, ${keyVar});`);
+  emit(context, indent + 2, `if (${descriptorVar}) { return ${descriptorVar}; }`);
+  emit(context, indent + 2, `if (typeof ${keyVar} === "string" && this.get(target, ${keyVar}) !== undefined) {`);
+  emit(context, indent + 3, "return { enumerable: true, configurable: true };");
+  emit(context, indent + 2, "}");
+  emit(context, indent + 2, "return undefined;");
+  emit(context, indent + 1, "}");
+  emit(context, indent, "});");
 }
 
 function emitComponentFallthrough(
@@ -669,7 +771,7 @@ function generateElement(
     }
 
     if (isObjectBindAttr(attr)) {
-      emitObjectBind(context, elementVar, attr, cleanupVar, indent);
+      emitObjectBind(context, node, elementVar, attr, cleanupVar, indent);
       continue;
     }
 
@@ -808,6 +910,7 @@ function generateText(
 
 function emitObjectBind(
   context: GenerateContext,
+  node: ElementNode,
   elementVar: string,
   attr: TemplateAttribute,
   cleanupVar: string,
@@ -821,6 +924,7 @@ function emitObjectBind(
   const keyVar = nextVar(context, "key");
   const valueVar = nextVar(context, "value");
   const staleKeyVar = nextVar(context, "key");
+  const staticClass = getStaticAttrValue(node, "class");
   emit(context, indent, `const ${prevKeysVar} = new Set();`);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   emit(context, indent + 1, `const ${attrsVar} = unwrap(${expression}) ?? {};`);
@@ -828,12 +932,20 @@ function emitObjectBind(
   emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
   emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${attrsVar})) {`);
   emit(context, indent + 3, `${nextKeysVar}.add(${keyVar});`);
-  emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
+  if (staticClass) {
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" ? [${quote(staticClass)}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
+  } else {
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
+  }
   emit(context, indent + 2, "}");
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `for (const ${staleKeyVar} of ${prevKeysVar}) {`);
   emit(context, indent + 2, `if (!${nextKeysVar}.has(${staleKeyVar})) {`);
-  emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
+  if (staticClass) {
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" ? ${quote(staticClass)} : null);`);
+  } else {
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
+  }
   emit(context, indent + 2, "}");
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `${prevKeysVar}.clear();`);
@@ -1210,7 +1322,9 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
   const edits: ScriptEdit[] = [];
   const transformedMacroStarts = new Set<number>();
   const emitsDeclarations: EmitsDeclaration[] = [];
+  let inheritAttrs = true;
   let usesPropsAlias = false;
+  let usesAttrsAlias = false;
   let usesEmitAlias = false;
   let ast: ScriptNode;
 
@@ -1237,27 +1351,40 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
     }
 
     if (statement.type !== "VariableDeclaration") {
+      if (isMacroCall(statement.expression, "defineOptions")) {
+        inheritAttrs = parseDefineOptionsDeclaration(statement.expression, descriptor).inheritAttrs;
+        edits.push({ start: statement.start, end: statement.end, replacement: "" });
+        transformedMacroStarts.add(statement.expression?.start ?? statement.start);
+      }
+
       continue;
     }
 
     const macroDeclarations = (statement.declarations ?? []).filter(
-      (declaration) => isMacroCall(declaration.init, "defineProps") || isMacroCall(declaration.init, "defineEmits")
+      (declaration) =>
+        isMacroCall(declaration.init, "defineProps") ||
+        isMacroCall(declaration.init, "defineEmits") ||
+        isMacroCall(declaration.init, "useAttrs")
     );
 
     if (macroDeclarations.length > 0 && (statement.declarations ?? []).length !== 1) {
       throwUnsupportedMacro(
-        "defineProps() and defineEmits() cannot share a variable declaration with other bindings",
+        "defineProps(), defineEmits(), and useAttrs() cannot share a variable declaration with other bindings",
         macroDeclarations[0],
         descriptor
       );
     }
 
     if (macroDeclarations.length > 0 && statement.kind !== "const") {
-      throwUnsupportedMacro("defineProps() and defineEmits() must use const declarations", macroDeclarations[0], descriptor);
+      throwUnsupportedMacro("defineProps(), defineEmits(), and useAttrs() must use const declarations", macroDeclarations[0], descriptor);
     }
 
     for (const declaration of statement.declarations ?? []) {
-      if (!isMacroCall(declaration.init, "defineProps") && !isMacroCall(declaration.init, "defineEmits")) {
+      if (
+        !isMacroCall(declaration.init, "defineProps") &&
+        !isMacroCall(declaration.init, "defineEmits") &&
+        !isMacroCall(declaration.init, "useAttrs")
+      ) {
         continue;
       }
 
@@ -1266,6 +1393,14 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
         edits.push({ start: statement.start, end: statement.end, replacement });
         transformedMacroStarts.add(declaration.init?.start ?? declaration.start);
         usesPropsAlias = usesPropsAlias || replacement.includes("__mikuru_props");
+        continue;
+      }
+
+      if (isMacroCall(declaration.init, "useAttrs")) {
+        const replacement = transformUseAttrsDeclaration(declaration, descriptor);
+        edits.push({ start: statement.start, end: statement.end, replacement });
+        transformedMacroStarts.add(declaration.init?.start ?? declaration.start);
+        usesAttrsAlias = true;
         continue;
       }
 
@@ -1288,7 +1423,9 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
     imports,
     runtimeImports,
     body,
+    inheritAttrs,
     usesPropsAlias,
+    usesAttrsAlias,
     usesEmitAlias
   };
 }
@@ -1401,6 +1538,17 @@ function transformDefineEmitsDeclaration(
   };
 }
 
+function transformUseAttrsDeclaration(declaration: ScriptNode, descriptor: SfcDescriptor): string {
+  validateNoMacroArguments(declaration.init, "useAttrs", descriptor);
+
+  if (declaration.id?.type !== "Identifier" || !isIdentifier(declaration.id.name ?? "")) {
+    throwUnsupportedMacro("useAttrs() only supports identifier bindings", declaration.id ?? declaration, descriptor);
+  }
+
+  const localName = declaration.id.name ?? "";
+  return `const ${localName} = ${localName === "__mikuru_attrs" ? "props.__mikuru_attrs ?? {}" : "__mikuru_attrs"};`;
+}
+
 function applyScriptEdits(script: string, edits: ScriptEdit[]): string {
   const ordered = [...edits].sort((left, right) => left.start - right.start);
   let output = "";
@@ -1420,8 +1568,48 @@ function applyScriptEdits(script: string, edits: ScriptEdit[]): string {
   return output;
 }
 
-function isMacroCall(node: ScriptNode | null | undefined, name: "defineProps" | "defineEmits"): boolean {
+function isMacroCall(node: ScriptNode | null | undefined, name: "defineProps" | "defineEmits" | "useAttrs" | "defineOptions"): boolean {
   return node?.type === "CallExpression" && node.callee?.type === "Identifier" && node.callee.name === name;
+}
+
+function validateNoMacroArguments(node: ScriptNode | null | undefined, name: string, descriptor: SfcDescriptor): void {
+  const args = node?.arguments ?? [];
+
+  if (args.length > 0) {
+    throwUnsupportedMacro(`${name}() does not accept arguments`, args[0] ?? node ?? undefined, descriptor);
+  }
+}
+
+function parseDefineOptionsDeclaration(node: ScriptNode | null | undefined, descriptor: SfcDescriptor): { inheritAttrs: boolean } {
+  const args = node?.arguments ?? [];
+
+  if (args.length !== 1 || args[0]?.type !== "ObjectExpression") {
+    throwUnsupportedMacro("defineOptions() only supports an object declaration argument", args[0] ?? node ?? undefined, descriptor);
+  }
+
+  let inheritAttrs = true;
+
+  for (const property of args[0].properties ?? []) {
+    if (property.type !== "Property" || property.computed) {
+      throwUnsupportedMacro("Unsupported defineOptions() declaration entry", property, descriptor);
+    }
+
+    const keyName = getPropertyKeyName(property.key);
+
+    if (keyName !== "inheritAttrs") {
+      throwUnsupportedMacro(`Unsupported defineOptions() option "${keyName ?? ""}"`, property.key ?? property, descriptor);
+    }
+
+    const valueNode = property.value as ScriptNode | undefined;
+
+    if (valueNode?.type !== "Literal" || typeof valueNode.value !== "boolean") {
+      throwUnsupportedMacro("defineOptions({ inheritAttrs }) must use a boolean literal", valueNode ?? property, descriptor);
+    }
+
+    inheritAttrs = valueNode.value;
+  }
+
+  return { inheritAttrs };
 }
 
 function validateDefinePropsDeclaration(node: ScriptNode | null | undefined, descriptor: SfcDescriptor): void {
@@ -1539,11 +1727,14 @@ function assertNoUnsupportedMacroCalls(
     if (
       candidate.type === "CallExpression" &&
       candidate.callee?.type === "Identifier" &&
-      (candidate.callee.name === "defineProps" || candidate.callee.name === "defineEmits") &&
+      (candidate.callee.name === "defineProps" ||
+        candidate.callee.name === "defineEmits" ||
+        candidate.callee.name === "useAttrs" ||
+        candidate.callee.name === "defineOptions") &&
       !transformedMacroStarts.has(candidate.start)
     ) {
       throwUnsupportedMacro(
-        "defineProps() and defineEmits() must be used in top-level const declarations",
+        "defineProps(), defineEmits(), useAttrs(), and defineOptions() must be used in supported top-level declarations",
         candidate,
         descriptor
       );
@@ -1700,7 +1891,7 @@ function throwTemplateError(message: string, context: GenerateContext, location:
   throw new Error(message);
 }
 
-function emitComponentProps(context: GenerateContext, node: ElementNode, propsVar: string, indent: number): void {
+function emitComponentProps(context: GenerateContext, node: ElementNode, propsVar: string, attrsVar: string, indent: number): void {
   const props = node.attrs
     .filter((attr) => !isStructuralAttr(attr))
     .flatMap((attr) => componentPropEntries(context, attr));
@@ -1713,6 +1904,7 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
 
   emit(context, indent, `const ${propsTargetVar} = {`);
   emit(context, indent + 1, "__mikuru_context,");
+  emit(context, indent + 1, `__mikuru_attrs: ${attrsVar},`);
 
   for (const prop of props) {
     emit(context, indent + 1, `${prop},`);
