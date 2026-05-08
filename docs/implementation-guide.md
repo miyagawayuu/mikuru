@@ -110,7 +110,7 @@ Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when a
 
 `class` supports strings, numbers, arrays, and objects. Static `class` and dynamic `:class` can be combined.
 `style` supports strings, numbers, arrays, and objects. Object keys can be camelCase or custom CSS properties.
-On child components, parent `class` and `style` values fall through to the child component root element and are merged with the root element's existing values. This includes static attributes, direct bindings, and object-form `v-bind`.
+On child components, DOM-facing attributes fall through to the child component root element. This includes `class`, `style`, `id`, `title`, `role`, `tabindex`, `lang`, `dir`, `hidden`, `aria-*`, and `data-*` from static attributes, direct bindings, and object-form `v-bind`. `class` and `style` are merged with the root element's existing values.
 
 `null`, `undefined`, and `false` remove attributes. `true` creates a boolean-style attribute.
 
@@ -224,7 +224,7 @@ function toggleArchive(id) {
 
 Props are passed through a plain `props` object. Bound props are generated as getters so children can observe parent updates.
 
-`class` and `style` also fall through to the returned `element` from `mount`. The compiler preserves the child root's existing `class` / `style` values, then merges the parent component attributes on top.
+DOM-facing attributes also fall through to the returned `element` from `mount`. `class` and `style` preserve the child root's existing values, then merge the parent component attributes on top. General props such as `message` or `count` are still passed through `props` only, so they do not become DOM attributes by default.
 
 Component events are passed as camel-cased handler props. For example:
 

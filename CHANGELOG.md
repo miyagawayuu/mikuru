@@ -16,7 +16,7 @@
 - Added DOM event modifiers `.self`, `.once`, `.capture`, and `.passive`.
 - Added component event `.once` modifiers.
 - Added normalized `style` bindings for strings, arrays, and objects.
-- Added child component `class` / `style` fallthrough to the component root element.
+- Added child component DOM attribute fallthrough, including `class`, `style`, `id`, `title`, `role`, `aria-*`, and `data-*`, to the component root element.
 - Added dynamic slot names for `<slot :name>`, `<template v-slot:[name]>`, and `<template #[name]>`.
 - Added default values for slot scope destructuring.
 

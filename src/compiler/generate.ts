@@ -319,17 +319,17 @@ function generateComponent(
   emitComponentProps(context, node, propsVar, indent);
   emit(context, indent, `const ${componentVar} = ${node.tag}.mount(${fragmentVar}, ${propsVar});`);
   if (context.scopeAttr) {
-    emit(context, indent, `if (${componentVar}.element instanceof Element) {`);
+    emit(context, indent, `if (${componentVar}.element?.nodeType === 1) {`);
     emit(context, indent + 1, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
     emit(context, indent, "}");
   }
-  emitComponentClassStyleFallthrough(context, node, componentVar, cleanupVar, indent);
+  emitComponentFallthrough(context, node, componentVar, cleanupVar, indent);
   emit(context, indent, `${cleanupVar}.push(() => ${componentVar}.unmount());`);
   appendNode(context, parentVar, fragmentVar, indent, beforeVar);
   return `${componentVar}.element`;
 }
 
-function emitComponentClassStyleFallthrough(
+function emitComponentFallthrough(
   context: GenerateContext,
   node: ElementNode,
   componentVar: string,
@@ -341,8 +341,9 @@ function emitComponentClassStyleFallthrough(
     .map((attr) => compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc)));
   const classParts = componentFallthroughExpressions(context, node, "class", objectBindExpressions);
   const styleParts = componentFallthroughExpressions(context, node, "style", objectBindExpressions);
+  const directAttrs = componentDirectAttributeFallthroughs(context, node);
 
-  if (classParts.length === 0 && styleParts.length === 0) {
+  if (classParts.length === 0 && styleParts.length === 0 && directAttrs.length === 0 && objectBindExpressions.length === 0) {
     return;
   }
 
@@ -356,6 +357,22 @@ function emitComponentClassStyleFallthrough(
 
   if (styleParts.length > 0) {
     emitComponentFallthroughAttribute(context, elementVar, cleanupVar, "style", styleParts, indent + 1);
+  }
+
+  for (const attr of directAttrs) {
+    if (attr.dynamic) {
+      const stopVar = nextVar(context, "stop");
+      emit(context, indent + 1, `const ${stopVar} = effect(() => {`);
+      emit(context, indent + 2, `setAttribute(${elementVar}, ${quote(attr.name)}, unwrap(${attr.expression}));`);
+      emit(context, indent + 1, "});");
+      emit(context, indent + 1, `${cleanupVar}.push(${stopVar});`);
+    } else {
+      emit(context, indent + 1, `setAttribute(${elementVar}, ${quote(attr.name)}, ${attr.expression});`);
+    }
+  }
+
+  for (const expression of objectBindExpressions) {
+    emitComponentObjectAttributeFallthrough(context, elementVar, cleanupVar, expression, indent + 1);
   }
 
   emit(context, indent, "}");
@@ -409,6 +426,100 @@ function componentDirectFallthroughExpression(
 function objectBindFallthroughExpression(expression: string, attributeName: "class" | "style"): string {
   const key = quote(attributeName);
   return `(() => { const source = unwrap(${expression}) ?? {}; return source && typeof source === "object" && ${key} in source ? unwrap(source[${key}]) : null; })()`;
+}
+
+type ComponentDirectAttributeFallthrough = {
+  dynamic: boolean;
+  expression: string;
+  name: string;
+};
+
+function componentDirectAttributeFallthroughs(
+  context: GenerateContext,
+  node: ElementNode
+): ComponentDirectAttributeFallthrough[] {
+  return node.attrs.flatMap((attr): ComponentDirectAttributeFallthrough[] => {
+    if (attr.name === "class" || attr.name === "style") {
+      return [];
+    }
+
+    if (!isDirectiveAttr(attr) && isComponentFallthroughAttributeName(attr.name)) {
+      return [
+        {
+          dynamic: false,
+          expression: quote(attr.value === true ? true : attr.value),
+          name: attr.name
+        }
+      ];
+    }
+
+    const bindingName = getBindingName(attr.name);
+
+    if (bindingName && bindingName !== "class" && bindingName !== "style" && isComponentFallthroughAttributeName(bindingName)) {
+      return [
+        {
+          dynamic: true,
+          expression: compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc)),
+          name: bindingName
+        }
+      ];
+    }
+
+    return [];
+  });
+}
+
+function emitComponentObjectAttributeFallthrough(
+  context: GenerateContext,
+  elementVar: string,
+  cleanupVar: string,
+  expression: string,
+  indent: number
+): void {
+  const previousVar = nextVar(context, "fallthroughKeys");
+  const stopVar = nextVar(context, "stop");
+  const sourceVar = nextVar(context, "source");
+  const nextVarName = nextVar(context, "nextKeys");
+  const keyVar = nextVar(context, "key");
+  const valueVar = nextVar(context, "value");
+  const staleKeyVar = nextVar(context, "staleKey");
+  emit(context, indent, `let ${previousVar} = new Set();`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
+  emit(context, indent + 1, `const ${nextVarName} = new Set();`);
+  emit(context, indent + 1, `if (${sourceVar} && typeof ${sourceVar} === "object") {`);
+  emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${sourceVar})) {`);
+  emit(context, indent + 3, `if (${keyVar} === "class" || ${keyVar} === "style" || !${componentFallthroughAttributeNameExpression(keyVar)}) { continue; }`);
+  emit(context, indent + 3, `${nextVarName}.add(${keyVar});`);
+  emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
+  emit(context, indent + 2, "}");
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `for (const ${staleKeyVar} of ${previousVar}) {`);
+  emit(context, indent + 2, `if (!${nextVarName}.has(${staleKeyVar})) {`);
+  emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
+  emit(context, indent + 2, "}");
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `${previousVar} = ${nextVarName};`);
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+}
+
+function isComponentFallthroughAttributeName(name: string): boolean {
+  return (
+    name === "id" ||
+    name === "title" ||
+    name === "role" ||
+    name === "tabindex" ||
+    name === "lang" ||
+    name === "dir" ||
+    name === "hidden" ||
+    name.startsWith("aria-") ||
+    name.startsWith("data-")
+  );
+}
+
+function componentFallthroughAttributeNameExpression(keyExpression: string): string {
+  return `(${keyExpression} === "id" || ${keyExpression} === "title" || ${keyExpression} === "role" || ${keyExpression} === "tabindex" || ${keyExpression} === "lang" || ${keyExpression} === "dir" || ${keyExpression} === "hidden" || ${keyExpression}.startsWith("aria-") || ${keyExpression}.startsWith("data-"))`;
 }
 
 function generateElement(
