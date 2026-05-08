@@ -2057,6 +2057,29 @@ function hide() {
     expect(article?.style.display).toBe("none");
   });
 
+  it("applies Transition classes on mount and delayed unmount", async () => {
+    const fixture = compileForDom(`<template>
+  <Transition name="fade">
+    <p>Hello</p>
+  </Transition>
+</template>`);
+
+    const instance = fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(paragraph?.classList.contains("fade-enter-from")).toBe(true);
+    expect(paragraph?.classList.contains("fade-enter-active")).toBe(true);
+
+    instance.unmount();
+
+    expect(fixture.root.querySelector("p")).toBe(paragraph);
+    expect(paragraph?.classList.contains("fade-leave-active")).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect(fixture.root.querySelector("p")).toBeNull();
+  });
+
   it("passes component v-model as modelValue and update handler props", () => {
     const fixture = compileForDom(`<template>
   <section>

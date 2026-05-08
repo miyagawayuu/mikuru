@@ -41,7 +41,7 @@ Confirm these exports work from the packed package:
 
 ## Known v1 Limits
 
-- No SSR, hydration, transitions, or devtools.
+- No SSR, hydration, or devtools.
 - No Vue compatibility guarantee.
 - `v-html` remains unsupported.
 - Source maps include original SFC content but have coarse segment precision.

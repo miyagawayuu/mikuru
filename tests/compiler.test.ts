@@ -255,6 +255,19 @@ function select() {}
     expect(result.code).toContain("__mikuru_setRef(activeChild");
   });
 
+  it("generates built-in Transition enter and leave hooks", () => {
+    const result = compile(`<template>
+  <Transition name="fade">
+    <p>Hello</p>
+  </Transition>
+</template>`);
+
+    expect(result.code).toContain("__mikuru_applyTransitionEnter");
+    expect(result.code).toContain("__mikuru_removeNode");
+    expect(result.code).toContain("__mikuru_transitionName = transitionName");
+    expect(result.code).toContain("\"fade\"");
+  });
+
   it("generates object-form v-bind and v-on for elements and components", () => {
     const element = compile(`<template><button v-bind="attrs" v-on="listeners">Save</button></template>
 <script>
