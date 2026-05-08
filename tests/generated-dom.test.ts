@@ -284,6 +284,9 @@ const selected = ref("none");
 const listeners = ref({
   click() {
     selected.value = "first";
+  },
+  mouseover() {
+    selected.value = "hover";
   }
 });
 
@@ -301,8 +304,12 @@ function swap() {
 
     buttons[0]?.dispatchEvent(createEvent(fixture.window, "click"));
     expect(fixture.root.querySelector("p")?.textContent).toBe("first");
+    buttons[0]?.dispatchEvent(createEvent(fixture.window, "mouseover"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("hover");
 
     buttons[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons[0]?.dispatchEvent(createEvent(fixture.window, "mouseover"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("hover");
     buttons[0]?.dispatchEvent(createEvent(fixture.window, "click"));
 
     expect(fixture.root.querySelector("p")?.textContent).toBe("second");
@@ -1881,6 +1888,7 @@ function select(value) {
     const fixture = compileForDom(`<template>
   <section>
     <Child v-bind="childProps" v-on="childListeners" title="Explicit" />
+    <button @click="update">Update</button>
     <p>{{ selected }}</p>
   </section>
 </template>
@@ -1898,6 +1906,17 @@ const childListeners = ref({
     selected.value = value;
   }
 });
+
+function update() {
+  childProps.value = {
+    detail: "updated object"
+  };
+  childListeners.value = {
+    select(value) {
+      selected.value = value + "-updated";
+    }
+  };
+}
 
 const Child = {
   mount(target, props) {
@@ -1926,6 +1945,14 @@ const Child = {
     button?.dispatchEvent(createEvent(fixture.window, "click"));
 
     expect(fixture.root.querySelector("p")?.textContent).toBe("object");
+
+    fixture.root.querySelectorAll("button")[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(button?.textContent).toBe("Explicit:updated object");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("object-updated");
   });
 
   it("passes component v-model as modelValue and update handler props", () => {

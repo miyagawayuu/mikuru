@@ -92,6 +92,7 @@ Event handlers can be a function reference or a simple call expression.
 Mikuru validates event expressions as JavaScript expressions. Statements and assignments are intentionally rejected.
 DOM events support `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`. `.passive` cannot be combined with `.prevent`.
 Component events support `.once`. Other event modifiers are DOM-only because they rely on browser `Event` methods or listener options.
+Object-form `v-on` updates listener sets reactively. Removed keys detach their previous DOM listeners, and component event objects are exposed as `onEventName` props.
 
 ## Attributes and Classes
 
@@ -111,6 +112,7 @@ Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when a
 `class` supports strings, numbers, arrays, and objects. Static `class` and dynamic `:class` can be combined.
 `style` supports strings, numbers, arrays, and objects. Object keys can be camelCase or custom CSS properties.
 On child components, DOM-facing attributes fall through to the child component root element. This includes `class`, `style`, `id`, `title`, `role`, `tabindex`, `lang`, `dir`, `hidden`, `aria-*`, and `data-*` from static attributes, direct bindings, and object-form `v-bind`. `class` and `style` are merged with the root element's existing values.
+Object-form `v-bind` updates attributes reactively and removes stale keys when they disappear from the bound object.
 
 `null`, `undefined`, and `false` remove attributes. `true` creates a boolean-style attribute.
 
