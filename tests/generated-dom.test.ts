@@ -1091,6 +1091,41 @@ function rename() {
     expect(fixture.root.querySelector("p")?.textContent).toBe("count: 2");
   });
 
+  it("renders slot scope destructuring defaults", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Card>
+      <template #default="{ title = 'Untitled', count: total = 0 }">
+        <h2>{{ title }}</h2>
+        <p>{{ total }}</p>
+      </template>
+    </Card>
+  </section>
+</template>
+
+<script>
+const Card = {
+  mount(target, props) {
+    const article = document.createElement("article");
+    const cleanup = props.children(article, {});
+    target.appendChild(article);
+    return {
+      element: article,
+      unmount() {
+        cleanup?.();
+        article.remove();
+      }
+    };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("h2")?.textContent).toBe("Untitled");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("0");
+  });
+
   it("renders parent dynamic slot names", () => {
     const fixture = compileForDom(`<template>
   <section>

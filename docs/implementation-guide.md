@@ -309,7 +309,7 @@ Use `<slot name="header" />` in a child component and `<template #header>` or `<
 </template>
 ```
 
-Slot scope bindings support an identifier such as `slotProps` or simple object destructuring such as `{ title }` and `{ title: heading }`.
+Slot scope bindings support an identifier such as `slotProps` or object destructuring such as `{ title }`, `{ title: heading }`, `{ title = "Untitled" }`, and `{ title: heading = "Untitled" }`.
 
 `<slot>` can also include fallback children. Mikuru renders those children only when the parent does not provide the corresponding default or named slot.
 

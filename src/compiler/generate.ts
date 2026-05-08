@@ -90,7 +90,7 @@ type SlotTemplateDirective = {
 
 type SlotScopeBinding =
   | { kind: "props"; alias: string }
-  | { kind: "property"; source: string; alias: string };
+  | { kind: "property"; source: string; alias: string; defaultValue?: string };
 
 export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   const context: GenerateContext = {
@@ -1470,6 +1470,11 @@ function emitSlotScopeBindings(context: GenerateContext, slot: SlotDefinition, s
       continue;
     }
 
+    if (binding.defaultValue) {
+      emit(context, indent, `const ${binding.alias} = { get value() { const value = ${slotPropsVar}.${binding.source}; return value === undefined ? (${binding.defaultValue}) : value; } };`);
+      continue;
+    }
+
     emit(context, indent, `const ${binding.alias} = { get value() { return ${slotPropsVar}.${binding.source}; } };`);
   }
 }
@@ -1606,16 +1611,19 @@ function parseSlotScopeBindings(scope: string | true, context: GenerateContext, 
 
   return body.split(",").map((part) => {
     const sourcePart = part.trim();
-    const match = /^([A-Za-z_$][\w$]*)(?:\s*:\s*([A-Za-z_$][\w$]*))?$/.exec(sourcePart);
+    const match = /^([A-Za-z_$][\w$]*)(?:\s*:\s*([A-Za-z_$][\w$]*))?(?:\s*=\s*(.+))?$/.exec(sourcePart);
 
     if (!match) {
-      throwTemplateError("Slot scope destructuring only supports identifiers and simple aliases", context, location);
+      throwTemplateError("Slot scope destructuring only supports identifiers, simple aliases, and default values", context, location);
     }
 
     return {
       kind: "property",
       source: match[1],
-      alias: match[2] ?? match[1]
+      alias: match[2] ?? match[1],
+      defaultValue: match[3]
+        ? compileTemplateExpression(match[3].trim(), "slot scope default", toExpressionContext(context, location))
+        : undefined
     };
   });
 }
