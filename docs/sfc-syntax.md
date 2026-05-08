@@ -139,9 +139,14 @@ button {
 <input v-model="name" />
 <textarea v-model="message"></textarea>
 <input type="checkbox" v-model="enabled" />
+<input type="radio" value="mint" v-model="flavor" />
 <select v-model="flavor">
   <option value="mint">Mint</option>
   <option value="berry">Berry</option>
+</select>
+<select multiple v-model.number="ids">
+  <option value="1">One</option>
+  <option value="2">Two</option>
 </select>
 ```
 
@@ -151,9 +156,11 @@ button {
 
 - `input` / `textarea` は `value` と `input` イベントで同期する。
 - `input type="checkbox"` は `checked` と `change` イベントで真偽値を同期する。
+- `input type="radio"` は `value` と `change` イベントで同期する。
 - `select` は `value` と `change` イベントで同期する。
+- `select multiple` は選択されたoption値の配列と `change` イベントで同期する。
+- `.trim`、`.number`、`.lazy` 修飾子に対応する。
 - 式は `ref` を指す識別子を想定し、生成コードでは `refName.value` へ書き戻す。
-- radio、複数選択select、修飾子は後続課題にする。
 
 ### Template refs
 
@@ -303,8 +310,6 @@ function flip() {
 ## v1で扱わない構文
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`
-- radio、複数選択select向けの `v-model`
-- `v-model` 修飾子
 - `v-bind` オブジェクト展開
 - `v-on` オブジェクト展開
 - `v-html`

@@ -224,6 +224,17 @@ p { color: red; }
     expect(result.code).toContain("onUpdateModelValue: ($value) => { name.value = $value; }");
   });
 
+  it("generates v-model modifiers and component v-show", () => {
+    const input = compile(`<template><input v-model.trim.number.lazy="age" /></template><script>const age = ref(1);</script>`);
+    const component = compile(`<template><Child v-show="visible" v-model.trim="name" /></template><script>import Child from "./Child.mikuru"; const visible = ref(true); const name = ref("Mikuru");</script>`);
+
+    expect(input.code).toContain("addEventListener(\"change\"");
+    expect(input.code).toContain(".trim()");
+    expect(input.code).toContain("Number(");
+    expect(component.code).toContain(".style.display = unwrap(unwrap(visible))");
+    expect(component.code).toContain("modelModifiers: { trim: true }");
+  });
+
   it("generates object-form v-bind and v-on for elements and components", () => {
     const element = compile(`<template><button v-bind="attrs" v-on="listeners">Save</button></template>
 <script>
@@ -513,9 +524,6 @@ function setup() {
     expect(() => compile(`<template><1bad>Broken</1bad></template>`)).toThrow(/Invalid template tag name/);
     expect(() => compile(`<template><ul><li v-for="({ id }) in items">{{ id }}</li></ul></template>`)).toThrow(
       /Invalid v-for expression/
-    );
-    expect(() => compile(`<template><Child v-show="visible" /></template><script>const visible = true; const Child = { mount() {} };</script>`)).toThrow(
-      /Unsupported component directive v-show/
     );
     expect(() => compile(`<template><input :ref="inputEl" /></template><script>const inputEl = ref(null);</script>`)).toThrow(
       /Dynamic template refs are not supported/

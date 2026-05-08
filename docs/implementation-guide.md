@@ -121,18 +121,27 @@ On child components, DOM-facing attributes fall through to the child component r
 - text inputs
 - textareas
 - checkboxes
+- radio groups
 - selects
+- multiple selects
 - child components
 
 ```mikuru
 <input v-model="title">
 <textarea v-model="body"></textarea>
 <input type="checkbox" v-model="enabled">
+<input type="radio" value="draft" v-model="status">
 <select v-model="tag">
   <option value="compiler">compiler</option>
   <option value="runtime">runtime</option>
 </select>
+<select multiple v-model="selectedTags">
+  <option value="compiler">compiler</option>
+  <option value="runtime">runtime</option>
+</select>
 ```
+
+DOM `v-model` supports `.trim`, `.number`, and `.lazy`. Component `v-model` passes `modelModifiers` when modifiers are present.
 
 For child components, `v-model` passes `modelValue` and `onUpdateModelValue`.
 
@@ -198,9 +207,8 @@ Use `v-show` when the DOM should stay mounted and only visibility should change.
 
 ```mikuru
 <aside v-show="detailsOpen">Details</aside>
+<Panel v-show="detailsOpen" />
 ```
-
-`v-show` is not supported on child components in v1.
 
 ## Child Components
 

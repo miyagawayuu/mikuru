@@ -44,7 +44,7 @@ Confirm these exports work from the packed package:
 - No SSR, hydration, transitions, or devtools.
 - No Vue compatibility guarantee.
 - No dynamic components or `v-html`.
-- Component `v-show` is unsupported.
+- Dynamic components remain unsupported.
 - Source maps include original SFC content but have coarse segment precision.
 - Scoped CSS is a basic selector rewrite, not a full CSS compiler.
 - `provide` / `inject` are scoped to the current component tree when called during Mikuru component mounting.
