@@ -17,6 +17,7 @@
 - Added component event `.once` modifiers.
 - Added dynamic components with `<component :is="Current">`, including props, events, attrs, slots, refs, `v-show`, and cleanup on switch.
 - Added built-in `<Transition>` with CSS class enter and delayed leave handling for single children, `v-if` chains, and dynamic components.
+- Added a basic example Transition demo with E2E coverage.
 - Formalized object-form `v-bind` and `v-on` coverage for DOM elements, child components, and manual attrs forwarding.
 - Added component `v-show`.
 - Added radio, multiple select, and `.trim` / `.number` / `.lazy` modifier support for `v-model`.

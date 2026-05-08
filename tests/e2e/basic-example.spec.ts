@@ -27,3 +27,22 @@ test("basic example shows watch cleanup cancelling stale delayed mood updates", 
   await page.waitForTimeout(100);
   await expect(page.getByText("Settled mood is curious")).toBeVisible();
 });
+
+test("basic example uses Transition for conditional content", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByText("Transitions can animate conditional content.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Toggle note" }).click();
+
+  const leavingNote = page.getByText("Transitions can animate conditional content.");
+  const enteringNote = page.getByText("The note is hidden.");
+
+  await expect(leavingNote).toHaveClass(/note-leave-active/);
+  await expect(enteringNote).toHaveClass(/note-enter-active/);
+  await expect(enteringNote).toBeVisible();
+
+  await page.waitForTimeout(180);
+  await expect(leavingNote).toHaveCount(0);
+  await expect(enteringNote).toBeVisible();
+});
