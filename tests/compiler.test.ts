@@ -244,6 +244,26 @@ const childListeners = { select() {} };
     expect(component.code).toContain("childListeners");
   });
 
+  it("generates component class and style fallthrough", () => {
+    const result = compile(`<template>
+  <Child class="parent" :class="{ active }" style="color: red" :style="{ fontSize: size }" v-bind="attrs" />
+</template>
+<script>
+import Child from "./Child.mikuru";
+const active = true;
+const size = "12px";
+const attrs = { class: "bound", style: { color: "blue" } };
+</script>`);
+
+    expect(result.code).toContain(".element;");
+    expect(result.code).toContain("getAttribute(\"class\")");
+    expect(result.code).toContain("setAttribute(");
+    expect(result.code).toContain("\"class\"");
+    expect(result.code).toContain("\"style\"");
+    expect(result.code).toContain("source[\"class\"]");
+    expect(result.code).toContain("source[\"style\"]");
+  });
+
   it("generates named slots and slot props", () => {
     const result = compile(`<template>
   <Panel>
