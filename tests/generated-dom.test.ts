@@ -2176,6 +2176,91 @@ function swap() {
     expect([...fixture.root.querySelectorAll("article")].map((article) => article.textContent)).toEqual(["second"]);
   });
 
+  it("supports Transition appear opt-out and out-in mode", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Transition name="fade" mode="out-in" :appear="false">
+      <p v-if="visible">Visible</p>
+      <p v-else>Hidden</p>
+    </Transition>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+
+function toggle() {
+  visible.value = !visible.value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const visible = fixture.root.querySelector("p");
+
+    expect(visible?.textContent).toBe("Visible");
+    expect(visible?.classList.contains("fade-enter-active")).toBe(false);
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect([...fixture.root.querySelectorAll("p")].map((paragraph) => paragraph.textContent)).toEqual(["Visible"]);
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect([...fixture.root.querySelectorAll("p")].map((paragraph) => paragraph.textContent)).toEqual(["Hidden"]);
+  });
+
+  it("renders ErrorBoundary fallback and supports retry", () => {
+    const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <BrokenPanel />
+  </ErrorBoundary>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const shouldFail = ref(true);
+
+const BrokenPanel = {
+  mount(target) {
+    if (shouldFail.value) {
+      throw new Error("panel exploded");
+    }
+
+    const p = document.createElement("p");
+    p.textContent = "Panel recovered";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = props.error.message;
+    button.addEventListener("click", () => {
+      shouldFail.value = false;
+      props.retry();
+    });
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("button")?.textContent).toBe("panel exploded");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Panel recovered");
+    expect(fixture.root.querySelector("button")).toBeNull();
+  });
+
   it("teleports children to a target and can disable teleporting", () => {
     const fixture = compileForDom(`<template>
   <section>
@@ -2286,6 +2371,87 @@ const AsyncBroken = defineAsyncComponent({
     await Promise.resolve();
 
     expect(fixture.root.textContent).toContain("broken async");
+  });
+
+  it("supports async component retry after loader errors", async () => {
+    const fixture = compileForDom(`<template>
+  <RetryAsync />
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+let attempts = 0;
+
+const Loaded = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "retry loaded";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = props.error.message;
+    button.addEventListener("click", () => props.retry());
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+
+const RetryAsync = defineAsyncComponent({
+  loader: () => {
+    attempts += 1;
+    return attempts === 1 ? Promise.reject(new Error("first failed")) : Promise.resolve(Loaded);
+  },
+  errorComponent: ErrorView
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("button")?.textContent).toBe("first failed");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("retry loaded");
+  });
+
+  it("renders async component timeout fallback", async () => {
+    const fixture = compileForDom(`<template>
+  <SlowAsync />
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const SlowAsync = defineAsyncComponent({
+  loader: () => new Promise(() => {}),
+  timeout: 10,
+  errorComponent: ErrorView
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Async component timed out");
   });
 
   it("passes component v-model as modelValue and update handler props", () => {

@@ -144,6 +144,8 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 1, "const __mikuru_applyTransitionEnter = (element, name) => {");
   emit(context, 2, "const transition = typeof name === \"object\" ? name : { name };");
   emit(context, 2, "if (!element || element.nodeType !== 1 || !transition.name) { return; }");
+  emit(context, 2, "if (transition.appear === false && !transition.__mikuru_hasAppeared) { transition.__mikuru_hasAppeared = true; return; }");
+  emit(context, 2, "transition.__mikuru_hasAppeared = true;");
   emit(context, 2, "const from = transition.enterFromClass || `${transition.name}-enter-from`;");
   emit(context, 2, "const active = transition.enterActiveClass || `${transition.name}-enter-active`;");
   emit(context, 2, "const to = transition.enterToClass || `${transition.name}-enter-to`;");
@@ -309,6 +311,10 @@ function generateNode(
     return generateTeleport(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (node.tag === "ErrorBoundary") {
+    return generateErrorBoundary(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   if (isComponentTag(node.tag)) {
     return generateComponent(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
@@ -406,6 +412,56 @@ function generateTeleport(
   emitRemoveBetween(context, indent + 1, contentStartVar, contentEndVar);
   emit(context, indent + 1, `${contentStartVar}.remove();`);
   emit(context, indent + 1, `${contentEndVar}.remove();`);
+  emit(context, indent + 1, `${startVar}.remove();`);
+  emit(context, indent + 1, `${endVar}.remove();`);
+  emit(context, indent, "});");
+  return startVar;
+}
+
+function generateErrorBoundary(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  validateErrorBoundaryAttributes(context, node);
+  const children = getSingleElementChild(context, node, "<ErrorBoundary>");
+  const fallbackExpression = getErrorBoundaryFallbackExpression(context, node);
+  const startVar = nextVar(context, "errorBoundaryStart");
+  const endVar = nextVar(context, "errorBoundaryEnd");
+  const boundaryCleanupVar = nextVar(context, "errorBoundaryCleanup");
+  const renderVar = nextVar(context, "renderErrorBoundary");
+  const errorVar = nextVar(context, "error");
+  const fallbackVar = nextVar(context, "errorFallback");
+  const fallbackFragmentVar = nextVar(context, "errorFallback");
+  const fallbackInstanceVar = nextVar(context, "errorFallback");
+  emit(context, indent, `const ${startVar} = document.createComment("error-boundary");`);
+  emit(context, indent, `const ${endVar} = document.createComment("/error-boundary");`);
+  appendNode(context, parentVar, startVar, indent, beforeVar);
+  appendNode(context, parentVar, endVar, indent, beforeVar);
+  emit(context, indent, `const ${boundaryCleanupVar} = [];`);
+  emit(context, indent, `const ${renderVar} = () => {`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
+  emit(context, indent + 1, "try {");
+  generateNode(context, children[0], parentVar, boundaryCleanupVar, indent + 2, endVar);
+  emit(context, indent + 1, `} catch (${errorVar}) {`);
+  emit(context, indent + 2, `__mikuru_runCleanup(${boundaryCleanupVar});`);
+  emitRemoveBetween(context, indent + 2, startVar, endVar);
+  emit(context, indent + 2, `const ${fallbackVar} = unwrap(${fallbackExpression});`);
+  emit(context, indent + 2, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
+  emit(context, indent + 2, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
+  emit(context, indent + 2, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, retry: ${renderVar}, __mikuru_context: props.__mikuru_context });`);
+  emit(context, indent + 2, `${boundaryCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
+  appendNode(context, parentVar, fallbackFragmentVar, indent + 2, endVar);
+  emit(context, indent + 1, "}");
+  emit(context, indent, "};");
+  emit(context, indent, `${renderVar}();`);
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
   emit(context, indent + 1, `${startVar}.remove();`);
   emit(context, indent + 1, `${endVar}.remove();`);
   emit(context, indent, "});");
@@ -1309,33 +1365,54 @@ function generateIfChain(
   const endVar = nextVar(context, "ifEnd");
   const branchCleanupVar = nextVar(context, "ifCleanup");
   const stopVar = nextVar(context, "stop");
+  const renderTokenVar = transitionVar ? nextVar(context, "ifRenderToken") : undefined;
   emit(context, indent, `const ${branchCleanupVar} = [];`);
+  if (renderTokenVar) {
+    emit(context, indent, `let ${renderTokenVar} = 0;`);
+  }
   emit(context, indent, `const ${startVar} = document.createComment("if");`);
   emit(context, indent, `const ${endVar} = document.createComment("/if");`);
   appendNode(context, parentVar, startVar, indent, beforeVar);
   appendNode(context, parentVar, endVar, indent, beforeVar);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
+  if (transitionVar) {
+    emit(context, indent + 1, `const hadTransitionBranch = ${startVar}.nextSibling !== ${endVar};`);
+  }
   emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
+  const branchIndent = transitionVar ? indent + 2 : indent + 1;
+  const renderBranchVar = transitionVar ? nextVar(context, "renderIfBranch") : undefined;
+
+  if (transitionVar && renderBranchVar && renderTokenVar) {
+    const currentTokenVar = nextVar(context, "ifRenderToken");
+    emit(context, indent + 1, `const ${currentTokenVar} = ++${renderTokenVar};`);
+    emit(context, indent + 1, `const ${renderBranchVar} = () => {`);
+    emit(context, indent + 2, `if (${currentTokenVar} !== ${renderTokenVar}) { return; }`);
+  }
 
   branches.forEach((branch, branchIndex) => {
     if (branch.directive === "v-else") {
-      emit(context, indent + 1, `${branchIndex === 0 ? "if (true)" : "else"} {`);
+      emit(context, branchIndent, `${branchIndex === 0 ? "if (true)" : "else"} {`);
     } else {
       const condition = compileTemplateExpression(
         branch.condition ?? "",
         branch.directive,
         toExpressionContext(context, getStringAttrLocation(branch.node, branch.directive))
       );
-      emit(context, indent + 1, `${branchIndex === 0 ? "if" : "else if"} (unwrap(${condition})) {`);
+      emit(context, branchIndent, `${branchIndex === 0 ? "if" : "else if"} (unwrap(${condition})) {`);
     }
 
-    const branchVar = generateNode(context, withoutAttrs(branch.node, ["v-if", "v-else-if", "v-else"]), parentVar, branchCleanupVar, indent + 2, endVar);
+    const branchVar = generateNode(context, withoutAttrs(branch.node, ["v-if", "v-else-if", "v-else"]), parentVar, branchCleanupVar, branchIndent + 1, endVar);
     if (transitionVar) {
-      emitTransitionRegistration(context, branchVar, transitionVar, indent + 2);
+      emitTransitionRegistration(context, branchVar, transitionVar, branchIndent + 1);
     }
-    emit(context, indent + 1, "}");
+    emit(context, branchIndent, "}");
   });
+
+  if (transitionVar && renderBranchVar) {
+    emit(context, indent + 1, "};");
+    emit(context, indent + 1, `if (${transitionVar}.mode === "out-in" && hadTransitionBranch) { setTimeout(${renderBranchVar}, 50); } else { ${renderBranchVar}(); }`);
+  }
 
   emit(context, indent, "});");
   emit(context, indent, `${cleanupVar}.push(() => {`);
@@ -2757,6 +2834,17 @@ function getTransitionBranches(context: GenerateContext, children: ElementNode[]
 
 function getTransitionOptionsExpression(context: GenerateContext, node: ElementNode): string {
   const entries = [`name: String(unwrap(${getTransitionAttrExpression(context, node, "name", "v")}) ?? "v")`];
+  const appearExpression = getTransitionAttrExpression(context, node, "appear");
+  const modeExpression = getTransitionAttrExpression(context, node, "mode");
+
+  if (appearExpression) {
+    entries.push(`appear: Boolean(unwrap(${appearExpression}))`);
+  }
+
+  if (modeExpression) {
+    entries.push(`mode: String(unwrap(${modeExpression}) ?? "")`);
+  }
+
   const classAttrs = [
     ["enter-from-class", "enterFromClass"],
     ["enter-active-class", "enterActiveClass"],
@@ -2784,6 +2872,10 @@ function getTransitionAttrExpression(context: GenerateContext, node: ElementNode
     return compileTemplateExpression(requireAttrValue(dynamicAttr), dynamicAttr.name, toExpressionContext(context, dynamicAttr.valueLoc));
   }
 
+  if (hasStaticBooleanAttr(node, name)) {
+    return "true";
+  }
+
   const staticValue = getStaticAttrValue(node, name);
 
   if (staticValue !== undefined) {
@@ -2797,6 +2889,7 @@ function validateTransitionAttributes(context: GenerateContext, node: ElementNod
   const supported = new Set([
     "name",
     "appear",
+    "mode",
     "enter-from-class",
     "enter-active-class",
     "enter-to-class",
@@ -2813,6 +2906,36 @@ function validateTransitionAttributes(context: GenerateContext, node: ElementNod
     }
 
     throwTemplateError(`<Transition> only supports name, appear, and CSS class override attributes in v1`, context, attr.loc);
+  }
+}
+
+function getSingleElementChild(context: GenerateContext, node: ElementNode, label: string): ElementNode[] {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length !== 1 || meaningful[0].type !== "element") {
+    throwTemplateError(`${label} requires exactly one element or component child`, context, node.loc);
+  }
+
+  return [meaningful[0]];
+}
+
+function getErrorBoundaryFallbackExpression(context: GenerateContext, node: ElementNode): string {
+  const fallbackAttr = node.attrs.find((attr) => getBindingName(attr.name) === "fallback");
+
+  if (!fallbackAttr) {
+    throwTemplateError("<ErrorBoundary> requires :fallback to resolve to a component object", context, node.loc);
+  }
+
+  return compileTemplateExpression(requireAttrValue(fallbackAttr), fallbackAttr.name, toExpressionContext(context, fallbackAttr.valueLoc));
+}
+
+function validateErrorBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
+  for (const attr of node.attrs) {
+    if (getBindingName(attr.name) === "fallback") {
+      continue;
+    }
+
+    throwTemplateError("<ErrorBoundary> only supports :fallback in v1", context, attr.loc);
   }
 }
 

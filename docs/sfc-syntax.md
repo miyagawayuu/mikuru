@@ -373,6 +373,8 @@ defineOptions({ inheritAttrs: false });
 - `<Transition :name="transitionName">...</Transition>`
 - `<Transition><p v-if="visible">...</p><p v-else>...</p></Transition>`
 - `<Transition><component :is="current" /></Transition>`
+- `:appear="false"` で初回enter classを省略
+- `mode="out-in"` で `v-if` chainのleave後に次のbranchを描画
 - `enter-from-class` / `enter-active-class` / `enter-to-class`
 - `leave-from-class` / `leave-active-class` / `leave-to-class`
 
@@ -420,7 +422,19 @@ const AsyncPanel = defineAsyncComponent({
 </script>
 ```
 
-`defineAsyncComponent()` は loader が解決するまで `loadingComponent` を描画し、reject時は `errorComponent` を描画する。`errorComponent` には `error` と `retry` propsを渡す。
+`defineAsyncComponent()` は loader が解決するまで `loadingComponent` を描画し、reject時または `timeout` 到達時は `errorComponent` を描画する。`errorComponent` には `error` と `retry` propsを渡す。
+
+### ErrorBoundary
+
+```mikuru
+<template>
+  <ErrorBoundary :fallback="ErrorPanel">
+    <RiskyPanel />
+  </ErrorBoundary>
+</template>
+```
+
+`<ErrorBoundary>` はchild componentのmount時エラーを捕捉し、fallback componentを描画する。fallback componentには `error` と `retry` propsを渡す。
 
 ## v1で扱わない構文
 

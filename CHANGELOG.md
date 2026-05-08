@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added built-in `<ErrorBoundary>` with fallback component rendering and retry.
+- Added async component retry and timeout fallback coverage.
+- Added `appear` opt-out and `mode="out-in"` support for `<Transition>` v-if chains.
+
 ## 1.0.17 - 2026-05-12
 
 - Added built-in `<Teleport>` with `to` and `disabled` support.
