@@ -363,6 +363,7 @@ function generateTeleport(
   const contentStartVar = nextVar(context, "teleportContentStart");
   const contentEndVar = nextVar(context, "teleportContentEnd");
   const fragmentVar = nextVar(context, "teleportFragment");
+  const teleportParentVar = nextVar(context, "teleportParent");
   const teleportCleanupVar = nextVar(context, "teleportCleanup");
   const stopVar = nextVar(context, "stop");
   emit(context, indent, `const ${startVar} = document.createComment("teleport");`);
@@ -374,8 +375,12 @@ function generateTeleport(
   emit(context, indent, `const ${fragmentVar} = document.createDocumentFragment();`);
   emit(context, indent, `${fragmentVar}.appendChild(${contentStartVar});`);
   emit(context, indent, `${fragmentVar}.appendChild(${contentEndVar});`);
+  emit(context, indent, `const ${teleportParentVar} = {`);
+  emit(context, indent + 1, `insertBefore(node, before) { (before?.parentNode ?? ${contentEndVar}.parentNode)?.insertBefore(node, before ?? ${contentEndVar}); },`);
+  emit(context, indent + 1, `appendChild(node) { ${contentEndVar}.parentNode?.insertBefore(node, ${contentEndVar}); }`);
+  emit(context, indent, "};");
   emit(context, indent, `const ${teleportCleanupVar} = [];`);
-  generateChildren(context, node.children, fragmentVar, teleportCleanupVar, indent, contentEndVar);
+  generateChildren(context, node.children, teleportParentVar, teleportCleanupVar, indent, contentEndVar);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   emit(context, indent + 1, `const teleportDisabled = Boolean(unwrap(${disabledExpression}));`);
   emit(context, indent + 1, `const teleportTargetValue = unwrap(${toExpression});`);

@@ -1,0 +1,30 @@
+<template>
+  <aside class="stats-panel">
+    <strong>Async note stats</strong>
+    <span>Total: {{ total }}</span>
+    <span>Active: {{ active }}</span>
+    <span>Archived: {{ archived }}</span>
+  </aside>
+</template>
+
+<script>
+const { total, active, archived } = defineProps({
+  total: Number,
+  active: Number,
+  archived: Number
+});
+</script>
+
+<style scoped>
+.stats-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  background: #eff6ff;
+}
+</style>

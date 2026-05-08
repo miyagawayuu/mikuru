@@ -4,6 +4,7 @@
 
 - Added built-in `<Teleport>` with `to` and `disabled` support.
 - Added `defineAsyncComponent()` with loading and error fallback components.
+- Added dogfood examples and E2E coverage for Teleport and async component loading.
 
 ## 1.0.16 - 2026-05-12
 
