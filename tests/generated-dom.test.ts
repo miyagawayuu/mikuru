@@ -468,6 +468,62 @@ const flavor = ref("mint");
     expect(paragraph?.textContent).toBe("updated:true:berry");
   });
 
+  it("syncs radio, multiple select, and v-model modifiers", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input type="radio" value="1" v-model.number="choice">
+    <input type="radio" value="2" v-model.number="choice">
+    <input v-model.trim.lazy="name">
+    <input v-model.number="amount">
+    <select multiple v-model.number="selected">
+      <option value="1">One</option>
+      <option value="2">Two</option>
+      <option value="3">Three</option>
+    </select>
+    <p>{{ choice }}:{{ name }}:{{ amount }}:{{ selected.join(",") }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const choice = ref(2);
+const name = ref("Mikuru");
+const amount = ref(1);
+const selected = ref([1, 3]);
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const radios = fixture.root.querySelectorAll<HTMLInputElement>("input[type='radio']");
+    const textInputs = fixture.root.querySelectorAll<HTMLInputElement>("input:not([type='radio'])");
+    const select = fixture.root.querySelector("select");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(radios[0]?.checked).toBe(false);
+    expect(radios[1]?.checked).toBe(true);
+    expect(textInputs[0]?.value).toBe("Mikuru");
+    expect(textInputs[1]?.value).toBe("1");
+    expect(Array.from(select?.selectedOptions ?? []).map((option) => option.getAttribute("value"))).toEqual(["1", "3"]);
+    expect(paragraph?.textContent).toBe("2:Mikuru:1:1,3");
+
+    if (radios[0] && textInputs[0] && textInputs[1] && select) {
+      radios[0].checked = true;
+      radios[0].dispatchEvent(createEvent(fixture.window, "change"));
+      textInputs[0].value = "  trimmed  ";
+      textInputs[0].dispatchEvent(createEvent(fixture.window, "input"));
+      expect(paragraph?.textContent).toBe("1:Mikuru:1:1,3");
+      textInputs[0].dispatchEvent(createEvent(fixture.window, "change"));
+      textInputs[1].value = "42";
+      textInputs[1].dispatchEvent(createEvent(fixture.window, "input"));
+      for (const option of Array.from(select.options)) {
+        option.selected = option.getAttribute("value") !== "1";
+      }
+      select.dispatchEvent(createEvent(fixture.window, "change"));
+    }
+
+    expect(paragraph?.textContent).toBe("1:trimmed:42:2,3");
+  });
+
   it("adds scoped style attributes and injects scoped CSS", () => {
     const fixture = compileForDom(`<template>
   <section>
@@ -1573,6 +1629,54 @@ function read() {
     instance.unmount();
 
     expect(storedRef.value).toBeNull();
+  });
+
+  it("toggles child component visibility with v-show", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child v-show="visible" />
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+
+const Child = {
+  mount(target) {
+    const span = document.createElement("span");
+    span.style.display = "inline-block";
+    span.textContent = "child";
+    target.appendChild(span);
+    return {
+      element: span,
+      unmount() {
+        span.remove();
+      }
+    };
+  }
+};
+
+function toggle() {
+  visible.value = !visible.value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const span = fixture.root.querySelector("span");
+    const button = fixture.root.querySelector("button");
+
+    expect(span?.style.display).toBe("inline-block");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(span?.style.display).toBe("none");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(span?.style.display).toBe("inline-block");
   });
 
   it("passes component event handlers as onEvent props", () => {

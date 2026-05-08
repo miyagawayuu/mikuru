@@ -15,7 +15,7 @@ Mikuru v1 is usable for experiments, demos, and small app validation. Before ado
 - A template must have exactly one root element.
 - The parser supports an HTML-like subset, not the full HTML parsing algorithm.
 - `v-for` supports `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
-- Component `v-show`, dynamic components, and `v-html` are intentionally unsupported.
+- Dynamic components and `v-html` are intentionally unsupported.
 - Unsupported constructs should fail at compile time instead of being ignored.
 
 ## Performance Envelope

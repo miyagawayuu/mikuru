@@ -15,6 +15,8 @@
 - Added `router.isReady()`, per-route `meta.scroll`, and custom query parsing/stringifying for `mikuru/router`.
 - Added DOM event modifiers `.self`, `.once`, `.capture`, and `.passive`.
 - Added component event `.once` modifiers.
+- Added component `v-show`.
+- Added radio, multiple select, and `.trim` / `.number` / `.lazy` modifier support for `v-model`.
 - Added normalized `style` bindings for strings, arrays, and objects.
 - Added child component DOM attribute fallthrough, including `class`, `style`, `id`, `title`, `role`, `aria-*`, and `data-*`, to the component root element.
 - Added static template refs with `ref="name"` for DOM elements and child component instances.

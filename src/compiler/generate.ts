@@ -324,10 +324,38 @@ function generateComponent(
     emit(context, indent, "}");
   }
   emitComponentFallthrough(context, node, componentVar, cleanupVar, indent);
+  emitComponentShow(context, node, componentVar, cleanupVar, indent);
   emit(context, indent, `${cleanupVar}.push(() => ${componentVar}.unmount());`);
   emitTemplateRef(context, node, componentVar, cleanupVar, indent);
   appendNode(context, parentVar, fragmentVar, indent, beforeVar);
   return `${componentVar}.element`;
+}
+
+function emitComponentShow(
+  context: GenerateContext,
+  node: ElementNode,
+  componentVar: string,
+  cleanupVar: string,
+  indent: number
+): void {
+  const showAttr = node.attrs.find((attr) => attr.name === "v-show");
+
+  if (!showAttr) {
+    return;
+  }
+
+  const expression = compileTemplateExpression(requireAttrValue(showAttr), showAttr.name, toExpressionContext(context, showAttr.valueLoc));
+  const elementVar = nextVar(context, "componentEl");
+  const baseDisplayVar = nextVar(context, "baseDisplay");
+  const stopVar = nextVar(context, "stop");
+  emit(context, indent, `const ${elementVar} = ${componentVar}.element;`);
+  emit(context, indent, `if (${elementVar}?.nodeType === 1) {`);
+  emit(context, indent + 1, `const ${baseDisplayVar} = ${elementVar}.style.display;`);
+  emit(context, indent + 1, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 2, `${elementVar}.style.display = unwrap(${expression}) ? ${baseDisplayVar} : "none";`);
+  emit(context, indent + 1, "});");
+  emit(context, indent + 1, `${cleanupVar}.push(${stopVar});`);
+  emit(context, indent, "}");
 }
 
 function emitComponentFallthrough(
@@ -560,23 +588,48 @@ function generateElement(
 
   emitTemplateRef(context, node, elementVar, cleanupVar, indent);
 
+  generateChildren(context, node.children, elementVar, cleanupVar, indent);
+
   for (const attr of node.attrs) {
-    if (attr.name === "v-model") {
+    const modelDirective = parseModelDirective(attr.name);
+
+    if (modelDirective) {
+      validateModelModifiers(modelDirective, attr, context);
       const expression = validateAssignableExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
       const stopVar = nextVar(context, "stop");
       const handlerVar = nextVar(context, "handler");
       const inputType = getStaticAttrValue(node, "type")?.toLowerCase();
-      const modelMode = node.tag === "input" && inputType === "checkbox" ? "checkbox" : node.tag === "select" ? "select" : "text";
-      const eventName = modelMode === "text" ? "input" : "change";
-      const propertyName = modelMode === "checkbox" ? "checked" : "value";
+      const multiple = node.tag === "select" && hasStaticBooleanAttr(node, "multiple");
+      const modelMode =
+        node.tag === "input" && inputType === "checkbox"
+          ? "checkbox"
+          : node.tag === "input" && inputType === "radio"
+            ? "radio"
+            : node.tag === "select" && multiple
+              ? "select-multiple"
+              : node.tag === "select"
+                ? "select"
+                : "text";
+      const eventName = modelMode === "text" && !modelDirective.modifiers.includes("lazy") ? "input" : "change";
+      const propertyName = modelMode === "checkbox" || modelMode === "radio" ? "checked" : "value";
       const renderedValue =
-        modelMode === "checkbox" ? `Boolean(unwrap(${expression}))` : `String(unwrap(${expression}) ?? "")`;
-      const assignedValue = modelMode === "checkbox" ? `$event.target.checked` : `$event.target.value`;
+        modelMode === "checkbox"
+          ? `Boolean(unwrap(${expression}))`
+          : modelMode === "radio"
+            ? `(${modelDirective.modifiers.includes("number") ? `Number(${elementVar}.getAttribute("value") ?? "on")` : `(${elementVar}.getAttribute("value") ?? "on")`} === unwrap(${expression}))`
+            : modelMode === "select-multiple"
+              ? `Array.from(${elementVar}.options).forEach((option) => { option.selected = (unwrap(${expression}) ?? []).map(String).includes(option.getAttribute("value") ?? option.textContent ?? ""); })`
+              : `String(unwrap(${expression}) ?? "")`;
+      const assignedValue = modelAssignedValue(modelMode, modelDirective.modifiers);
 
       emit(context, indent, `const ${stopVar} = effect(() => {`);
-      emit(context, indent + 1, `if (${elementVar}.${propertyName} !== ${renderedValue}) {`);
-      emit(context, indent + 2, `${elementVar}.${propertyName} = ${renderedValue};`);
-      emit(context, indent + 1, "}");
+      if (modelMode === "select-multiple") {
+        emit(context, indent + 1, renderedValue);
+      } else {
+        emit(context, indent + 1, `if (${elementVar}.${propertyName} !== ${renderedValue}) {`);
+        emit(context, indent + 2, `${elementVar}.${propertyName} = ${renderedValue};`);
+        emit(context, indent + 1, "}");
+      }
       emit(context, indent, "});");
       emit(context, indent, `${cleanupVar}.push(${stopVar});`);
       emit(context, indent, `const ${handlerVar} = ($event) => {`);
@@ -663,8 +716,6 @@ function generateElement(
       emit(context, indent, `${cleanupVar}.push(${stopVar});`);
     }
   }
-
-  generateChildren(context, node.children, elementVar, cleanupVar, indent);
 
   appendNode(context, parentVar, elementVar, indent, beforeVar);
   return elementVar;
@@ -1542,6 +1593,10 @@ function getStaticAttrValue(node: ElementNode, name: string): string | undefined
   return attr.value;
 }
 
+function hasStaticBooleanAttr(node: ElementNode, name: string): boolean {
+  return node.attrs.some((candidate) => candidate.name === name && candidate.value === true);
+}
+
 function getKeyExpression(node: ElementNode): string | undefined {
   return getStringAttr(node, ":key") ?? getStringAttr(node, "v-bind:key");
 }
@@ -1931,14 +1986,23 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
     return [];
   }
 
-  if (attr.name === "v-model") {
+  const modelDirective = parseModelDirective(attr.name);
+
+  if (modelDirective) {
+    validateModelModifiers(modelDirective, attr, context);
     const expression = validateAssignableExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     const valueExpression = compileTemplateExpression(expression, attr.name, toExpressionContext(context, attr.valueLoc));
 
-    return [
+    const entries = [
       `get modelValue() { return unwrap(${valueExpression}); }`,
       `onUpdateModelValue: ($value) => { ${expression}.value = $value; }`
     ];
+
+    if (modelDirective.modifiers.length > 0) {
+      entries.push(`modelModifiers: { ${modelDirective.modifiers.map((modifier) => `${quotePropertyName(modifier)}: true`).join(", ")} }`);
+    }
+
+    return entries;
   }
 
   const event = parseEventDirective(attr.name);
@@ -1967,7 +2031,7 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
   }
 
   if (attr.name === "v-show") {
-    throwTemplateError(`Unsupported component directive ${attr.name}`, context, attr.loc);
+    return [];
   }
 
   return [`${quotePropertyName(attr.name)}: ${quote(attr.value === true ? true : attr.value)}`];
@@ -2012,7 +2076,7 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
     attr.name === "v-else" ||
     attr.name === "v-for" ||
     attr.name === "v-show" ||
-    attr.name === "v-model" ||
+    Boolean(parseModelDirective(attr.name)) ||
     isObjectBindAttr(attr) ||
     isObjectOnAttr(attr) ||
     Boolean(parseEventDirective(attr.name)) ||
@@ -2040,6 +2104,56 @@ function parseEventDirective(name: string): EventDirective | undefined {
     name: eventName,
     modifiers
   };
+}
+
+function parseModelDirective(name: string): { modifiers: string[] } | undefined {
+  if (name === "v-model") {
+    return { modifiers: [] };
+  }
+
+  if (!name.startsWith("v-model.")) {
+    return undefined;
+  }
+
+  return { modifiers: name.slice("v-model.".length).split(".").filter(Boolean) };
+}
+
+function validateModelModifiers(model: { modifiers: string[] }, attr: TemplateAttribute, context: GenerateContext): void {
+  const supportedModifiers = new Set(["trim", "number", "lazy"]);
+
+  for (const modifier of model.modifiers) {
+    if (!supportedModifiers.has(modifier)) {
+      throwTemplateError(`Unsupported v-model modifier .${modifier}`, context, attr.loc);
+    }
+  }
+}
+
+function modelAssignedValue(modelMode: string, modifiers: string[]): string {
+  if (modelMode === "checkbox") {
+    return "$event.target.checked";
+  }
+
+  if (modelMode === "radio") {
+    const valueExpression = `($event.target.getAttribute("value") ?? "on")`;
+    return modifiers.includes("number") ? `Number(${valueExpression})` : valueExpression;
+  }
+
+  if (modelMode === "select-multiple") {
+    const valueExpression = `Array.from($event.target.options).filter((option) => option.selected).map((option) => option.getAttribute("value") ?? option.textContent ?? "")`;
+    return modifiers.includes("number") ? `${valueExpression}.map((value) => Number(value))` : valueExpression;
+  }
+
+  let valueExpression = "$event.target.value";
+
+  if (modifiers.includes("trim")) {
+    valueExpression = `${valueExpression}.trim()`;
+  }
+
+  if (modifiers.includes("number")) {
+    valueExpression = `Number(${valueExpression})`;
+  }
+
+  return valueExpression;
 }
 
 function validateEventModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext): void {
