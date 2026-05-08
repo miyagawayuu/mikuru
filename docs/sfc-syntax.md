@@ -349,6 +349,19 @@ defineOptions({ inheritAttrs: false });
     <p>Hello</p>
   </Transition>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+</style>
 ```
 
 `<Transition>` は1つのelement/component child、または1つの `v-if` chainを受け取り、mount時に `fade-enter-from` / `fade-enter-active` / `fade-enter-to`、削除時に `fade-leave-from` / `fade-leave-active` / `fade-leave-to` を付け替える。`name` を省略すると `v` を使う。
@@ -362,6 +375,18 @@ defineOptions({ inheritAttrs: false });
 - `<Transition><component :is="current" /></Transition>`
 - `enter-from-class` / `enter-active-class` / `enter-to-class`
 - `leave-from-class` / `leave-active-class` / `leave-to-class`
+
+class overrideを使うと、複数のTransitionで同じCSS classを共有できる。
+
+```mikuru
+<Transition
+  name="panel"
+  enter-active-class="motion-in"
+  leave-active-class="motion-out"
+>
+  <component :is="currentPanel" />
+</Transition>
+```
 
 ## v1で扱わない構文
 

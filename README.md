@@ -183,6 +183,35 @@ npx mikuru create my-basic-app -t basic
 npx mikuru --list-templates
 ```
 
+## Transition Example
+
+```mikuru
+<template>
+  <button @click="open = !open">Toggle</button>
+  <Transition name="fade">
+    <p v-if="open">Saved changes</p>
+    <p v-else>Waiting for edits</p>
+  </Transition>
+</template>
+
+<script>
+const open = ref(false);
+</script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+</style>
+```
+
 ## Not Included in v1
 
 Mikuru does not claim Vue compatibility. The v1 package does not include SSR, hydration, devtools, `v-html`, or full template type checking.
