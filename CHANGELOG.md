@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.18 - 2026-05-12
 
 - Added built-in `<ErrorBoundary>` with fallback component rendering and retry.
 - Added async component retry and timeout fallback coverage.
