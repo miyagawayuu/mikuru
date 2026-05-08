@@ -1183,6 +1183,44 @@ const Card = {
     expect(fixture.root.querySelector("p")?.textContent).toBe("0");
   });
 
+  it("renders nested and rest slot scope destructuring", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Card>
+      <template #default="{ item: { title, meta: { tone = 'quiet' } }, ...rest }">
+        <h2>{{ title }}</h2>
+        <p>{{ tone }}:{{ rest.extra }}</p>
+      </template>
+    </Card>
+  </section>
+</template>
+
+<script>
+const Card = {
+  mount(target, props) {
+    const article = document.createElement("article");
+    const cleanup = props.children(article, {
+      item: { title: "Nested", meta: {} },
+      extra: "rested"
+    });
+    target.appendChild(article);
+    return {
+      element: article,
+      unmount() {
+        cleanup?.();
+        article.remove();
+      }
+    };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("h2")?.textContent).toBe("Nested");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("quiet:rested");
+  });
+
   it("renders parent dynamic slot names", () => {
     const fixture = compileForDom(`<template>
   <section>
