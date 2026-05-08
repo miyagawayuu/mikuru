@@ -212,6 +212,29 @@ Use `v-show` when the DOM should stay mounted and only visibility should change.
 <Panel v-show="detailsOpen" />
 ```
 
+Wrap one conditional child or one `v-if` chain in `<Transition>` when the DOM should animate as it enters and leaves.
+
+```mikuru
+<template>
+  <Transition name="notice">
+    <p v-if="saved">Saved</p>
+    <p v-else>Unsaved changes</p>
+  </Transition>
+</template>
+
+<style scoped>
+.notice-enter-active,
+.notice-leave-active {
+  transition: opacity 120ms ease;
+}
+
+.notice-enter-from,
+.notice-leave-to {
+  opacity: 0;
+}
+</style>
+```
+
 ## Child Components
 
 Uppercase tags are treated as child components.
