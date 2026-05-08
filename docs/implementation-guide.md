@@ -241,6 +241,25 @@ Component events are passed as camel-cased handler props. For example:
 - `@toggle.once="handle"` wraps `props.onToggle` so it calls `handle` only once per child mount
 - `v-model` uses `props.onUpdateModelValue`
 
+## Fallthrough Attributes
+
+Use `useAttrs()` when a component needs to read fallthrough attributes or forward them to a non-root element. Use `defineOptions({ inheritAttrs: false })` to disable automatic root fallthrough.
+
+```mikuru
+<template>
+  <button class="button" v-bind="attrs">
+    <slot />
+  </button>
+</template>
+
+<script>
+const attrs = useAttrs();
+defineOptions({ inheritAttrs: false });
+</script>
+```
+
+`useAttrs()` returns DOM-facing fallthrough attributes such as `class`, `style`, `id`, `title`, `role`, `aria-*`, and `data-*`. Values stay reactive for direct bindings and object-form `v-bind` from the parent. Manual forwarding uses normal `v-bind="attrs"` behavior, so `class` and `style` keep the same normalization as other attribute bindings.
+
 ## Template Refs
 
 Use `ref="name"` to assign a DOM element or child component instance to a ref object declared in `<script>`.

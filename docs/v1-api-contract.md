@@ -52,6 +52,7 @@ Unsupported in v1:
 - Uppercase tags are treated as child components.
 - Static attributes and bound props are passed through `props`.
 - DOM-facing attributes are also applied to the root `element` returned from `mount`; `class` and `style` are merged with the root element's existing values.
+- Components can read fallthrough attributes with `useAttrs()` and opt out of automatic root fallthrough with `defineOptions({ inheritAttrs: false })`.
 - Template refs assign the child component instance to a ref object or callback and clean up on unmount; repeated refs inside `v-for` collect values in an array.
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present.
@@ -94,10 +95,12 @@ Unsupported in v1:
 
 ## Macro Contract
 
-- `defineProps()` and `defineEmits()` are compile-time-only APIs.
-- They must appear in top-level `const` declarations.
+- `defineProps()`, `defineEmits()`, `useAttrs()`, and `defineOptions()` are compile-time-only APIs.
+- `defineProps()`, `defineEmits()`, and `useAttrs()` must appear in top-level `const` declarations. `defineOptions()` must appear as a top-level call expression.
 - `defineProps()` supports identifier binding and object destructuring.
 - `defineEmits(["name"])` validates literal emit calls.
+- `useAttrs()` supports identifier binding.
+- `defineOptions()` supports `{ inheritAttrs: false }`.
 - `update:modelValue` maps to `onUpdateModelValue`.
 
 ## Compatibility Policy

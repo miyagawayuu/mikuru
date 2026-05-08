@@ -19,6 +19,7 @@ import {
 } from "../src/runtime/index.js";
 
 type CompiledModule = {
+  inheritAttrs?: boolean;
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): MikuruComponentInstance;
 };
 
@@ -2001,6 +2002,60 @@ const localProps = defineProps();
 
     expect(fixture.root.querySelector("span")?.textContent).toBe("Hello:3");
     expect(fixture.root.querySelector("em")?.textContent).toBe("Alias");
+  });
+
+  it("reads and manually forwards fallthrough attrs with useAttrs", () => {
+    const previousChild = (globalThis as unknown as { __mikuruAttrsChild?: CompiledModule }).__mikuruAttrsChild;
+    const child = loadCompiledModule(
+      compile(`<template>
+  <button class="local" v-bind="attrs">{{ attrs.id }}:{{ attrs["data-state"] }}</button>
+</template>
+
+<script>
+const attrs = useAttrs();
+defineOptions({ inheritAttrs: false });
+</script>`).code,
+      new Window().document as unknown as Document
+    );
+    child.inheritAttrs = false;
+    (globalThis as unknown as { __mikuruAttrsChild?: CompiledModule }).__mikuruAttrsChild = child;
+
+    try {
+      const fixture = compileForDom(`<template>
+  <section>
+    <Child id="child-id" class="parent" :data-state="state" title="Forwarded" />
+    <button @click="activate">Activate</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const Child = globalThis.__mikuruAttrsChild;
+const state = ref("idle");
+
+function activate() {
+  state.value = "active";
+}
+</script>`);
+
+      fixture.module.mount(fixture.root);
+      const childButton = fixture.root.querySelector("section > button");
+      const toggle = fixture.root.querySelectorAll("button")[1];
+
+      expect(childButton?.id).toBe("child-id");
+      expect(childButton?.className).toBe("local parent");
+      expect(childButton?.getAttribute("title")).toBe("Forwarded");
+      expect(childButton?.getAttribute("data-state")).toBe("idle");
+      expect(childButton?.textContent).toBe("child-id:idle");
+
+      toggle?.dispatchEvent(createEvent(fixture.window, "click"));
+
+      expect(childButton?.getAttribute("data-state")).toBe("active");
+      expect(childButton?.textContent).toBe("child-id:active");
+    } finally {
+      (globalThis as unknown as { __mikuruAttrsChild?: CompiledModule }).__mikuruAttrsChild = previousChild;
+    }
   });
 
   it("keeps destructured defineProps values reactive", () => {

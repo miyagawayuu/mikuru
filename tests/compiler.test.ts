@@ -279,6 +279,18 @@ const attrs = { class: "bound", style: { color: "blue" } };
     expect(result.code).toContain("\"aria-label\"");
   });
 
+  it("generates useAttrs and inheritAttrs options", () => {
+    const result = compile(`<template><button v-bind="attrs">Forward</button></template>
+<script>
+const attrs = useAttrs();
+defineOptions({ inheritAttrs: false });
+</script>`);
+
+    expect(result.code).toContain("const __mikuru_attrs = props.__mikuru_attrs ?? {};");
+    expect(result.code).toContain("const attrs = __mikuru_attrs;");
+    expect(result.code).toContain("inheritAttrs: false");
+  });
+
   it("generates template ref assignments and cleanup", () => {
     const result = compile(`<template><input ref="inputEl" /></template><script>const inputEl = ref(null);</script>`);
     const component = compile(`<template><Child ref="childRef" /></template><script>import Child from "./Child.mikuru"; const childRef = ref(null);</script>`);
