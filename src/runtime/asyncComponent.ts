@@ -28,10 +28,16 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       return Promise.resolve(resolved);
     }
 
-    pending ??= options.loader().then((result) => {
-      resolved = "default" in result ? result.default : result;
-      return resolved;
-    });
+    pending ??= options.loader().then(
+      (result) => {
+        resolved = "default" in result ? result.default : result;
+        return resolved;
+      },
+      (error) => {
+        pending = undefined;
+        throw error;
+      }
+    );
 
     return pending;
   };
@@ -44,6 +50,8 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       let child: MikuruComponentInstance | undefined;
       let cancelled = false;
       let token = 0;
+      let delayTimer: ReturnType<typeof setTimeout> | undefined;
+      let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
 
       target.appendChild(start);
       target.appendChild(end);
@@ -67,77 +75,82 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         }
       };
 
-      const currentToken = ++token;
-      let delayTimer: ReturnType<typeof setTimeout> | undefined;
-
-      if (options.loadingComponent && (options.delay ?? 0) <= 0) {
-        renderFallback(options.loadingComponent, props);
-      } else if (options.loadingComponent) {
-        delayTimer = setTimeout(() => {
-          if (!cancelled && currentToken === token && !child) {
-            renderFallback(options.loadingComponent, props);
-          }
-        }, options.delay);
-      }
-      const timeoutTimer =
-        options.timeout && options.timeout > 0
-          ? setTimeout(() => {
-              if (!cancelled && currentToken === token && !resolved) {
-                renderFallback(options.errorComponent, { ...props, error: new Error("Async component timed out"), retry: load });
-              }
-            }, options.timeout)
-          : undefined;
-
-      load().then(
-        (component) => {
-          if (cancelled || currentToken !== token) {
-            return;
-          }
-
-          if (delayTimer) {
-            clearTimeout(delayTimer);
-          }
-
-          if (timeoutTimer) {
-            clearTimeout(timeoutTimer);
-          }
-
-          clear();
-          render(component, props);
-        },
-        (error) => {
-          if (cancelled || currentToken !== token) {
-            return;
-          }
-
-          if (delayTimer) {
-            clearTimeout(delayTimer);
-          }
-
-          if (timeoutTimer) {
-            clearTimeout(timeoutTimer);
-          }
-
-          renderFallback(options.errorComponent, { ...props, error, retry: load });
-
-          if (!options.errorComponent) {
-            setTimeout(() => { throw error; });
-          }
+      const clearTimers = () => {
+        if (delayTimer) {
+          clearTimeout(delayTimer);
+          delayTimer = undefined;
         }
-      );
+
+        if (timeoutTimer) {
+          clearTimeout(timeoutTimer);
+          timeoutTimer = undefined;
+        }
+      };
+
+      const startLoad = () => {
+        const currentToken = ++token;
+        clearTimers();
+
+        if (options.loadingComponent && (options.delay ?? 0) <= 0) {
+          renderFallback(options.loadingComponent, props);
+        } else if (options.loadingComponent) {
+          delayTimer = setTimeout(() => {
+            if (!cancelled && currentToken === token && !child) {
+              renderFallback(options.loadingComponent, props);
+            }
+          }, options.delay);
+        }
+
+        if (options.timeout && options.timeout > 0) {
+          timeoutTimer = setTimeout(() => {
+            if (!cancelled && currentToken === token && !resolved) {
+              token += 1;
+              clearTimers();
+              pending = undefined;
+              renderFallback(options.errorComponent, {
+                ...props,
+                error: new Error("Async component timed out"),
+                retry: () => startLoad()
+              });
+            }
+          }, options.timeout);
+        }
+
+        const promise = load();
+        promise.then(
+          (component) => {
+            if (cancelled || currentToken !== token) {
+              return;
+            }
+
+            clearTimers();
+            clear();
+            render(component, props);
+          },
+          (error) => {
+            if (cancelled || currentToken !== token) {
+              return;
+            }
+
+            clearTimers();
+            renderFallback(options.errorComponent, { ...props, error, retry: () => startLoad() });
+
+            if (!options.errorComponent) {
+              setTimeout(() => { throw error; });
+            }
+          }
+        );
+
+        return promise;
+      };
+
+      void startLoad();
 
       return {
         element: start,
         unmount() {
           cancelled = true;
-          if (delayTimer) {
-            clearTimeout(delayTimer);
-          }
-
-          if (timeoutTimer) {
-            clearTimeout(timeoutTimer);
-          }
-
+          clearTimers();
           clear();
           start.remove();
           end.remove();
