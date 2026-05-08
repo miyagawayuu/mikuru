@@ -34,6 +34,7 @@ Supported in v1:
 - `v-for` with `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
 - `:key` / `v-bind:key` on `v-for` for keyed DOM reuse.
 - `v-model` for text input, textarea, checkbox, select, and child components.
+- Static template refs with `ref="name"` for DOM elements and child components.
 - Default slots through `<slot />`.
 - Named slots through `<slot name="header" />` and `<template #header>`.
 - Dynamic slot names through `<slot :name="name" />`, `<template v-slot:[name]>`, and `<template #[name]>`.
@@ -45,6 +46,7 @@ Unsupported in v1:
 - `v-html`.
 - Dynamic components and transitions.
 - Component `v-show`.
+- Dynamic `:ref`.
 - Full HTML parser compatibility.
 
 ## Component Contract
@@ -52,6 +54,7 @@ Unsupported in v1:
 - Uppercase tags are treated as child components.
 - Static attributes and bound props are passed through `props`.
 - DOM-facing attributes are also applied to the root `element` returned from `mount`; `class` and `style` are merged with the root element's existing values.
+- Static `ref="name"` assigns the child component instance to the named ref object and clears it on unmount.
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue` and `onUpdateModelValue`.
 - Child component instances must return `{ element, unmount }` from `mount`.

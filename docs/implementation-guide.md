@@ -233,6 +233,27 @@ Component events are passed as camel-cased handler props. For example:
 - `@toggle.once="handle"` wraps `props.onToggle` so it calls `handle` only once per child mount
 - `v-model` uses `props.onUpdateModelValue`
 
+## Template Refs
+
+Use `ref="name"` to assign a DOM element or child component instance to a ref object declared in `<script>`.
+
+```mikuru
+<template>
+  <input ref="inputEl">
+  <TextField ref="field" />
+</template>
+
+<script>
+import { ref } from "mikuru";
+import TextField from "./TextField.mikuru";
+
+const inputEl = ref(null);
+const field = ref(null);
+</script>
+```
+
+DOM refs receive the rendered element. Component refs receive the object returned from the child component's `mount`. Mikuru clears the ref back to `null` when that element or component unmounts. Dynamic `:ref` is not supported in v1.
+
 ## Props and Emits
 
 Use `defineProps()` and `defineEmits()` as compile-time macros in top-level `const` declarations.

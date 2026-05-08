@@ -268,6 +268,16 @@ const attrs = { class: "bound", style: { color: "blue" } };
     expect(result.code).toContain("\"aria-label\"");
   });
 
+  it("generates template ref assignments and cleanup", () => {
+    const result = compile(`<template><input ref="inputEl" /></template><script>const inputEl = ref(null);</script>`);
+    const component = compile(`<template><Child ref="childRef" /></template><script>import Child from "./Child.mikuru"; const childRef = ref(null);</script>`);
+
+    expect(result.code).toContain("inputEl.value = el");
+    expect(result.code).toContain("inputEl.value = null");
+    expect(component.code).toContain("childRef.value = component");
+    expect(component.code).toContain("childRef.value = null");
+  });
+
   it("generates named slots and slot props", () => {
     const result = compile(`<template>
   <Panel>
@@ -506,6 +516,12 @@ function setup() {
     );
     expect(() => compile(`<template><Child v-show="visible" /></template><script>const visible = true; const Child = { mount() {} };</script>`)).toThrow(
       /Unsupported component directive v-show/
+    );
+    expect(() => compile(`<template><input :ref="inputEl" /></template><script>const inputEl = ref(null);</script>`)).toThrow(
+      /Dynamic template refs are not supported/
+    );
+    expect(() => compile(`<template><input ref="input.el" /></template><script>const input = ref(null);</script>`)).toThrow(
+      /Template ref must be a simple identifier/
     );
   });
 
