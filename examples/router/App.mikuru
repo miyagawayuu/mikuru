@@ -25,7 +25,7 @@
 
 <script>
 import { onBeforeUnmount } from "mikuru";
-import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterView } from "mikuru/router";
+import { createRouter, createWebHashHistory, provideRouter, RouterLink, RouterView } from "mikuru/router";
 import AdminPage from "./AdminPage.mikuru";
 import DynamicPage from "./DynamicPage.mikuru";
 import ErrorPage from "./ErrorPage.mikuru";
@@ -41,7 +41,7 @@ const userRoute = { name: "user", params: { id: "42" }, query: { tab: "profile" 
 const isLoggedIn = false;
 
 const router = createRouter({
-  history: createMemoryHistory("/"),
+  history: createWebHashHistory(),
   routes: [
     { path: "/", name: "home", alias: "/start", component: HomePage },
     { path: "/login", name: "login", component: LoginPage },
