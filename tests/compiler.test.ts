@@ -235,6 +235,26 @@ p { color: red; }
     expect(component.code).toContain("modelModifiers: { trim: true }");
   });
 
+  it("generates dynamic component mounts", () => {
+    const result = compile(`<template>
+  <component :is="current" :message="message" @select="select" ref="activeChild">
+    <template #default="{ label }">{{ label }}</template>
+  </component>
+</template>
+<script>
+const current = First;
+const message = "Hello";
+const activeChild = ref(null);
+function select() {}
+</script>`);
+
+    expect(result.code).toContain("document.createComment(\"component\")");
+    expect(result.code).toContain("currentComponent");
+    expect(result.code).toContain(".mount(");
+    expect(result.code).toContain("Dynamic component :is must resolve");
+    expect(result.code).toContain("__mikuru_setRef(activeChild");
+  });
+
   it("generates object-form v-bind and v-on for elements and components", () => {
     const element = compile(`<template><button v-bind="attrs" v-on="listeners">Save</button></template>
 <script>
@@ -606,9 +626,7 @@ const count = 0;
 
   it("rejects unsupported v1 template constructs explicitly", () => {
     expect(() => compile(`<template><section v-html="html"></section></template>`)).toThrow(/Use text interpolation/);
-    expect(() => compile(`<template><component :is="current" /></template>`)).toThrow(
-      /Import and render an explicit component/
-    );
+    expect(() => compile(`<template><component /></template>`)).toThrow(/Dynamic component requires :is/);
     expect(() => compile(`<template><Panel v-slot:header>Header</Panel></template>`)).toThrow(
       /Wrap slot content in <template #name>/
     );

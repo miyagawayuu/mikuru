@@ -1955,6 +1955,108 @@ const Child = {
     expect(fixture.root.querySelector("p")?.textContent).toBe("object-updated");
   });
 
+  it("switches dynamic components with props, events, attrs, slots, refs, and v-show", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <component
+      :is="current"
+      class="from-parent"
+      :message="message"
+      @select="select"
+      ref="activeChild"
+      v-show="visible"
+    >
+      <template #default="{ label }">
+        <em>{{ label }} slot</em>
+      </template>
+    </component>
+    <button @click="swap">Swap</button>
+    <button @click="hide">Hide</button>
+    <p>{{ selected }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref("none");
+const message = ref("Hello");
+const activeChild = ref(null);
+globalThis.__mikuruDynamicChildRef = activeChild;
+
+function createChild(name) {
+  return {
+    mount(target, props) {
+      const article = document.createElement("article");
+      const button = document.createElement("button");
+      const slotTarget = document.createElement("span");
+      const cleanup = props.children?.(slotTarget, { label: name });
+      const stop = effect(() => {
+        button.textContent = name + ":" + props.message;
+      });
+      button.addEventListener("click", () => props.onSelect(name));
+      article.appendChild(button);
+      article.appendChild(slotTarget);
+      target.appendChild(article);
+      return {
+        element: article,
+        name,
+        unmount() {
+          stop();
+          cleanup?.();
+          article.remove();
+        }
+      };
+    }
+  };
+}
+
+const First = createChild("first");
+const Second = createChild("second");
+const current = ref(First);
+const visible = ref(true);
+
+function select(value) {
+  selected.value = value;
+}
+
+function swap() {
+  current.value = Second;
+  message.value = "Updated";
+}
+
+function hide() {
+  visible.value = false;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const childRef = (globalThis as unknown as { __mikuruDynamicChildRef: { value: { name: string } | null } }).__mikuruDynamicChildRef;
+    let article = fixture.root.querySelector("article");
+
+    expect(article?.className).toBe("from-parent");
+    expect(article?.querySelector("button")?.textContent).toBe("first:Hello");
+    expect(article?.querySelector("em")?.textContent).toBe("first slot");
+    expect(childRef.value?.name).toBe("first");
+
+    article?.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("first");
+
+    fixture.root.querySelectorAll("section > button")[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    article = fixture.root.querySelector("article");
+
+    expect(article?.className).toBe("from-parent");
+    expect(article?.querySelector("button")?.textContent).toBe("second:Updated");
+    expect(article?.querySelector("em")?.textContent).toBe("second slot");
+    expect(childRef.value?.name).toBe("second");
+
+    article?.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("second");
+
+    fixture.root.querySelectorAll("section > button")[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(article?.style.display).toBe("none");
+  });
+
   it("passes component v-model as modelValue and update handler props", () => {
     const fixture = compileForDom(`<template>
   <section>

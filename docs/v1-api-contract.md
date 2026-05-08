@@ -44,7 +44,7 @@ Unsupported in v1:
 
 - Multiple template roots.
 - `v-html`.
-- Dynamic components and transitions.
+- Transitions.
 - Full HTML parser compatibility.
 
 ## Component Contract
@@ -56,6 +56,7 @@ Unsupported in v1:
 - Template refs assign the child component instance to a ref object or callback and clean up on unmount; repeated refs inside `v-for` collect values in an array.
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present.
+- Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `v-show`.
 - Child component instances must return `{ element, unmount }` from `mount`.
 
 ## Router Contract

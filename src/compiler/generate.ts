@@ -252,6 +252,10 @@ function generateNode(
     throwTemplateError(`${orphanElseAttr.name} must follow v-if or v-else-if`, context, orphanElseAttr.loc);
   }
 
+  if (node.tag === "component") {
+    return generateDynamicComponent(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   if (isComponentTag(node.tag)) {
     return generateComponent(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
@@ -359,6 +363,79 @@ function generateComponent(
   emitTemplateRef(context, node, componentVar, cleanupVar, indent);
   appendNode(context, parentVar, fragmentVar, indent, beforeVar);
   return `${componentVar}.element`;
+}
+
+function generateDynamicComponent(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  const isAttr = node.attrs.find((attr) => getBindingName(attr.name) === "is");
+
+  if (!isAttr) {
+    throwTemplateError("Dynamic component requires :is to resolve to a component object", context, node.loc);
+  }
+
+  const expression = compileTemplateExpression(requireAttrValue(isAttr), isAttr.name, toExpressionContext(context, isAttr.valueLoc));
+  const dynamicNode = withoutAttrs(node, ["is", ":is", "v-bind:is"]);
+  const startVar = nextVar(context, "componentStart");
+  const endVar = nextVar(context, "componentEnd");
+  const branchCleanupVar = nextVar(context, "componentCleanup");
+  const componentTypeVar = nextVar(context, "componentType");
+  const currentTypeVar = nextVar(context, "currentComponent");
+  const currentInstanceVar = nextVar(context, "currentComponent");
+  const stopVar = nextVar(context, "stop");
+  emit(context, indent, `const ${startVar} = document.createComment("component");`);
+  emit(context, indent, `const ${endVar} = document.createComment("/component");`);
+  appendNode(context, parentVar, startVar, indent, beforeVar);
+  appendNode(context, parentVar, endVar, indent, beforeVar);
+  emit(context, indent, `const ${branchCleanupVar} = [];`);
+  emit(context, indent, `let ${currentTypeVar};`);
+  emit(context, indent, `let ${currentInstanceVar};`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${componentTypeVar} = unwrap(${expression});`);
+  emit(context, indent + 1, `if (${componentTypeVar} === ${currentTypeVar}) { return; }`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
+  emit(context, indent + 1, `if (!${componentTypeVar}) {`);
+  emit(context, indent + 2, `${currentTypeVar} = ${componentTypeVar};`);
+  emit(context, indent + 2, `${currentInstanceVar} = null;`);
+  emit(context, indent + 2, "return;");
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `if (typeof ${componentTypeVar} !== "object" || typeof ${componentTypeVar}.mount !== "function") {`);
+  emit(context, indent + 2, `throw new Error("Dynamic component :is must resolve to a component object with mount()");`);
+  emit(context, indent + 1, "}");
+  const fragmentVar = nextVar(context, "fragment");
+  const attrsVar = nextVar(context, "attrs");
+  const propsVar = nextVar(context, "props");
+  const componentVar = nextVar(context, "component");
+  emit(context, indent + 1, `const ${fragmentVar} = document.createDocumentFragment();`);
+  emitComponentAttrs(context, dynamicNode, attrsVar, indent + 1);
+  emitComponentProps(context, dynamicNode, propsVar, attrsVar, indent + 1);
+  emit(context, indent + 1, `const ${componentVar} = ${componentTypeVar}.mount(${fragmentVar}, ${propsVar});`);
+  if (context.scopeAttr) {
+    emit(context, indent + 1, `if (${componentVar}.element?.nodeType === 1) {`);
+    emit(context, indent + 2, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
+    emit(context, indent + 1, "}");
+  }
+  emit(context, indent + 1, `if (${componentTypeVar}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context, dynamicNode, componentVar, branchCleanupVar, indent + 2);
+  emit(context, indent + 1, "}");
+  emitComponentShow(context, dynamicNode, componentVar, branchCleanupVar, indent + 1);
+  emit(context, indent + 1, `${branchCleanupVar}.push(() => ${componentVar}.unmount());`);
+  emitTemplateRef(context, dynamicNode, componentVar, branchCleanupVar, indent + 1);
+  appendNode(context, parentVar, fragmentVar, indent + 1, endVar);
+  emit(context, indent + 1, `${currentTypeVar} = ${componentTypeVar};`);
+  emit(context, indent + 1, `${currentInstanceVar} = ${componentVar};`);
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${stopVar}();`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  emit(context, indent, "});");
+  return startVar;
 }
 
 function emitComponentShow(
