@@ -1401,6 +1401,11 @@ function increment() {
     const fixture = compileForDom(`<template>
   <section>
     <Child
+      id="child-id"
+      :title="title"
+      role="status"
+      aria-live="polite"
+      :aria-label="label"
       class="parent"
       :class="{ active }"
       style="border-color: black"
@@ -1415,9 +1420,13 @@ function increment() {
 import { ref } from "mikuru";
 
 const active = ref(false);
+const label = ref("Inactive child");
+const title = ref("Initial title");
 const attrs = ref({
   class: "bound",
-  style: { color: "red" }
+  style: { color: "red" },
+  "data-state": "idle",
+  "data-extra": "remove-me"
 });
 
 const Child = {
@@ -1438,9 +1447,12 @@ const Child = {
 
 function toggle() {
   active.value = true;
+  label.value = "Active child";
+  title.value = "Updated title";
   attrs.value = {
     class: ["bound", "later"],
-    style: { color: "blue", fontSize: "16px" }
+    style: { color: "blue", fontSize: "16px" },
+    "data-state": "active"
   };
 }
 </script>`);
@@ -1450,6 +1462,13 @@ function toggle() {
     const button = fixture.root.querySelector("button");
 
     expect(span?.className).toBe("child-root parent bound");
+    expect(span?.id).toBe("child-id");
+    expect(span?.getAttribute("title")).toBe("Initial title");
+    expect(span?.getAttribute("role")).toBe("status");
+    expect(span?.getAttribute("aria-live")).toBe("polite");
+    expect(span?.getAttribute("aria-label")).toBe("Inactive child");
+    expect(span?.getAttribute("data-state")).toBe("idle");
+    expect(span?.getAttribute("data-extra")).toBe("remove-me");
     expect(span?.getAttribute("style")).toContain("font-weight: bold");
     expect(span?.getAttribute("style")).toContain("border-color: black");
     expect(span?.getAttribute("style")).toContain("background-color: white");
@@ -1458,6 +1477,10 @@ function toggle() {
     button?.dispatchEvent(createEvent(fixture.window, "click"));
 
     expect(span?.className).toBe("child-root parent active bound later");
+    expect(span?.getAttribute("title")).toBe("Updated title");
+    expect(span?.getAttribute("aria-label")).toBe("Active child");
+    expect(span?.getAttribute("data-state")).toBe("active");
+    expect(span?.hasAttribute("data-extra")).toBe(false);
     expect(span?.getAttribute("style")).toContain("background-color: yellow");
     expect(span?.getAttribute("style")).toContain("color: blue");
     expect(span?.getAttribute("style")).toContain("font-size: 16px");

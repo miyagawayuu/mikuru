@@ -244,13 +244,14 @@ const childListeners = { select() {} };
     expect(component.code).toContain("childListeners");
   });
 
-  it("generates component class and style fallthrough", () => {
+  it("generates component attribute fallthrough", () => {
     const result = compile(`<template>
-  <Child class="parent" :class="{ active }" style="color: red" :style="{ fontSize: size }" v-bind="attrs" />
+  <Child id="panel" title="Panel" :aria-label="label" class="parent" :class="{ active }" style="color: red" :style="{ fontSize: size }" v-bind="attrs" />
 </template>
 <script>
 import Child from "./Child.mikuru";
 const active = true;
+const label = "Panel";
 const size = "12px";
 const attrs = { class: "bound", style: { color: "blue" } };
 </script>`);
@@ -262,6 +263,9 @@ const attrs = { class: "bound", style: { color: "blue" } };
     expect(result.code).toContain("\"style\"");
     expect(result.code).toContain("source[\"class\"]");
     expect(result.code).toContain("source[\"style\"]");
+    expect(result.code).toContain("\"id\"");
+    expect(result.code).toContain("\"title\"");
+    expect(result.code).toContain("\"aria-label\"");
   });
 
   it("generates named slots and slot props", () => {

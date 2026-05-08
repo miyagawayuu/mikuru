@@ -29,7 +29,7 @@ Supported in v1:
 - Attribute bindings with `:name` and `v-bind:name`.
 - Object-form attributes and component props with `v-bind="attrs"`.
 - `class` and `style` binding normalization for strings, arrays, and objects.
-- Child component `class` and `style` fallthrough to the component root element.
+- Child component DOM attribute fallthrough for `class`, `style`, `id`, `title`, `role`, `aria-*`, `data-*`, and related DOM-facing attributes.
 - `v-if`, `v-else-if`, `v-else`, and `v-show`.
 - `v-for` with `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
 - `:key` / `v-bind:key` on `v-for` for keyed DOM reuse.
@@ -51,7 +51,7 @@ Unsupported in v1:
 
 - Uppercase tags are treated as child components.
 - Static attributes and bound props are passed through `props`.
-- `class` and `style` are also merged onto the root `element` returned from `mount`.
+- DOM-facing attributes are also applied to the root `element` returned from `mount`; `class` and `style` are merged with the root element's existing values.
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue` and `onUpdateModelValue`.
 - Child component instances must return `{ element, unmount }` from `mount`.
