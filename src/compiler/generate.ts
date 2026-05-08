@@ -305,6 +305,10 @@ function generateNode(
     return generateTransition(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (node.tag === "Teleport") {
+    return generateTeleport(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   if (isComponentTag(node.tag)) {
     return generateComponent(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
@@ -341,6 +345,66 @@ function generateTransition(
   const childVar = generateNode(context, child, parentVar, cleanupVar, indent, beforeVar);
   emitTransitionRegistration(context, childVar, transitionVar, indent);
   return childVar;
+}
+
+function generateTeleport(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  validateTeleportAttributes(context, node);
+  const toExpression = getTeleportToExpression(context, node);
+  const disabledExpression = getTeleportDisabledExpression(context, node);
+  const startVar = nextVar(context, "teleportStart");
+  const endVar = nextVar(context, "teleportEnd");
+  const contentStartVar = nextVar(context, "teleportContentStart");
+  const contentEndVar = nextVar(context, "teleportContentEnd");
+  const fragmentVar = nextVar(context, "teleportFragment");
+  const teleportCleanupVar = nextVar(context, "teleportCleanup");
+  const stopVar = nextVar(context, "stop");
+  emit(context, indent, `const ${startVar} = document.createComment("teleport");`);
+  emit(context, indent, `const ${endVar} = document.createComment("/teleport");`);
+  appendNode(context, parentVar, startVar, indent, beforeVar);
+  appendNode(context, parentVar, endVar, indent, beforeVar);
+  emit(context, indent, `const ${contentStartVar} = document.createComment("teleport content");`);
+  emit(context, indent, `const ${contentEndVar} = document.createComment("/teleport content");`);
+  emit(context, indent, `const ${fragmentVar} = document.createDocumentFragment();`);
+  emit(context, indent, `${fragmentVar}.appendChild(${contentStartVar});`);
+  emit(context, indent, `${fragmentVar}.appendChild(${contentEndVar});`);
+  emit(context, indent, `const ${teleportCleanupVar} = [];`);
+  generateChildren(context, node.children, fragmentVar, teleportCleanupVar, indent, contentEndVar);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const teleportDisabled = Boolean(unwrap(${disabledExpression}));`);
+  emit(context, indent + 1, `const teleportTargetValue = unwrap(${toExpression});`);
+  emit(context, indent + 1, `const teleportTarget = teleportDisabled ? ${parentVar} : (typeof teleportTargetValue === "string" ? document.querySelector(teleportTargetValue) : teleportTargetValue);`);
+  emit(context, indent + 1, `if (!teleportTarget || typeof teleportTarget.insertBefore !== "function") {`);
+  emit(context, indent + 2, `throw new Error("Teleport target was not found");`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `const teleportBefore = teleportDisabled ? ${endVar} : null;`);
+  emit(context, indent + 1, `const teleportNodes = [];`);
+  emit(context, indent + 1, `let teleportCurrent = ${contentStartVar};`);
+  emit(context, indent + 1, `while (teleportCurrent) {`);
+  emit(context, indent + 2, `teleportNodes.push(teleportCurrent);`);
+  emit(context, indent + 2, `if (teleportCurrent === ${contentEndVar}) { break; }`);
+  emit(context, indent + 2, `teleportCurrent = teleportCurrent.nextSibling;`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `for (const teleportNode of teleportNodes) {`);
+  emit(context, indent + 2, `teleportTarget.insertBefore(teleportNode, teleportBefore);`);
+  emit(context, indent + 1, "}");
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${stopVar}();`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${teleportCleanupVar});`);
+  emitRemoveBetween(context, indent + 1, contentStartVar, contentEndVar);
+  emit(context, indent + 1, `${contentStartVar}.remove();`);
+  emit(context, indent + 1, `${contentEndVar}.remove();`);
+  emit(context, indent + 1, `${startVar}.remove();`);
+  emit(context, indent + 1, `${endVar}.remove();`);
+  emit(context, indent, "});");
+  return startVar;
 }
 
 function generateSlot(
@@ -2744,6 +2808,44 @@ function validateTransitionAttributes(context: GenerateContext, node: ElementNod
     }
 
     throwTemplateError(`<Transition> only supports name, appear, and CSS class override attributes in v1`, context, attr.loc);
+  }
+}
+
+function getTeleportToExpression(context: GenerateContext, node: ElementNode): string {
+  const dynamicTo = node.attrs.find((attr) => getBindingName(attr.name) === "to");
+
+  if (dynamicTo) {
+    return compileTemplateExpression(requireAttrValue(dynamicTo), dynamicTo.name, toExpressionContext(context, dynamicTo.valueLoc));
+  }
+
+  const staticTo = getStaticAttrValue(node, "to");
+
+  if (staticTo === undefined) {
+    throwTemplateError("<Teleport> requires a to target", context, node.loc);
+  }
+
+  return quote(staticTo);
+}
+
+function getTeleportDisabledExpression(context: GenerateContext, node: ElementNode): string {
+  const dynamicDisabled = node.attrs.find((attr) => getBindingName(attr.name) === "disabled");
+
+  if (dynamicDisabled) {
+    return compileTemplateExpression(requireAttrValue(dynamicDisabled), dynamicDisabled.name, toExpressionContext(context, dynamicDisabled.valueLoc));
+  }
+
+  return hasStaticBooleanAttr(node, "disabled") ? "true" : "false";
+}
+
+function validateTeleportAttributes(context: GenerateContext, node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const name = getBindingName(attr.name) ?? attr.name;
+
+    if (name === "to" || name === "disabled") {
+      continue;
+    }
+
+    throwTemplateError("<Teleport> only supports to and disabled in v1", context, attr.loc);
   }
 }
 

@@ -5,6 +5,7 @@ import { compile } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterView, useRoute, useRouter } from "../src/router/index.js";
 import {
   computed,
+  defineAsyncComponent,
   effect,
   inject,
   nextTick,
@@ -2175,6 +2176,118 @@ function swap() {
     expect([...fixture.root.querySelectorAll("article")].map((article) => article.textContent)).toEqual(["second"]);
   });
 
+  it("teleports children to a target and can disable teleporting", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Teleport to="#modal-root" :disabled="inline">
+      <p>Modal content</p>
+    </Teleport>
+    <button @click="toggle">Toggle inline</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const inline = ref(false);
+
+function toggle() {
+  inline.value = !inline.value;
+}
+</script>`);
+    const modalRoot = fixture.document.createElement("div");
+    modalRoot.id = "modal-root";
+    fixture.document.body.appendChild(modalRoot);
+
+    const instance = fixture.module.mount(fixture.root);
+
+    expect(modalRoot.querySelector("p")?.textContent).toBe("Modal content");
+    expect(fixture.root.querySelector("section > p")).toBeNull();
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("section > p")?.textContent).toBe("Modal content");
+    expect(modalRoot.querySelector("p")).toBeNull();
+
+    instance.unmount();
+
+    expect(fixture.root.querySelector("p")).toBeNull();
+    expect(modalRoot.querySelector("p")).toBeNull();
+  });
+
+  it("renders async component loading and resolved states", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncMessage message="Hello" />
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const Loading = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "Loading...";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const Loaded = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.message + " async";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const AsyncMessage = defineAsyncComponent({
+  loader: () => new Promise((resolve) => setTimeout(() => resolve(Loaded), 20)),
+  loadingComponent: Loading
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.textContent).toContain("Loading...");
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(fixture.root.textContent).toContain("Hello async");
+    expect(fixture.root.textContent).not.toContain("Loading...");
+  });
+
+  it("renders async component error fallback", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncBroken />
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const AsyncBroken = defineAsyncComponent({
+  loader: () => Promise.reject(new Error("broken async")),
+  errorComponent: ErrorView
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.root.textContent).toContain("broken async");
+  });
+
   it("passes component v-model as modelValue and update handler props", () => {
     const fixture = compileForDom(`<template>
   <section>
@@ -2609,6 +2722,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "computed",
     "createMemoryHistory",
     "createRouter",
+    "defineAsyncComponent",
     "effect",
     "inject",
     "nextTick",
@@ -2631,6 +2745,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     computedArg: typeof computed,
     createMemoryHistoryArg: typeof createMemoryHistory,
     createRouterArg: typeof createRouter,
+    defineAsyncComponentArg: typeof defineAsyncComponent,
     effectArg: typeof effect,
     injectArg: typeof inject,
     nextTickArg: typeof nextTick,
@@ -2654,6 +2769,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     computed,
     createMemoryHistory,
     createRouter,
+    defineAsyncComponent,
     effect,
     inject,
     nextTick,

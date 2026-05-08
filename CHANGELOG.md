@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added built-in `<Teleport>` with `to` and `disabled` support.
+- Added `defineAsyncComponent()` with loading and error fallback components.
+
 ## 1.0.16 - 2026-05-12
 
 - Added lazy route component support for `mikuru/router`.
