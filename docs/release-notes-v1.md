@@ -9,6 +9,7 @@ Mikuru v1 is the first stable validation release of the compile-first Vue-like S
 - Ref-based runtime with `ref`, `computed`, `effect`, `watch`, `nextTick`, lifecycle callbacks, `provide`, and `inject`.
 - Vue-like template syntax for interpolation, DOM events, attribute bindings, `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, and `v-model`.
 - Component composition with props, events, component `v-model`, `defineProps`, `defineEmits`, default slots, named slots, and slot props.
+- CSS class transitions with built-in `<Transition name="fade">`.
 - Keyed `v-for` record reuse with cleanup for removed DOM and component records.
 - Style injection and basic `<style scoped>` selector rewriting.
 - Compile errors with filename, line, column, and code frames.

@@ -341,11 +341,28 @@ defineOptions({ inheritAttrs: false });
 - `const attrs = useAttrs();`
 - `defineOptions({ inheritAttrs: false });`
 
+### Transition
+
+```mikuru
+<template>
+  <Transition name="fade">
+    <p>Hello</p>
+  </Transition>
+</template>
+```
+
+`<Transition>` は1つのelementまたはcomponent childを受け取り、mount時に `fade-enter-from` / `fade-enter-active` / `fade-enter-to`、削除時に `fade-leave-from` / `fade-leave-active` / `fade-leave-to` を付け替える。`name` を省略すると `v` を使う。
+
+対応形式:
+
+- `<Transition><p>...</p></Transition>`
+- `<Transition name="fade">...</Transition>`
+- `<Transition :name="transitionName">...</Transition>`
+
 ## v1で扱わない構文
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`
 - `v-html`
-- transition
 
 ## エラー方針
 

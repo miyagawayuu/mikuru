@@ -124,6 +124,50 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 3, "cleanup();");
   emit(context, 2, "}");
   emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_transitionFrame = (fn) => {");
+  emit(context, 2, "const raf = globalThis.requestAnimationFrame;");
+  emit(context, 2, "if (typeof raf === \"function\") { raf(() => raf(fn)); } else { setTimeout(fn, 0); }");
+  emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_transitionDone = (element, cleanup) => {");
+  emit(context, 2, "let done = false;");
+  emit(context, 2, "const finish = () => {");
+  emit(context, 3, "if (done) { return; }");
+  emit(context, 3, "done = true;");
+  emit(context, 3, "element.removeEventListener(\"transitionend\", finish);");
+  emit(context, 3, "element.removeEventListener(\"animationend\", finish);");
+  emit(context, 3, "cleanup();");
+  emit(context, 2, "};");
+  emit(context, 2, "element.addEventListener(\"transitionend\", finish);");
+  emit(context, 2, "element.addEventListener(\"animationend\", finish);");
+  emit(context, 2, "setTimeout(finish, 50);");
+  emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_applyTransitionEnter = (element, name) => {");
+  emit(context, 2, "if (!element || element.nodeType !== 1 || !name) { return; }");
+  emit(context, 2, "const from = `${name}-enter-from`;");
+  emit(context, 2, "const active = `${name}-enter-active`;");
+  emit(context, 2, "const to = `${name}-enter-to`;");
+  emit(context, 2, "element.classList.add(from, active);");
+  emit(context, 2, "__mikuru_transitionFrame(() => {");
+  emit(context, 3, "element.classList.remove(from);");
+  emit(context, 3, "element.classList.add(to);");
+  emit(context, 3, "__mikuru_transitionDone(element, () => element.classList.remove(active, to));");
+  emit(context, 2, "});");
+  emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_removeNode = (node) => {");
+  emit(context, 2, "if (!node || !node.parentNode) { return; }");
+  emit(context, 2, "if (node.nodeType !== 1 || !node.__mikuru_transitionName || node.__mikuru_transitionLeaving) { node.remove(); return; }");
+  emit(context, 2, "node.__mikuru_transitionLeaving = true;");
+  emit(context, 2, "const name = node.__mikuru_transitionName;");
+  emit(context, 2, "const from = `${name}-leave-from`;");
+  emit(context, 2, "const active = `${name}-leave-active`;");
+  emit(context, 2, "const to = `${name}-leave-to`;");
+  emit(context, 2, "node.classList.add(from, active);");
+  emit(context, 2, "__mikuru_transitionFrame(() => {");
+  emit(context, 3, "node.classList.remove(from);");
+  emit(context, 3, "node.classList.add(to);");
+  emit(context, 3, "__mikuru_transitionDone(node, () => { node.classList.remove(active, to); node.remove(); });");
+  emit(context, 2, "});");
+  emit(context, 1, "};");
   emit(context, 1, "const __mikuru_setRef = (target, value, multiple = false) => {");
   emit(context, 2, "if (typeof target === \"function\") {");
   emit(context, 3, "target(value);");
@@ -197,7 +241,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 2, "unmount() {");
   emit(context, 3, "__mikuru_runCleanup(__mikuru_cleanup);");
   emit(context, 3, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) { try { cb(); } catch (e) { setTimeout(() => { throw e; }); } }");
-  emit(context, 3, `${rootVar}.remove();`);
+  emit(context, 3, `__mikuru_removeNode(${rootVar});`);
   emit(context, 2, "}");
   emit(context, 1, "};");
   emit(context, 0, "}");
@@ -256,6 +300,10 @@ function generateNode(
     return generateDynamicComponent(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (node.tag === "Transition") {
+    return generateTransition(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   if (isComponentTag(node.tag)) {
     return generateComponent(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
@@ -265,6 +313,27 @@ function generateNode(
   }
 
   return generateElement(context, node, parentVar, cleanupVar, indent, beforeVar);
+}
+
+function generateTransition(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  validateTransitionAttributes(context, node);
+  const children = getTransitionChildren(context, node);
+  const nameExpression = getTransitionNameExpression(context, node);
+  const childVar = generateNode(context, children[0], parentVar, cleanupVar, indent, beforeVar);
+  const transitionNameVar = nextVar(context, "transitionName");
+  emit(context, indent, `const ${transitionNameVar} = String(unwrap(${nameExpression}) ?? "v");`);
+  emit(context, indent, `if (${childVar}?.nodeType === 1) {`);
+  emit(context, indent + 1, `${childVar}.__mikuru_transitionName = ${transitionNameVar};`);
+  emit(context, indent + 1, `__mikuru_applyTransitionEnter(${childVar}, ${transitionNameVar});`);
+  emit(context, indent, "}");
+  return childVar;
 }
 
 function generateSlot(
@@ -1330,7 +1399,7 @@ function generateKeyedFor(
   emit(context, indent + 1, `for (const [${keyVar}, ${recordVar}] of ${recordsVar}) {`);
   emit(context, indent + 2, `if (!${nextRecordsVar}.has(${keyVar})) {`);
   emit(context, indent + 3, `__mikuru_runCleanup(${recordVar}.cleanups);`);
-  emit(context, indent + 3, `${recordVar}.element.remove();`);
+  emit(context, indent + 3, `__mikuru_removeNode(${recordVar}.element);`);
   emit(context, indent + 2, `}`);
   emit(context, indent + 1, `}`);
   emit(context, indent + 1, `${recordsVar}.clear();`);
@@ -1354,7 +1423,7 @@ function emitRemoveBetween(context: GenerateContext, indent: number, startVar: s
   emit(context, indent, `let ${currentVar} = ${startVar}.nextSibling;`);
   emit(context, indent, `while (${currentVar} && ${currentVar} !== ${endVar}) {`);
   emit(context, indent + 1, `const ${nextVarName} = ${currentVar}.nextSibling;`);
-  emit(context, indent + 1, `${currentVar}.remove();`);
+  emit(context, indent + 1, `__mikuru_removeNode(${currentVar});`);
   emit(context, indent + 1, `${currentVar} = ${nextVarName};`);
   emit(context, indent, "}");
 }
@@ -2548,6 +2617,36 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
 
 function hasMeaningfulTemplateChildren(children: TemplateNode[]): boolean {
   return children.some((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+}
+
+function getTransitionChildren(context: GenerateContext, node: ElementNode): ElementNode[] {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length !== 1 || meaningful[0].type !== "element") {
+    throwTemplateError("<Transition> requires exactly one element or component child", context, node.loc);
+  }
+
+  return [meaningful[0]];
+}
+
+function getTransitionNameExpression(context: GenerateContext, node: ElementNode): string {
+  const dynamicName = node.attrs.find((attr) => getBindingName(attr.name) === "name");
+
+  if (dynamicName) {
+    return compileTemplateExpression(requireAttrValue(dynamicName), dynamicName.name, toExpressionContext(context, dynamicName.valueLoc));
+  }
+
+  return quote(getStaticAttrValue(node, "name") ?? "v");
+}
+
+function validateTransitionAttributes(context: GenerateContext, node: ElementNode): void {
+  for (const attr of node.attrs) {
+    if (attr.name === "name" || getBindingName(attr.name) === "name") {
+      continue;
+    }
+
+    throwTemplateError(`<Transition> only supports name in v1`, context, attr.loc);
+  }
 }
 
 function toComponentEventProp(eventName: string): string {
