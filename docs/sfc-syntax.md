@@ -166,12 +166,15 @@ button {
 
 ```mikuru
 <input ref="inputEl" />
+<li v-for="item in items" ref="itemEls">{{ item.label }}</li>
 <Child ref="childRef" />
+<Child :ref="currentChildRef" />
+<button :ref="captureButton">Open</button>
 ```
 
 `ref="name"` は、`<script>` で宣言した `ref(null)` などのrefオブジェクトへ値を代入する。DOM要素では生成されたelement、子コンポーネントでは `mount` が返したinstanceが入る。対象がunmountされると `null` に戻る。
 
-v1では静的な `ref="name"` のみ対応する。`:ref="expr"` や複雑なパス指定は未対応。
+`v-for` の中で同じrefを使うと、値は配列として集められ、cleanup時に古いentryを取り除く。`:ref="expr"` はrefオブジェクトまたはcallback関数を返す式として扱う。callback refはmount時に値、unmount時に `null` を受け取る。
 
 ### 条件分岐
 
