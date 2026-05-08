@@ -6,6 +6,11 @@
       <span>Current mood is {{ mood }}</span>
       <span>Settled mood is {{ delayedMood }}</span>
     </MoodBadge>
+    <button @click="toggleDetails">Toggle note</button>
+    <Transition name="note">
+      <p v-if="showDetails" class="note">Transitions can animate conditional content.</p>
+      <p v-else class="note note-muted">The note is hidden.</p>
+    </Transition>
   </section>
 </template>
 
@@ -16,6 +21,7 @@ import MoodBadge from "./MoodBadge.mikuru";
 const count = ref(0);
 const mood = ref("curious");
 const delayedMood = ref(mood.value);
+const showDetails = ref(true);
 
 const stopMoodWatch = watch(mood, (nextMood, _previousMood, onCleanup) => {
   const timer = setTimeout(() => {
@@ -33,6 +39,10 @@ function increment() {
   count.value += 1;
   mood.value = count.value % 2 === 0 ? "curious" : "building";
 }
+
+function toggleDetails() {
+  showDetails.value = !showDetails.value;
+}
 </script>
 
 <style scoped>
@@ -47,5 +57,38 @@ function increment() {
 button {
   font: inherit;
   width: fit-content;
+}
+
+.note {
+  width: fit-content;
+  margin: 0;
+  padding: 10px 12px;
+  color: #164e63;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  border-radius: 8px;
+}
+
+.note-muted {
+  color: #475569;
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.note-enter-active,
+.note-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.note-enter-from,
+.note-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.note-enter-to,
+.note-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>
