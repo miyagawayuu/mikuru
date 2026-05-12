@@ -12,6 +12,7 @@
 - Added SSR Teleport collection and Teleport hydration for target-side DOM reuse.
 - Added disabled Teleport SSR hydration for inline Teleport content reuse.
 - Added dynamic disabled Teleport SSR hydration without shifting sibling hydration.
+- Added SSR component tree context so generated SSR components can scope `provide()` / `inject()` and pass context to child components.
 - Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.
 - Extended `<AsyncBoundary>` to support multiple child nodes with live `pending` updates.

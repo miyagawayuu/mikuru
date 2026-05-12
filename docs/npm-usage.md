@@ -183,7 +183,7 @@ import { escapeHtml, hydrateRoute, renderComponentToString, renderRouteToString,
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
-`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, and scoped slot props. `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, and nested route slots for router SSR.
+`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, scoped slot props, and component tree context for `provide()` / `inject()`. `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, and nested route slots for router SSR.
 
 `compileHydration(source)` generates a client module with `hydrate(target, props?)`. It reuses existing SSR DOM, attaches event listeners, syncs text plus attributes, hydrates initial `v-if` / `v-for` DOM, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 
