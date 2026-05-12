@@ -3101,7 +3101,7 @@ function getTransitionAttrExpression(context: GenerateContext, node: ElementNode
 }
 
 function validateTransitionAttributes(context: GenerateContext, node: ElementNode): void {
-  const supported = new Set([
+  const supported = [
     "name",
     "appear",
     "mode",
@@ -3111,16 +3111,16 @@ function validateTransitionAttributes(context: GenerateContext, node: ElementNod
     "leave-from-class",
     "leave-active-class",
     "leave-to-class"
-  ]);
+  ].map((name) => ({ name, display: name }));
 
   for (const attr of node.attrs) {
     const name = getBindingName(attr.name) ?? attr.name;
 
-    if (supported.has(name)) {
+    if (supported.some((candidate) => candidate.name === name)) {
       continue;
     }
 
-    throwTemplateError(`<Transition> only supports name, appear, and CSS class override attributes in v1`, context, attr.loc);
+    throwUnsupportedSpecialAttribute(context, "Transition", attr, supported, "name, appear, mode, and CSS class override attributes");
   }
 }
 
@@ -3205,24 +3205,36 @@ function getAsyncBoundaryTimeoutExpression(context: GenerateContext, node: Eleme
 }
 
 function validateErrorBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
+  const supported = [
+    { name: "fallback", display: ":fallback" },
+    { name: "reset-key", display: ":reset-key" }
+  ];
+
   for (const attr of node.attrs) {
     const bindingName = getBindingName(attr.name);
     if (bindingName === "fallback" || bindingName === "reset-key") {
       continue;
     }
 
-    throwTemplateError("<ErrorBoundary> only supports :fallback and :reset-key in v1", context, attr.loc);
+    throwUnsupportedSpecialAttribute(context, "ErrorBoundary", attr, supported);
   }
 }
 
 function validateAsyncBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
+  const supported = [
+    { name: "loading", display: ":loading" },
+    { name: "fallback", display: ":fallback" },
+    { name: "delay", display: ":delay" },
+    { name: "timeout", display: ":timeout" }
+  ];
+
   for (const attr of node.attrs) {
     const bindingName = getBindingName(attr.name);
     if (bindingName === "loading" || bindingName === "fallback" || bindingName === "delay" || bindingName === "timeout") {
       continue;
     }
 
-    throwTemplateError("<AsyncBoundary> only supports :loading, :fallback, :delay, and :timeout in v1", context, attr.loc);
+    throwUnsupportedSpecialAttribute(context, "AsyncBoundary", attr, supported);
   }
 }
 
@@ -3253,6 +3265,11 @@ function getTeleportDisabledExpression(context: GenerateContext, node: ElementNo
 }
 
 function validateTeleportAttributes(context: GenerateContext, node: ElementNode): void {
+  const supported = [
+    { name: "to", display: "to" },
+    { name: "disabled", display: "disabled" }
+  ];
+
   for (const attr of node.attrs) {
     const name = getBindingName(attr.name) ?? attr.name;
 
@@ -3260,8 +3277,73 @@ function validateTeleportAttributes(context: GenerateContext, node: ElementNode)
       continue;
     }
 
-    throwTemplateError("<Teleport> only supports to and disabled in v1", context, attr.loc);
+    throwUnsupportedSpecialAttribute(context, "Teleport", attr, supported);
   }
+}
+
+type SupportedSpecialAttribute = {
+  name: string;
+  display: string;
+};
+
+function throwUnsupportedSpecialAttribute(
+  context: GenerateContext,
+  tagName: string,
+  attr: TemplateAttribute,
+  supported: SupportedSpecialAttribute[],
+  supportedLabel = supported.map((candidate) => candidate.display).join(", ")
+): never {
+  const normalizedName = getBindingName(attr.name) ?? attr.name;
+  const suggestion = suggestAttributeName(normalizedName, supported);
+  const suggestionMessage = suggestion ? ` Did you mean ${suggestion.display}?` : "";
+  throwTemplateError(
+    `Unsupported attribute ${quote(attr.name)} on <${tagName}>.${suggestionMessage} <${tagName}> only supports ${supportedLabel} in v1.`,
+    context,
+    attr.loc
+  );
+}
+
+function suggestAttributeName(name: string, supported: SupportedSpecialAttribute[]): SupportedSpecialAttribute | undefined {
+  let best: { candidate: SupportedSpecialAttribute; distance: number } | undefined;
+
+  for (const candidate of supported) {
+    const distance = editDistance(name, candidate.name);
+
+    if (!best || distance < best.distance) {
+      best = { candidate, distance };
+    }
+  }
+
+  if (!best) {
+    return undefined;
+  }
+
+  const maxDistance = Math.max(1, Math.floor(best.candidate.name.length / 3));
+  return best.distance <= maxDistance ? best.candidate : undefined;
+}
+
+function editDistance(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = Array.from({ length: right.length + 1 }, () => 0);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    current[0] = leftIndex;
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const cost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      current[rightIndex] = Math.min(
+        previous[rightIndex] + 1,
+        current[rightIndex - 1] + 1,
+        previous[rightIndex - 1] + cost
+      );
+    }
+
+    for (let index = 0; index < previous.length; index += 1) {
+      previous[index] = current[index];
+    }
+  }
+
+  return previous[right.length] ?? 0;
 }
 
 function toComponentEventProp(eventName: string): string {

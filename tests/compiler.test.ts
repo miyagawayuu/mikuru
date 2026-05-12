@@ -651,6 +651,24 @@ const count = 0;
     ).toThrow(/Unsupported slot scope binding/);
   });
 
+  it("suggests supported attributes for built-in component typos", () => {
+    expect(() =>
+      compile(`<template><AsyncBoundary :loading="Loading" :fallbak="ErrorView"><Panel /></AsyncBoundary></template>`)
+    ).toThrow(/Unsupported attribute ":fallbak" on <AsyncBoundary>\. Did you mean :fallback\?/);
+
+    expect(() =>
+      compile(`<template><ErrorBoundary :fallbak="ErrorView"><Panel /></ErrorBoundary></template>`)
+    ).toThrow(/Unsupported attribute ":fallbak" on <ErrorBoundary>\. Did you mean :fallback\?/);
+
+    expect(() => compile(`<template><Teleport to="#modal" disabeld><p>Modal</p></Teleport></template>`)).toThrow(
+      /Unsupported attribute "disabeld" on <Teleport>\. Did you mean disabled\?/
+    );
+
+    expect(() => compile(`<template><Transition mod="out-in"><p>Hi</p></Transition></template>`)).toThrow(
+      /Unsupported attribute "mod" on <Transition>\. Did you mean mode\?/
+    );
+  });
+
   it("adds generated source URLs in Vite debug mode", async () => {
     const plugin = mikuru({ debug: true });
     const transform = plugin.transform as unknown as Function;
