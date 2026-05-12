@@ -25,6 +25,13 @@ export type MikuruRouteHydrationResult = {
   unmount(): void;
 };
 
+type MikuruComponentContext = {
+  parent?: MikuruComponentContext;
+  provides: Map<unknown, unknown>;
+};
+
+const routerInjectionKey = Symbol.for("mikuru.router");
+
 const booleanAttributes = new Set([
   "allowfullscreen",
   "async",
@@ -123,8 +130,10 @@ export async function renderRouteToString(router: Router, to: RouteLocationRaw =
   await router.isReady();
   route = router.currentRoute.value.fullPath === route.fullPath ? router.currentRoute.value : router.resolve(route.fullPath);
 
+  const context = createRouteComponentContext(router);
+
   return {
-    html: await renderMatchedRoute(route, router, 0),
+    html: await renderMatchedRoute(route, router, 0, context),
     route
   };
 }
@@ -143,10 +152,10 @@ export async function hydrateRoute(router: Router, target: Element, to: RouteLoc
 
   await router.isReady();
   route = router.currentRoute.value.fullPath === route.fullPath ? router.currentRoute.value : router.resolve(route.fullPath);
-  return hydrateMatchedRoute(route, router, 0, target);
+  return hydrateMatchedRoute(route, router, 0, target, createRouteComponentContext(router));
 }
 
-async function renderMatchedRoute(route: RouteLocation, router: Router, depth: number): Promise<string> {
+async function renderMatchedRoute(route: RouteLocation, router: Router, depth: number, context: MikuruComponentContext): Promise<string> {
   const record = route.matchedRecords[depth];
   if (!record) {
     return "";
@@ -157,16 +166,17 @@ async function renderMatchedRoute(route: RouteLocation, router: Router, depth: n
     ...resolveSsrRouteProps(record, route),
     route,
     router,
-    children: () => renderMatchedRoute(route, router, depth + 1),
+    __mikuru_context: context,
+    children: (slotProps?: Record<string, unknown>) => renderMatchedRoute(route, router, depth + 1, readRouteSlotContext(slotProps, context)),
     slots: {
-      default: () => renderMatchedRoute(route, router, depth + 1)
+      default: (slotProps?: Record<string, unknown>) => renderMatchedRoute(route, router, depth + 1, readRouteSlotContext(slotProps, context))
     }
   };
 
   return renderComponentToString(component, props);
 }
 
-async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: number, target: Element): Promise<MikuruRouteHydrationResult> {
+async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: number, target: Element, context: MikuruComponentContext): Promise<MikuruRouteHydrationResult> {
   const record = route.matchedRecords[depth];
   if (!record) {
     return {
@@ -182,9 +192,10 @@ async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: 
     ...resolveSsrRouteProps(record, route),
     route,
     router,
-    children: (childTarget?: Element) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget)) : Promise.resolve(""),
+    __mikuru_context: context,
+    children: (childTarget?: Element, slotProps?: Record<string, unknown>) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget, readRouteSlotContext(slotProps, context))) : Promise.resolve(""),
     slots: {
-      default: (childTarget?: Element) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget)) : Promise.resolve("")
+      default: (childTarget?: Element, slotProps?: Record<string, unknown>) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget, readRouteSlotContext(slotProps, context))) : Promise.resolve("")
     }
   };
 
@@ -218,6 +229,21 @@ async function trackHydratedChild(cleanups: Array<() => void>, promise: Promise<
   const child = await promise;
   cleanups.push(() => child.unmount());
   return "";
+}
+
+function createRouteComponentContext(router: Router): MikuruComponentContext {
+  return {
+    provides: new Map([[routerInjectionKey, router]])
+  };
+}
+
+function readRouteSlotContext(slotProps: Record<string, unknown> | undefined, fallback: MikuruComponentContext): MikuruComponentContext {
+  const context = slotProps?.__mikuru_context;
+  return isComponentContext(context) ? context : fallback;
+}
+
+function isComponentContext(value: unknown): value is MikuruComponentContext {
+  return !!value && typeof value === "object" && (value as MikuruComponentContext).provides instanceof Map;
 }
 
 async function resolveSsrRouteComponent(record: RouteRecord): Promise<MikuruSsrComponent> {

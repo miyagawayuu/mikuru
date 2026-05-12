@@ -312,6 +312,7 @@ function emitSlot(context: SsrGenerateContext, node: ElementNode, indent: number
   const slotPropsVar = nextName(context, "slotProps");
   emit(context, indent, `const ${slotVar} = props.slots?.[${slotName}] ?? ${slotName === "\"default\"" ? "props.children" : "undefined"};`);
   emit(context, indent, `const ${slotPropsVar} = {};`);
+  emit(context, indent, `${slotPropsVar}.__mikuru_context = __mikuru_context;`);
   emitSlotProps(context, node, slotPropsVar, indent);
   emit(context, indent, `if (typeof ${slotVar} === "function") {`);
   emit(context, indent + 1, `__mikuru_html += await ${slotVar}(${slotPropsVar});`);

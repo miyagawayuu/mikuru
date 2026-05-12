@@ -115,8 +115,8 @@ Unsupported in v1:
 - `compileSsr(source)` returns generated module code with `renderToString(props?)`.
 - SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection through `props.__mikuru_teleports`.
 - `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output.
-- `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, and nested route components using default slots.
-- `hydrateRoute(router, target, location?)` resolves redirects, lazy route components, route props, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback.
+- `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, route component context, and nested route components using default slots.
+- `hydrateRoute(router, target, location?)` resolves redirects, lazy route components, route props, route component context, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback.
 - Hydration and browser-side router hydration are future work.
 
 ## Hydration Contract

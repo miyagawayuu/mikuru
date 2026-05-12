@@ -183,13 +183,13 @@ import { escapeHtml, hydrateRoute, renderComponentToString, renderRouteToString,
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
-`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, scoped slot props, and component tree context for `provide()` / `inject()`. `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, and nested route slots for router SSR.
+`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, scoped slot props, and component tree context for `provide()` / `inject()`. `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, nested route slots, and route component context for router SSR.
 
 `compileHydration(source)` generates a client module with `hydrate(target, props?)`. It reuses existing SSR DOM, attaches event listeners, syncs text plus attributes, hydrates initial `v-if` / `v-for` DOM, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 
 SSR Teleport content is collected into a caller-provided `__mikuru_teleports` object keyed by selector, and `compileHydration()` reuses the target-side Teleport DOM when those collected fragments are inserted into the app shell. Disabled Teleports render and hydrate inline.
 
-`hydrateRoute(router, target, location?)` hydrates an SSR-rendered route tree, resolving redirects, lazy route components, route props, and nested route slots with the same shape as `renderRouteToString()`.
+`hydrateRoute(router, target, location?)` hydrates an SSR-rendered route tree, resolving redirects, lazy route components, route props, route component context, and nested route slots with the same shape as `renderRouteToString()`.
 
 Routing helpers are available from `mikuru/router`:
 

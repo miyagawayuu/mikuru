@@ -239,6 +239,39 @@ const message = "Inline";
     expect(result.html).toBe('<main data-route="/users/7"><h1>Shell</h1><p data-id="7" data-tab="info">User 7</p></main>');
   });
 
+  it("passes router SSR context through route slots", async () => {
+    const Shell = {
+      async renderToString(props: Record<string, any>) {
+        return `<main>${await props.children({ __mikuru_context: props.__mikuru_context })}</main>`;
+      }
+    };
+    const UserPage = {
+      renderToString(props: Record<string, any>) {
+        const router = props.__mikuru_context?.provides?.get(Symbol.for("mikuru.router"));
+        return `<p data-current="${router?.currentRoute.value.fullPath}">${props.route.params.id}</p>`;
+      }
+    };
+    const router = createRouter({
+      history: createMemoryHistory("/users/8"),
+      routes: [
+        {
+          path: "/",
+          component: Shell as any,
+          children: [
+            {
+              path: "users/:id",
+              component: UserPage as any
+            }
+          ]
+        }
+      ]
+    });
+
+    const result = await renderRouteToString(router);
+
+    expect(result.html).toBe('<main><p data-current="/users/8">8</p></main>');
+  });
+
   it("keeps sibling v-for temporary variables unique", async () => {
     const result = compileSsr(`<template>
   <section>
