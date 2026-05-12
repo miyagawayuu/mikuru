@@ -77,7 +77,7 @@ Debug mode also registers mounted components with the unstable internal `globalT
 
 For experiments, `createDebugInspector()` can read `getComponents()` and `getEvents()`, clear event history with `clearEvents()`, and subscribe to new events with `subscribe(listener)`.
 
-The dogfood example uses this helper in a small in-app Debug Panel. It remains an unstable debugging aid, not a production devtools API.
+The dogfood example uses this helper in a small in-app Debug Panel with event filters, payload details, and a Router lab that emits navigation events. It remains an unstable debugging aid, not a production devtools API.
 
 ## Write a Mikuru Component
 

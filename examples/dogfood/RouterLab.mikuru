@@ -1,0 +1,67 @@
+<template>
+  <section class="router-lab" aria-label="Router lab">
+    <div>
+      <h2>Router lab</h2>
+      <p>Navigate the memory router and watch route events in the Debug Panel.</p>
+    </div>
+
+    <nav class="router-actions">
+      <button @click="goHome">Home</button>
+      <button @click="goNotes">Notes</button>
+      <button @click="goSettings">Settings</button>
+    </nav>
+
+    <p>Current route: <strong>{{ currentPath }}</strong></p>
+  </section>
+</template>
+
+<script>
+import { computed } from "mikuru";
+import { createMemoryHistory, createRouter } from "mikuru/router";
+
+const router = createRouter({
+  history: createMemoryHistory("/"),
+  routes: [
+    { path: "/", name: "home" },
+    { path: "/notes", name: "notes" },
+    { path: "/settings", name: "settings" }
+  ]
+});
+
+const currentPath = computed(() => router.currentRoute.value.path);
+
+function goHome() {
+  router.push("/");
+}
+
+function goNotes() {
+  router.push("/notes");
+}
+
+function goSettings() {
+  router.push("/settings");
+}
+</script>
+
+<style scoped>
+.router-lab {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  color: #0c4a6e;
+  background: #f0f9ff;
+}
+
+.router-lab h2,
+.router-lab p {
+  margin: 0;
+}
+
+.router-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+</style>

@@ -14,6 +14,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: "mikuru/runtime", replacement: resolve(repoRoot, "src/runtime/index.ts") },
+      { find: "mikuru/router", replacement: resolve(repoRoot, "src/router/index.ts") },
       { find: "mikuru", replacement: resolve(repoRoot, "src/index.ts") }
     ]
   },

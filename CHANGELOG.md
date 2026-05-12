@@ -14,6 +14,7 @@
 - Extended the unstable debug hook with component ids, props/attrs metadata, parent-child links, and component, async, and router event records.
 - Added an unstable `createDebugInspector()` helper for reading debug components/events, clearing event history, and subscribing to debug events.
 - Added a dogfood Debug Panel that uses `createDebugInspector()` to show mounted components, selected props/attrs, and the debug event log.
+- Extended the dogfood Debug Panel with event category filters, selected event payload details, and a Router lab that emits navigation events.
 - Added a dogfood AsyncBoundary lab and E2E coverage for loading and retryable async fallback.
 - Added a dogfood ErrorBoundary lab and E2E coverage for diagnostics, fallback reset, and `:reset-key` recovery.
 - Exported `MikuruErrorBoundaryFallbackProps` for typed ErrorBoundary fallback components.

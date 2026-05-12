@@ -12,6 +12,8 @@
 
     <DebugPanel />
 
+    <RouterLab />
+
     <AsyncBoundary :loading="LoadingStats" :fallback="AsyncFallback">
       <AsyncStats
         :total="notes.length"
@@ -74,6 +76,7 @@
 <script>
 import { computed, defineAsyncComponent, ref } from "mikuru";
 import DebugPanel from "./DebugPanel.mikuru";
+import RouterLab from "./RouterLab.mikuru";
 import TextField from "./TextField.mikuru";
 import NoteCard from "./NoteCard.mikuru";
 
