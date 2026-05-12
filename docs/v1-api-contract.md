@@ -47,6 +47,7 @@ Supported in v1:
 - Teleport through built-in `<Teleport to="#target">`, including dynamic `to` and `disabled`.
 - Async boundaries through built-in `<AsyncBoundary :loading :fallback :delay :timeout>`.
 - Error boundaries through built-in `<ErrorBoundary :fallback>`, including `errorInfo`, `retry`, `reset`, and `:reset-key`.
+- KeepAlive through built-in `<KeepAlive>` with one dynamic `<component :is>` child and parent-lifetime caching.
 
 Unsupported in v1:
 
@@ -64,6 +65,7 @@ Unsupported in v1:
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present.
 - Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `v-show`.
+- `<KeepAlive>` caches dynamic component instances across type switches and disposes the cache when the parent component unmounts.
 - `defineAsyncComponent()` creates component objects from async loaders and supports loading, error, retry, and timeout fallback behavior.
 - Child component instances must return `{ element, unmount }` from `mount`.
 

@@ -296,6 +296,14 @@ Use `<component :is="Current" />` when the component type should come from state
 
 Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `v-show` behavior as explicit child component tags.
 
+Wrap one dynamic component in `<KeepAlive>` when switching component types should preserve each component instance until the parent unmounts. The v1 built-in accepts exactly one `<component :is="...">` child and no attributes.
+
+```mikuru
+<KeepAlive>
+  <component :is="currentPanel" />
+</KeepAlive>
+```
+
 Use `defineAsyncComponent()` when the component implementation should load later. The loading fallback renders until the loader resolves, and the error fallback receives `{ error, retry }` props if the loader rejects or times out. When `errorComponent` is omitted, loader rejections and timeouts can be handled by the nearest `<ErrorBoundary>`.
 
 ```mikuru

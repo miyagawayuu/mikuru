@@ -2337,6 +2337,65 @@ function hide() {
     expect(article?.style.display).toBe("none");
   });
 
+  it("keeps dynamic component instances alive across switches", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="showA">Show A</button>
+    <button @click="showB">Show B</button>
+    <KeepAlive>
+      <component :is="current" />
+    </KeepAlive>
+  </section>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const currentName = ref("a");
+
+function makePanel(name) {
+  return {
+    mount(target) {
+      let count = 0;
+      const button = document.createElement("button");
+      const render = () => { button.textContent = name + ":" + count; };
+      button.addEventListener("click", () => { count += 1; render(); });
+      render();
+      target.appendChild(button);
+      return { element: button, unmount() { button.remove(); } };
+    }
+  };
+}
+
+const PanelA = makePanel("A");
+const PanelB = makePanel("B");
+const current = computed(() => currentName.value === "a" ? PanelA : PanelB);
+
+function showA() {
+  currentName.value = "a";
+}
+
+function showB() {
+  currentName.value = "b";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const buttons = () => Array.from(fixture.root.querySelectorAll("button"));
+
+    expect(buttons().map((button) => button.textContent)).toEqual(["Show A", "Show B", "A:0"]);
+    buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons().map((button) => button.textContent)).toEqual(["Show A", "Show B", "A:1"]);
+
+    buttons()[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons().map((button) => button.textContent)).toEqual(["Show A", "Show B", "B:0"]);
+    buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons().map((button) => button.textContent)).toEqual(["Show A", "Show B", "B:1"]);
+
+    buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons().map((button) => button.textContent)).toEqual(["Show A", "Show B", "A:1"]);
+  });
+
   it("applies Transition classes on mount and delayed unmount", async () => {
     const fixture = compileForDom(`<template>
   <Transition name="fade">

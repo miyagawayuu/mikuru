@@ -1,0 +1,82 @@
+<template>
+  <section class="keep-alive-lab" aria-label="KeepAlive lab">
+    <div>
+      <h2>KeepAlive lab</h2>
+      <p>Switch panels without losing each panel's local state.</p>
+    </div>
+
+    <nav class="keep-alive-actions">
+      <button @click="showFirst">First panel</button>
+      <button @click="showSecond">Second panel</button>
+    </nav>
+
+    <KeepAlive>
+      <component :is="currentPanel" />
+    </KeepAlive>
+  </section>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const active = ref("first");
+
+function createCounterPanel(name) {
+  return {
+    mount(target) {
+      let count = 0;
+      const button = document.createElement("button");
+      const render = () => {
+        button.textContent = `${name}: ${count}`;
+      };
+      button.addEventListener("click", () => {
+        count += 1;
+        render();
+      });
+      render();
+      target.appendChild(button);
+      return {
+        element: button,
+        unmount() {
+          button.remove();
+        }
+      };
+    }
+  };
+}
+
+const FirstPanel = createCounterPanel("First kept count");
+const SecondPanel = createCounterPanel("Second kept count");
+const currentPanel = computed(() => active.value === "first" ? FirstPanel : SecondPanel);
+
+function showFirst() {
+  active.value = "first";
+}
+
+function showSecond() {
+  active.value = "second";
+}
+</script>
+
+<style scoped>
+.keep-alive-lab {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  color: #3b0764;
+  background: #faf5ff;
+}
+
+.keep-alive-lab h2,
+.keep-alive-lab p {
+  margin: 0;
+}
+
+.keep-alive-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+</style>

@@ -382,6 +382,10 @@ function generateNode(
     return generateErrorBoundary(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (node.tag === "KeepAlive") {
+    return generateKeepAlive(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   if (isComponentTag(node.tag)) {
     return generateComponent(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
@@ -916,6 +920,95 @@ function generateDynamicComponent(
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `${stopVar}();`);
   emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  emit(context, indent, "});");
+  return startVar;
+}
+
+function generateKeepAlive(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  validateKeepAliveAttributes(context, node);
+  const children = getSingleElementChild(context, node, "<KeepAlive>");
+  const child = children[0];
+
+  if (child.tag !== "component") {
+    throwTemplateError("<KeepAlive> requires a single <component :is=\"...\" /> child in v1", context, child.loc);
+  }
+
+  const isAttr = child.attrs.find((attr) => getBindingName(attr.name) === "is");
+
+  if (!isAttr) {
+    throwTemplateError("<KeepAlive> dynamic child requires :is to resolve to a component object", context, child.loc);
+  }
+
+  const expression = compileTemplateExpression(requireAttrValue(isAttr), isAttr.name, toExpressionContext(context, isAttr.valueLoc));
+  const dynamicNode = withoutAttrs(child, ["is", ":is", "v-bind:is"]);
+  const startVar = nextVar(context, "keepAliveStart");
+  const endVar = nextVar(context, "keepAliveEnd");
+  const cacheVar = nextVar(context, "keepAliveCache");
+  const currentTypeVar = nextVar(context, "keepAliveCurrent");
+  const currentRecordVar = nextVar(context, "keepAliveCurrent");
+  const componentTypeVar = nextVar(context, "keepAliveType");
+  const recordVar = nextVar(context, "keepAliveRecord");
+  const fragmentVar = nextVar(context, "fragment");
+  const attrsVar = nextVar(context, "attrs");
+  const propsVar = nextVar(context, "props");
+  const componentVar = nextVar(context, "component");
+  const recordCleanupVar = nextVar(context, "keepAliveCleanup");
+  const stopVar = nextVar(context, "stop");
+  emit(context, indent, `const ${startVar} = document.createComment("keep-alive");`);
+  emit(context, indent, `const ${endVar} = document.createComment("/keep-alive");`);
+  appendNode(context, parentVar, startVar, indent, beforeVar);
+  appendNode(context, parentVar, endVar, indent, beforeVar);
+  emit(context, indent, `const ${cacheVar} = new Map();`);
+  emit(context, indent, `let ${currentTypeVar};`);
+  emit(context, indent, `let ${currentRecordVar};`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${componentTypeVar} = unwrap(${expression});`);
+  emit(context, indent + 1, `if (${componentTypeVar} === ${currentTypeVar}) { return; }`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
+  emit(context, indent + 1, `if (!${componentTypeVar}) { ${currentTypeVar} = ${componentTypeVar}; ${currentRecordVar} = undefined; return; }`);
+  emit(context, indent + 1, `if (typeof ${componentTypeVar} !== "object" || typeof ${componentTypeVar}.mount !== "function") {`);
+  emit(context, indent + 2, `throw new Error("KeepAlive child :is must resolve to a component object with mount()");`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `let ${recordVar} = ${cacheVar}.get(${componentTypeVar});`);
+  emit(context, indent + 1, `if (!${recordVar}) {`);
+  emit(context, indent + 2, `const ${fragmentVar} = document.createDocumentFragment();`);
+  emit(context, indent + 2, `const ${recordCleanupVar} = [];`);
+  emitComponentAttrs(context, dynamicNode, attrsVar, indent + 2);
+  emitComponentProps(context, dynamicNode, propsVar, attrsVar, indent + 2);
+  emit(context, indent + 2, `const ${componentVar} = ${componentTypeVar}.mount(${fragmentVar}, ${propsVar});`);
+  if (context.scopeAttr) {
+    emit(context, indent + 2, `if (${componentVar}.element?.nodeType === 1) {`);
+    emit(context, indent + 3, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
+    emit(context, indent + 2, "}");
+  }
+  emit(context, indent + 2, `if (${componentTypeVar}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context, dynamicNode, componentVar, recordCleanupVar, indent + 3);
+  emit(context, indent + 2, "}");
+  emitComponentShow(context, dynamicNode, componentVar, recordCleanupVar, indent + 2);
+  emitTemplateRef(context, dynamicNode, componentVar, recordCleanupVar, indent + 2);
+  emit(context, indent + 2, `${recordVar} = { instance: ${componentVar}, element: ${componentVar}.element, cleanups: ${recordCleanupVar} };`);
+  emit(context, indent + 2, `${cacheVar}.set(${componentTypeVar}, ${recordVar});`);
+  appendNode(context, parentVar, fragmentVar, indent + 2, endVar);
+  emit(context, indent + 1, "} else {");
+  emit(context, indent + 2, `${parentVar}.insertBefore(${recordVar}.element, ${endVar});`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `${currentTypeVar} = ${componentTypeVar};`);
+  emit(context, indent + 1, `${currentRecordVar} = ${recordVar};`);
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${stopVar}();`);
+  emit(context, indent + 1, `for (const ${recordVar} of ${cacheVar}.values()) { __mikuru_runCleanup(${recordVar}.cleanups); ${recordVar}.instance.unmount(); }`);
+  emit(context, indent + 1, `${cacheVar}.clear();`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
+  emit(context, indent + 1, `${startVar}.remove();`);
+  emit(context, indent + 1, `${endVar}.remove();`);
   emit(context, indent, "});");
   return startVar;
 }
@@ -3371,6 +3464,12 @@ function validateAsyncBoundaryAttributes(context: GenerateContext, node: Element
     }
 
     throwUnsupportedSpecialAttribute(context, "AsyncBoundary", attr, supported);
+  }
+}
+
+function validateKeepAliveAttributes(context: GenerateContext, node: ElementNode): void {
+  for (const attr of node.attrs) {
+    throwUnsupportedSpecialAttribute(context, "KeepAlive", attr, [], "no attributes");
   }
 }
 
