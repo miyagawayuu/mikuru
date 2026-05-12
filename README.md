@@ -138,6 +138,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
 - CSS class transitions with built-in `<Transition name="fade">`, `v-if` chains, dynamic components, class overrides, `appear`, and `mode="out-in"`
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
+- Built-in `<AsyncBoundary :loading :fallback>` for grouped async loading and retryable async failures
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery
 - Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
@@ -175,7 +176,7 @@ Compiler and runtime entries are public for lower-level integrations:
 ```ts
 import { compile } from "mikuru/compiler";
 import { effect, nextTick, ref, unwrap, watch } from "mikuru/runtime";
-import type { MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
+import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
 The package also provides the `mikuru` binary:

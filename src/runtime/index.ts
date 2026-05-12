@@ -4,6 +4,7 @@ export { defineAsyncComponent } from "./asyncComponent.js";
 export type {
   AsyncComponentLoader,
   AsyncComponentOptions,
+  MikuruAsyncBoundaryFallbackProps,
   MikuruComponent,
   MikuruComponentInstance,
   MikuruErrorBoundaryFallbackProps,

@@ -2591,6 +2591,58 @@ const AsyncMessage = defineAsyncComponent({
     expect(fixture.root.textContent).not.toContain("Loading...");
   });
 
+  it("renders AsyncBoundary loading until child async components resolve", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncBoundary :loading="Loading" :fallback="ErrorView">
+    <AsyncMessage message="Hello" />
+  </AsyncBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const Loading = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = "Boundary loading " + props.pending;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const Loaded = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.message + " boundary";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const AsyncMessage = defineAsyncComponent({
+  loader: () => new Promise((resolve) => setTimeout(() => resolve(Loaded), 20))
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.textContent).toContain("Boundary loading 1");
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(fixture.root.textContent).toContain("Hello boundary");
+    expect(fixture.root.textContent).not.toContain("Boundary loading");
+  });
+
   it("renders async component error fallback", async () => {
     const fixture = compileForDom(`<template>
   <AsyncBroken />
@@ -2763,6 +2815,68 @@ const ErrorView = {
     await Promise.resolve();
 
     expect(fixture.root.querySelector("p")?.textContent).toBe("async diagnostic|async-loader|GeneratedDom.mikuru|GeneratedDom.mikuru");
+  });
+
+  it("renders AsyncBoundary fallback and retries failed async children", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncBoundary :loading="Loading" :fallback="ErrorView">
+    <RetryAsync />
+  </AsyncBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+let attempts = 0;
+
+const Loading = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "Boundary loading";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const Loaded = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "boundary retry loaded";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = props.errorInfo.phase + ":" + props.error.message;
+    button.addEventListener("click", () => props.retry());
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+
+const RetryAsync = defineAsyncComponent({
+  loader: () => {
+    attempts += 1;
+    return attempts === 1 ? Promise.reject(new Error("boundary failed")) : Promise.resolve(Loaded);
+  }
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("button")?.textContent).toBe("async-loader:boundary failed");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("boundary retry loaded");
+    expect(fixture.root.querySelector("button")).toBeNull();
   });
 
   it("routes async component timeouts to ErrorBoundary when no error component is provided", async () => {

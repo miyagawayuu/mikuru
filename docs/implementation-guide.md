@@ -295,6 +295,31 @@ const AsyncPanel = defineAsyncComponent({
 </script>
 ```
 
+Use `<AsyncBoundary>` when multiple async children should share loading and retryable error UI. The loading component receives `{ pending }`; the fallback component receives `{ error, errorInfo, pending, retry, reset }`.
+
+```mikuru
+<AsyncBoundary :loading="LoadingPanel" :fallback="AsyncErrorPanel">
+  <AsyncPanel />
+</AsyncBoundary>
+```
+
+Type fallback props with `MikuruAsyncBoundaryFallbackProps` from `mikuru`.
+
+```ts
+import type { MikuruAsyncBoundaryFallbackProps, MikuruComponent } from "mikuru";
+
+export const AsyncErrorPanel: MikuruComponent = {
+  mount(target, props: MikuruAsyncBoundaryFallbackProps) {
+    const button = document.createElement("button");
+    const message = props.error instanceof Error ? props.error.message : String(props.error);
+    button.textContent = `${props.errorInfo?.phase ?? "async-loader"}: ${message}`;
+    button.addEventListener("click", props.retry);
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+```
+
 Use `<ErrorBoundary>` around a child component when its mount, generated event handler, lifecycle callback, or cleanup error should fail into a local fallback instead of breaking the whole parent mount. The fallback component receives `{ error, errorInfo, retry, reset }`; `errorInfo` includes the reporting component, filename, phase, and boundary metadata. `retry` and `reset` both re-render the boundary child. Use `:reset-key` when an outside state change should automatically clear the fallback and remount the child.
 
 ```mikuru

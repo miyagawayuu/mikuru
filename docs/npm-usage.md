@@ -171,7 +171,7 @@ Lower-level compiler and runtime entries are also public:
 ```ts
 import { compile } from "mikuru/compiler";
 import { effect, nextTick, ref, unwrap, watch } from "mikuru/runtime";
-import type { MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
+import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
 Routing helpers are available from `mikuru/router`:
