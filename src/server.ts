@@ -25,6 +25,10 @@ export type MikuruRouteHydrationResult = {
   unmount(): void;
 };
 
+export type MikuruRouteHydrationOptions = {
+  listen?: boolean;
+};
+
 type MikuruComponentContext = {
   parent?: MikuruComponentContext;
   provides: Map<unknown, unknown>;
@@ -138,7 +142,9 @@ export async function renderRouteToString(router: Router, to: RouteLocationRaw =
   };
 }
 
-export async function hydrateRoute(router: Router, target: Element, to: RouteLocationRaw = router.currentRoute.value.fullPath): Promise<MikuruRouteHydrationResult> {
+export async function hydrateRoute(router: Router, target: Element, toOrOptions: RouteLocationRaw | MikuruRouteHydrationOptions = router.currentRoute.value.fullPath, options: MikuruRouteHydrationOptions = {}): Promise<MikuruRouteHydrationResult> {
+  const to = isRouteHydrationOptions(toOrOptions) ? router.currentRoute.value.fullPath : toOrOptions;
+  const hydrationOptions = isRouteHydrationOptions(toOrOptions) ? toOrOptions : options;
   const targetRoute = router.resolve(to);
   let route = targetRoute;
 
@@ -152,7 +158,16 @@ export async function hydrateRoute(router: Router, target: Element, to: RouteLoc
 
   await router.isReady();
   route = router.currentRoute.value.fullPath === route.fullPath ? router.currentRoute.value : router.resolve(route.fullPath);
-  return hydrateMatchedRoute(route, router, 0, target, createRouteComponentContext(router));
+  const instance = await hydrateMatchedRoute(route, router, 0, target, createRouteComponentContext(router));
+  const stopListening = hydrationOptions.listen ? router.listen() : undefined;
+  return {
+    element: instance.element,
+    route: instance.route,
+    unmount() {
+      stopListening?.();
+      instance.unmount();
+    }
+  };
 }
 
 async function renderMatchedRoute(route: RouteLocation, router: Router, depth: number, context: MikuruComponentContext): Promise<string> {
@@ -244,6 +259,14 @@ function readRouteSlotContext(slotProps: Record<string, unknown> | undefined, fa
 
 function isComponentContext(value: unknown): value is MikuruComponentContext {
   return !!value && typeof value === "object" && (value as MikuruComponentContext).provides instanceof Map;
+}
+
+function isRouteHydrationOptions(value: unknown): value is MikuruRouteHydrationOptions {
+  return !!value
+    && typeof value === "object"
+    && "listen" in value
+    && !("path" in value)
+    && !("name" in value);
 }
 
 async function resolveSsrRouteComponent(record: RouteRecord): Promise<MikuruSsrComponent> {

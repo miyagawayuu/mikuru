@@ -14,6 +14,7 @@
 - Added dynamic disabled Teleport SSR hydration without shifting sibling hydration.
 - Added SSR component tree context so generated SSR components can scope `provide()` / `inject()` and pass context to child components.
 - Added router SSR and route hydration context propagation, including provided router access for route components.
+- Added `hydrateRoute(..., { listen: true })` to start browser/router history listening after route hydration and stop it on unmount.
 - Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.
 - Extended `<AsyncBoundary>` to support multiple child nodes with live `pending` updates.

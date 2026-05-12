@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileHydration, compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter } from "../src/router/index.js";
+import type { RouterHistory } from "../src/router/index.js";
 import { effect, ref, setAttribute, unwrap } from "../src/runtime/index.js";
 import { escapeHtml, hydrateRoute, renderAttr, renderAttrs, renderComponentToString, renderRouteToString } from "../src/server.js";
 
@@ -393,6 +394,66 @@ function increment() {
     root.innerHTML = (await renderRouteToString(router, "/fallback")).html;
     await hydrateRoute(router, root.firstElementChild as unknown as Element, "/fallback");
     expect(root.querySelector("em")?.textContent).toBe("mounted route");
+  });
+
+  it("can start and stop router history listening after route hydration", async () => {
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const baseHistory = createMemoryHistory("/users/7");
+    const history: RouterHistory = {
+      ...baseHistory,
+      listen(fn) {
+        const stop = baseHistory.listen(fn);
+        return () => stop();
+      }
+    };
+    const Shell = {
+      async renderToString(props: Record<string, any>) {
+        return `<main>${await props.children()}</main>`;
+      },
+      async hydrate(target: Element, props: Record<string, any>) {
+        await props.children(target.firstElementChild as unknown as Element, { __mikuru_context: props.__mikuru_context });
+        return { element: target, unmount() {} };
+      }
+    };
+    const UserPage = {
+      renderToString(props: Record<string, any>) {
+        return `<p>User ${props.route.params.id}</p>`;
+      },
+      hydrate(target: Element) {
+        return { element: target, unmount() {} };
+      }
+    };
+    const router = createRouter({
+      history,
+      routes: [
+        {
+          path: "/",
+          component: Shell as any,
+          children: [
+            {
+              path: "users/:id",
+              component: UserPage as any
+            }
+          ]
+        },
+        {
+          path: "/fallback",
+          component: UserPage as any
+        }
+      ]
+    });
+
+    root.innerHTML = (await renderRouteToString(router)).html;
+    const instance = await hydrateRoute(router, root.firstElementChild as unknown as Element, { listen: true });
+
+    expect(instance.route.fullPath).toBe("/users/7");
+    history.push("/fallback");
+    expect(router.currentRoute.value.fullPath).toBe("/fallback");
+
+    instance.unmount();
+    history.push("/users/9");
+    expect(router.currentRoute.value.fullPath).toBe("/fallback");
   });
 });
 

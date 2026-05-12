@@ -189,7 +189,7 @@ import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps
 
 SSR Teleport content is collected into a caller-provided `__mikuru_teleports` object keyed by selector, and `compileHydration()` reuses the target-side Teleport DOM when those collected fragments are inserted into the app shell. Disabled Teleports render and hydrate inline.
 
-`hydrateRoute(router, target, location?)` hydrates an SSR-rendered route tree, resolving redirects, lazy route components, route props, route component context, and nested route slots with the same shape as `renderRouteToString()`.
+`hydrateRoute(router, target, location?, options?)` hydrates an SSR-rendered route tree, resolving redirects, lazy route components, route props, route component context, and nested route slots with the same shape as `renderRouteToString()`. Pass `{ listen: true }` to start router history listening after hydration and stop it when the returned instance is unmounted.
 
 Routing helpers are available from `mikuru/router`:
 

@@ -116,15 +116,15 @@ Unsupported in v1:
 - SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection through `props.__mikuru_teleports`.
 - `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output.
 - `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, route component context, and nested route components using default slots.
-- `hydrateRoute(router, target, location?)` resolves redirects, lazy route components, route props, route component context, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback.
-- Hydration and browser-side router hydration are future work.
+- `hydrateRoute(router, target, location?, options?)` resolves redirects, lazy route components, route props, route component context, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback. `{ listen: true }` starts router history listening after hydration and stops it on unmount.
+- Hydration is future work.
 
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
 - Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates initial `v-if` / `v-for` DOM, reuses Teleport target content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 - Root mismatches warn and fall back to normal `mount`.
-- Dynamic branch/list reconciliation after the initial state and browser history resume are future work.
+- Dynamic branch/list reconciliation after the initial state is future work.
 
 ## Macro Contract
 
