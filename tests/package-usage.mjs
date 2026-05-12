@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 const { compile, compileSsr } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
-const { escapeHtml, renderAttr, renderComponentToString, renderToString } = await import("mikuru/server");
+const { escapeHtml, renderAttr, renderComponentToString, renderRouteToString, renderToString } = await import("mikuru/server");
 const {
   createDebugInspector,
   effect,
@@ -59,6 +59,28 @@ assert.equal(escapeHtml("<ok>"), "&lt;ok&gt;");
 assert.equal(renderAttr("data-count", 2), " data-count=\"2\"");
 assert.equal(renderToString({ renderToString: () => "<main>SSR</main>" }), "<main>SSR</main>");
 assert.equal(await renderComponentToString({ renderToString: (props) => `<main>${props.message}</main>` }, { message: "component SSR" }), "<main>component SSR</main>");
+
+const ssrRouter = createRouter({
+  history: createMemoryHistory("/"),
+  routes: [
+    {
+      path: "/",
+      component: {
+        renderToString: async (props) => `<main>${props.route.path}${props.children ? await props.children() : ""}</main>`
+      },
+      children: [
+        {
+          path: "package",
+          component: {
+            renderToString: () => "<p>route SSR</p>"
+          }
+        }
+      ]
+    }
+  ]
+});
+const routeSsr = await renderRouteToString(ssrRouter, "/package");
+assert.equal(routeSsr.html, "<main>/package<p>route SSR</p></main>");
 
 const count = ref(0);
 let observed = 0;
