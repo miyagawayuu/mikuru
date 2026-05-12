@@ -2434,6 +2434,35 @@ const ErrorView = {
     expect(fixture.root.querySelector("button")).toBeNull();
   });
 
+  it("passes diagnostic info to ErrorBoundary fallback components", async () => {
+    const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <button @click="explode">Explode</button>
+  </ErrorBoundary>
+</template>
+
+<script>
+function explode() {
+  throw new Error("diagnostic event");
+}
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = [props.error.message, props.errorInfo.phase, props.errorInfo.filename, props.errorInfo.boundary.filename].join("|");
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("diagnostic event|event|GeneratedDom.mikuru|GeneratedDom.mikuru");
+  });
+
   it("renders ErrorBoundary fallback for descendant mounted callback errors", async () => {
     const previousChild = (globalThis as unknown as { __mikuruBoundaryMountedChild?: CompiledModule }).__mikuruBoundaryMountedChild;
     const child = loadCompiledModule(
@@ -2703,6 +2732,37 @@ const ErrorView = {
     await Promise.resolve();
 
     expect(fixture.root.querySelector("p")?.textContent).toBe("boundary async failed");
+  });
+
+  it("passes async diagnostics to ErrorBoundary fallback components", async () => {
+    const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <AsyncBroken />
+  </ErrorBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const AsyncBroken = defineAsyncComponent({
+  loader: () => Promise.reject(new Error("async diagnostic"))
+});
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = [props.error.message, props.errorInfo.phase, props.errorInfo.filename, props.errorInfo.boundary.filename].join("|");
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("async diagnostic|async-loader|GeneratedDom.mikuru|GeneratedDom.mikuru");
   });
 
   it("routes async component timeouts to ErrorBoundary when no error component is provided", async () => {

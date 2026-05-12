@@ -19,7 +19,15 @@ export type AsyncComponentOptions = {
 };
 
 type MikuruComponentContext = {
-  errorHandler?: (error: unknown) => void;
+  component?: string;
+  filename?: string;
+  errorHandler?: (error: unknown, errorInfo?: MikuruErrorInfo) => void;
+};
+
+type MikuruErrorInfo = {
+  component?: string;
+  filename?: string;
+  phase?: string;
 };
 
 export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | AsyncComponentOptions): MikuruComponent {
@@ -80,9 +88,9 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         }
       };
 
-      const reportError = (error: unknown) => {
+      const reportError = (error: unknown, phase: string) => {
         if (typeof context?.errorHandler === "function") {
-          context.errorHandler(error);
+          context.errorHandler(error, { component: context.component, filename: context.filename, phase });
           return;
         }
 
@@ -124,7 +132,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
               const error = new Error("Async component timed out");
               renderFallback(options.errorComponent, { ...props, error, retry: () => startLoad() });
               if (!options.errorComponent) {
-                reportError(error);
+                reportError(error, "async-timeout");
               }
             }
           }, options.timeout);
@@ -150,7 +158,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
             renderFallback(options.errorComponent, { ...props, error, retry: () => startLoad() });
 
             if (!options.errorComponent) {
-              reportError(error);
+              reportError(error, "async-loader");
             }
           }
         );

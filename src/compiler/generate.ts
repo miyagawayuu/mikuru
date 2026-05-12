@@ -116,19 +116,21 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   emit(context, 0, `import { ${runtimeImports.join(", ")} } from "mikuru/runtime";`);
   emit(context, 0, "");
   emit(context, 0, "export function mount(target, props = {}) {");
+  emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
   emit(context, 1, "const __mikuru_cleanup = [];");
   emit(context, 1, "const __mikuru_afterUnmount = [];");
   emit(context, 1, "const __mikuru_mounted = [];");
-  emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), errorHandler: props.__mikuru_context?.errorHandler };");
-  emit(context, 1, "const __mikuru_reportError = (error, errorHandler = __mikuru_context.errorHandler) => {");
-  emit(context, 2, "if (typeof errorHandler === \"function\") { Promise.resolve().then(() => errorHandler(error)); return; }");
+  emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), errorHandler: props.__mikuru_context?.errorHandler, ...__mikuru_componentInfo };");
+  emit(context, 1, "const __mikuru_errorInfo = (phase) => ({ ...__mikuru_componentInfo, phase });");
+  emit(context, 1, "const __mikuru_reportError = (error, errorHandler = __mikuru_context.errorHandler, phase = \"runtime\") => {");
+  emit(context, 2, "if (typeof errorHandler === \"function\") { Promise.resolve().then(() => errorHandler(error, __mikuru_errorInfo(phase))); return; }");
   emit(context, 2, "setTimeout(() => { throw error; });");
   emit(context, 1, "};");
-  emit(context, 1, "const __mikuru_try = (fn, errorHandler) => { try { return fn(); } catch (error) { __mikuru_reportError(error, errorHandler); } };");
-  emit(context, 1, "const __mikuru_guardEventHandler = (fn, errorHandler = __mikuru_context.errorHandler) => (...args) => __mikuru_try(() => fn(...args), errorHandler);");
+  emit(context, 1, "const __mikuru_try = (fn, errorHandler, phase) => { try { return fn(); } catch (error) { __mikuru_reportError(error, errorHandler, phase); } };");
+  emit(context, 1, "const __mikuru_guardEventHandler = (fn, errorHandler = __mikuru_context.errorHandler) => (...args) => __mikuru_try(() => fn(...args), errorHandler, \"event\");");
   emit(context, 1, "const __mikuru_runCleanup = (cleanups) => {");
   emit(context, 2, "for (const cleanup of cleanups.splice(0).reverse()) {");
-  emit(context, 3, "__mikuru_try(cleanup);");
+  emit(context, 3, "__mikuru_try(cleanup, undefined, \"cleanup\");");
   emit(context, 2, "}");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_transitionFrame = (fn) => {");
@@ -233,7 +235,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
       emit(context, 2, "const handlerName = \"on\" + String(name).split(/[-:]/).filter(Boolean).map((part) => part[0].toUpperCase() + part.slice(1)).join(\"\");");
       emit(context, 2, "const handler = props[handlerName];");
       emit(context, 2, "if (handler) {");
-      emit(context, 3, "__mikuru_try(() => handler(...args));");
+      emit(context, 3, "__mikuru_try(() => handler(...args), undefined, \"emit\");");
       emit(context, 2, "}");
       emit(context, 1, "};");
     }
@@ -244,13 +246,13 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
 
   const rootVar = generateNode(context, root, "target", "__mikuru_cleanup", 1);
   emit(context, 1, "// call mounted callbacks registered during setup and remove registrar");
-  emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb); }");
+  emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb, undefined, \"mounted\"); }");
   emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
   emit(context, 1, "return {");
   emit(context, 2, `element: ${rootVar},`);
   emit(context, 2, "unmount() {");
   emit(context, 3, "__mikuru_runCleanup(__mikuru_cleanup);");
-  emit(context, 3, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) { __mikuru_try(cb); }");
+  emit(context, 3, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) { __mikuru_try(cb, undefined, \"unmounted\"); }");
   emit(context, 3, `__mikuru_removeNode(${rootVar});`);
   emit(context, 2, "}");
   emit(context, 1, "};");
@@ -443,6 +445,8 @@ function generateErrorBoundary(
   const renderVar = nextVar(context, "renderErrorBoundary");
   const fallbackRenderVar = nextVar(context, "renderErrorBoundaryFallback");
   const errorVar = nextVar(context, "error");
+  const errorInfoVar = nextVar(context, "errorInfo");
+  const normalizedErrorInfoVar = nextVar(context, "errorInfo");
   const fallbackVar = nextVar(context, "errorFallback");
   const fallbackFragmentVar = nextVar(context, "errorFallback");
   const fallbackInstanceVar = nextVar(context, "errorFallback");
@@ -458,13 +462,14 @@ function generateErrorBoundary(
   appendNode(context, parentVar, startVar, indent, beforeVar);
   appendNode(context, parentVar, endVar, indent, beforeVar);
   emit(context, indent, `const ${boundaryCleanupVar} = [];`);
-  emit(context, indent, `const ${fallbackRenderVar} = (${errorVar}) => {`);
+  emit(context, indent, `const ${fallbackRenderVar} = (${errorVar}, ${errorInfoVar} = __mikuru_errorInfo("runtime")) => {`);
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
   emit(context, indent + 1, `const ${fallbackVar} = unwrap(${fallbackExpression});`);
   emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
+  emit(context, indent + 1, `const ${normalizedErrorInfoVar} = ${errorInfoVar} && typeof ${errorInfoVar} === "object" ? ${errorInfoVar} : {};`);
   emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
-  emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, retry: ${renderVar}, reset: ${renderVar}, __mikuru_context });`);
+  emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, retry: ${renderVar}, reset: ${renderVar}, __mikuru_context });`);
   emit(context, indent + 1, `${boundaryCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
   appendNode(context, parentVar, fallbackFragmentVar, indent + 1, endVar);
   emit(context, indent, "};");
@@ -472,14 +477,14 @@ function generateErrorBoundary(
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
   emit(context, indent + 1, `const ${previousErrorHandlerVar} = __mikuru_context.errorHandler;`);
-  emit(context, indent + 1, `const ${boundaryContextVar} = { parent: __mikuru_context, provides: new Map(), errorHandler: ${fallbackRenderVar} };`);
+  emit(context, indent + 1, `const ${boundaryContextVar} = { parent: __mikuru_context, provides: new Map(), errorHandler: ${fallbackRenderVar}, ...__mikuru_componentInfo };`);
   emit(context, indent + 1, `__mikuru_context.errorHandler = ${fallbackRenderVar};`);
   emit(context, indent + 1, "try {");
   context.componentContextVar = boundaryContextVar;
   generateNode(context, children[0], parentVar, boundaryCleanupVar, indent + 2, endVar);
   context.componentContextVar = previousComponentContextVar;
   emit(context, indent + 1, `} catch (${errorVar}) {`);
-  emit(context, indent + 2, `${fallbackRenderVar}(${errorVar});`);
+  emit(context, indent + 2, `${fallbackRenderVar}(${errorVar}, __mikuru_errorInfo("mount"));`);
   emit(context, indent + 1, "} finally {");
   emit(context, indent + 2, `__mikuru_context.errorHandler = ${previousErrorHandlerVar};`);
   emit(context, indent + 1, "}");
@@ -1129,7 +1134,7 @@ function generateElement(
         }
 
         emit(context, indent + 1, `return ${baseHandlerVar}($event);`);
-        emit(context, indent, `}, ${errorHandlerVar});`);
+        emit(context, indent, `}, ${errorHandlerVar}, "event");`);
       } else {
         emit(context, indent, `const ${handlerVar} = __mikuru_guardEventHandler(${handlerExpression});`);
       }
