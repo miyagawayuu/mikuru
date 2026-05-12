@@ -548,6 +548,7 @@ function generateAsyncBoundary(
   const fallbackInstanceVar = nextVar(context, "asyncBoundaryFallback");
   const errorVar = nextVar(context, "error");
   const errorInfoVar = nextVar(context, "errorInfo");
+  const errorsVar = nextVar(context, "asyncBoundaryErrors");
   const normalizedErrorInfoVar = nextVar(context, "errorInfo");
   const retryVar = nextVar(context, "retry");
   const settledVar = nextVar(context, "settled");
@@ -562,6 +563,7 @@ function generateAsyncBoundary(
   emit(context, indent, `const ${fallbackCleanupVar} = [];`);
   emit(context, indent, `let ${pendingVar} = 0;`);
   emit(context, indent, `let ${failedVar} = false;`);
+  emit(context, indent, `let ${errorsVar} = [];`);
   emit(context, indent, `let ${lastRetryVar} = () => {};`);
   emit(context, indent, `const ${clearLoadingVar} = () => __mikuru_runCleanup(${loadingCleanupVar});`);
   emit(context, indent, `const ${clearFallbackVar} = () => __mikuru_runCleanup(${fallbackCleanupVar});`);
@@ -585,7 +587,7 @@ function generateAsyncBoundary(
   emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
   emit(context, indent + 1, `const ${normalizedErrorInfoVar} = ${errorInfoVar} && typeof ${errorInfoVar} === "object" ? ${errorInfoVar} : {};`);
   emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
-  emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, pending: ${pendingVar}, retry: ${lastRetryVar}, reset: ${lastRetryVar}, __mikuru_context });`);
+  emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errors: [...${errorsVar}], errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, pending: ${pendingVar}, retry: ${lastRetryVar}, reset: ${lastRetryVar}, __mikuru_context });`);
   emit(context, indent + 1, `${fallbackCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
   appendNode(context, parentVar, fallbackFragmentVar, indent + 1, endVar);
   emit(context, indent, "};");
@@ -606,6 +608,7 @@ function generateAsyncBoundary(
   emit(context, indent + 4, `if (${settledVar}) { return; }`);
   emit(context, indent + 4, `${settledVar} = true;`);
   emit(context, indent + 4, `${pendingVar} = Math.max(0, ${pendingVar} - 1);`);
+  emit(context, indent + 4, `${errorsVar}.push(${errorVar});`);
   emit(context, indent + 4, `${renderFallbackVar}(${errorVar}, ${errorInfoVar});`);
   emit(context, indent + 3, "}");
   emit(context, indent + 2, "};");
@@ -614,6 +617,7 @@ function generateAsyncBoundary(
   emit(context, indent, `const ${renderVar} = () => {`);
   emit(context, indent + 1, `${failedVar} = false;`);
   emit(context, indent + 1, `${pendingVar} = 0;`);
+  emit(context, indent + 1, `${errorsVar} = [];`);
   emit(context, indent + 1, `${lastRetryVar} = ${renderVar};`);
   emit(context, indent + 1, `${clearLoadingVar}();`);
   emit(context, indent + 1, `${clearFallbackVar}();`);

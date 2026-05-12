@@ -295,7 +295,7 @@ const AsyncPanel = defineAsyncComponent({
 </script>
 ```
 
-Use `<AsyncBoundary>` when multiple async children should share loading and retryable error UI. The loading component receives `{ pending }` and is refreshed as async children start or settle. The fallback component receives `{ error, errorInfo, pending, retry, reset }`.
+Use `<AsyncBoundary>` when multiple async children should share loading and retryable error UI. The loading component receives `{ pending }` and is refreshed as async children start or settle. The fallback component receives `{ error, errors, errorInfo, pending, retry, reset }`; `errors` contains the async failures collected before the fallback rendered.
 
 ```mikuru
 <AsyncBoundary :loading="LoadingPanel" :fallback="AsyncErrorPanel">
@@ -313,7 +313,7 @@ export const AsyncErrorPanel: MikuruComponent = {
   mount(target, props: MikuruAsyncBoundaryFallbackProps) {
     const button = document.createElement("button");
     const message = props.error instanceof Error ? props.error.message : String(props.error);
-    button.textContent = `${props.errorInfo?.phase ?? "async-loader"}: ${message}`;
+    button.textContent = `${props.errorInfo?.phase ?? "async-loader"}: ${message} (${props.errors?.length ?? 0})`;
     button.addEventListener("click", props.retry);
     target.appendChild(button);
     return { element: button, unmount() { button.remove(); } };
