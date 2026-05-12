@@ -769,6 +769,41 @@ const count = 0;
     expect(forwarded?.message).toMatch(/Invalid template expression/);
     expect(forwarded?.frame).toContain("{{ count; alert(1) }}");
   });
+
+  it("forwards non-Mikuru transform errors through Vite with a fallback location and frame", () => {
+    const plugin = mikuru();
+    const transform = plugin.transform as unknown as Function;
+    let forwarded:
+      | {
+          message: string;
+          id: string;
+          loc: { line: number; column: number };
+          frame?: string;
+        }
+      | undefined;
+
+    expect(() =>
+      transform.call(
+        {
+          error(error: typeof forwarded) {
+            forwarded = error;
+            throw new Error("vite forwarded fallback");
+          }
+        },
+        `<template>
+  <p :class>Missing binding value</p>
+</template>`,
+        "src/FallbackForwarding.mikuru"
+      )
+    ).toThrow(/vite forwarded fallback/);
+
+    expect(forwarded).toMatchObject({
+      id: "src/FallbackForwarding.mikuru",
+      loc: { line: 1, column: 1 }
+    });
+    expect(forwarded?.message).toMatch(/Directive :class requires a value/);
+    expect(forwarded?.frame).toContain("<template>");
+  });
 });
 
 function captureCompileError(source: string, filename: string): MikuruCompileError {
