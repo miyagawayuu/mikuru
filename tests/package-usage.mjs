@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 const { compile } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
-const { createDebugInspector, effect, emitDebugEvent, nextTick, ref, watch } = await import("mikuru/runtime");
+const { createDebugInspector, effect, emitDebugEvent, nextTick, ref, watch, watchEffect } = await import("mikuru/runtime");
 const { mikuru } = await import("mikuru/vite");
 
 assert.deepEqual(Object.keys(env), []);
@@ -43,6 +43,30 @@ count.value = 4;
 stopWatch();
 count.value = 5;
 assert.equal(watched, 4);
+
+let effectWatched = 0;
+const stopWatchEffect = watchEffect(() => {
+  effectWatched = count.value;
+});
+count.value = 6;
+stopWatchEffect();
+count.value = 7;
+assert.equal(effectWatched, 6);
+
+const scheduled = [];
+let scheduledObserved = 0;
+const stopScheduled = effect(() => {
+  scheduledObserved = count.value;
+}, {
+  scheduler: (runner) => {
+    scheduled.push(runner);
+  }
+});
+count.value = 8;
+assert.equal(scheduledObserved, 7);
+scheduled.shift()?.();
+stopScheduled();
+assert.equal(scheduledObserved, 8);
 
 let ticked = false;
 await nextTick(() => {

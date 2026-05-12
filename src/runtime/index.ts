@@ -19,7 +19,19 @@ export type {
   MikuruErrorInfo,
   MikuruErrorPhase
 } from "./asyncComponent.js";
-export { computed, effect, ref, unwrap } from "./reactivity.js";
-export type { ComputedRef, EffectFn, Ref, WritableComputedOptions, WritableComputedRef } from "./reactivity.js";
+export { computed, effect, ref, unwrap, watchEffect } from "./reactivity.js";
+export type {
+  ComputedRef,
+  EffectFn,
+  EffectOptions,
+  EffectRunner,
+  EffectScheduler,
+  Ref,
+  WatchEffectCleanup,
+  WatchEffectCleanupRegistrar,
+  WatchEffectFn,
+  WritableComputedOptions,
+  WritableComputedRef
+} from "./reactivity.js";
 export { nextTick, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount, onUnmounted, provide, inject } from "./lifecycle.js";
 export type { WatchCallback, WatchCleanup, WatchCleanupRegistrar, WatchOptions, WatchSource } from "./lifecycle.js";

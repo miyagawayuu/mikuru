@@ -129,7 +129,7 @@ test("dogfood app syncs practical v-model forms", async ({ page }) => {
 
   const lab = page.getByRole("region", { name: "v-model lab" });
   await expect(lab.getByRole("heading", { name: "v-model lab" })).toBeVisible();
-  await expect(lab.getByText("ready:1:2:Launch checklist:false:Mikuru:Runtime:waiting")).toBeVisible();
+  await expect(lab.getByText("ready:1:2:Launch checklist:false:Mikuru:Runtime:waiting:effect:Mikuru Runtime")).toBeVisible();
 
   await lab.getByLabel("Search phrase").fill("  shipped  ");
   await lab.getByLabel("Priority").focus();
@@ -140,7 +140,7 @@ test("dogfood app syncs practical v-model forms", async ({ page }) => {
   await lab.getByLabel("Feature enabled").check();
   await lab.getByLabel("Owner name").fill("Writable Computed");
 
-  await expect(lab.getByText("shipped:7:1:Release notes:true:Writable:Computed:Mikuru Runtime -> Writable Computed")).toBeVisible();
+  await expect(lab.getByText("shipped:7:1:Release notes:true:Writable:Computed:Mikuru Runtime -> Writable Computed:effect:Writable Computed")).toBeVisible();
 });
 
 test("dogfood app exposes debug inspector panel", async ({ page }) => {

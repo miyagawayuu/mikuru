@@ -20,7 +20,8 @@ import {
   registerDebugComponent,
   setAttribute,
   unwrap,
-  watch
+  watch,
+  watchEffect
 } from "../src/runtime/index.js";
 
 type CompiledModule = {
@@ -4015,15 +4016,16 @@ const Child = {
     const fixture = compileForDom(`<template>
   <section>
     <input v-model="fullName" />
-    <p>{{ rawName }}:{{ watchLog }}</p>
+    <p>{{ rawName }}:{{ watchLog }}:{{ effectLog }}</p>
   </section>
 </template>
 
 <script>
-import { computed, ref, watch } from "mikuru";
+import { computed, ref, watch, watchEffect } from "mikuru";
 
 const rawName = ref("Mikuru Runtime");
 const watchLog = ref("waiting");
+const effectLog = ref("effect:Mikuru Runtime");
 const fullName = computed({
   get: () => rawName.value,
   set: (nextValue) => {
@@ -4034,6 +4036,10 @@ const fullName = computed({
 watch(fullName, (next, previous) => {
   watchLog.value = previous + " -> " + next;
 }, { once: true });
+
+watchEffect(() => {
+  effectLog.value = "effect:" + fullName.value;
+});
 </script>`);
 
     fixture.module.mount(fixture.root);
@@ -4041,7 +4047,7 @@ watch(fullName, (next, previous) => {
     const paragraph = fixture.root.querySelector("p");
 
     expect(input?.value).toBe("Mikuru Runtime");
-    expect(paragraph?.textContent).toBe("Mikuru Runtime:waiting");
+    expect(paragraph?.textContent).toBe("Mikuru Runtime:waiting:effect:Mikuru Runtime");
 
     if (input) {
       input.value = "Writable Computed";
@@ -4049,14 +4055,14 @@ watch(fullName, (next, previous) => {
     }
 
     expect(input?.value).toBe("Writable Computed");
-    expect(paragraph?.textContent).toBe("Writable Computed:Mikuru Runtime -> Writable Computed");
+    expect(paragraph?.textContent).toBe("Writable Computed:Mikuru Runtime -> Writable Computed:effect:Writable Computed");
 
     if (input) {
       input.value = "Ignored Update";
       input.dispatchEvent(createEvent(fixture.window, "input"));
     }
 
-    expect(paragraph?.textContent).toBe("Ignored Update:Mikuru Runtime -> Writable Computed");
+    expect(paragraph?.textContent).toBe("Ignored Update:Mikuru Runtime -> Writable Computed:effect:Ignored Update");
   });
 
   it("renders default slot content in child components", () => {
@@ -4470,6 +4476,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "useRoute",
     "useRouter",
     "watch",
+    "watchEffect",
     "document",
     `${executableCode}\nreturn { mount };`
   ) as (
@@ -4497,6 +4504,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     useRouteArg: typeof useRoute,
     useRouterArg: typeof useRouter,
     watchArg: typeof watch,
+    watchEffectArg: typeof watchEffect,
     documentArg: Document
   ) => CompiledModule;
 
@@ -4525,6 +4533,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     useRoute,
     useRouter,
     watch,
+    watchEffect,
     document
   );
 }
