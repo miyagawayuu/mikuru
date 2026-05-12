@@ -100,11 +100,13 @@ button {
 <button @click.stop="select">Select</button>
 <button @click.self.once="select">Select</button>
 <div @scroll.passive.capture="track"></div>
+<button @[eventName]="handle">Dynamic event</button>
 <Child @select.once="select" />
 ```
 
 `@event="handler"` と `v-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent`、`.stop`、`.self`、`.once`、`.capture`、`.passive` を使える。
 コンポーネントイベントでは `.once` を使える。
+`@[eventName]` と `v-on:[eventName]` はイベント名を式から決め、式が変わった場合は古いlistenerを外して新しいlistenerを付ける。
 
 制約:
 
@@ -119,11 +121,13 @@ button {
 <div :class="className" :id="itemId"></div>
 <div v-bind:class="className"></div>
 <div v-bind="attrs"></div>
+<div :[attrName]="value"></div>
 <div :class="['base', { active: isActive }]"></div>
 <div :style="[{ color }, { fontSize: size, '--tone': tone }]"></div>
 ```
 
 `:attr="expr"` と `v-bind:attr="expr"` は、依存値が変わったときに属性を更新する。`v-bind="attrs"` はオブジェクトのkey/valueをまとめて属性へ反映し、消えたkeyは削除する。
+`:[attrName]="value"` と `v-bind:[attrName]="value"` は属性名を式から決める。属性名が変わると古い属性を削除して新しい属性を設定する。
 
 生成方針:
 

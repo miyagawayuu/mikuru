@@ -701,6 +701,17 @@ function setup() {
     expect(result.code).toMatch(/setAttribute\(el\d+, "v-if", "false"\)/);
   });
 
+  it("analyzes dynamic argument expressions", () => {
+    const result = compile(`<template><button :[attrName]="value" @[eventName]="handle">Go</button></template><script>const attrName = "data-mode"; const value = "ready"; const eventName = "click"; function handle() {}</script>`);
+
+    expect(result.bindings).toEqual(expect.arrayContaining([
+      { type: "attribute", name: "name", expression: "attrName" },
+      { type: "attribute", name: "value", expression: "value" },
+      { type: "attribute", name: "event", expression: "eventName" },
+      { type: "event", event: "dynamic", handler: "handle" }
+    ]));
+  });
+
   it("reports values on valueless directives", () => {
     expect(() => compile(`<template><section v-pre="raw">Text</section></template>`)).toThrow(/v-pre does not accept a value/);
     expect(() => compile(`<template><section v-cloak="ready">Text</section></template>`)).toThrow(/v-cloak does not accept a value/);

@@ -80,7 +80,8 @@ type IfBranch = {
 };
 
 type EventDirective = {
-  name: string;
+  name?: string;
+  nameExpression?: string;
   modifiers: string[];
 };
 
@@ -1620,9 +1621,20 @@ function generateElement(
         emit(context, indent, `const ${handlerVar} = __mikuru_guardEventHandler(${handlerExpression});`);
       }
 
-      const eventOptions = eventListenerOptions(event);
-      emit(context, indent, `${elementVar}.addEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
-      emit(context, indent, `${cleanupVar}.push(() => ${elementVar}.removeEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}));`);
+      if (event.nameExpression) {
+        emitDynamicEventListener(context, elementVar, event, handlerVar, attr, cleanupVar, indent);
+      } else {
+        const eventOptions = eventListenerOptions(event);
+        emit(context, indent, `${elementVar}.addEventListener(${quote(event.name ?? "")}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
+        emit(context, indent, `${cleanupVar}.push(() => ${elementVar}.removeEventListener(${quote(event.name ?? "")}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}));`);
+      }
+      continue;
+    }
+
+    const dynamicBinding = getDynamicBindingArgument(attr.name);
+
+    if (dynamicBinding) {
+      emitDynamicAttributeBinding(context, node, elementVar, attr, dynamicBinding.expression, cleanupVar, indent);
       continue;
     }
 
@@ -1656,6 +1668,66 @@ function generateElement(
 
   appendNode(context, parentVar, elementVar, indent, beforeVar);
   return elementVar;
+}
+
+function emitDynamicAttributeBinding(
+  context: GenerateContext,
+  node: ElementNode,
+  elementVar: string,
+  attr: TemplateAttribute,
+  nameExpression: string,
+  cleanupVar: string,
+  indent: number
+): void {
+  const compiledName = compileTemplateExpression(nameExpression, attr.name, toExpressionContext(context, attr.loc));
+  const compiledValue = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+  const staticClass = getStaticAttrValue(node, "class");
+  const staticStyle = getStaticAttrValue(node, "style");
+  const previousNameVar = nextVar(context, "attrName");
+  const nameVar = nextVar(context, "attrName");
+  const valueVar = nextVar(context, "attrValue");
+  const stopVar = nextVar(context, "stop");
+
+  emit(context, indent, `let ${previousNameVar};`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${nameVar} = String(unwrap(${compiledName}) ?? "");`);
+  emit(context, indent + 1, `if (!${nameVar}) { if (${previousNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null); ${previousNameVar} = undefined; return; }`);
+  emit(context, indent + 1, `if (${previousNameVar} && ${previousNameVar} !== ${nameVar}) { setAttribute(${elementVar}, ${previousNameVar}, null); }`);
+  emit(context, indent + 1, `const ${valueVar} = unwrap(${compiledValue});`);
+  if (staticClass || staticStyle) {
+    emit(context, indent + 1, `setAttribute(${elementVar}, ${nameVar}, ${nameVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, ${valueVar}] : ${nameVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, ${valueVar}] : ${valueVar});`);
+  } else {
+    emit(context, indent + 1, `setAttribute(${elementVar}, ${nameVar}, ${valueVar});`);
+  }
+  emit(context, indent + 1, `${previousNameVar} = ${nameVar};`);
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(() => { ${stopVar}(); if (${previousNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null); });`);
+}
+
+function emitDynamicEventListener(
+  context: GenerateContext,
+  elementVar: string,
+  event: EventDirective,
+  handlerVar: string,
+  attr: TemplateAttribute,
+  cleanupVar: string,
+  indent: number
+): void {
+  const expression = compileTemplateExpression(event.nameExpression ?? "\"\"", attr.name, toExpressionContext(context, attr.loc));
+  const currentEventVar = nextVar(context, "eventName");
+  const nextEventVar = nextVar(context, "eventName");
+  const stopVar = nextVar(context, "stop");
+  const eventOptions = eventListenerOptions(event);
+
+  emit(context, indent, `let ${currentEventVar};`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${nextEventVar} = String(unwrap(${expression}) ?? "");`);
+  emit(context, indent + 1, `if (${nextEventVar} === ${currentEventVar}) { return; }`);
+  emit(context, indent + 1, `if (${currentEventVar}) { ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}); }`);
+  emit(context, indent + 1, `${currentEventVar} = ${nextEventVar};`);
+  emit(context, indent + 1, `if (${currentEventVar}) { ${elementVar}.addEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}); }`);
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(() => { ${stopVar}(); if (${currentEventVar}) { ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}); } });`);
 }
 
 function emitContentDirective(
@@ -3437,13 +3509,38 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
   if (event) {
     validateComponentEventModifiers(event, attr, context);
     const handler = validateTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    const handlerExpression = componentEventHandlerExpression(
+      event,
+      eventHandlerExpression(handler, context, attr.valueLoc),
+      context
+    );
+
+    if (event.nameExpression) {
+      const eventNameExpression = compileTemplateExpression(event.nameExpression, attr.name, toExpressionContext(context, attr.loc));
+      return [
+        `[${componentEventPropRuntimeExpression(`String(unwrap(${eventNameExpression}) ?? "")`)}]: __mikuru_guardEventHandler(${handlerExpression})`
+      ];
+    }
+
     return [
-      `${quotePropertyName(toComponentEventProp(event.name))}: __mikuru_guardEventHandler(${componentEventHandlerExpression(
+      `${quotePropertyName(toComponentEventProp(event.name ?? ""))}: __mikuru_guardEventHandler(${componentEventHandlerExpression(
         event,
         eventHandlerExpression(handler, context, attr.valueLoc),
         context
       )})`
     ];
+  }
+
+  const dynamicBinding = getDynamicBindingArgument(attr.name);
+
+  if (dynamicBinding) {
+    const nameExpression = compileTemplateExpression(dynamicBinding.expression, attr.name, toExpressionContext(context, attr.loc));
+    const valueExpression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    const propertyName = `String(unwrap(${nameExpression}) ?? "")`;
+    if (context.once) {
+      return [`[${propertyName}]: unwrap(${valueExpression})`];
+    }
+    return [`get [${propertyName}]() { return unwrap(${valueExpression}); }`];
   }
 
   const bindingName = getBindingName(attr.name);
@@ -3976,6 +4073,8 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
     Boolean(parseModelDirective(attr.name)) ||
     isObjectBindAttr(attr) ||
     isObjectOnAttr(attr) ||
+    Boolean(getDynamicBindingArgument(attr.name)) ||
+    Boolean(getDynamicEventArgument(attr.name)) ||
     Boolean(parseEventDirective(attr.name)) ||
     Boolean(getBindingName(attr.name))
   );
@@ -3998,6 +4097,11 @@ function isObjectOnAttr(attr: TemplateAttribute): boolean {
 }
 
 function parseEventDirective(name: string): EventDirective | undefined {
+  const dynamic = getDynamicEventArgument(name);
+  if (dynamic) {
+    return dynamic;
+  }
+
   const rawName = getEventName(name);
 
   if (!rawName) {
@@ -4130,7 +4234,15 @@ function componentEventHandlerExpression(event: EventDirective, handlerExpressio
   return `(() => { let ${calledVar} = false; const ${handlerVar} = ${handlerExpression}; return (...$args) => { if (${calledVar}) { return; } ${calledVar} = true; return ${handlerVar}(...$args); }; })()`;
 }
 
+function componentEventPropRuntimeExpression(eventNameExpression: string): string {
+  return `"on" + ${eventNameExpression}.split(/[-:]/).filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join("")`;
+}
+
 function getEventName(name: string): string | undefined {
+  if (name.startsWith("@[") || name.startsWith("v-on:[")) {
+    return undefined;
+  }
+
   if (name.startsWith("@")) {
     return name.slice(1);
   }
@@ -4143,12 +4255,57 @@ function getEventName(name: string): string | undefined {
 }
 
 function getBindingName(name: string): string | undefined {
+  if (getDynamicBindingArgument(name)) {
+    return undefined;
+  }
+
   if (name.startsWith(":")) {
     return name.slice(1);
   }
 
   if (name.startsWith("v-bind:")) {
     return name.slice("v-bind:".length);
+  }
+
+  return undefined;
+}
+
+function getDynamicBindingArgument(name: string): { expression: string } | undefined {
+  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
+  if (!dynamic || dynamic.modifiers.length > 0) {
+    return undefined;
+  }
+  return { expression: dynamic.expression };
+}
+
+function getDynamicEventArgument(name: string): EventDirective | undefined {
+  const dynamic = parseDynamicArgument(name, ["@", "v-on:"]);
+  if (!dynamic) {
+    return undefined;
+  }
+  return { nameExpression: dynamic.expression, modifiers: dynamic.modifiers };
+}
+
+function parseDynamicArgument(name: string, prefixes: string[]): { expression: string; modifiers: string[] } | undefined {
+  for (const prefix of prefixes) {
+    if (!name.startsWith(`${prefix}[`)) {
+      continue;
+    }
+
+    const argumentStart = prefix.length + 1;
+    const argumentEnd = name.indexOf("]", argumentStart);
+    if (argumentEnd === -1) {
+      return undefined;
+    }
+
+    const expression = name.slice(argumentStart, argumentEnd).trim();
+    if (!expression) {
+      return undefined;
+    }
+
+    const rest = name.slice(argumentEnd + 1);
+    const modifiers = rest.startsWith(".") ? rest.slice(1).split(".").filter(Boolean) : [];
+    return { expression, modifiers };
   }
 
   return undefined;

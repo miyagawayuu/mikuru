@@ -134,7 +134,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Template interpolation with `{{ value }}`
 - DOM events with `@click`, `v-on:click`, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`
 - Component events with `@select` and `.once`
-- Attribute bindings with normalized `:class` and `:style`
+- Attribute bindings with normalized `:class` and `:style`, plus dynamic arguments like `:[name]` and `@[event]`
 - `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, `v-html`, `v-text`, `v-pre`, and `v-cloak`
 - `v-model` for common form controls, checkbox arrays, radio groups, multiple selects, modifiers, and named child component models
 - Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults

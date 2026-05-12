@@ -267,6 +267,25 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       continue;
     }
 
+    const dynamicArgument = getDynamicAttrArgument(attr.name);
+    if (dynamicArgument) {
+      const nameExpression = compileHydrationExpression(context, dynamicArgument.expression, attr.name);
+      const valueExpression = compileHydrationExpression(context, String(attr.value), attr.name);
+      const previousNameVar = nextName(context, "attrName");
+      const nextNameVar = nextName(context, "attrName");
+      const valueVar = nextName(context, "attrValue");
+      emit(context, indent, `let ${previousNameVar};`);
+      emit(context, indent, `__mikuru_cleanup.push(effect(() => {`);
+      emit(context, indent + 1, `const ${nextNameVar} = String(unwrap(${nameExpression}) ?? "");`);
+      emit(context, indent + 1, `if (!${nextNameVar}) { if (${previousNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null); ${previousNameVar} = undefined; return; }`);
+      emit(context, indent + 1, `if (${previousNameVar} && ${previousNameVar} !== ${nextNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null);`);
+      emit(context, indent + 1, `const ${valueVar} = unwrap(${valueExpression});`);
+      emit(context, indent + 1, `setAttribute(${elementVar}, ${nextNameVar}, ${nextNameVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, ${valueVar}] : ${nextNameVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, ${valueVar}] : ${valueVar});`);
+      emit(context, indent + 1, `${previousNameVar} = ${nextNameVar};`);
+      emit(context, indent, `}));`);
+      continue;
+    }
+
     const dynamicName = getDynamicAttrName(attr.name);
     if (dynamicName) {
       const expression = compileHydrationExpression(context, String(attr.value), attr.name);
@@ -403,6 +422,12 @@ function hydrateComponentProps(context: HydrationContext, node: ElementNode, pro
       continue;
     }
 
+    const dynamicArgument = getDynamicAttrArgument(attr.name);
+    if (dynamicArgument && attr.value !== true) {
+      emit(context, indent, `${propsVar}[String(unwrap(${compileHydrationExpression(context, dynamicArgument.expression, attr.name)}) ?? "")] = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)});`);
+      continue;
+    }
+
     const dynamicName = getDynamicAttrName(attr.name);
     if (dynamicName && attr.value !== true) {
       emit(context, indent, `${propsVar}[${quote(dynamicName)}] = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)});`);
@@ -415,6 +440,25 @@ function hydrateComponentProps(context: HydrationContext, node: ElementNode, pro
 
 function hydrateEvents(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
   for (const attr of node.attrs) {
+    const dynamicEvent = getDynamicEventArgument(attr.name);
+    if (dynamicEvent && attr.value !== true) {
+      const expression = compileHydrationExpression(context, dynamicEvent.expression, attr.name);
+      const handlerVar = nextName(context, "handler");
+      const currentEventVar = nextName(context, "eventName");
+      const nextEventVar = nextName(context, "eventName");
+      emit(context, indent, `const ${handlerVar} = ($event) => ${String(attr.value).trim()}($event);`);
+      emit(context, indent, `let ${currentEventVar};`);
+      emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
+      emit(context, indent + 1, `const ${nextEventVar} = String(unwrap(${expression}) ?? "");`);
+      emit(context, indent + 1, `if (${nextEventVar} === ${currentEventVar}) return;`);
+      emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar});`);
+      emit(context, indent + 1, `${currentEventVar} = ${nextEventVar};`);
+      emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.addEventListener(${currentEventVar}, ${handlerVar});`);
+      emit(context, indent, "}));");
+      emit(context, indent, `__mikuru_cleanup.push(() => { if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}); });`);
+      continue;
+    }
+
     const eventName = getEventName(attr.name);
     if (!eventName || attr.value === true) {
       continue;
@@ -588,14 +632,43 @@ function isComponentTag(tag: string): boolean {
 }
 
 function getDynamicAttrName(name: string): string | undefined {
+  if (getDynamicAttrArgument(name)) return undefined;
   if (name.startsWith(":")) return name.slice(1);
   if (name.startsWith("v-bind:")) return name.slice("v-bind:".length);
   return undefined;
 }
 
 function getEventName(name: string): string | undefined {
+  if (name.startsWith("@[") || name.startsWith("v-on:[")) return undefined;
   if (name.startsWith("@")) return name.slice(1).split(".")[0];
   if (name.startsWith("v-on:")) return name.slice("v-on:".length).split(".")[0];
+  return undefined;
+}
+
+function getDynamicAttrArgument(name: string): { expression: string } | undefined {
+  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
+  if (!dynamic || dynamic.modifiers.length > 0) return undefined;
+  return { expression: dynamic.expression };
+}
+
+function getDynamicEventArgument(name: string): { expression: string; modifiers: string[] } | undefined {
+  const dynamic = parseDynamicArgument(name, ["@", "v-on:"]);
+  if (!dynamic) return undefined;
+  return { expression: dynamic.expression, modifiers: dynamic.modifiers };
+}
+
+function parseDynamicArgument(name: string, prefixes: string[]): { expression: string; modifiers: string[] } | undefined {
+  for (const prefix of prefixes) {
+    if (!name.startsWith(`${prefix}[`)) continue;
+    const argumentStart = prefix.length + 1;
+    const argumentEnd = name.indexOf("]", argumentStart);
+    if (argumentEnd === -1) return undefined;
+    const expression = name.slice(argumentStart, argumentEnd).trim();
+    if (!expression) return undefined;
+    const rest = name.slice(argumentEnd + 1);
+    const modifiers = rest.startsWith(".") ? rest.slice(1).split(".").filter(Boolean) : [];
+    return { expression, modifiers };
+  }
   return undefined;
 }
 

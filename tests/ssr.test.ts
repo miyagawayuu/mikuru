@@ -104,6 +104,20 @@ const rawId = "raw";
     await expect(render()).resolves.toBe('<section><article :id="rawId" @click="ignored">{{ message }}<span v-if="false">Raw</span></article><p v-cloak="">Hello</p></section>');
   });
 
+  it("renders dynamic attribute arguments", async () => {
+    const result = compileSsr(`<template>
+  <section :[name]="value">Dynamic</section>
+</template>
+<script>
+const name = "data-mode";
+const value = "ready";
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section data-mode="ready">Dynamic</section>');
+  });
+
   it("keeps SSR compile output importable from the public compiler entry", () => {
     const result = compileSsr(`<template><main id="app">{{ message }}</main></template><script>const message = "hello";</script>`);
 

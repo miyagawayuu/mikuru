@@ -236,6 +236,57 @@ function update() {
     instance.unmount();
   });
 
+  it("hydrates dynamic attribute and event arguments", async () => {
+    const source = `<template>
+  <section>
+    <button :[attrName]="attrValue" @[eventName]="handle">{{ count }}</button>
+    <button @click="switchBindings">Switch</button>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const attrName = ref("data-mode");
+const attrValue = ref("ready");
+const eventName = ref("click");
+const count = ref(0);
+function handle() {
+  count.value += 1;
+}
+function switchBindings() {
+  attrName.value = "title";
+  attrValue.value = "done";
+  eventName.value = "mouseover";
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const target = root.querySelector("button");
+    const switcher = root.querySelectorAll("button")[1];
+
+    expect(target?.getAttribute("data-mode")).toBe("ready");
+    expect(target?.textContent).toBe("0");
+
+    target?.dispatchEvent(new window.Event("click"));
+    expect(target?.textContent).toBe("1");
+
+    switcher?.dispatchEvent(new window.Event("click"));
+    expect(target?.getAttribute("data-mode")).toBe(null);
+    expect(target?.getAttribute("title")).toBe("done");
+
+    target?.dispatchEvent(new window.Event("click"));
+    expect(target?.textContent).toBe("1");
+
+    target?.dispatchEvent(new window.Event("mouseover"));
+    expect(target?.textContent).toBe("2");
+
+    instance.unmount();
+  });
+
   it("hydrates child components when they expose hydrate and falls back to mount otherwise", async () => {
     const source = `<template>
   <section>
