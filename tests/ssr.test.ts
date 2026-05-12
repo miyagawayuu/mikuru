@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { compileSsr } from "../src/compiler/index.js";
-import { escapeHtml, renderAttr, renderAttrs, renderToString } from "../src/server.js";
+import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderToString } from "../src/server.js";
 import { unwrap } from "../src/runtime/index.js";
 
 describe("server rendering", () => {
@@ -16,6 +16,7 @@ describe("server rendering", () => {
   it("renders components through the server entry", async () => {
     expect(renderToString({ renderToString: () => "<p>ok</p>" })).toBe("<p>ok</p>");
     await expect(renderToString(async () => "<p>async</p>")).resolves.toBe("<p>async</p>");
+    expect(renderComponentToString({ renderToString: (props) => `<p>${props?.message}</p>` }, { message: "component" })).toBe("<p>component</p>");
   });
 
   it("compiles static SSR output with expressions, attrs, branches, and loops", () => {
@@ -50,6 +51,43 @@ const items = [{ label: "one" }, { label: "two & more" }];
     expect(result.bindings).toContainEqual({ type: "text", expression: "message" });
   });
 
+  it("renders child components with props and default slots", () => {
+    const result = compileSsr(`<template>
+  <section>
+    <Child title="Card" :count="count" v-bind="{ role: 'note' }">
+      <strong>{{ label }}</strong>
+    </Child>
+  </section>
+</template>
+<script>
+const count = 2;
+const label = "projected";
+const Child = {
+  renderToString(props) {
+    return '<article data-title="' + props.title + '" data-count="' + props.count + '" data-role="' + props.role + '">' + props.children() + '</article>';
+  }
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    expect(render()).toBe("<section><article data-title=\"Card\" data-count=\"2\" data-role=\"note\"><strong>projected</strong></article></section>");
+  });
+
+  it("renders default slot content and fallback children", () => {
+    const result = compileSsr(`<template>
+  <article><slot>Fallback {{ label }}</slot></article>
+</template>
+<script>
+const label = "slot";
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    expect(render()).toBe("<article>Fallback slot</article>");
+    expect(render({ children: () => "<strong>provided</strong>" })).toBe("<article><strong>provided</strong></article>");
+  });
+
   it("keeps sibling v-for temporary variables unique", () => {
     const result = compileSsr(`<template>
   <section>
@@ -68,16 +106,17 @@ const second = ["b"];
   });
 });
 
-function loadSsrRender(code: string): () => string {
+function loadSsrRender(code: string): (props?: Record<string, unknown>) => string {
   const executable = code
-    .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs;")
+    .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
     .replace("export function renderToString", "function renderToString");
   const factory = new Function("helpers", `${executable}\nreturn renderToString;`) as (helpers: {
     escapeHtml: typeof escapeHtml;
     renderAttr: typeof renderAttr;
     renderAttrs: typeof renderAttrs;
+    renderComponentToString: typeof renderComponentToString;
     unwrap: typeof unwrap;
-  }) => () => string;
-  return factory({ escapeHtml, renderAttr, renderAttrs, unwrap });
+  }) => (props?: Record<string, unknown>) => string;
+  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, unwrap });
 }

@@ -8,7 +8,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 - `mikuru/compiler`: exposes `compile`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
 - `mikuru/runtime`: exposes `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
-- `mikuru/server`: exposes `renderToString`, `escapeHtml`, `renderAttr`, and `renderAttrs` for SSR integrations.
+- `mikuru/server`: exposes `renderToString`, `renderComponentToString`, `escapeHtml`, `renderAttr`, and `renderAttrs` for SSR integrations.
 - `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export. Plugin options include `debug`, `include`, and `batchedUpdates`.
 
 The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook and `createDebugInspector()` helper are unstable internal infrastructure and are not part of the stable v1 API.
@@ -113,9 +113,9 @@ Unsupported in v1:
 ## SSR Contract
 
 - `compileSsr(source)` returns generated module code with `renderToString(props?)`.
-- SSR phase 1 supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, and array-like `v-for`.
-- `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`.
-- Hydration, SSR component tree context, async SSR, Teleport SSR, and router SSR are future work.
+- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, child components, props, and default slots.
+- `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the synchronous component helper used by generated SSR output.
+- Hydration, named/scoped SSR slots, SSR component tree context, async SSR, Teleport SSR, and router SSR are future work.
 
 ## Macro Contract
 
