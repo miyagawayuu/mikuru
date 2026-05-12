@@ -11,6 +11,7 @@ import {
   isProxy,
   isReactive,
   isReadonly,
+  isRef,
   nextTick,
   normalizeClass,
   normalizeStyle,
@@ -27,6 +28,9 @@ import {
   registerDebugComponent,
   setAttribute,
   toRaw,
+  toRef,
+  toRefs,
+  unref,
   unwrap,
   watch,
   watchEffect
@@ -377,6 +381,54 @@ describe("runtime reactivity", () => {
   it("unwraps ref-like values", () => {
     expect(unwrap(ref("mikuru"))).toBe("mikuru");
     expect(unwrap("plain")).toBe("plain");
+  });
+
+  it("checks and unwraps refs with public helpers", () => {
+    const count = ref(1);
+    const doubled = computed(() => count.value * 2);
+
+    expect(isRef(count)).toBe(true);
+    expect(isRef(doubled)).toBe(true);
+    expect(isRef({ value: "plain" })).toBe(true);
+    expect(isRef(reactive({ value: 1 }))).toBe(true);
+    expect(isRef("plain")).toBe(false);
+    expect(unref(count)).toBe(1);
+    expect(unref(doubled)).toBe(2);
+    expect(unref("plain")).toBe("plain");
+  });
+
+  it("creates property refs that stay linked to reactive state", () => {
+    const state = reactive({ count: 1, label: "idle" });
+    const count = toRef(state, "count");
+    const observed: number[] = [];
+
+    const stop = effect(() => {
+      observed.push(count.value);
+    });
+
+    state.count = 2;
+    count.value = 3;
+    stop();
+    state.count = 4;
+
+    expect(state.count).toBe(4);
+    expect(count.value).toBe(4);
+    expect(observed).toEqual([1, 2, 3]);
+  });
+
+  it("maps enumerable object properties to linked refs", () => {
+    const symbolKey = Symbol("status");
+    const state = reactive({ count: 1, label: "idle", [symbolKey]: "cold" });
+    const refs = toRefs(state);
+
+    refs.count.value = 2;
+    state.label = "ready";
+    refs[symbolKey].value = "warm";
+
+    expect(state.count).toBe(2);
+    expect(refs.label.value).toBe("ready");
+    expect(state[symbolKey]).toBe("warm");
+    expect(unref(refs.count)).toBe(2);
   });
 
   it("normalizes class values", () => {

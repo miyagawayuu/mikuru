@@ -14,6 +14,9 @@ export type Ref<T> = {
 
 export type Reactive<T extends object> = T;
 export type ReadonlyReactive<T extends object> = Readonly<T>;
+export type ToRefs<T extends object> = {
+  [K in keyof T]: Ref<T[K]>;
+};
 
 export type ComputedRef<T> = {
   readonly value: T;
@@ -198,6 +201,35 @@ export function unwrap<T>(value: T | Ref<T> | ComputedRef<T>): T {
   }
 
   return value;
+}
+
+export function unref<T>(value: T | Ref<T> | ComputedRef<T>): T {
+  return unwrap(value);
+}
+
+export function isRef(value: unknown): value is Ref<unknown> | ComputedRef<unknown> {
+  return isRefLike(value);
+}
+
+export function toRef<T extends object, K extends keyof T>(object: T, key: K): Ref<T[K]> {
+  return {
+    get value() {
+      return object[key];
+    },
+    set value(nextValue) {
+      object[key] = nextValue;
+    }
+  };
+}
+
+export function toRefs<T extends object>(object: T): ToRefs<T> {
+  const refs = {} as ToRefs<T>;
+  for (const key of Reflect.ownKeys(object) as Array<keyof T>) {
+    if (Object.prototype.propertyIsEnumerable.call(object, key)) {
+      refs[key] = toRef(object, key);
+    }
+  }
+  return refs;
 }
 
 function track(dep: Dep): void {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.
 - Extended `<AsyncBoundary>` to support multiple child nodes with live `pending` updates.
 - Added `<AsyncBoundary :delay :timeout>` for delayed loading UI and boundary-level async timeouts.
