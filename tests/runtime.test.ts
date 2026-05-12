@@ -3,7 +3,9 @@ import { Window } from "happy-dom";
 
 import {
   computed,
+  createDebugInspector,
   effect,
+  emitDebugEvent,
   inject,
   nextTick,
   normalizeClass,
@@ -13,10 +15,72 @@ import {
   onUnmounted,
   provide,
   ref,
+  registerDebugComponent,
   setAttribute,
   unwrap,
   watch
 } from "../src/runtime/index.js";
+
+describe("runtime debug inspector", () => {
+  it("reads, clears, and subscribes to debug events", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+      const received: string[] = [];
+      const unsubscribe = inspector.subscribe((event) => received.push(event.type));
+
+      emitDebugEvent("test:event", { ok: true });
+
+      expect(inspector.getEvents()).toHaveLength(1);
+      expect(inspector.getEvents()[0]).toMatchObject({ type: "test:event", payload: { ok: true } });
+      expect(received).toEqual(["test:event"]);
+
+      inspector.clearEvents();
+      expect(inspector.getEvents()).toEqual([]);
+
+      unsubscribe();
+      emitDebugEvent("test:after-unsubscribe");
+      expect(received).toEqual(["test:event"]);
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("emits component register, update, and unregister events", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+      const seen: string[] = [];
+      inspector.subscribe((event) => seen.push(event.type));
+      const registration = registerDebugComponent({ name: "DebugPanel", props: { label: "Hello" } });
+
+      registration.update({ root: new Window().document.createElement("section") as unknown as Element });
+      registration.unregister();
+
+      expect(inspector.getComponents()).toEqual([]);
+      expect(inspector.getEvents().map((event) => event.type)).toEqual([
+        "component:register",
+        "component:update",
+        "component:unregister"
+      ]);
+      expect(seen).toEqual(["component:register", "component:update", "component:unregister"]);
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+});
 
 describe("runtime reactivity", () => {
   it("reruns effects when a ref changes", () => {

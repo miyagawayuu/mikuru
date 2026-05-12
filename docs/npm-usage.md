@@ -75,6 +75,8 @@ export default defineConfig({
 
 Debug mode also registers mounted components with the unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. The metadata currently includes component id, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, and router navigation/preload/error events when those modules run with a devtools hook present. Treat this hook as experimental; it is a future devtools/debugging foundation, not a stable public API.
 
+For experiments, `createDebugInspector()` can read `getComponents()` and `getEvents()`, clear event history with `clearEvents()`, and subscribe to new events with `subscribe(listener)`.
+
 ## Write a Mikuru Component
 
 Create `src/App.mikuru`:

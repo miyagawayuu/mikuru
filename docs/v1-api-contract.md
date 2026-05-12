@@ -10,7 +10,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
 - `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export.
 
-The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook is unstable internal infrastructure and is not part of the stable v1 API.
+The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook and `createDebugInspector()` helper are unstable internal infrastructure and are not part of the stable v1 API.
 
 ## SFC Contract
 

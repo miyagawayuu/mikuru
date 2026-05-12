@@ -538,6 +538,8 @@ Unsupported event modifier .prevet. Did you mean .prevent?
 
 For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, and router navigation/preload/error events when those modules run with a devtools hook present. Treat the hook as experimental debugging infrastructure rather than a stable public API.
 
+`createDebugInspector()` provides a small unstable reader for experiments: `getComponents()`, `getEvents()`, `clearEvents()`, and `subscribe(listener)`.
+
 The Vite plugin forwards transform failures with `id`, `loc`, and `frame`, including fallback metadata for non-standard compile-time errors. The compiler returns a v3 source map with `sourcesContent`, and generated template element, interpolation, bound attribute, event handler, and script lines map back to their original SFC lines. Generated code inspection can still help for complex compiler issues.
 
 ## Testing Applications

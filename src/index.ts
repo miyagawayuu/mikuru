@@ -1,7 +1,13 @@
 export { compile } from "./compiler/index.js";
 export type { CompileOptions, CompileResult } from "./compiler/index.js";
-export { computed, defineAsyncComponent, effect, ref, unwrap } from "./runtime/index.js";
-export type { MikuruDebugComponentMetadata, MikuruDebugEvent, MikuruDevtoolsHook } from "./runtime/index.js";
+export { computed, createDebugInspector, defineAsyncComponent, effect, ref, unwrap } from "./runtime/index.js";
+export type {
+  MikuruDebugComponentMetadata,
+  MikuruDebugEvent,
+  MikuruDebugInspector,
+  MikuruDebugListener,
+  MikuruDevtoolsHook
+} from "./runtime/index.js";
 export type {
   AsyncComponentLoader,
   AsyncComponentOptions,
