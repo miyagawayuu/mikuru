@@ -478,6 +478,16 @@ v1では、曖昧な構文を黙って無視しない。
 
 `<component :is="current" />` は、`current` が `mount()` を持つコンポーネントオブジェクトへ解決される場合に対応する。文字列タグ名への解決は対象外。
 
+### KeepAlive
+
+```mikuru
+<KeepAlive>
+  <component :is="currentPanel" />
+</KeepAlive>
+```
+
+`<KeepAlive>` は1つの `<component :is>` childをcacheし、component typeを切り替えて戻った時に同じinstanceを再利用する。v1では `include` / `exclude` / `max` などの属性は未対応で、親componentのunmount時にcache全体を破棄する。
+
 ```mikuru
 <Panel v-slot:header>
   Header

@@ -683,6 +683,10 @@ const count = 0;
     expect(() => compile(`<template><Transition mod="out-in"><p>Hi</p></Transition></template>`)).toThrow(
       /Unsupported attribute "mod" on <Transition>\. Did you mean mode\?/
     );
+
+    expect(() => compile(`<template><KeepAlive include="Panel"><component :is="Panel" /></KeepAlive></template>`)).toThrow(
+      /Unsupported attribute "include" on <KeepAlive>/
+    );
   });
 
   it("suggests supported directives and modifiers for template typos", () => {
