@@ -21,5 +21,5 @@ export type {
 } from "./asyncComponent.js";
 export { computed, effect, ref, unwrap } from "./reactivity.js";
 export type { ComputedRef, EffectFn, Ref } from "./reactivity.js";
-export { nextTick, watch, onMounted, onBeforeUnmount, onUnmounted, provide, inject } from "./lifecycle.js";
+export { nextTick, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount, onUnmounted, provide, inject } from "./lifecycle.js";
 export type { WatchCallback, WatchCleanup, WatchCleanupRegistrar, WatchOptions, WatchSource } from "./lifecycle.js";

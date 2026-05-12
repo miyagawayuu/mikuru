@@ -148,7 +148,7 @@ v1では、アプリ側の実用性を補うために小さな監視・ライフ
 - `watch(source, cb)` はref風の値、getter、通常値、またはそれらの配列を監視し、変更時にコールバックを呼ぶ。
 - `watch(source, cb, { immediate: true })` は現在値で初回コールバックを即時実行する。
 - `watch` のコールバックは第3引数 `onCleanup(fn)` を受け取り、次のコールバック直前または停止時にcleanupを実行できる。
-- `onMounted(fn)`、`onBeforeUnmount(fn)`、`onUnmounted(fn)` はmount中のMikuruコンポーネントに対してコールバックを登録する。
+- `onMounted(fn)`、`onBeforeUnmount(fn)`、`onUnmounted(fn)` はmount中のMikuruコンポーネントに対してコールバックを登録する。`onActivated(fn)` / `onDeactivated(fn)` は `<KeepAlive>` にcacheされたgenerated componentが表示/非表示に戻るタイミングで実行される。
 - `provide(key, value)` と `inject(key, fallback?)` は現在mount中のコンポーネントツリーにスコープされ、子コンポーネントは親から提供された値を参照できる。
 
 ```js

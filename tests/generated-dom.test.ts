@@ -10,7 +10,9 @@ import {
   effect,
   inject,
   nextTick,
+  onActivated,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   onUnmounted,
   provide,
@@ -28,6 +30,8 @@ type CompiledModule = {
 
 type MikuruComponentInstance = {
   element: Element | Comment;
+  activate?: () => void;
+  deactivate?: () => void;
   unmount(): void;
 };
 
@@ -2537,6 +2541,185 @@ function showC() {
     expect(buttons()[3]?.textContent).toBe("B:0");
   });
 
+  it("runs activated and deactivated hooks for cached generated components", () => {
+    const document = new Window().document as unknown as Document;
+    const child = loadCompiledModule(compile(`<template>
+  <button @click="inc">{{ label }}:{{ count }}</button>
+</template>
+
+<script>
+import { onActivated, onDeactivated, ref } from "mikuru";
+
+const count = ref(0);
+const label = ref("idle");
+
+onActivated(() => {
+  globalThis.__keepAliveHookEvents.push("activated:" + count.value);
+  label.value = "active";
+});
+
+onDeactivated(() => {
+  globalThis.__keepAliveHookEvents.push("deactivated:" + count.value);
+  label.value = "inactive";
+});
+
+function inc() {
+  count.value += 1;
+}
+</script>`).code, document);
+
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="showA">Show A</button>
+    <button @click="showB">Show B</button>
+    <KeepAlive>
+      <component :is="current" />
+    </KeepAlive>
+  </section>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const currentName = ref("a");
+const ChildA = globalThis.__keepAliveHookChild;
+ChildA.name = "ChildA";
+const ChildB = {
+  name: "ChildB",
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "B";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+const current = computed(() => currentName.value === "a" ? ChildA : ChildB);
+
+function showA() {
+  currentName.value = "a";
+}
+
+function showB() {
+  currentName.value = "b";
+}
+</script>`);
+
+    (globalThis as unknown as { __keepAliveHookChild?: CompiledModule; __keepAliveHookEvents?: string[] }).__keepAliveHookChild = child;
+    (globalThis as unknown as { __keepAliveHookEvents?: string[] }).__keepAliveHookEvents = [];
+
+    try {
+      fixture.module.mount(fixture.root);
+      const buttons = () => Array.from(fixture.root.querySelectorAll("button"));
+
+      expect(buttons()[2]?.textContent).toBe("active:0");
+      buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+      expect(buttons()[2]?.textContent).toBe("active:1");
+      buttons()[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+      expect(fixture.root.textContent).toContain("B");
+      buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+      expect(buttons()[2]?.textContent).toBe("active:1");
+      expect((globalThis as unknown as { __keepAliveHookEvents: string[] }).__keepAliveHookEvents).toEqual([
+        "activated:0",
+        "deactivated:1",
+        "activated:1"
+      ]);
+    } finally {
+      delete (globalThis as unknown as { __keepAliveHookChild?: unknown }).__keepAliveHookChild;
+      delete (globalThis as unknown as { __keepAliveHookEvents?: unknown }).__keepAliveHookEvents;
+    }
+  });
+
+  it("keeps resolved async components alive and forwards activation hooks", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="showA">Show A</button>
+    <button @click="showB">Show B</button>
+    <KeepAlive>
+      <component :is="current" />
+    </KeepAlive>
+  </section>
+</template>
+
+<script>
+import { computed, defineAsyncComponent, ref } from "mikuru";
+
+const events = globalThis.__keepAliveAsyncEvents;
+const currentName = ref("a");
+
+const Loaded = {
+  name: "LoadedAsyncPanel",
+  mount(target) {
+    let count = 0;
+    const button = document.createElement("button");
+    const render = () => { button.textContent = "Loaded:" + count; };
+    button.addEventListener("click", () => { count += 1; render(); });
+    render();
+    target.appendChild(button);
+    return {
+      element: button,
+      activate() { events.push("loaded:activated:" + count); },
+      deactivate() { events.push("loaded:deactivated:" + count); },
+      unmount() { button.remove(); }
+    };
+  }
+};
+
+const AsyncPanel = defineAsyncComponent({
+  loader: () => new Promise((resolve) => setTimeout(() => resolve(Loaded), 10))
+});
+AsyncPanel.name = "AsyncPanel";
+
+const OtherPanel = {
+  name: "OtherPanel",
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "Other";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const current = computed(() => currentName.value === "a" ? AsyncPanel : OtherPanel);
+
+function showA() {
+  currentName.value = "a";
+}
+
+function showB() {
+  currentName.value = "b";
+}
+</script>`);
+
+    (globalThis as unknown as { __keepAliveAsyncEvents?: string[] }).__keepAliveAsyncEvents = [];
+
+    try {
+      fixture.module.mount(fixture.root);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      let buttons = () => Array.from(fixture.root.querySelectorAll("button"));
+
+      expect(buttons()[2]?.textContent).toBe("Loaded:0");
+      expect((globalThis as unknown as { __keepAliveAsyncEvents: string[] }).__keepAliveAsyncEvents).toEqual(["loaded:activated:0"]);
+
+      buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+      expect(buttons()[2]?.textContent).toBe("Loaded:1");
+      buttons()[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+      expect(fixture.root.textContent).toContain("Other");
+
+      buttons = () => Array.from(fixture.root.querySelectorAll("button"));
+      buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+      await Promise.resolve();
+
+      expect(buttons()[2]?.textContent).toBe("Loaded:1");
+      expect((globalThis as unknown as { __keepAliveAsyncEvents: string[] }).__keepAliveAsyncEvents).toEqual([
+        "loaded:activated:0",
+        "loaded:deactivated:1",
+        "loaded:activated:1"
+      ]);
+    } finally {
+      delete (globalThis as unknown as { __keepAliveAsyncEvents?: unknown }).__keepAliveAsyncEvents;
+    }
+  });
+
   it("applies Transition classes on mount and delayed unmount", async () => {
     const fixture = compileForDom(`<template>
   <Transition name="fade">
@@ -4086,7 +4269,9 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "effect",
     "inject",
     "nextTick",
+    "onActivated",
     "onBeforeUnmount",
+    "onDeactivated",
     "onMounted",
     "onUnmounted",
     "provide",
@@ -4111,7 +4296,9 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     effectArg: typeof effect,
     injectArg: typeof inject,
     nextTickArg: typeof nextTick,
+    onActivatedArg: typeof onActivated,
     onBeforeUnmountArg: typeof onBeforeUnmount,
+    onDeactivatedArg: typeof onDeactivated,
     onMountedArg: typeof onMounted,
     onUnmountedArg: typeof onUnmounted,
     provideArg: typeof provide,
@@ -4137,7 +4324,9 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     effect,
     inject,
     nextTick,
+    onActivated,
     onBeforeUnmount,
+    onDeactivated,
     onMounted,
     onUnmounted,
     provide,

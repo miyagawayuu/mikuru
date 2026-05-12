@@ -486,7 +486,7 @@ v1では、曖昧な構文を黙って無視しない。
 </KeepAlive>
 ```
 
-`<KeepAlive>` は1つの `<component :is>` childをcacheし、component typeを切り替えて戻った時に同じinstanceを再利用する。`include` / `exclude` はcomponentの `name` / `displayName` / `__name` / constructor nameに対して、comma区切りstring、array、`RegExp` で判定する。`:max` はcache上限を指定し、least recently used順に古いinstanceを破棄する。親componentのunmount時にはcache全体を破棄する。
+`<KeepAlive>` は1つの `<component :is>` childをcacheし、component typeを切り替えて戻った時に同じinstanceを再利用する。`include` / `exclude` はcomponentの `name` / `displayName` / `__name` / constructor nameに対して、comma区切りstring、array、`RegExp` で判定する。`:max` はcache上限を指定し、least recently used順に古いinstanceを破棄する。cache対象のgenerated componentでは `onActivated()` / `onDeactivated()` が使え、async componentもresolve後のchildへactivation状態を転送する。親componentのunmount時にはcache全体を破棄する。
 
 ```mikuru
 <Panel v-slot:header>

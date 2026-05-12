@@ -88,9 +88,9 @@ test("dogfood app keeps dynamic panel state alive", async ({ page }) => {
   await expect(page.getByRole("button", { name: "First kept count: 1" })).toBeVisible();
 
   await page.getByRole("button", { name: "Second panel" }).click();
-  await expect(page.getByRole("button", { name: "Second kept count: 0" })).toBeVisible();
-  await page.getByRole("button", { name: "Second kept count: 0" }).click();
-  await expect(page.getByRole("button", { name: "Second kept count: 1" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Second kept async count: 0" })).toBeVisible();
+  await page.getByRole("button", { name: "Second kept async count: 0" }).click();
+  await expect(page.getByRole("button", { name: "Second kept async count: 1" })).toBeVisible();
 
   await page.getByRole("button", { name: "First panel" }).click();
   await expect(page.getByRole("button", { name: "First kept count: 1" })).toBeVisible();

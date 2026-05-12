@@ -10,7 +10,9 @@ import {
   nextTick,
   normalizeClass,
   normalizeStyle,
+  onActivated,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   onUnmounted,
   provide,
@@ -228,6 +230,8 @@ describe("runtime reactivity", () => {
 
   it("registers lifecycle callbacks with the current mount registrar", () => {
     const mounted: Array<() => void> = [];
+    const activated: Array<() => void> = [];
+    const deactivated: Array<() => void> = [];
     const beforeUnmount: Array<() => void> = [];
     const unmounted: Array<() => void> = [];
     const previousRegistrar = (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar;
@@ -236,6 +240,12 @@ describe("runtime reactivity", () => {
       (globalThis as { __mikuru_currentRegistrar?: unknown }).__mikuru_currentRegistrar = {
         registerMounted(fn: () => void) {
           mounted.push(fn);
+        },
+        registerActivated(fn: () => void) {
+          activated.push(fn);
+        },
+        registerDeactivated(fn: () => void) {
+          deactivated.push(fn);
         },
         registerBeforeUnmount(fn: () => void) {
           beforeUnmount.push(fn);
@@ -246,10 +256,14 @@ describe("runtime reactivity", () => {
       };
 
       onMounted(() => undefined);
+      onActivated(() => undefined);
+      onDeactivated(() => undefined);
       onBeforeUnmount(() => undefined);
       onUnmounted(() => undefined);
 
       expect(mounted).toHaveLength(1);
+      expect(activated).toHaveLength(1);
+      expect(deactivated).toHaveLength(1);
       expect(beforeUnmount).toHaveLength(1);
       expect(unmounted).toHaveLength(1);
     } finally {

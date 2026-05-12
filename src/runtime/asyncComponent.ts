@@ -2,6 +2,8 @@ import { emitDebugEvent } from "./devtools.js";
 
 export type MikuruComponentInstance = {
   element: Element | Comment;
+  activate?: () => void;
+  deactivate?: () => void;
   unmount(): void;
 };
 
@@ -26,6 +28,8 @@ export type MikuruErrorPhase =
   | "event"
   | "emit"
   | "mounted"
+  | "activated"
+  | "deactivated"
   | "cleanup"
   | "unmounted"
   | "async-loader"
@@ -106,6 +110,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       const end = ownerDocument.createComment("/async-component");
       let child: MikuruComponentInstance | undefined;
       let cancelled = false;
+      let active = false;
       let token = 0;
       let delayTimer: ReturnType<typeof setTimeout> | undefined;
       let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
@@ -123,6 +128,9 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         const fragment = ownerDocument.createDocumentFragment();
         child = component.mount(fragment, nextProps);
         end.parentNode?.insertBefore(fragment, end);
+        if (active) {
+          child.activate?.();
+        }
       };
 
       const renderFallback = (component: MikuruComponent | undefined, nextProps: Record<string, unknown>) => {
@@ -251,6 +259,14 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
       return {
         element: start,
+        activate() {
+          active = true;
+          child?.activate?.();
+        },
+        deactivate() {
+          active = false;
+          child?.deactivate?.();
+        },
         unmount() {
           cancelled = true;
           clearTimers();
