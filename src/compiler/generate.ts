@@ -369,6 +369,11 @@ function generateNode(
     return generateText(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (hasAttr(node, "v-pre")) {
+    validatePreAttribute(context, node);
+    return generatePreElement(context, node, parentVar, indent, beforeVar);
+  }
+
   if (hasAttr(node, "v-once") && !hasAttr(node, "v-for")) {
     validateOnceAttribute(context, node);
     return withOnceMode(context, () => generateNode(context, withoutAttrs(node, ["v-once"]), parentVar, cleanupVar, indent, beforeVar));
@@ -1674,6 +1679,53 @@ function emitContentDirective(
   emit(context, indent + 1, `${elementVar}.${property} = String(unwrap(${expression}) ?? "");`);
   emit(context, indent, "});");
   emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+}
+
+function generatePreNode(
+  context: GenerateContext,
+  node: TemplateNode,
+  parentVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  if (node.type === "text") {
+    const textVar = nextVar(context, "text");
+    emit(context, indent, `const ${textVar} = document.createTextNode(${quote(node.parts.map((part) => part.value).join(""))});`);
+    appendNode(context, parentVar, textVar, indent, beforeVar);
+    return textVar;
+  }
+
+  return generatePreElement(context, node, parentVar, indent, beforeVar);
+}
+
+function generatePreElement(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  const elementVar = nextVar(context, "el");
+  emit(context, indent, `const ${elementVar} = document.createElement(${quote(node.tag)});`);
+
+  if (context.scopeAttr) {
+    emit(context, indent, `${elementVar}.setAttribute(${quote(context.scopeAttr)}, "");`);
+  }
+
+  for (const attr of node.attrs) {
+    if (attr.name === "v-pre") {
+      continue;
+    }
+
+    emit(context, indent, `setAttribute(${elementVar}, ${quote(attr.name)}, ${quote(attr.value === true ? "" : attr.value)});`);
+  }
+
+  for (const child of node.children) {
+    generatePreNode(context, child, elementVar, indent);
+  }
+
+  appendNode(context, parentVar, elementVar, indent, beforeVar);
+  return elementVar;
 }
 
 function emitTemplateRef(
@@ -3840,6 +3892,10 @@ function validateAttributes(context: GenerateContext, node: ElementNode): void {
       throwTemplateError(`${attr.name} requires a value`, context, attr.loc);
     }
 
+    if ((attr.name === "v-pre" || attr.name === "v-cloak") && attr.value !== true) {
+      throwTemplateError(`${attr.name} does not accept a value`, context, attr.valueLoc ?? attr.loc);
+    }
+
     if (attr.name === "v-once") {
       validateOnceAttribute(context, node);
     }
@@ -3858,6 +3914,14 @@ function validateOnceAttribute(context: GenerateContext, node: ElementNode): voi
   }
 }
 
+function validatePreAttribute(context: GenerateContext, node: ElementNode): void {
+  const attr = node.attrs.find((candidate) => candidate.name === "v-pre");
+
+  if (attr && attr.value !== true) {
+    throwTemplateError("v-pre does not accept a value", context, attr.valueLoc ?? attr.loc);
+  }
+}
+
 function throwUnsupportedDirective(context: GenerateContext, attr: TemplateAttribute): never {
   const suggestion = suggestDirectiveName(attr.name);
   const suggestionMessage = suggestion ? ` Did you mean ${suggestion}?` : "";
@@ -3865,7 +3929,7 @@ function throwUnsupportedDirective(context: GenerateContext, attr: TemplateAttri
 }
 
 function suggestDirectiveName(name: string): string | undefined {
-  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-html", "v-text", "v-once", "v-memo", "v-model", "v-bind", "v-on", "v-slot"];
+  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-html", "v-text", "v-pre", "v-cloak", "v-once", "v-memo", "v-model", "v-bind", "v-on", "v-slot"];
   const directiveName = name.includes(":") ? name.slice(0, name.indexOf(":")) : name.includes(".") ? name.slice(0, name.indexOf(".")) : name;
   const suggestion = suggestName(directiveName, supported.map((candidate) => ({ name: candidate, display: candidate })));
 
@@ -3905,6 +3969,8 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
     attr.name === "v-show" ||
     attr.name === "v-html" ||
     attr.name === "v-text" ||
+    attr.name === "v-pre" ||
+    attr.name === "v-cloak" ||
     attr.name === "v-once" ||
     attr.name === "v-memo" ||
     Boolean(parseModelDirective(attr.name)) ||

@@ -289,6 +289,44 @@ function update() {
     expect(paragraph?.textContent).toBe("updated");
   });
 
+  it("supports v-pre and v-cloak directives", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <article v-pre :id="rawId" @click="ignored">{{ message }}<span v-if="false">Raw</span></article>
+    <p v-cloak>{{ message }}</p>
+    <button @click="update">Update</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const message = ref("Hello");
+const rawId = "raw";
+
+function update() {
+  message.value = "Updated";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const article = fixture.root.querySelector("article");
+    const paragraph = fixture.root.querySelector("p");
+    const span = fixture.root.querySelector("span");
+
+    expect(article?.textContent).toBe("{{ message }}Raw");
+    expect(article?.getAttribute(":id")).toBe("rawId");
+    expect(article?.getAttribute("@click")).toBe("ignored");
+    expect(span?.getAttribute("v-if")).toBe("false");
+    expect(paragraph?.hasAttribute("v-cloak")).toBe(false);
+    expect(paragraph?.textContent).toBe("Hello");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(article?.textContent).toBe("{{ message }}Raw");
+    expect(paragraph?.textContent).toBe("Updated");
+  });
+
   it("normalizes array and object class bindings", () => {
     const fixture = compileForDom(`<template>
   <section>

@@ -145,6 +145,11 @@ function emitIfBranches(context: SsrGenerateContext, branches: IfBranch[], inden
 }
 
 function emitElement(context: SsrGenerateContext, node: ElementNode, indent: number, skippedAttrs: Set<string> = new Set()): void {
+  if (getAttr(node, "v-pre") && !skippedAttrs.has("v-pre")) {
+    emitPreElement(context, node, indent);
+    return;
+  }
+
   const forAttr = getAttr(node, "v-for");
   if (forAttr && !skippedAttrs.has("v-for")) {
     const forExpression = parseForExpression(String(forAttr.value), expressionContext(context, forAttr, "v-for"));
@@ -196,6 +201,44 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     emitChildren(context, node.children, indent);
   }
   emit(context, indent, `__mikuru_html += ${quote(`</${node.tag}>`)};`);
+}
+
+function emitPreElement(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  emit(context, indent, `__mikuru_html += ${quote(`<${node.tag}`)};`);
+
+  for (const attr of node.attrs) {
+    if (attr.name === "v-pre") {
+      continue;
+    }
+
+    emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
+  }
+
+  if (context.scopeAttr) {
+    emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(context.scopeAttr)}, true);`);
+  }
+
+  if (voidElements.has(node.tag.toLowerCase())) {
+    emit(context, indent, "__mikuru_html += \">\";");
+    return;
+  }
+
+  emit(context, indent, "__mikuru_html += \">\";");
+  for (const child of node.children) {
+    emitPreNode(context, child, indent);
+  }
+  emit(context, indent, `__mikuru_html += ${quote(`</${node.tag}>`)};`);
+}
+
+function emitPreNode(context: SsrGenerateContext, node: TemplateNode, indent: number): void {
+  if (node.type === "text") {
+    for (const part of node.parts) {
+      emit(context, indent, `__mikuru_html += __mikuru_escape(${quote(part.value)});`);
+    }
+    return;
+  }
+
+  emitPreElement(context, node, indent);
 }
 
 function emitContentDirective(context: SsrGenerateContext, attr: TemplateAttribute, indent: number): void {
@@ -370,6 +413,11 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
   const hasDynamicStyle = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "style");
 
   for (const attr of node.attrs) {
+    if (attr.name === "v-cloak") {
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr("v-cloak", true);`);
+      continue;
+    }
+
     if (shouldSkipAttr(attr)) {
       continue;
     }
@@ -429,6 +477,8 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "v-show"
     || attr.name === "v-html"
     || attr.name === "v-text"
+    || attr.name === "v-pre"
+    || attr.name === "v-cloak"
     || attr.name === "v-model"
     || attr.name === "ref"
     || attr.name === "key"

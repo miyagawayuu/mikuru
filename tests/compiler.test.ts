@@ -693,6 +693,19 @@ function setup() {
     expect(error.frame).toContain("^");
   });
 
+  it("treats v-pre content as literal template text", () => {
+    const result = compile(`<template><section v-pre>{{ invalid + }}<span v-if="false">{{ raw }}</span></section></template>`);
+
+    expect(result.bindings).toEqual([]);
+    expect(result.code).toContain('document.createTextNode("{{ invalid + }}")');
+    expect(result.code).toMatch(/setAttribute\(el\d+, "v-if", "false"\)/);
+  });
+
+  it("reports values on valueless directives", () => {
+    expect(() => compile(`<template><section v-pre="raw">Text</section></template>`)).toThrow(/v-pre does not accept a value/);
+    expect(() => compile(`<template><section v-cloak="ready">Text</section></template>`)).toThrow(/v-cloak does not accept a value/);
+  });
+
   it("reports SFC block errors with a code frame", () => {
     const duplicate = captureCompileError(
       `<template><p>One</p></template>

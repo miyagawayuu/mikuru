@@ -135,7 +135,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - DOM events with `@click`, `v-on:click`, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`
 - Component events with `@select` and `.once`
 - Attribute bindings with normalized `:class` and `:style`
-- `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
+- `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, `v-html`, `v-text`, `v-pre`, and `v-cloak`
 - `v-model` for common form controls, checkbox arrays, radio groups, multiple selects, modifiers, and named child component models
 - Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
 - CSS class transitions with built-in `<Transition name="fade">`, `v-if` chains, dynamic components, class overrides, `appear`, `mode="out-in"`, and `<TransitionGroup>` for keyed lists
@@ -144,8 +144,8 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery
 - Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
-- SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, `v-if` chains, `v-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, and router route rendering with context propagation
-- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, hydrating component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
+- SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `v-pre`, `v-cloak`, `v-if` chains, `v-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, and router route rendering with context propagation
+- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, hydrating component context/lifecycle hooks, `v-show`, DOM and component `v-model`, `v-pre`, `v-cloak`, initial `v-if` / `v-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
 
@@ -223,7 +223,7 @@ const open = ref(false);
 
 ## Not Included in v1
 
-Mikuru does not claim Vue compatibility. The v1 package does not include SSR, hydration, stable devtools, `v-html`, or full template type checking.
+Mikuru does not claim Vue compatibility. The v1 package does not include stable devtools or full template type checking.
 
 Scoped CSS is a basic selector rewrite, not a full CSS compiler. Avoid relying on `:global()`, deep selectors, complex nesting, CSS Modules, or preprocessors in v1.
 
