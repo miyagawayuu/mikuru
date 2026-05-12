@@ -276,7 +276,7 @@ Use `<component :is="Current" />` when the component type should come from state
 
 Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `v-show` behavior as explicit child component tags.
 
-Use `defineAsyncComponent()` when the component implementation should load later. The loading fallback renders until the loader resolves, and the error fallback receives `{ error, retry }` props if the loader rejects or times out.
+Use `defineAsyncComponent()` when the component implementation should load later. The loading fallback renders until the loader resolves, and the error fallback receives `{ error, retry }` props if the loader rejects or times out. When `errorComponent` is omitted, loader rejections and timeouts can be handled by the nearest `<ErrorBoundary>`.
 
 ```mikuru
 <template>

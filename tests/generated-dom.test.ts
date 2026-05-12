@@ -2578,6 +2578,68 @@ const SlowAsync = defineAsyncComponent({
     expect(fixture.root.querySelector("p")?.textContent).toBe("Async component timed out");
   });
 
+  it("routes async component loader errors to ErrorBoundary when no error component is provided", async () => {
+    const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <AsyncBroken />
+  </ErrorBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const AsyncBroken = defineAsyncComponent({
+  loader: () => Promise.reject(new Error("boundary async failed"))
+});
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("boundary async failed");
+  });
+
+  it("routes async component timeouts to ErrorBoundary when no error component is provided", async () => {
+    const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <SlowAsync />
+  </ErrorBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const SlowAsync = defineAsyncComponent({
+  loader: () => new Promise(() => {}),
+  timeout: 10
+});
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Async component timed out");
+  });
+
   it("passes component v-model as modelValue and update handler props", () => {
     const fixture = compileForDom(`<template>
   <section>

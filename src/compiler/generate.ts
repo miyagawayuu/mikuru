@@ -13,6 +13,7 @@ type GenerateContext = {
   filename?: string;
   scopeAttr?: string;
   templateRefMode?: "single" | "array";
+  componentContextVar?: string;
 };
 
 type ScriptParts = {
@@ -445,6 +446,8 @@ function generateErrorBoundary(
   const fallbackFragmentVar = nextVar(context, "errorFallback");
   const fallbackInstanceVar = nextVar(context, "errorFallback");
   const previousErrorHandlerVar = nextVar(context, "previousErrorHandler");
+  const boundaryContextVar = nextVar(context, "errorBoundaryContext");
+  const previousComponentContextVar = context.componentContextVar;
   emit(context, indent, `const ${startVar} = document.createComment("error-boundary");`);
   emit(context, indent, `const ${endVar} = document.createComment("/error-boundary");`);
   appendNode(context, parentVar, startVar, indent, beforeVar);
@@ -464,9 +467,12 @@ function generateErrorBoundary(
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
   emit(context, indent + 1, `const ${previousErrorHandlerVar} = __mikuru_context.errorHandler;`);
+  emit(context, indent + 1, `const ${boundaryContextVar} = { parent: __mikuru_context, provides: new Map(), errorHandler: ${fallbackRenderVar} };`);
   emit(context, indent + 1, `__mikuru_context.errorHandler = ${fallbackRenderVar};`);
   emit(context, indent + 1, "try {");
+  context.componentContextVar = boundaryContextVar;
   generateNode(context, children[0], parentVar, boundaryCleanupVar, indent + 2, endVar);
+  context.componentContextVar = previousComponentContextVar;
   emit(context, indent + 1, `} catch (${errorVar}) {`);
   emit(context, indent + 2, `${fallbackRenderVar}(${errorVar});`);
   emit(context, indent + 1, "} finally {");
@@ -2318,7 +2324,7 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   const propsTargetVar = needsProxy ? nextVar(context, "propsBase") : propsVar;
 
   emit(context, indent, `const ${propsTargetVar} = {`);
-  emit(context, indent + 1, "__mikuru_context,");
+  emit(context, indent + 1, `__mikuru_context: ${context.componentContextVar ?? "__mikuru_context"},`);
   emit(context, indent + 1, `__mikuru_attrs: ${attrsVar},`);
 
   for (const prop of props) {
