@@ -79,3 +79,19 @@ test("dogfood app demonstrates AsyncBoundary loading and retry", async ({ page }
   await expect(asyncAlert).toHaveCount(0);
   await expect(page.getByText("AsyncBoundary retry recovered")).toBeVisible();
 });
+
+test("dogfood app exposes debug inspector panel", async ({ page }) => {
+  await page.goto("/");
+
+  const panel = page.getByRole("region", { name: "Debug panel" });
+  await expect(panel.getByRole("heading", { name: "Debug Panel" })).toBeVisible();
+  await expect(panel.getByText("App.mikuru").first()).toBeVisible();
+  await expect(panel.getByText("DebugPanel.mikuru").first()).toBeVisible();
+  await expect(panel.getByText("component:register").first()).toBeVisible();
+
+  await panel.getByRole("button", { name: "Clear events" }).click();
+  await expect(panel.getByText("No debug events yet.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Seed more notes" }).click();
+  await expect(panel.getByText("component:register").first()).toBeVisible();
+});

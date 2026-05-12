@@ -218,7 +218,7 @@ const open = ref(false);
 
 ## Not Included in v1
 
-Mikuru does not claim Vue compatibility. The v1 package does not include SSR, hydration, devtools, `v-html`, or full template type checking.
+Mikuru does not claim Vue compatibility. The v1 package does not include SSR, hydration, stable devtools, `v-html`, or full template type checking.
 
 Scoped CSS is a basic selector rewrite, not a full CSS compiler. Avoid relying on `:global()`, deep selectors, complex nesting, CSS Modules, or preprocessors in v1.
 

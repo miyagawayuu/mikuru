@@ -10,6 +10,8 @@
 
     <TextField label="Search" v-model="search" />
 
+    <DebugPanel />
+
     <AsyncBoundary :loading="LoadingStats" :fallback="AsyncFallback">
       <AsyncStats
         :total="notes.length"
@@ -71,6 +73,7 @@
 
 <script>
 import { computed, defineAsyncComponent, ref } from "mikuru";
+import DebugPanel from "./DebugPanel.mikuru";
 import TextField from "./TextField.mikuru";
 import NoteCard from "./NoteCard.mikuru";
 
