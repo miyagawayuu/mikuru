@@ -1066,6 +1066,41 @@ function toggle(id) {
     expect(fixture.root.querySelector("p")?.textContent).toBe("2");
   });
 
+  it("skips keyed v-for updates while v-memo dependencies are unchanged", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="renameWithoutMemoChange">Hidden</button>
+    <button @click="renameWithMemoChange">Visible</button>
+    <article v-for="item in items" :key="item.id" v-memo="[item.version]">{{ item.label }}</article>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([{ id: "a", version: 1, label: "Alpha" }]);
+
+function renameWithoutMemoChange() {
+  items.value = [{ id: "a", version: 1, label: "Hidden" }];
+}
+
+function renameWithMemoChange() {
+  items.value = [{ id: "a", version: 2, label: "Visible" }];
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    expect(fixture.root.querySelector("article")?.textContent).toBe("Alpha");
+
+    fixture.root.querySelectorAll("button")[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+    expect(fixture.root.querySelector("article")?.textContent).toBe("Alpha");
+
+    fixture.root.querySelectorAll("button")[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+    expect(fixture.root.querySelector("article")?.textContent).toBe("Visible");
+  });
+
   it("unmounts removed keyed component records exactly once", () => {
     const fixture = compileForDom(`<template>
   <section>

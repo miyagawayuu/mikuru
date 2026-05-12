@@ -141,6 +141,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 2, "setTimeout(() => { throw error; });");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_try = (fn, errorHandler, phase) => { try { return fn(); } catch (error) { __mikuru_reportError(error, errorHandler, phase); } };");
+  emit(context, 1, "const __mikuru_memoEqual = (previous, next) => Array.isArray(previous) && Array.isArray(next) && previous.length === next.length && previous.every((value, index) => Object.is(value, next[index]));");
   emit(context, 1, "const __mikuru_guardEventHandler = (fn, errorHandler = __mikuru_context.errorHandler) => (...args) => __mikuru_try(() => fn(...args), errorHandler, \"event\");");
   emit(context, 1, "const __mikuru_runCleanup = (cleanups) => {");
   emit(context, 2, "for (const cleanup of cleanups.splice(0).reverse()) {");
@@ -1771,6 +1772,7 @@ function generateKeyedFor(
   const stopVar = nextVar(context, "stop");
   const compiledSource = compileTemplateExpression(sourceExpression, "v-for source", toExpressionContext(context, getStringAttrLocation(node, "v-for")));
   const compiledKey = compileTemplateExpression(keyExpression, "v-for key", toExpressionContext(context, getKeyAttrLocation(node)));
+  const compiledMemo = getMemoExpression(context, node);
   emit(context, indent, `const ${recordsVar} = new Map();`);
   emit(context, indent, `const ${startVar} = document.createComment("for");`);
   emit(context, indent, `const ${endVar} = document.createComment("/for");`);
@@ -1787,6 +1789,8 @@ function generateKeyedFor(
   const recordCleanupVar = nextVar(context, "forRecordCleanup");
   const itemRefVar = nextVar(context, "forItemRef");
   const indexRefVar = nextVar(context, "forIndexRef");
+  const memoVar = compiledMemo ? nextVar(context, "forMemo") : undefined;
+  const memoChangedVar = compiledMemo ? nextVar(context, "forMemoChanged") : undefined;
   emit(context, indent + 1, `const ${sourceVar} = unwrap(${compiledSource}) ?? [];`);
   emit(context, indent + 1, `const ${nextRecordsVar} = new Map();`);
   emit(context, indent + 1, `for (let ${indexVar} = 0; ${indexVar} < ${sourceVar}.length; ${indexVar} += 1) {`);
@@ -1799,6 +1803,9 @@ function generateKeyedFor(
   }
 
   emit(context, indent + 2, `const ${keyVar} = unwrap(${compiledKey});`);
+  if (compiledMemo && memoVar) {
+    emit(context, indent + 2, `const ${memoVar} = ${compiledMemo};`);
+  }
   emit(context, indent + 2, `let ${recordVar} = ${recordsVar}.get(${keyVar});`);
   emit(context, indent + 2, `if (!${recordVar}) {`);
   emit(context, indent + 3, `const ${recordCleanupVar} = [];`);
@@ -1818,13 +1825,26 @@ function generateKeyedFor(
   const elementVar = withTemplateRefMode(context, "array", () =>
     generateNode(context, withoutForAttrs(node), parentVar, recordCleanupVar, indent + 4, endVar)
   );
-  emit(context, indent + 4, `${recordVar} = { element: ${elementVar}, cleanups: ${recordCleanupVar}, item: ${itemRefVar}${indexName ? `, index: ${indexRefVar}` : ""} };`);
+  emit(context, indent + 4, `${recordVar} = { element: ${elementVar}, cleanups: ${recordCleanupVar}, item: ${itemRefVar}${indexName ? `, index: ${indexRefVar}` : ""}${compiledMemo && memoVar ? `, memo: ${memoVar}` : ""} };`);
   emit(context, indent + 3, `}`);
   emit(context, indent + 2, `} else {`);
-  emit(context, indent + 3, `${recordVar}.item.value = ${rawItemVar};`);
+  if (compiledMemo && memoVar && memoChangedVar) {
+    emit(context, indent + 3, `const ${memoChangedVar} = !__mikuru_memoEqual(${recordVar}.memo, ${memoVar});`);
+    emit(context, indent + 3, `if (${memoChangedVar}) {`);
+    emit(context, indent + 4, `${recordVar}.memo = ${memoVar};`);
+    emit(context, indent + 4, `${recordVar}.item.value = ${rawItemVar};`);
 
-  if (indexName) {
-    emit(context, indent + 3, `${recordVar}.index.value = ${rawIndexVar};`);
+    if (indexName) {
+      emit(context, indent + 4, `${recordVar}.index.value = ${rawIndexVar};`);
+    }
+
+    emit(context, indent + 3, "}");
+  } else {
+    emit(context, indent + 3, `${recordVar}.item.value = ${rawItemVar};`);
+
+    if (indexName) {
+      emit(context, indent + 3, `${recordVar}.index.value = ${rawIndexVar};`);
+    }
   }
 
   emit(context, indent + 3, `${parentVar}.insertBefore(${recordVar}.element, ${endVar});`);
@@ -2507,6 +2527,22 @@ function getKeyAttrLocation(node: ElementNode): SourceLocation | undefined {
   return getStringAttrLocation(node, ":key") ?? getStringAttrLocation(node, "v-bind:key");
 }
 
+function getMemoExpression(context: GenerateContext, node: ElementNode): string | undefined {
+  const attr = node.attrs.find((candidate) => candidate.name === "v-memo");
+
+  if (!attr) {
+    return undefined;
+  }
+
+  const expression = validateTemplateExpression(requireAttrValue(attr), "v-memo", toExpressionContext(context, attr.valueLoc));
+
+  if (!expression.trim().startsWith("[") || !expression.trim().endsWith("]")) {
+    throwTemplateError("v-memo requires an array expression", context, attr.valueLoc ?? attr.loc);
+  }
+
+  return compileTemplateExpression(expression, "v-memo", toExpressionContext(context, attr.valueLoc));
+}
+
 function toExpressionContext(
   context: GenerateContext,
   location: SourceLocation | undefined
@@ -2527,7 +2563,7 @@ function withoutAttr(node: ElementNode, name: string): ElementNode {
 }
 
 function withoutForAttrs(node: ElementNode): ElementNode {
-  return withoutAttrs(node, ["v-for", "key", ":key", "v-bind:key"]);
+  return withoutAttrs(node, ["v-for", "key", ":key", "v-bind:key", "v-memo"]);
 }
 
 function withoutAttrs(node: ElementNode, names: string[]): ElementNode {
@@ -3422,6 +3458,10 @@ function validateAttributes(context: GenerateContext, node: ElementNode): void {
     if (attr.name.startsWith("v-") && !isSupportedDirectiveAttr(attr)) {
       throwUnsupportedDirective(context, attr);
     }
+
+    if (attr.name === "v-memo") {
+      getMemoExpression(context, node);
+    }
   }
 }
 
@@ -3432,7 +3472,7 @@ function throwUnsupportedDirective(context: GenerateContext, attr: TemplateAttri
 }
 
 function suggestDirectiveName(name: string): string | undefined {
-  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-model", "v-bind", "v-on", "v-slot"];
+  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-memo", "v-model", "v-bind", "v-on", "v-slot"];
   const directiveName = name.includes(":") ? name.slice(0, name.indexOf(":")) : name.includes(".") ? name.slice(0, name.indexOf(".")) : name;
   const suggestion = suggestName(directiveName, supported.map((candidate) => ({ name: candidate, display: candidate })));
 
@@ -3456,7 +3496,7 @@ function isDirectiveAttr(attr: TemplateAttribute): boolean {
 }
 
 function isStructuralAttr(attr: TemplateAttribute): boolean {
-  return attr.name === "v-if" || attr.name === "v-else-if" || attr.name === "v-else" || attr.name === "v-for";
+  return attr.name === "v-if" || attr.name === "v-else-if" || attr.name === "v-else" || attr.name === "v-for" || attr.name === "v-memo";
 }
 
 function isSlotDirectiveAttr(attr: TemplateAttribute): boolean {
@@ -3470,6 +3510,7 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
     attr.name === "v-else" ||
     attr.name === "v-for" ||
     attr.name === "v-show" ||
+    attr.name === "v-memo" ||
     Boolean(parseModelDirective(attr.name)) ||
     isObjectBindAttr(attr) ||
     isObjectOnAttr(attr) ||

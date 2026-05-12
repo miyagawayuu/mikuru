@@ -195,6 +195,19 @@ Supported forms:
 
 Use `:key` or `v-bind:key` when list identity matters. Keyed lists reuse DOM records across reorders and clean up removed records.
 
+Use `v-memo` with keyed `v-for` when a reused record should skip subtree updates until selected dependencies change. The value must be an array expression.
+
+```mikuru
+<NoteCard
+  v-for="note in notes"
+  :key="note.id"
+  v-memo="[note.id, note.updatedAt]"
+  :note="note"
+/>
+```
+
+When the key is reused and the memo array is unchanged, Mikuru keeps the existing DOM/component record and does not update the generated item/index refs for that record.
+
 ## Conditional Rendering
 
 Use `v-if`, `v-else-if`, and `v-else` for conditional DOM creation.
