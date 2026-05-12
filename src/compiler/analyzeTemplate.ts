@@ -68,11 +68,7 @@ function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemp
       bindings.push({
         type: "event",
         event: event.name ?? "dynamic",
-        handler: validateTemplateExpression(
-          requireStringValue(attr.name, attr.value),
-          attr.name,
-          toExpressionContext(attr.valueLoc, options)
-        ),
+        handler: requireEventHandlerValue(attr.name, attr.value),
         modifiers: event.modifiers.length ? event.modifiers : undefined
       });
       continue;
@@ -230,6 +226,16 @@ function requireStringValue(name: string, value: string | true): string {
   }
 
   return value;
+}
+
+function requireEventHandlerValue(name: string, value: string | true): string {
+  const source = requireStringValue(name, value).trim().replace(/;\s*$/, "");
+
+  if (!source) {
+    throw new Error(`Directive ${name} requires a value`);
+  }
+
+  return source;
 }
 
 function throwTemplateError(message: string, location: SourceLocation | undefined, options: AnalyzeTemplateOptions): never {

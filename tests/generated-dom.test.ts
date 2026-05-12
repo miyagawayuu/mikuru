@@ -422,6 +422,39 @@ function submitCtrl() {
     expect(summary?.textContent).toBe("2:1:1");
   });
 
+  it("supports inline event handler assignments and updates", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="count += 1">{{ count }}</button>
+    <input @input="name = $event.target.value" />
+    <p>{{ name }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const count = ref(0);
+const name = ref("Mikuru");
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const input = fixture.root.querySelector("input") as HTMLInputElement | null;
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(button?.textContent).toBe("0");
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(button?.textContent).toBe("1");
+
+    if (input) {
+      input.value = "Inline";
+      input.dispatchEvent(createEvent(fixture.window, "input"));
+    }
+
+    expect(paragraph?.textContent).toBe("Inline");
+  });
+
   it("normalizes array and object class bindings", () => {
     const fixture = compileForDom(`<template>
   <section>
