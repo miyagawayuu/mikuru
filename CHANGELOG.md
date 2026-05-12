@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Extended `<ErrorBoundary>` to catch descendant generated event handler, lifecycle callback, and cleanup errors through component tree error propagation.
+- Routed `defineAsyncComponent()` loader rejections and timeouts into the nearest `<ErrorBoundary>` when no `errorComponent` is provided.
 
 ## 1.0.18 - 2026-05-12
 

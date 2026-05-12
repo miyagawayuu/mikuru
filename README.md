@@ -139,7 +139,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - CSS class transitions with built-in `<Transition name="fade">`, `v-if` chains, dynamic components, class overrides, `appear`, and `mode="out-in"`
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks
-- Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, `inject`, and `defineAsyncComponent`
+- Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, and code frames

@@ -422,7 +422,7 @@ const AsyncPanel = defineAsyncComponent({
 </script>
 ```
 
-`defineAsyncComponent()` は loader が解決するまで `loadingComponent` を描画し、reject時または `timeout` 到達時は `errorComponent` を描画する。`errorComponent` には `error` と `retry` propsを渡す。
+`defineAsyncComponent()` は loader が解決するまで `loadingComponent` を描画し、reject時または `timeout` 到達時は `errorComponent` を描画する。`errorComponent` には `error` と `retry` propsを渡す。`errorComponent` を省略した場合、nearest `<ErrorBoundary>` が loader reject と timeout を捕捉できる。
 
 ### ErrorBoundary
 

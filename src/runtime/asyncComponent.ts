@@ -18,6 +18,10 @@ export type AsyncComponentOptions = {
   timeout?: number;
 };
 
+type MikuruComponentContext = {
+  errorHandler?: (error: unknown) => void;
+};
+
 export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | AsyncComponentOptions): MikuruComponent {
   const options = typeof loaderOrOptions === "function" ? { loader: loaderOrOptions } : loaderOrOptions;
   let pending: Promise<MikuruComponent> | undefined;
@@ -44,6 +48,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
   return {
     mount(target, props = {}) {
+      const context = props.__mikuru_context as MikuruComponentContext | undefined;
       const ownerDocument = target.ownerDocument ?? globalThis.document;
       const start = ownerDocument.createComment("async-component");
       const end = ownerDocument.createComment("/async-component");
@@ -73,6 +78,15 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         if (component) {
           render(component, nextProps);
         }
+      };
+
+      const reportError = (error: unknown) => {
+        if (typeof context?.errorHandler === "function") {
+          context.errorHandler(error);
+          return;
+        }
+
+        setTimeout(() => { throw error; });
       };
 
       const clearTimers = () => {
@@ -107,11 +121,11 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
               token += 1;
               clearTimers();
               pending = undefined;
-              renderFallback(options.errorComponent, {
-                ...props,
-                error: new Error("Async component timed out"),
-                retry: () => startLoad()
-              });
+              const error = new Error("Async component timed out");
+              renderFallback(options.errorComponent, { ...props, error, retry: () => startLoad() });
+              if (!options.errorComponent) {
+                reportError(error);
+              }
             }
           }, options.timeout);
         }
@@ -136,7 +150,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
             renderFallback(options.errorComponent, { ...props, error, retry: () => startLoad() });
 
             if (!options.errorComponent) {
-              setTimeout(() => { throw error; });
+              reportError(error);
             }
           }
         );
