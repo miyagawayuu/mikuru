@@ -29,22 +29,43 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
   }
   emit(context, 0, "import { effect, setAttribute, unwrap } from \"mikuru/runtime\";");
   emit(context, 0, "");
-  if (script.body.trim()) {
-    emitRaw(context, script.body.trim());
-    emit(context, 0, "");
-  }
 
   emit(context, 0, "export function hydrate(target, props = {}) {");
+  emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
   emit(context, 1, "const __mikuru_cleanup = [];");
+  emit(context, 1, "const __mikuru_afterUnmount = [];");
+  emit(context, 1, "const __mikuru_mounted = [];");
+  emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), errorHandler: props.__mikuru_context?.errorHandler, ...__mikuru_componentInfo };");
+  emit(context, 1, "const __mikuru_try = (fn) => { try { return fn(); } catch (error) { setTimeout(() => { throw error; }); } };");
+  emit(context, 1, "const __mikuru_previousRegistrar = globalThis.__mikuru_currentRegistrar;");
+  emit(context, 1, "globalThis.__mikuru_currentRegistrar = {");
+  emit(context, 2, "registerMounted: (fn) => __mikuru_mounted.push(fn),");
+  emit(context, 2, "registerBeforeUnmount: (fn) => __mikuru_cleanup.push(fn),");
+  emit(context, 2, "registerUnmounted: (fn) => __mikuru_afterUnmount.push(fn),");
+  emit(context, 2, "provide: (key, value) => __mikuru_context.provides.set(key, value),");
+  emit(context, 2, "inject: (key) => {");
+  emit(context, 3, "for (let context = __mikuru_context; context; context = context.parent) {");
+  emit(context, 4, "if (context.provides?.has(key)) return { found: true, value: context.provides.get(key) };");
+  emit(context, 3, "}");
+  emit(context, 3, "return { found: false };");
+  emit(context, 2, "},");
+  emit(context, 2, "registerEffect: (fn) => Promise.resolve().then(fn)");
+  emit(context, 1, "};");
   emit(context, 1, "const __mikuru_warn = (message) => { if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message}`); };");
   emit(context, 1, "const __mikuru_findComment = (parent, value) => Array.from(parent.childNodes ?? []).find((node) => node.nodeType === 8 && node.nodeValue === value);");
   emit(context, 1, "const __mikuru_findNextComment = (node, value) => { for (let cursor = node.nextSibling; cursor; cursor = cursor.nextSibling) { if (cursor.nodeType === 8 && cursor.nodeValue === value) return cursor; } return undefined; };");
+  if (script.body.trim()) {
+    emitRaw(context, script.body.trim(), 1);
+    emit(context, 1, "");
+  }
   emit(context, 1, "const __mikuru_root = target.nodeType === 1 && target.tagName?.toLowerCase() === " + quote(root.tag.toLowerCase()) + " ? target : target.firstElementChild;");
-  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch; falling back to mount()."); return mount(target, props); }`);
+  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch; falling back to mount()."); if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; } return mount(target, props); }`);
   hydrateElement(context, root, "__mikuru_root", 1);
+  emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb); }");
+  emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
   emit(context, 1, "return {");
   emit(context, 2, "element: __mikuru_root,");
-  emit(context, 2, "unmount() { for (const cleanup of __mikuru_cleanup.splice(0).reverse()) cleanup(); }");
+  emit(context, 2, "unmount() { for (const cleanup of __mikuru_cleanup.splice(0).reverse()) __mikuru_try(cleanup); for (const cb of __mikuru_afterUnmount.splice(0).reverse()) __mikuru_try(cb); }");
   emit(context, 1, "};");
   emit(context, 0, "}");
 
@@ -223,6 +244,7 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   const propsVar = nextName(context, "props");
   emit(context, indent, `const ${propsVar} = {};`);
   hydrateComponentProps(context, node, propsVar, indent);
+  emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
   emit(context, indent, `if (${node.tag} && typeof ${node.tag}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${node.tag}.hydrate(${elementVar}, ${propsVar});`);
   emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
@@ -511,9 +533,9 @@ function emit(context: HydrationContext, indent: number, line: string): void {
   context.lines.push(`${"  ".repeat(indent)}${line}`);
 }
 
-function emitRaw(context: HydrationContext, source: string): void {
+function emitRaw(context: HydrationContext, source: string, indent = 0): void {
   for (const line of source.split(/\r?\n/)) {
-    context.lines.push(line);
+    context.lines.push(`${"  ".repeat(indent)}${line}`);
   }
 }
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { compileHydration, compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter } from "../src/router/index.js";
 import type { RouterHistory } from "../src/router/index.js";
-import { effect, ref, setAttribute, unwrap } from "../src/runtime/index.js";
+import { effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap } from "../src/runtime/index.js";
 import { escapeHtml, hydrateRoute, renderAttr, renderAttrs, renderComponentToString, renderRouteToString } from "../src/server.js";
 
 describe("hydration compiler", () => {
@@ -127,6 +127,59 @@ const MountOnlyChild = {
 
     instance.unmount();
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
+  it("scopes provide/inject and lifecycle callbacks during hydration", () => {
+    const source = `<template>
+  <section>
+    <p>{{ inject(key) }}</p>
+    <Child />
+  </section>
+</template>
+<script>
+import { inject, onMounted, onUnmounted, provide } from "mikuru";
+const key = Symbol.for("mikuru.hydration.context");
+provide(key, "parent");
+onMounted(() => globalThis.__mikuruHydrationEvents.push("mounted"));
+onUnmounted(() => globalThis.__mikuruHydrationEvents.push("unmounted"));
+const Child = {
+  hydrate(target, props) {
+    let value = "missing";
+    for (let context = props.__mikuru_context; context; context = context.parent) {
+      if (context.provides?.has(key)) {
+        value = context.provides.get(key);
+        break;
+      }
+    }
+    target.setAttribute("data-injected", value);
+    return { element: target, unmount() { target.removeAttribute("data-injected"); } };
+  }
+};
+</script>`;
+    const previousEvents = (globalThis as { __mikuruHydrationEvents?: string[] }).__mikuruHydrationEvents;
+    (globalThis as { __mikuruHydrationEvents?: string[] }).__mikuruHydrationEvents = [];
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    try {
+      root.innerHTML = "<section><p>parent</p><span>child</span></section>";
+      const instance = module.hydrate(root as unknown as Element);
+
+      expect(root.querySelector("p")?.textContent).toBe("parent");
+      expect(root.querySelector("span")?.getAttribute("data-injected")).toBe("parent");
+      expect((globalThis as { __mikuruHydrationEvents?: string[] }).__mikuruHydrationEvents).toEqual(["mounted"]);
+
+      instance.unmount();
+      expect(root.querySelector("span")?.hasAttribute("data-injected")).toBe(false);
+      expect((globalThis as { __mikuruHydrationEvents?: string[] }).__mikuruHydrationEvents).toEqual(["mounted", "unmounted"]);
+    } finally {
+      if (previousEvents === undefined) {
+        delete (globalThis as { __mikuruHydrationEvents?: string[] }).__mikuruHydrationEvents;
+      } else {
+        (globalThis as { __mikuruHydrationEvents?: string[] }).__mikuruHydrationEvents = previousEvents;
+      }
+    }
   });
 
   it("hydrates child component v-model props and update handlers", async () => {
@@ -571,13 +624,17 @@ function loadHydrationModule(code: string, documentOverride?: Document): { mount
     .replace("export function mount", "function mount")
     .replace("export function hydrate", "function hydrate")
     .replace(/\nexport \{ hydrate \};\nconst __mikuru_hydrationComponent = \{ \.\.\.__mikuru_component, hydrate \};\nexport default __mikuru_hydrationComponent;\n?$/, "\n");
-  const factory = new Function("effect", "ref", "setAttribute", "unwrap", "document", `${executable}\nreturn { mount, hydrate };`) as (
+  const factory = new Function("effect", "inject", "onMounted", "onUnmounted", "provide", "ref", "setAttribute", "unwrap", "document", `${executable}\nreturn { mount, hydrate };`) as (
     effectArg: typeof effect,
+    injectArg: typeof inject,
+    onMountedArg: typeof onMounted,
+    onUnmountedArg: typeof onUnmounted,
+    provideArg: typeof provide,
     refArg: typeof ref,
     setAttributeArg: typeof setAttribute,
     unwrapArg: typeof unwrap,
     documentArg: Document
   ) => { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any };
   const window = documentOverride ? undefined : new Window();
-  return factory(effect, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document);
+  return factory(effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document);
 }
