@@ -9,6 +9,7 @@
 - Improved compile diagnostics for built-in component attribute typos with `Did you mean ...?` suggestions.
 - Improved compile diagnostics for directive and event/model modifier typos with close-match suggestions.
 - Improved Vite transform error forwarding so fallback compile-time errors include `id`, `loc`, and `frame`.
+- Improved generated source maps for template element, interpolation, bound attribute, event handler, and script lines.
 - Added a dogfood AsyncBoundary lab and E2E coverage for loading and retryable async fallback.
 - Added a dogfood ErrorBoundary lab and E2E coverage for diagnostics, fallback reset, and `:reset-key` recovery.
 - Exported `MikuruErrorBoundaryFallbackProps` for typed ErrorBoundary fallback components.

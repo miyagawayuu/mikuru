@@ -44,7 +44,7 @@ Confirm these exports work from the packed package:
 - No SSR, hydration, or devtools.
 - No Vue compatibility guarantee.
 - `v-html` remains unsupported.
-- Source maps include original SFC content but have coarse segment precision.
+- Source maps include original SFC content and line-oriented mappings for common template/script generated lines.
 - Scoped CSS is a basic selector rewrite, not a full CSS compiler.
 - `provide` / `inject` are scoped to the current component tree when called during Mikuru component mounting.
 

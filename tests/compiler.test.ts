@@ -173,16 +173,18 @@ onUnmounted(() => {});
     expect(result.map.mappings.length).toBeGreaterThan(0);
   });
 
-  it("keeps source map line coverage coarse but complete", () => {
+  it("maps generated template and script lines back to their original source lines", () => {
     const result = compile(
       `<template>
   <section>
-    <p>{{ message }}</p>
+    <p :class="stateClass" @click="save">{{ message }}</p>
   </section>
 </template>
 
 <script>
 const message = "mapped";
+const stateClass = "ready";
+function save() {}
 </script>
 
 <style>
@@ -199,6 +201,20 @@ p { color: red; }
       names: []
     });
     expect(result.map.mappings.split(";")).toHaveLength(result.code.split("\n").length);
+
+    const decoded = decodeSourceMapMappings(result.map.mappings);
+    const codeLines = result.code.split("\n");
+    const generatedLine = (pattern: string) => {
+      const index = codeLines.findIndex((line) => line.includes(pattern));
+      expect(index).toBeGreaterThanOrEqual(0);
+      return index;
+    };
+
+    expect(decoded[generatedLine('document.createElement("p")')]?.originalLine).toBe(3);
+    expect(decoded[generatedLine("unwrap(stateClass)")]?.originalLine).toBe(3);
+    expect(decoded[generatedLine("__mikuru_guardEventHandler(save)")]?.originalLine).toBe(3);
+    expect(decoded[generatedLine("unwrap(message)")]?.originalLine).toBe(3);
+    expect(decoded[generatedLine('const message = "mapped";')]?.originalLine).toBe(8);
   });
 
   it("scopes style selectors and generated elements", () => {
@@ -818,4 +834,56 @@ function captureCompileError(source: string, filename: string): MikuruCompileErr
   }
 
   throw new Error("Expected compile to fail");
+}
+
+function decodeSourceMapMappings(mappings: string): Array<{ originalLine: number; originalColumn: number } | undefined> {
+  const lines = mappings.split(";");
+  let sourceLine = 0;
+  let sourceColumn = 0;
+
+  return lines.map((line) => {
+    if (!line) {
+      return undefined;
+    }
+
+    const segment = decodeVlqSegment(line.split(",")[0] ?? "");
+
+    if (segment.length < 4) {
+      return undefined;
+    }
+
+    sourceLine += segment[2] ?? 0;
+    sourceColumn += segment[3] ?? 0;
+
+    return {
+      originalLine: sourceLine + 1,
+      originalColumn: sourceColumn + 1
+    };
+  });
+}
+
+function decodeVlqSegment(segment: string): number[] {
+  const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const values: number[] = [];
+  let value = 0;
+  let shift = 0;
+
+  for (const char of segment) {
+    let digit = base64Chars.indexOf(char);
+    const continuation = Boolean(digit & 32);
+    digit &= 31;
+    value += digit << shift;
+
+    if (continuation) {
+      shift += 5;
+      continue;
+    }
+
+    const negative = Boolean(value & 1);
+    values.push(negative ? -(value >> 1) : value >> 1);
+    value = 0;
+    shift = 0;
+  }
+
+  return values;
 }
