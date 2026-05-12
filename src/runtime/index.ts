@@ -6,6 +6,7 @@ export type {
   AsyncComponentOptions,
   MikuruComponent,
   MikuruComponentInstance,
+  MikuruErrorBoundaryFallbackProps,
   MikuruErrorInfo,
   MikuruErrorPhase
 } from "./asyncComponent.js";

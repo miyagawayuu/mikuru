@@ -6,7 +6,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 
 - `mikuru`: re-exports the compiler entry, runtime reactivity helpers, and public runtime helper types.
 - `mikuru/compiler`: exposes `compile`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
-- `mikuru/runtime`: exposes `ref`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruErrorInfo`, and `MikuruErrorPhase`.
+- `mikuru/runtime`: exposes `ref`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
 - `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export.
 
