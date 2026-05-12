@@ -377,6 +377,51 @@ function switchBindings() {
     expect(target?.textContent).toBe("2");
   });
 
+  it("supports keyboard and system event modifiers", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input @keydown.enter="submit" @keydown.escape="cancel" @keydown.ctrl.enter="submitCtrl" />
+    <p>{{ submitted }}:{{ cancelled }}:{{ submittedCtrl }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const submitted = ref(0);
+const cancelled = ref(0);
+const submittedCtrl = ref(0);
+
+function submit() {
+  submitted.value += 1;
+}
+
+function cancel() {
+  cancelled.value += 1;
+}
+
+function submitCtrl() {
+  submittedCtrl.value += 1;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const input = fixture.root.querySelector("input");
+    const summary = fixture.root.querySelector("p");
+
+    input?.dispatchEvent(new fixture.window.KeyboardEvent("keydown", { key: "a" }) as unknown as Event);
+    expect(summary?.textContent).toBe("0:0:0");
+
+    input?.dispatchEvent(new fixture.window.KeyboardEvent("keydown", { key: "Enter" }) as unknown as Event);
+    expect(summary?.textContent).toBe("1:0:0");
+
+    input?.dispatchEvent(new fixture.window.KeyboardEvent("keydown", { key: "Escape" }) as unknown as Event);
+    expect(summary?.textContent).toBe("1:1:0");
+
+    input?.dispatchEvent(new fixture.window.KeyboardEvent("keydown", { key: "Enter", ctrlKey: true }) as unknown as Event);
+    expect(summary?.textContent).toBe("2:1:1");
+  });
+
   it("normalizes array and object class bindings", () => {
     const fixture = compileForDom(`<template>
   <section>

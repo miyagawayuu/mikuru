@@ -100,11 +100,13 @@ button {
 <button @click.stop="select">Select</button>
 <button @click.self.once="select">Select</button>
 <div @scroll.passive.capture="track"></div>
+<input @keydown.enter="submit" @keydown.ctrl.enter="submitShortcut" />
 <button @[eventName]="handle">Dynamic event</button>
 <Child @select.once="select" />
 ```
 
 `@event="handler"` と `v-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent`、`.stop`、`.self`、`.once`、`.capture`、`.passive` を使える。
+DOM keyboardイベントでは `.enter`、`.escape` / `.esc`、`.space`、`.tab`、`.delete`、`.backspace`、`.up`、`.down`、`.left`、`.right` を使える。`.ctrl`、`.shift`、`.alt`、`.meta` はsystem key条件として使える。
 コンポーネントイベントでは `.once` を使える。
 `@[eventName]` と `v-on:[eventName]` はイベント名を式から決め、式が変わった場合は古いlistenerを外して新しいlistenerを付ける。
 
@@ -112,7 +114,7 @@ button {
 
 - 値は関数名または単純な呼び出し式に限定する。
 - `.passive` と `.prevent` は同時に使えない。
-- コンポーネントイベントの `.prevent`、`.stop`、`.self`、`.capture`、`.passive` とキー修飾子は後続課題にする。
+- コンポーネントイベントの `.prevent`、`.stop`、`.self`、`.capture`、`.passive` とキー修飾子は対象外にする。
 - インライン複文はv1対象外にする。
 
 ### 属性バインド
