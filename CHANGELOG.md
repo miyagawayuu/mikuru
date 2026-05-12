@@ -8,6 +8,7 @@
 - Added `renderRouteToString()` for router SSR with redirects, lazy route components, nested route slots, and route props.
 - Added hydration phase 1 with `compileHydration()` for existing DOM reuse, event attachment, and text/attribute sync.
 - Added hydration support for initial `v-if` / `v-for` DOM reuse and child component `hydrate()` delegation with mount fallback.
+- Added `hydrateRoute()` for router hydration with redirects, lazy route components, route props, nested route slots, and mount fallback.
 - Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.
 - Extended `<AsyncBoundary>` to support multiple child nodes with live `pending` updates.

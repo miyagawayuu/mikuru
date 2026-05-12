@@ -145,7 +145,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
 - SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, `v-if` chains, `v-for`, async child components, props, named/default slots, scoped slot props, and router route rendering
-- Hydration through `compileHydration()`, reusing existing SSR DOM while attaching events, syncing text/attributes, hydrating initial `v-if` / `v-for` DOM, and delegating child components to `hydrate()` when available
+- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, hydrating initial `v-if` / `v-for` DOM, and delegating child and route components to `hydrate()` when available
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
 
@@ -180,7 +180,7 @@ Compiler, runtime, and server entries are public for lower-level integrations:
 ```ts
 import { compile, compileHydration, compileSsr } from "mikuru/compiler";
 import { effect, isRef, nextTick, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch } from "mikuru/runtime";
-import { renderComponentToString, renderRouteToString, renderToString } from "mikuru/server";
+import { hydrateRoute, renderComponentToString, renderRouteToString, renderToString } from "mikuru/server";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 

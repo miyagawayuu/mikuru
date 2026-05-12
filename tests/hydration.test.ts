@@ -2,8 +2,9 @@ import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 
 import { compileHydration, compileSsr } from "../src/compiler/index.js";
+import { createMemoryHistory, createRouter } from "../src/router/index.js";
 import { effect, ref, setAttribute, unwrap } from "../src/runtime/index.js";
-import { escapeHtml, renderAttr, renderAttrs, renderComponentToString } from "../src/server.js";
+import { escapeHtml, hydrateRoute, renderAttr, renderAttrs, renderComponentToString, renderRouteToString } from "../src/server.js";
 
 describe("hydration compiler", () => {
   it("reuses SSR DOM, attaches events, and syncs text and attributes", async () => {
@@ -125,6 +126,97 @@ const MountOnlyChild = {
 
     instance.unmount();
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
+  it("hydrates router matches with lazy nested route components and mount fallback", async () => {
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const hydrated: string[] = [];
+    const Shell = {
+      async renderToString(props: Record<string, any>) {
+        return `<main data-route="${props.route.path}"><h1>Shell</h1><section id="child">${await props.children()}</section></main>`;
+      },
+      async hydrate(target: Element, props: Record<string, any>) {
+        target.setAttribute("data-hydrated", "shell");
+        hydrated.push("shell");
+        await props.children(target.querySelector("#child") as unknown as Element);
+        return {
+          element: target,
+          unmount() {
+            target.removeAttribute("data-hydrated");
+          }
+        };
+      }
+    };
+    const UserPage = {
+      renderToString(props: Record<string, any>) {
+        return `<p data-id="${props.id}">User ${props.route.params.id}</p>`;
+      },
+      hydrate(target: Element, props: Record<string, any>) {
+        const element = target.matches("p") ? target : target.firstElementChild as unknown as Element;
+        element.setAttribute("data-hydrated", String(props.id));
+        hydrated.push("user");
+        return {
+          element,
+          unmount() {
+            element.removeAttribute("data-hydrated");
+          }
+        };
+      }
+    };
+    const MountOnly = {
+      renderToString() {
+        return "<em>mount-only</em>";
+      },
+      mount(target: Element | DocumentFragment) {
+        const element = window.document.createElement("em");
+        element.textContent = "mounted route";
+        target.appendChild(element as unknown as Node);
+        return {
+          element,
+          unmount() {
+            element.remove();
+          }
+        };
+      }
+    };
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        {
+          path: "/",
+          component: Shell as any,
+          children: [
+            { path: "", redirect: "/users/7" },
+            {
+              path: "users/:id",
+              component: async () => ({ default: UserPage as any }),
+              props: true
+            },
+            {
+              path: "fallback",
+              component: MountOnly as any
+            }
+          ]
+        }
+      ]
+    });
+
+    root.innerHTML = (await renderRouteToString(router, "/")).html;
+    const instance = await hydrateRoute(router, root.firstElementChild as unknown as Element, "/");
+
+    expect(instance.route.fullPath).toBe("/users/7");
+    expect(root.querySelector("main")?.getAttribute("data-hydrated")).toBe("shell");
+    expect(root.querySelector("p")?.getAttribute("data-hydrated")).toBe("7");
+    expect(hydrated).toEqual(["shell", "user"]);
+
+    instance.unmount();
+    expect(root.querySelector("main")?.hasAttribute("data-hydrated")).toBe(false);
+    expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
+
+    root.innerHTML = (await renderRouteToString(router, "/fallback")).html;
+    await hydrateRoute(router, root.firstElementChild as unknown as Element, "/fallback");
+    expect(root.querySelector("em")?.textContent).toBe("mounted route");
   });
 });
 

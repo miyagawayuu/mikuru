@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 const { compile, compileHydration, compileSsr } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
-const { escapeHtml, renderAttr, renderComponentToString, renderRouteToString, renderToString } = await import("mikuru/server");
+const { escapeHtml, hydrateRoute, renderAttr, renderComponentToString, renderRouteToString, renderToString } = await import("mikuru/server");
 const {
   createDebugInspector,
   effect,
@@ -93,6 +93,23 @@ const ssrRouter = createRouter({
 });
 const routeSsr = await renderRouteToString(ssrRouter, "/package");
 assert.equal(routeSsr.html, "<main>/package<p>route SSR</p></main>");
+const hydrationRouter = createRouter({
+  history: createMemoryHistory("/"),
+  routes: [
+    {
+      path: "/",
+      component: {
+        hydrate: (target) => ({ element: target, unmount() {} })
+      }
+    }
+  ]
+});
+const hydratedRoute = await hydrateRoute(hydrationRouter, {
+  parentNode: null,
+  setAttribute() {},
+  removeAttribute() {}
+}, "/");
+assert.equal(hydratedRoute.route.fullPath, "/");
 
 const count = ref(0);
 let observed = 0;
