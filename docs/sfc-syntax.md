@@ -430,11 +430,12 @@ const AsyncPanel = defineAsyncComponent({
 <template>
   <AsyncBoundary :loading="LoadingPanel" :fallback="AsyncErrorPanel">
     <AsyncPanel />
+    <RelatedAsyncPanel />
   </AsyncBoundary>
 </template>
 ```
 
-`<AsyncBoundary>` は配下の `defineAsyncComponent()` のpending状態をまとめて扱う。`:loading` componentには `pending` propsを渡す。`errorComponent` を持たないasync childがrejectまたはtimeoutした場合、`:fallback` componentに `error`、`errorInfo`、`pending`、`retry`、`reset` propsを渡す。fallback componentのprops全体は `MikuruAsyncBoundaryFallbackProps` として型付けできる。
+`<AsyncBoundary>` は配下の複数 `defineAsyncComponent()` のpending状態をまとめて扱う。`:loading` componentには `pending` propsを渡し、async childの開始/完了に合わせて更新する。`errorComponent` を持たないasync childがrejectまたはtimeoutした場合、`:fallback` componentに `error`、`errorInfo`、`pending`、`retry`、`reset` propsを渡す。fallback componentのprops全体は `MikuruAsyncBoundaryFallbackProps` として型付けできる。
 
 ### ErrorBoundary
 

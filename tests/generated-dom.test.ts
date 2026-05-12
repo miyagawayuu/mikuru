@@ -2643,6 +2643,79 @@ const AsyncMessage = defineAsyncComponent({
     expect(fixture.root.textContent).not.toContain("Boundary loading");
   });
 
+  it("tracks multiple async children in the same AsyncBoundary", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncBoundary :loading="Loading" :fallback="ErrorView">
+    <FirstAsync />
+    <SecondAsync />
+  </AsyncBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const Loading = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = "Boundary loading " + props.pending;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const FirstLoaded = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "First loaded";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const SecondLoaded = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "Second loaded";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const FirstAsync = defineAsyncComponent({
+  loader: () => new Promise((resolve) => setTimeout(() => resolve(FirstLoaded), 10))
+});
+
+const SecondAsync = defineAsyncComponent({
+  loader: () => new Promise((resolve) => setTimeout(() => resolve(SecondLoaded), 30))
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.textContent).toContain("Boundary loading 2");
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(fixture.root.textContent).toContain("First loaded");
+    expect(fixture.root.textContent).toContain("Boundary loading 1");
+    expect(fixture.root.textContent).not.toContain("Second loaded");
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(fixture.root.textContent).toContain("First loaded");
+    expect(fixture.root.textContent).toContain("Second loaded");
+    expect(fixture.root.textContent).not.toContain("Boundary loading");
+  });
+
   it("renders async component error fallback", async () => {
     const fixture = compileForDom(`<template>
   <AsyncBroken />
