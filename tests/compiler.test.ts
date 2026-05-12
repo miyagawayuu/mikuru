@@ -143,11 +143,13 @@ describe("compiler", () => {
   it("keeps runtime helper imports available inside normalized scripts", () => {
     const result = compile(`<template><p>{{ status }}</p></template>
 <script>
-import { computed, flushJobs, inject, isProxy, isReactive, isReadonly, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, onUnmounted, provide, queueJob, reactive, readonly, ref, toRaw, watch, watchEffect } from "mikuru";
+import { computed, flushJobs, inject, isProxy, isReactive, isReadonly, isRef, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, onUnmounted, provide, queueJob, reactive, readonly, ref, toRaw, toRef, toRefs, unref, watch, watchEffect } from "mikuru";
 import { nextTick as tick } from "mikuru/runtime";
 
 const status = ref("idle");
 const state = reactive({ status });
+const statusRef = toRef(state, "status");
+const stateRefs = toRefs(state);
 const locked = readonly(state);
 const ready = computed(() => status.value);
 const stop = watch(status, () => {});
@@ -157,7 +159,10 @@ flushJobs();
 isReactive(state);
 isReadonly(locked);
 isProxy(locked);
+isRef(statusRef);
 toRaw(state);
+unref(statusRef);
+unref(stateRefs.status);
 provide("status", ready.value);
 inject("status");
 nextTick(() => {});
@@ -175,6 +180,7 @@ onUnmounted(stopEffect);
     expect(result.code).toContain("isProxy");
     expect(result.code).toContain("isReactive");
     expect(result.code).toContain("isReadonly");
+    expect(result.code).toContain("isRef");
     expect(result.code).toContain("nextTick");
     expect(result.code).toContain("nextTick as tick");
     expect(result.code).toContain("onMounted");
@@ -187,6 +193,9 @@ onUnmounted(stopEffect);
     expect(result.code).toContain("reactive");
     expect(result.code).toContain("readonly");
     expect(result.code).toContain("toRaw");
+    expect(result.code).toContain("toRef");
+    expect(result.code).toContain("toRefs");
+    expect(result.code).toContain("unref");
     expect(result.code).toContain("const stop = watch(status");
     expect(result.code).toContain("const stopEffect = watchEffect");
   });

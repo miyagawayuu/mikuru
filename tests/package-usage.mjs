@@ -11,12 +11,16 @@ const {
   isProxy,
   isReactive,
   isReadonly,
+  isRef,
   nextTick,
   queueJob,
   reactive,
   readonly,
   ref,
   toRaw,
+  toRef,
+  toRefs,
+  unref,
   watch,
   watchEffect
 } = await import("mikuru/runtime");
@@ -62,6 +66,15 @@ assert.equal(reactiveObserved, 1);
 assert.equal(isReactive(state), true);
 assert.equal(isProxy(state), true);
 assert.equal(toRaw(state).count, 1);
+
+const stateCount = toRef(state, "count");
+assert.equal(isRef(stateCount), true);
+stateCount.value = 2;
+assert.equal(state.count, 2);
+const stateRefs = toRefs(state);
+stateRefs.count.value = 3;
+assert.equal(unref(stateRefs.count), 3);
+assert.equal(unref("plain"), "plain");
 
 const locked = readonly({ count: 0 });
 locked.count = 1;

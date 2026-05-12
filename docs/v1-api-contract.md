@@ -6,7 +6,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 
 - `mikuru`: re-exports the compiler entry, runtime reactivity helpers, and public runtime helper types.
 - `mikuru/compiler`: exposes `compile`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
-- `mikuru/runtime`: exposes `ref`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
+- `mikuru/runtime`: exposes `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
 - `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export. Plugin options include `debug`, `include`, and `batchedUpdates`.
 
@@ -99,6 +99,7 @@ Unsupported in v1:
 ## Runtime Contract
 
 - `ref`, `computed`, and `effect` provide shallow ref-based reactivity. `computed` supports both read-only getters and writable `{ get, set }` refs, with lazy cached evaluation.
+- `isRef`, `unref`, `toRef`, and `toRefs` provide ref interop helpers for checking, unwrapping, and preserving property reactivity through destructuring.
 - `reactive(object)` and `readonly(object)` provide Proxy-based object/array reactivity with property, deletion, key iteration, and array length tracking. `isReactive`, `isReadonly`, `isProxy`, and `toRaw` expose runtime inspection helpers.
 - `effect(fn)` runs immediately and returns a stop function. `effect(fn, { scheduler })` runs initially, then passes a runner to the scheduler on dependency updates.
 - `queueJob(job)` schedules a deduped microtask job, `flushJobs()` drains queued jobs synchronously, and `nextTick(fn?)` waits for pending jobs before running the optional callback.

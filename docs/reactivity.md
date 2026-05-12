@@ -81,6 +81,25 @@ toRaw(state);
 - `isProxy(value)`
 - `toRaw(value)`
 
+### Ref helpers
+
+```js
+import { isRef, reactive, ref, toRef, toRefs, unref } from "mikuru";
+
+const count = ref(0);
+isRef(count); // true
+unref(count); // 0
+
+const state = reactive({ count: 0, label: "idle" });
+const countRef = toRef(state, "count");
+const { label } = toRefs(state);
+
+countRef.value += 1;
+label.value = "ready";
+```
+
+`unref(value)` は `unwrap(value)` と同じく、ref風の値なら `.value`、通常値ならそのまま返す。`toRef(object, key)` はオブジェクトのpropertyと同期するrefを作り、`toRefs(object)` は列挙可能なown propertyをまとめてref化する。destructuringしても元の `reactive` state との接続を保ちたいときに使う。
+
 ### `effect`
 
 ```js

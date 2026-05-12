@@ -142,7 +142,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
 - Built-in `<AsyncBoundary :loading :fallback :delay :timeout>` for grouped async loading, delayed loading UI, boundary timeouts, and retryable async failures with aggregated fallback errors
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery
-- Runtime helpers including `ref`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
+- Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
@@ -177,7 +177,7 @@ Compiler and runtime entries are public for lower-level integrations:
 
 ```ts
 import { compile } from "mikuru/compiler";
-import { effect, nextTick, reactive, readonly, ref, unwrap, watch } from "mikuru/runtime";
+import { effect, isRef, nextTick, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch } from "mikuru/runtime";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 

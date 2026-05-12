@@ -21,6 +21,9 @@ import {
   ref,
   registerDebugComponent,
   setAttribute,
+  toRef,
+  toRefs,
+  unref,
   unwrap,
   watch,
   watchEffect
@@ -1013,6 +1016,39 @@ function toggle() {
 
     expect(paragraph?.className).toBe("");
     expect(paragraph?.textContent).toBe("paused");
+  });
+
+  it("keeps ref interop helpers usable from script imports", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p>{{ count }}:{{ label }}:{{ plain }}</p>
+    <button @click="update">Update</button>
+  </section>
+</template>
+
+<script>
+import { reactive, toRef, toRefs, unref } from "mikuru";
+
+const state = reactive({ count: 0, label: "idle" });
+const count = toRef(state, "count");
+const { label } = toRefs(state);
+const plain = unref("plain");
+
+function update() {
+  count.value += 1;
+  label.value = "ready";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+    const button = fixture.root.querySelector("button");
+
+    expect(paragraph?.textContent).toBe("0:idle:plain");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.textContent).toBe("1:ready:plain");
   });
 
   it("renders v-for items", () => {
@@ -4543,6 +4579,9 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "ref",
     "registerDebugComponent",
     "setAttribute",
+    "toRef",
+    "toRefs",
+    "unref",
     "unwrap",
     "RouterLink",
     "RouterView",
@@ -4573,6 +4612,9 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     refArg: typeof ref,
     registerDebugComponentArg: typeof registerDebugComponent,
     setAttributeArg: typeof setAttribute,
+    toRefArg: typeof toRef,
+    toRefsArg: typeof toRefs,
+    unrefArg: typeof unref,
     unwrapArg: typeof unwrap,
     RouterLinkArg: typeof RouterLink,
     RouterViewArg: typeof RouterView,
@@ -4604,6 +4646,9 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     ref,
     registerDebugComponent,
     setAttribute,
+    toRef,
+    toRefs,
+    unref,
     unwrap,
     RouterLink,
     RouterView,
