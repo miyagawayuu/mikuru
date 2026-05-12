@@ -110,6 +110,7 @@ Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when a
 ```mikuru
 <p :title="message">{{ message }}</p>
 <p v-bind="attrs">{{ message }}</p>
+<p v-bind.camel="attrs">{{ message }}</p>
 <input type="checkbox" :indeterminate.prop="mixed">
 <p :data-user-id.camel="userId">{{ message }}</p>
 <article class="card" :class="{ archived: note.archived }">
@@ -124,7 +125,7 @@ Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when a
 `style` supports strings, numbers, arrays, and objects. Object keys can be camelCase or custom CSS properties.
 On child components, DOM-facing attributes fall through to the child component root element. This includes `class`, `style`, `id`, `title`, `role`, `tabindex`, `lang`, `dir`, `hidden`, `aria-*`, and `data-*` from static attributes, direct bindings, and object-form `v-bind`. `class` and `style` are merged with the root element's existing values.
 Object-form `v-bind` updates attributes reactively and removes stale keys when they disappear from the bound object.
-Direct and dynamic `v-bind` arguments support `.prop`, `.attr`, and `.camel`. Use `.prop` for DOM property-only state such as `:indeterminate.prop`, `.attr` when property sync should be skipped, and `.camel` when a kebab-case binding name should become camelCase.
+Direct, dynamic, and object-form `v-bind` arguments support `.prop`, `.attr`, and `.camel`. Use `.prop` for DOM property-only state such as `:indeterminate.prop` or `v-bind.prop="attrs"`, `.attr` when property sync should be skipped, and `.camel` when a kebab-case binding name should become camelCase.
 
 `null`, `undefined`, and `false` remove attributes. `true` creates a boolean-style attribute.
 

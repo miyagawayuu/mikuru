@@ -249,6 +249,54 @@ function toggle() {
     instance.unmount();
   });
 
+  it("hydrates object-form v-bind modifiers", async () => {
+    const source = `<template>
+  <section>
+    <input type="checkbox" v-bind.prop="propertyAttrs" />
+    <input type="checkbox" v-bind.attr="attributeAttrs" />
+    <p v-bind.camel="camelAttrs">profile</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const propertyAttrs = ref({ indeterminate: true });
+const attributeAttrs = ref({ indeterminate: true });
+const camelAttrs = ref({ "data-user-id": "42" });
+function toggle() {
+  propertyAttrs.value = { indeterminate: false };
+  attributeAttrs.value = { indeterminate: false };
+  camelAttrs.value = { "data-user-id": "84" };
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const inputs = Array.from(root.querySelectorAll("input")) as unknown as HTMLInputElement[];
+    const propertyInput = inputs[0];
+    const attributeInput = inputs[1];
+    const profile = root.querySelector("p");
+
+    expect(propertyInput?.indeterminate).toBe(true);
+    expect(propertyInput?.hasAttribute("indeterminate")).toBe(false);
+    expect(attributeInput?.indeterminate).toBe(false);
+    expect(attributeInput?.getAttribute("indeterminate")).toBe("true");
+    expect(profile?.getAttribute("dataUserId")).toBe("42");
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+
+    expect(propertyInput?.indeterminate).toBe(false);
+    expect(propertyInput?.hasAttribute("indeterminate")).toBe(false);
+    expect(attributeInput?.getAttribute("indeterminate")).toBe("false");
+    expect(profile?.getAttribute("dataUserId")).toBe("84");
+
+    instance.unmount();
+  });
+
   it("hydrates v-html and v-text content directives", async () => {
     const source = `<template>
   <section>

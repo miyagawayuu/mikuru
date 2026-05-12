@@ -356,8 +356,10 @@ function emitComponentProps(context: SsrGenerateContext, node: ElementNode, prop
       continue;
     }
 
-    if (attr.name === "v-bind") {
-      emit(context, indent, `Object.assign(${propsVar}, __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), "v-bind")}) ?? {});`);
+    const objectBindDirective = parseObjectBindDirective(attr.name);
+    if (objectBindDirective) {
+      validateObjectBindModifiers(objectBindDirective, attr, "component");
+      emit(context, indent, `Object.assign(${propsVar}, __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), attr.name)}) ?? {});`);
       continue;
     }
 
@@ -405,8 +407,10 @@ function emitSlotProps(context: SsrGenerateContext, node: ElementNode, propsVar:
       continue;
     }
 
-    if (attr.name === "v-bind") {
-      emit(context, indent, `Object.assign(${propsVar}, __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), "slot v-bind")}) ?? {});`);
+    const objectBindDirective = parseObjectBindDirective(attr.name);
+    if (objectBindDirective) {
+      validateObjectBindModifiers(objectBindDirective, attr, "component");
+      emit(context, indent, `Object.assign(${propsVar}, __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), attr.name)}) ?? {});`);
       continue;
     }
 
@@ -432,7 +436,7 @@ function emitSlotProps(context: SsrGenerateContext, node: ElementNode, propsVar:
 function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: number): void {
   const staticClass = getStaticAttrValue(node, "class");
   const staticStyle = getStaticAttrValue(node, "style");
-  const hasObjectBind = node.attrs.some((attr) => attr.name === "v-bind");
+  const hasObjectBind = node.attrs.some((attr) => Boolean(parseObjectBindDirective(attr.name)));
   const hasDynamicClass = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "class");
   const hasDynamicStyle = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "style");
 
@@ -446,12 +450,21 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
       continue;
     }
 
-    if (attr.name === "v-bind") {
+    const objectBindDirective = parseObjectBindDirective(attr.name);
+    if (objectBindDirective) {
+      validateObjectBindModifiers(objectBindDirective, attr, "element");
+      if (objectBindDirective.modifiers.includes("prop")) {
+        continue;
+      }
       const value = String(attr.value);
       const attrsVar = nextName(context, "attrs");
+      const renderedAttrsVar = objectBindDirective.modifiers.includes("camel") ? nextName(context, "attrs") : attrsVar;
       emit(context, indent, "{");
       emit(context, indent + 1, `const ${attrsVar} = __mikuru_unwrap(${compileSsrExpression(context, value, "v-bind")}) ?? {};`);
-      emit(context, indent + 1, `__mikuru_html += __mikuru_renderAttrs({ ...${attrsVar}${staticClass ? `, class: [${quote(staticClass)}, ${attrsVar}.class]` : ""}${staticStyle ? `, style: [${quote(staticStyle)}, ${attrsVar}.style]` : ""} });`);
+      if (objectBindDirective.modifiers.includes("camel")) {
+        emit(context, indent + 1, `const ${renderedAttrsVar} = Object.fromEntries(Object.entries(${attrsVar}).map(([key, value]) => [String(key).replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase()), value]));`);
+      }
+      emit(context, indent + 1, `__mikuru_html += __mikuru_renderAttrs({ ...${renderedAttrsVar}${staticClass ? `, class: [${quote(staticClass)}, ${renderedAttrsVar}.class]` : ""}${staticStyle ? `, style: [${quote(staticStyle)}, ${renderedAttrsVar}.style]` : ""} });`);
       emit(context, indent, "}");
       continue;
     }
@@ -581,12 +594,41 @@ function validateBindModifiers(binding: BindDirective, attr: TemplateAttribute, 
   }
 }
 
+function validateObjectBindModifiers(binding: BindDirective, attr: TemplateAttribute, target: "element" | "component"): void {
+  const allowed = new Set(["camel", "prop", "attr"]);
+  for (const modifier of binding.modifiers) {
+    if (!allowed.has(modifier)) {
+      throw new Error(`Unsupported object v-bind modifier ".${modifier}" on ${attr.name}. Use .camel, .prop, or .attr.`);
+    }
+  }
+
+  if (binding.modifiers.includes("prop") && binding.modifiers.includes("attr")) {
+    throw new Error(`Object v-bind modifiers .prop and .attr cannot be used together on ${attr.name}`);
+  }
+
+  if (target === "component" && binding.modifiers.length > 0) {
+    throw new Error(`Object v-bind modifiers are only supported on native elements: ${attr.name}`);
+  }
+}
+
 function bindNameExpression(expression: string, binding: BindDirective): string {
   return binding.modifiers.includes("camel") ? `(${expression}).replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase())` : expression;
 }
 
 function camelize(value: string): string {
   return value.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+}
+
+function parseObjectBindDirective(name: string): BindDirective | undefined {
+  if (name === "v-bind") {
+    return { modifiers: [] };
+  }
+
+  if (!name.startsWith("v-bind.")) {
+    return undefined;
+  }
+
+  return { modifiers: name.slice("v-bind.".length).split(".").filter(Boolean) };
 }
 
 function parseDynamicArgument(name: string, prefixes: string[]): { expression: string; modifiers: string[] } | undefined {
