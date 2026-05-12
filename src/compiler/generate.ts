@@ -1607,6 +1607,11 @@ function generateElement(
           emit(context, indent + 1, `if ($event.target !== ${elementVar}) { return; }`);
         }
 
+        const keyGuard = eventKeyGuardExpression(event);
+        if (keyGuard) {
+          emit(context, indent + 1, `if (${keyGuard}) { return; }`);
+        }
+
         if (event.modifiers.includes("prevent")) {
           emit(context, indent + 1, "$event.preventDefault();");
         }
@@ -4183,7 +4188,7 @@ function modelAssignedValue(modelMode: string, modifiers: string[], expression: 
 }
 
 function validateEventModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext): void {
-  const supportedModifiers = ["prevent", "stop", "self", "once", "capture", "passive"];
+  const supportedModifiers = [...eventControlModifiers, ...eventOptionModifiers, ...eventSystemModifiers, ...eventKeyModifiers];
 
   for (const modifier of event.modifiers) {
     if (!supportedModifiers.includes(modifier)) {
@@ -4222,6 +4227,47 @@ function eventListenerOptions(event: EventDirective): string | undefined {
   ].filter(Boolean);
 
   return options.length ? `{ ${options.join(", ")} }` : undefined;
+}
+
+const eventControlModifiers = ["prevent", "stop", "self"];
+const eventOptionModifiers = ["once", "capture", "passive"];
+const eventSystemModifiers = ["ctrl", "shift", "alt", "meta"];
+const eventKeyModifiers = ["enter", "escape", "esc", "space", "tab", "delete", "backspace", "up", "down", "left", "right"];
+
+function eventKeyGuardExpression(event: EventDirective): string | undefined {
+  const checks: string[] = [];
+
+  for (const modifier of event.modifiers) {
+    if (eventSystemModifiers.includes(modifier)) {
+      checks.push(`!$event.${modifier}Key`);
+      continue;
+    }
+
+    const keyExpression = eventKeyExpression(modifier);
+    if (keyExpression) {
+      checks.push(`!${keyExpression}.includes($event.key)`);
+    }
+  }
+
+  return checks.length ? checks.join(" || ") : undefined;
+}
+
+function eventKeyExpression(modifier: string): string | undefined {
+  const keyAliases: Record<string, string[]> = {
+    enter: ["Enter"],
+    escape: ["Escape"],
+    esc: ["Escape"],
+    space: [" ", "Spacebar"],
+    tab: ["Tab"],
+    delete: ["Delete"],
+    backspace: ["Backspace"],
+    up: ["ArrowUp", "Up"],
+    down: ["ArrowDown", "Down"],
+    left: ["ArrowLeft", "Left"],
+    right: ["ArrowRight", "Right"]
+  };
+  const keys = keyAliases[modifier];
+  return keys ? JSON.stringify(keys) : undefined;
 }
 
 function componentEventHandlerExpression(event: EventDirective, handlerExpression: string, context: GenerateContext): string {

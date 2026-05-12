@@ -502,6 +502,11 @@ const activeSlot = "header";
         filename: "ComponentEventModifier.mikuru"
       })
     ).toThrow(/Event modifier \.stop is only supported on DOM events/);
+    expect(() =>
+      compile(`<template><Child @select.enter="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`, {
+        filename: "ComponentKeyModifier.mikuru"
+      })
+    ).toThrow(/Event modifier \.enter is only supported on DOM events/);
   });
 
   it("emits once wrappers for component events", () => {
@@ -526,6 +531,13 @@ const activeSlot = "header";
     expect(result.code).toContain(`addEventListener("click", handler`);
     expect(result.code).toContain(`{ capture: true, once: true, passive: true }`);
     expect(result.code).toContain(`removeEventListener("click", handler`);
+  });
+
+  it("emits guards for DOM key and system event modifiers", () => {
+    const result = compile(`<template><input @keydown.ctrl.enter="save" /></template><script>function save() {}</script>`);
+
+    expect(result.code).toContain('!$event.ctrlKey || !["Enter"].includes($event.key)');
+    expect(result.code).toContain('addEventListener("keydown"');
   });
 
   it("transforms multiline script macros", () => {
