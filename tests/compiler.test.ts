@@ -400,6 +400,24 @@ const name = "Mikuru";
     );
   });
 
+  it("generates object-form v-bind modifiers for native elements", () => {
+    const element = compile(`<template>
+  <input v-bind.prop="propertyAttrs" v-bind.attr="attributeAttrs" v-bind.camel="camelAttrs" />
+</template>
+<script>
+const propertyAttrs = { indeterminate: true };
+const attributeAttrs = { "aria-hidden": false };
+const camelAttrs = { "data-user-id": "42" };
+</script>`);
+
+    expect(element.code).toContain("{ property: true }");
+    expect(element.code).toContain("{ attribute: true }");
+    expect(element.code).toContain(".replace(/-([a-z])/g");
+    expect(() => compile(`<template><Child v-bind.prop="attrs" /></template><script>const attrs = {};</script>`)).toThrow(
+      /Object v-bind modifiers are only supported on native elements/
+    );
+  });
+
   it("generates component attribute fallthrough", () => {
     const result = compile(`<template>
   <Child id="panel" title="Panel" :aria-label="label" class="parent" :class="{ active }" style="color: red" :style="{ fontSize: size }" v-bind="attrs" />

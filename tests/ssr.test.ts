@@ -91,6 +91,24 @@ const hidden = false;
     await expect(render()).resolves.toBe('<section><input type="checkbox"><p dataUserId="42" aria-hidden="false">profile</p></section>');
   });
 
+  it("renders serializable object-form v-bind modifiers for SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <input type="checkbox" v-bind.prop="propertyAttrs" />
+    <p v-bind.attr="attributeAttrs" v-bind.camel="camelAttrs">profile</p>
+  </section>
+</template>
+<script>
+const propertyAttrs = { indeterminate: true };
+const attributeAttrs = { "aria-hidden": false };
+const camelAttrs = { "data-user-id": "42" };
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><input type="checkbox"><p aria-hidden="false" dataUserId="42">profile</p></section>');
+  });
+
   it("renders v-html as raw HTML and v-text as escaped text", async () => {
     const result = compileSsr(`<template>
   <section>

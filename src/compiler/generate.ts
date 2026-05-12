@@ -1197,7 +1197,10 @@ function emitComponentShow(
 function emitComponentAttrs(context: GenerateContext, node: ElementNode, attrsVar: string, indent: number): void {
   const objectBindExpressions = node.attrs
     .filter((attr) => isObjectBindAttr(attr))
-    .map((attr) => compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc)));
+    .map((attr) => {
+      validateObjectBindModifiers(parseObjectBindDirective(attr.name) ?? { modifiers: [] }, attr, context, "component");
+      return compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    });
   const classParts = componentFallthroughExpressions(context, node, "class", objectBindExpressions);
   const styleParts = componentFallthroughExpressions(context, node, "style", objectBindExpressions);
   const directAttrs = componentDirectAttributeFallthroughs(context, node);
@@ -1294,7 +1297,10 @@ function emitComponentFallthrough(
 ): void {
   const objectBindExpressions = node.attrs
     .filter((attr) => isObjectBindAttr(attr))
-    .map((attr) => compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc)));
+    .map((attr) => {
+      validateObjectBindModifiers(parseObjectBindDirective(attr.name) ?? { modifiers: [] }, attr, context, "component");
+      return compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    });
   const classParts = componentFallthroughExpressions(context, node, "class", objectBindExpressions);
   const styleParts = componentFallthroughExpressions(context, node, "style", objectBindExpressions);
   const directAttrs = componentDirectAttributeFallthroughs(context, node);
@@ -1898,12 +1904,18 @@ function emitObjectBind(
   cleanupVar: string,
   indent: number
 ): void {
+  const binding = parseObjectBindDirective(attr.name);
+  if (!binding) {
+    return;
+  }
+  validateObjectBindModifiers(binding, attr, context, "element");
   const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
   const prevKeysVar = nextVar(context, "boundKeys");
   const stopVar = nextVar(context, "stop");
   const attrsVar = nextVar(context, "attrs");
   const nextKeysVar = nextVar(context, "boundKeys");
   const keyVar = nextVar(context, "key");
+  const boundKeyVar = nextVar(context, "key");
   const valueVar = nextVar(context, "value");
   const staleKeyVar = nextVar(context, "key");
   const staticClass = getStaticAttrValue(node, "class");
@@ -1914,20 +1926,21 @@ function emitObjectBind(
   emit(context, indent + 1, `const ${nextKeysVar} = new Set();`);
   emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
   emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${attrsVar})) {`);
-  emit(context, indent + 3, `${nextKeysVar}.add(${keyVar});`);
+  emit(context, indent + 3, `const ${boundKeyVar} = ${objectBindKeyExpression(keyVar, binding)};`);
+  emit(context, indent + 3, `${nextKeysVar}.add(${boundKeyVar});`);
   if (staticClass || staticStyle) {
-    emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, unwrap(${valueVar})] : ${keyVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${boundKeyVar}, ${boundKeyVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, unwrap(${valueVar})] : ${boundKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, unwrap(${valueVar})] : unwrap(${valueVar})${bindOptionsExpression(binding)});`);
   } else {
-    emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${boundKeyVar}, unwrap(${valueVar})${bindOptionsExpression(binding)});`);
   }
   emit(context, indent + 2, "}");
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `for (const ${staleKeyVar} of ${prevKeysVar}) {`);
   emit(context, indent + 2, `if (!${nextKeysVar}.has(${staleKeyVar})) {`);
   if (staticClass || staticStyle) {
-    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" && ${staticClass ? "true" : "false"} ? ${quote(staticClass ?? "")} : ${staleKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? ${quote(staticStyle ?? "")} : null);`);
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" && ${staticClass ? "true" : "false"} ? ${quote(staticClass ?? "")} : ${staleKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? ${quote(staticStyle ?? "")} : null${bindOptionsExpression(binding)});`);
   } else {
-    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null${bindOptionsExpression(binding)});`);
   }
   emit(context, indent + 2, "}");
   emit(context, indent + 1, "}");
@@ -3338,6 +3351,9 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
     .flatMap((attr) => componentPropEntries(context, attr));
   const objectBindAttrs = node.attrs.filter((attr) => isObjectBindAttr(attr));
   const objectOnAttrs = node.attrs.filter((attr) => isObjectOnAttr(attr));
+  for (const attr of objectBindAttrs) {
+    validateObjectBindModifiers(parseObjectBindDirective(attr.name) ?? { modifiers: [] }, attr, context, "component");
+  }
   const slots = collectComponentSlots(context, node);
   const defaultSlot = slots.find((slot) => !slot.nameExpression && slot.name === "default");
   const needsProxy = objectBindAttrs.length > 0 || objectOnAttrs.length > 0;
@@ -4384,7 +4400,19 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
 }
 
 function isObjectBindAttr(attr: TemplateAttribute): boolean {
-  return attr.name === "v-bind";
+  return Boolean(parseObjectBindDirective(attr.name));
+}
+
+function parseObjectBindDirective(name: string): BindDirective | undefined {
+  if (name === "v-bind") {
+    return { modifiers: [] };
+  }
+
+  if (!name.startsWith("v-bind.")) {
+    return undefined;
+  }
+
+  return { modifiers: name.slice("v-bind.".length).split(".").filter(Boolean) };
 }
 
 function getContentDirectiveAttr(node: ElementNode): TemplateAttribute | undefined {
@@ -4685,6 +4713,23 @@ function validateBindModifiers(binding: BindDirective, attr: TemplateAttribute, 
   }
 }
 
+function validateObjectBindModifiers(binding: BindDirective, attr: TemplateAttribute, context: GenerateContext, target: "element" | "component"): void {
+  const allowed = new Set(["camel", "prop", "attr"]);
+  for (const modifier of binding.modifiers) {
+    if (!allowed.has(modifier)) {
+      throwTemplateError(`Unsupported object v-bind modifier ".${modifier}". Use .camel, .prop, or .attr.`, context, attr.loc);
+    }
+  }
+
+  if (binding.modifiers.includes("prop") && binding.modifiers.includes("attr")) {
+    throwTemplateError("Object v-bind modifiers .prop and .attr cannot be used together", context, attr.loc);
+  }
+
+  if (target === "component" && binding.modifiers.length > 0) {
+    throwTemplateError("Object v-bind modifiers are only supported on native elements", context, attr.loc);
+  }
+}
+
 function bindOptionsExpression(binding: BindDirective): string {
   if (binding.modifiers.includes("prop")) {
     return ", { property: true }";
@@ -4699,6 +4744,10 @@ function bindOptionsExpression(binding: BindDirective): string {
 
 function bindNameExpression(expression: string, binding: BindDirective): string {
   return binding.modifiers.includes("camel") ? `(${expression}).replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase())` : expression;
+}
+
+function objectBindKeyExpression(keyExpression: string, binding: BindDirective): string {
+  return bindNameExpression(`String(${keyExpression})`, binding);
 }
 
 function camelize(value: string): string {

@@ -308,33 +308,37 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       continue;
     }
 
-    if (attr.name === "v-bind") {
+    const objectBindDirective = parseObjectBindDirective(attr.name);
+    if (objectBindDirective) {
+      validateObjectBindModifiers(objectBindDirective, attr);
       const prevKeysVar = nextName(context, "attrsPrevKeys");
       const nextKeysVar = nextName(context, "attrsNextKeys");
       const attrsVar = nextName(context, "attrs");
       const keyVar = nextName(context, "key");
+      const boundKeyVar = nextName(context, "key");
       const valueVar = nextName(context, "value");
       const staleKeyVar = nextName(context, "staleKey");
       emit(context, indent, `const ${prevKeysVar} = new Set();`);
       emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
-      emit(context, indent + 1, `const ${attrsVar} = unwrap(${compileHydrationExpression(context, String(attr.value), "v-bind")}) ?? {};`);
+      emit(context, indent + 1, `const ${attrsVar} = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)}) ?? {};`);
       emit(context, indent + 1, `const ${nextKeysVar} = new Set();`);
       emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
       emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${attrsVar})) {`);
-      emit(context, indent + 3, `${nextKeysVar}.add(${keyVar});`);
+      emit(context, indent + 3, `const ${boundKeyVar} = ${objectBindKeyExpression(keyVar, objectBindDirective)};`);
+      emit(context, indent + 3, `${nextKeysVar}.add(${boundKeyVar});`);
       if (staticClass || staticStyle) {
-        emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, unwrap(${valueVar})] : ${keyVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${boundKeyVar}, ${boundKeyVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, unwrap(${valueVar})] : ${boundKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, unwrap(${valueVar})] : unwrap(${valueVar})${bindOptionsExpression(objectBindDirective)});`);
       } else {
-        emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${boundKeyVar}, unwrap(${valueVar})${bindOptionsExpression(objectBindDirective)});`);
       }
       emit(context, indent + 2, "}");
       emit(context, indent + 1, "}");
       emit(context, indent + 1, `for (const ${staleKeyVar} of ${prevKeysVar}) {`);
       emit(context, indent + 2, `if (!${nextKeysVar}.has(${staleKeyVar})) {`);
       if (staticClass || staticStyle) {
-        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" && ${staticClass ? "true" : "false"} ? ${quote(staticClass ?? "")} : ${staleKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? ${quote(staticStyle ?? "")} : null);`);
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" && ${staticClass ? "true" : "false"} ? ${quote(staticClass ?? "")} : ${staleKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? ${quote(staticStyle ?? "")} : null${bindOptionsExpression(objectBindDirective)});`);
       } else {
-        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null${bindOptionsExpression(objectBindDirective)});`);
       }
       emit(context, indent + 2, "}");
       emit(context, indent + 1, "}");
@@ -694,6 +698,19 @@ function validateBindModifiers(binding: BindDirective, attr: TemplateAttribute):
   }
 }
 
+function validateObjectBindModifiers(binding: BindDirective, attr: TemplateAttribute): void {
+  const allowed = new Set(["camel", "prop", "attr"]);
+  for (const modifier of binding.modifiers) {
+    if (!allowed.has(modifier)) {
+      throw new Error(`Unsupported object v-bind modifier ".${modifier}" on ${attr.name}. Use .camel, .prop, or .attr.`);
+    }
+  }
+
+  if (binding.modifiers.includes("prop") && binding.modifiers.includes("attr")) {
+    throw new Error(`Object v-bind modifiers .prop and .attr cannot be used together on ${attr.name}`);
+  }
+}
+
 function bindOptionsExpression(binding: BindDirective): string {
   if (binding.modifiers.includes("prop")) return ", { property: true }";
   if (binding.modifiers.includes("attr")) return ", { attribute: true }";
@@ -704,8 +721,24 @@ function bindNameExpression(expression: string, binding: BindDirective): string 
   return binding.modifiers.includes("camel") ? `(${expression}).replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase())` : expression;
 }
 
+function objectBindKeyExpression(keyExpression: string, binding: BindDirective): string {
+  return bindNameExpression(`String(${keyExpression})`, binding);
+}
+
 function camelize(value: string): string {
   return value.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+}
+
+function parseObjectBindDirective(name: string): BindDirective | undefined {
+  if (name === "v-bind") {
+    return { modifiers: [] };
+  }
+
+  if (!name.startsWith("v-bind.")) {
+    return undefined;
+  }
+
+  return { modifiers: name.slice("v-bind.".length).split(".").filter(Boolean) };
 }
 
 function getDynamicEventArgument(name: string): { expression: string; modifiers: string[] } | undefined {

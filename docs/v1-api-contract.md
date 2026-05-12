@@ -30,7 +30,7 @@ Supported in v1:
 - DOM event modifiers `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`.
 - Component event modifier `.once`.
 - Attribute bindings with `:name`, `v-bind:name`, dynamic arguments, and `.prop` / `.attr` / `.camel` modifiers.
-- Object-form attributes and component props with `v-bind="attrs"`.
+- Object-form attributes and component props with `v-bind="attrs"`, plus native-element object modifiers such as `v-bind.prop`, `v-bind.attr`, and `v-bind.camel`.
 - `class` and `style` binding normalization for strings, arrays, and objects.
 - Child component DOM attribute fallthrough for `class`, `style`, `id`, `title`, `role`, `aria-*`, `data-*`, and related DOM-facing attributes.
 - `v-if`, `v-else-if`, `v-else`, and `v-show`.
