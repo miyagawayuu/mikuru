@@ -175,6 +175,7 @@ Compiler and runtime entries are public for lower-level integrations:
 ```ts
 import { compile } from "mikuru/compiler";
 import { effect, nextTick, ref, unwrap, watch } from "mikuru/runtime";
+import type { MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
 The package also provides the `mikuru` binary:

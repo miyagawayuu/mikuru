@@ -6,6 +6,7 @@
 - Routed `defineAsyncComponent()` loader rejections and timeouts into the nearest `<ErrorBoundary>` when no `errorComponent` is provided.
 - Added `<ErrorBoundary :reset-key>` and a fallback `reset` prop for clearer recovery flows.
 - Added ErrorBoundary fallback diagnostics through `errorInfo` with component, filename, phase, and boundary metadata.
+- Exported `MikuruErrorInfo` and `MikuruErrorPhase` types and documented typed ErrorBoundary fallback props.
 
 ## 1.0.18 - 2026-05-12
 

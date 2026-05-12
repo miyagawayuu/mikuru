@@ -303,6 +303,30 @@ Use `<ErrorBoundary>` around a child component when its mount, generated event h
 </ErrorBoundary>
 ```
 
+Type fallback props in regular TypeScript modules with `MikuruErrorInfo` and `MikuruErrorPhase` from `mikuru`. `phase` is one of `runtime`, `mount`, `event`, `emit`, `mounted`, `cleanup`, `unmounted`, `async-loader`, or `async-timeout`.
+
+```ts
+import type { MikuruComponent, MikuruErrorInfo } from "mikuru";
+
+type ErrorPanelProps = {
+  error: unknown;
+  errorInfo?: MikuruErrorInfo;
+  retry: () => void;
+  reset: () => void;
+};
+
+export const ErrorPanel: MikuruComponent = {
+  mount(target, props: ErrorPanelProps) {
+    const button = document.createElement("button");
+    const message = props.error instanceof Error ? props.error.message : String(props.error);
+    button.textContent = `${props.errorInfo?.phase ?? "runtime"}: ${message}`;
+    button.addEventListener("click", props.reset);
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+```
+
 Use `<Teleport>` when content should render elsewhere in the document while staying owned by the current component.
 
 ```mikuru
