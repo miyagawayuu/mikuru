@@ -67,6 +67,8 @@ export default defineConfig({
 });
 ```
 
+Use `mikuru({ batchedUpdates: true })` to opt into queued generated DOM effects. In that mode, DOM updates triggered by refs flush through the runtime job queue and can be awaited with `nextTick()`.
+
 Create a `.mikuru` component:
 
 ```mikuru

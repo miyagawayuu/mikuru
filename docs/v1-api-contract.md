@@ -8,7 +8,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 - `mikuru/compiler`: exposes `compile`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
 - `mikuru/runtime`: exposes `ref`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
-- `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export.
+- `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export. Plugin options include `debug`, `include`, and `batchedUpdates`.
 
 The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook and `createDebugInspector()` helper are unstable internal infrastructure and are not part of the stable v1 API.
 
@@ -101,6 +101,7 @@ Unsupported in v1:
 - `ref`, `computed`, and `effect` provide shallow ref-based reactivity. `computed` supports both read-only getters and writable `{ get, set }` refs.
 - `effect(fn)` runs immediately and returns a stop function. `effect(fn, { scheduler })` runs initially, then passes a runner to the scheduler on dependency updates.
 - `queueJob(job)` schedules a deduped microtask job, `flushJobs()` drains queued jobs synchronously, and `nextTick(fn?)` waits for pending jobs before running the optional callback.
+- `compile(source, { batchedUpdates: true })` and `mikuru({ batchedUpdates: true })` generate template effects with `queueJob` scheduling; the default remains synchronous.
 - `watch(source, cb)` accepts a ref-like value, getter, raw value, or array of sources and returns a stop function. Watch options support `immediate` and `once`.
 - `watchEffect(fn)` tracks ref-like values read during `fn`, reruns when they change, supports cleanup registration, and returns a stop function.
 - `onMounted`, `onActivated`, `onDeactivated`, `onBeforeUnmount`, and `onUnmounted` register callbacks with the currently mounting Mikuru component when one is active.

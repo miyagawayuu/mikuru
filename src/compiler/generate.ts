@@ -15,11 +15,13 @@ type GenerateContext = {
   templateRefMode?: "single" | "array";
   componentContextVar?: string;
   debug?: boolean;
+  batchedUpdates?: boolean;
   once?: boolean;
 };
 
 type GenerateOptions = {
   debug?: boolean;
+  batchedUpdates?: boolean;
 };
 
 type ScriptParts = {
@@ -111,7 +113,8 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
     source: descriptor.source,
     filename: descriptor.filename,
     scopeAttr: descriptor.styleScoped ? createScopeAttr(descriptor) : undefined,
-    debug: options.debug === true
+    debug: options.debug === true,
+    batchedUpdates: options.batchedUpdates === true
   };
   const script = normalizeScript(descriptor);
 
@@ -120,12 +123,19 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   }
 
   const runtimeBaseImports = ["computed", "effect", "ref", "setAttribute", "unwrap"];
+  if (context.batchedUpdates) {
+    runtimeBaseImports.push("queueJob");
+  }
   if (context.debug) {
     runtimeBaseImports.push("emitDebugEvent", "registerDebugComponent");
   }
   const runtimeImports = mergeRuntimeImports(runtimeBaseImports, script.runtimeImports);
   emit(context, 0, `import { ${runtimeImports.join(", ")} } from "mikuru/runtime";`);
   emit(context, 0, "");
+  if (context.batchedUpdates) {
+    emit(context, 0, "const __mikuru_effect = (fn) => effect(fn, { scheduler: queueJob });");
+    emit(context, 0, "");
+  }
   emit(context, 0, "export function mount(target, props = {}) {");
   emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
   emitDevtoolsRegistration(context, 1);
@@ -298,7 +308,11 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 0, `const __mikuru_component = { mount${script.inheritAttrs ? "" : ", inheritAttrs: false"} };`);
   emit(context, 0, "export default __mikuru_component;");
 
-  return `${context.lines.join("\n")}\n`;
+  const lines = context.batchedUpdates
+    ? context.lines.map((line) => line.replace("= effect(() => {", "= __mikuru_effect(() => {"))
+    : context.lines;
+
+  return `${lines.join("\n")}\n`;
 }
 
 function emitStyleInjection(context: GenerateContext, descriptor: SfcDescriptor, indent: number): void {

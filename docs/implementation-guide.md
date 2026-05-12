@@ -17,6 +17,8 @@ export default defineConfig({
 });
 ```
 
+Generated DOM effects are synchronous by default. Use `mikuru({ batchedUpdates: true })` when an app should queue generated DOM updates through the runtime job queue and observe completed DOM updates with `nextTick()`.
+
 For local framework development, the examples alias `mikuru` and `mikuru/runtime` to `src/`. Published applications should import from the package exports instead.
 
 ## Component Shape

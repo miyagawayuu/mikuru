@@ -75,6 +75,8 @@ export default defineConfig({
 
 Debug mode also registers mounted components with the unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. The metadata currently includes component id, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, and router navigation/preload/error events when those modules run with a devtools hook present. Treat this hook as experimental; it is a future devtools/debugging foundation, not a stable public API.
 
+Generated DOM updates are synchronous by default. To opt into queued generated DOM effects, use `mikuru({ batchedUpdates: true })`. In that mode, generated DOM effects use the runtime job queue and can be awaited with `nextTick()`.
+
 For experiments, `createDebugInspector()` can read `getComponents()` and `getEvents()`, clear event history with `clearEvents()`, and subscribe to new events with `subscribe(listener)`.
 
 The dogfood example uses this helper in a small in-app Debug Panel with event filters, payload details, and a Router lab that emits navigation events. It remains an unstable debugging aid, not a production devtools API.

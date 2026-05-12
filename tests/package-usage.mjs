@@ -112,3 +112,17 @@ const transformed = await plugin.transform.call(
 
 assert.equal(typeof transformed, "object");
 assert.match(transformed.code, /sourceURL=PublishedPackage\.mikuru\?mikuru-generated/);
+
+const batchedPlugin = mikuru({ batchedUpdates: true });
+const batched = await batchedPlugin.transform.call(
+  {
+    error(error) {
+      throw new Error(typeof error === "string" ? error : error.message);
+    }
+  },
+  `<template><p>{{ message }}</p></template><script>const message = ref("queued");</script>`,
+  "BatchedPackage.mikuru"
+);
+
+assert.match(batched.code, /queueJob/);
+assert.match(batched.code, /__mikuru_effect/);
