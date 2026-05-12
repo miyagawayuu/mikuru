@@ -39,6 +39,13 @@ export type MikuruErrorInfo = {
   };
 };
 
+export type MikuruErrorBoundaryFallbackProps = {
+  error: unknown;
+  errorInfo?: MikuruErrorInfo;
+  retry: () => void;
+  reset: () => void;
+};
+
 type MikuruComponentContext = {
   component?: string;
   filename?: string;

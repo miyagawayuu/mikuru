@@ -303,20 +303,13 @@ Use `<ErrorBoundary>` around a child component when its mount, generated event h
 </ErrorBoundary>
 ```
 
-Type fallback props in regular TypeScript modules with `MikuruErrorInfo` and `MikuruErrorPhase` from `mikuru`. `phase` is one of `runtime`, `mount`, `event`, `emit`, `mounted`, `cleanup`, `unmounted`, `async-loader`, or `async-timeout`.
+Type fallback props in regular TypeScript modules with `MikuruErrorBoundaryFallbackProps` from `mikuru`. `errorInfo.phase` is typed as `MikuruErrorPhase`, one of `runtime`, `mount`, `event`, `emit`, `mounted`, `cleanup`, `unmounted`, `async-loader`, or `async-timeout`.
 
 ```ts
-import type { MikuruComponent, MikuruErrorInfo } from "mikuru";
-
-type ErrorPanelProps = {
-  error: unknown;
-  errorInfo?: MikuruErrorInfo;
-  retry: () => void;
-  reset: () => void;
-};
+import type { MikuruComponent, MikuruErrorBoundaryFallbackProps } from "mikuru";
 
 export const ErrorPanel: MikuruComponent = {
-  mount(target, props: ErrorPanelProps) {
+  mount(target, props: MikuruErrorBoundaryFallbackProps) {
     const button = document.createElement("button");
     const message = props.error instanceof Error ? props.error.message : String(props.error);
     button.textContent = `${props.errorInfo?.phase ?? "runtime"}: ${message}`;

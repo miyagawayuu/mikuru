@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added a dogfood ErrorBoundary lab and E2E coverage for diagnostics, fallback reset, and `:reset-key` recovery.
+- Exported `MikuruErrorBoundaryFallbackProps` for typed ErrorBoundary fallback components.
 
 ## 1.0.19 - 2026-05-12
 

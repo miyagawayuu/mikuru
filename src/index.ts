@@ -8,6 +8,7 @@ export type {
   EffectFn,
   MikuruComponent,
   MikuruComponentInstance,
+  MikuruErrorBoundaryFallbackProps,
   MikuruErrorInfo,
   MikuruErrorPhase,
   Ref
