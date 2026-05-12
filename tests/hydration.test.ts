@@ -214,6 +214,94 @@ function increment() {
     expect(button?.textContent).toBe("2");
   });
 
+  it("hydrates dynamic disabled SSR Teleport content without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <h1>{{ title }}</h1>
+    <Teleport to="#modal-root" :disabled="inline">
+      <button @click="increment">{{ count }}</button>
+    </Teleport>
+    <p>after</p>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const title = "Dynamic Inline Teleport";
+const inline = true;
+const count = ref(1);
+function increment() {
+  count.value += 1;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const window = new Window();
+    const app = window.document.createElement("div");
+    const module = loadHydrationModule(compileHydration(source).code, window.document as unknown as Document);
+    const teleports: Record<string, string> = {};
+
+    app.innerHTML = await renderToString({ __mikuru_teleports: teleports });
+
+    expect(app.innerHTML).toBe("<section><h1>Dynamic Inline Teleport</h1><!--teleport:t0--><button>1</button><!--/teleport:t0--><p>after</p></section>");
+    expect(teleports).toEqual({});
+
+    const instance = module.hydrate(app as unknown as Element);
+    const button = app.querySelector("button");
+    button?.dispatchEvent(new window.Event("click"));
+
+    expect(button?.textContent).toBe("2");
+    expect(app.querySelector("p")?.textContent).toBe("after");
+
+    instance.unmount();
+    button?.dispatchEvent(new window.Event("click"));
+    expect(button?.textContent).toBe("2");
+  });
+
+  it("hydrates dynamic enabled SSR Teleport content in its target", async () => {
+    const source = `<template>
+  <section>
+    <h1>{{ title }}</h1>
+    <Teleport to="#modal-root" :disabled="inline">
+      <button @click="increment">{{ count }}</button>
+    </Teleport>
+    <p>after</p>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const title = "Dynamic Target Teleport";
+const inline = false;
+const count = ref(1);
+function increment() {
+  count.value += 1;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const window = new Window();
+    const app = window.document.createElement("div");
+    const modalRoot = window.document.createElement("div");
+    modalRoot.id = "modal-root";
+    window.document.body.append(app, modalRoot);
+    const module = loadHydrationModule(compileHydration(source).code, window.document as unknown as Document);
+    const teleports: Record<string, string> = {};
+
+    app.innerHTML = await renderToString({ __mikuru_teleports: teleports });
+    modalRoot.innerHTML = teleports["#modal-root"];
+
+    expect(app.innerHTML).toBe("<section><h1>Dynamic Target Teleport</h1><!--teleport:t0--><!--/teleport:t0--><p>after</p></section>");
+    expect(modalRoot.innerHTML).toBe("<!--teleport content:t0--><button>1</button><!--/teleport content:t0-->");
+
+    const instance = module.hydrate(app as unknown as Element);
+    const button = modalRoot.querySelector("button");
+    button?.dispatchEvent(new window.Event("click"));
+
+    expect(button?.textContent).toBe("2");
+    expect(app.querySelector("p")?.textContent).toBe("after");
+
+    instance.unmount();
+    button?.dispatchEvent(new window.Event("click"));
+    expect(button?.textContent).toBe("2");
+  });
+
   it("hydrates router matches with lazy nested route components and mount fallback", async () => {
     const window = new Window();
     const root = window.document.createElement("div");

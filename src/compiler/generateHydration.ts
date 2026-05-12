@@ -77,28 +77,27 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
 
 function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[], parentVar: string, indent: number): void {
   const children = rawChildren.filter(isHydratableNode);
-  let domIndex = 0;
+  const domIndexVar = nextName(context, "domIndex");
+  emit(context, indent, `let ${domIndexVar} = 0;`);
   children.forEach((child) => {
     if (child.type === "element" && child.tag === "Teleport") {
-      hydrateTeleportAtIndex(context, child, parentVar, domIndex, indent);
-      domIndex += getTeleportHydratableNodeCount(child);
+      hydrateTeleportAtIndex(context, child, parentVar, domIndexVar, indent);
       return;
     }
 
     if (child.type === "element" && getAttr(child, "v-if")) {
-      hydrateIf(context, child, parentVar, domIndex, indent);
-      domIndex += 1;
+      hydrateIf(context, child, parentVar, domIndexVar, indent);
+      emit(context, indent, `${domIndexVar} += 1;`);
       return;
     }
 
     if (child.type === "element" && getAttr(child, "v-for")) {
-      hydrateFor(context, child, parentVar, domIndex, indent);
-      domIndex += 1;
+      hydrateFor(context, child, parentVar, domIndexVar, indent, domIndexVar);
       return;
     }
 
     const childVar = nextName(context, "node");
-    emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
+    emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndexVar}];`);
     if (child.type === "element") {
       const elementCheck = isComponentTag(child.tag)
         ? `!${childVar} || ${childVar}.nodeType !== 1`
@@ -111,11 +110,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }
-    domIndex += 1;
+    emit(context, indent, `${domIndexVar} += 1;`);
   });
 }
 
-function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: number, indent: number): void {
+function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
   const id = `t${context.teleportIndex}`;
   context.teleportIndex += 1;
   const startVar = nextName(context, "teleportStart");
@@ -149,14 +148,17 @@ function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, pa
   emit(context, indent + 3, `if (!${disabledVar}) __mikuru_cleanup.push(() => { ${contentStartVar}.remove(); ${contentEndVar}.remove(); });`);
   emit(context, indent + 2, "}");
   emit(context, indent + 1, "}");
+  emit(context, indent + 1, `${domIndex} = Array.prototype.indexOf.call(${parentVar}.childNodes, ${endVar}) + 1;`);
   emit(context, indent, "}");
 }
 
 function hydrateTeleport(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
-  hydrateTeleportAtIndex(context, node, "({ childNodes: [undefined, undefined] })", 0, indent);
+  const domIndexVar = nextName(context, "domIndex");
+  emit(context, indent, `let ${domIndexVar} = 0;`);
+  hydrateTeleportAtIndex(context, node, "({ childNodes: [undefined, undefined] })", domIndexVar, indent);
 }
 
-function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: number, indent: number): void {
+function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
   const condition = getAttrValue(node, "v-if");
   const childVar = nextName(context, "branch");
   emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
@@ -169,7 +171,7 @@ function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: stri
   emit(context, indent, "}");
 }
 
-function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: number, indent: number): void {
+function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number, advanceVar?: string): void {
   const attr = getAttr(node, "v-for");
   if (!attr || attr.value === true) {
     return;
@@ -190,6 +192,9 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
   hydrateElement(context, withoutAttrs(node, ["v-for"]), childVar, indent + 2);
   emit(context, indent + 1, "}");
   emit(context, indent, "}");
+  if (advanceVar) {
+    emit(context, indent, `${advanceVar} += ${listVar}.length;`);
+  }
 }
 
 function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -283,18 +288,6 @@ function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string,
 
 function isHydratableNode(node: TemplateNode): boolean {
   return node.type === "element" || node.parts.some((part) => part.type === "expression" || (part.type === "static" && part.value.length > 0));
-}
-
-function getTeleportHydratableNodeCount(node: ElementNode): number {
-  return hasStaticDisabledTeleport(node)
-    ? node.children.filter(isHydratableNode).length + 2
-    : 2;
-}
-
-function hasStaticDisabledTeleport(node: ElementNode): boolean {
-  return !!getAttr(node, "disabled")
-    && !getAttr(node, ":disabled")
-    && !getAttr(node, "v-bind:disabled");
 }
 
 function shouldSkipAttr(attr: TemplateAttribute): boolean {
