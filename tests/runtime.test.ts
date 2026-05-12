@@ -110,6 +110,41 @@ describe("runtime reactivity", () => {
     expect(doubled.value).toBe(8);
   });
 
+  it("evaluates computed values lazily and caches them until dependencies change", () => {
+    const count = ref(1);
+    let getterCalls = 0;
+    const doubled = computed(() => {
+      getterCalls += 1;
+      return count.value * 2;
+    });
+
+    expect(getterCalls).toBe(0);
+    expect(doubled.value).toBe(2);
+    expect(doubled.value).toBe(2);
+    expect(getterCalls).toBe(1);
+
+    count.value = 2;
+    expect(getterCalls).toBe(1);
+    expect(doubled.value).toBe(4);
+    expect(getterCalls).toBe(2);
+  });
+
+  it("notifies effects that depend on computed values", () => {
+    const count = ref(1);
+    const doubled = computed(() => count.value * 2);
+    const observed: number[] = [];
+
+    const stop = effect(() => {
+      observed.push(doubled.value);
+    });
+
+    count.value = 2;
+    stop();
+    count.value = 3;
+
+    expect(observed).toEqual([2, 4]);
+  });
+
   it("supports writable computed refs", () => {
     const first = ref("Mikuru");
     const last = ref("Runtime");
@@ -129,6 +164,22 @@ describe("runtime reactivity", () => {
     expect(first.value).toBe("Writable");
     expect(last.value).toBe("Computed");
     expect(fullName.value).toBe("Writable Computed");
+  });
+
+  it("watches computed values through their cached ref-like value", () => {
+    const count = ref(1);
+    const doubled = computed(() => count.value * 2);
+    const calls: Array<{ next: unknown; previous: unknown }> = [];
+
+    const stop = watch(doubled, (next, previous) => {
+      calls.push({ next, previous });
+    });
+
+    count.value = 2;
+    stop();
+    count.value = 3;
+
+    expect(calls).toEqual([{ next: 4, previous: 2 }]);
   });
 
   it("stops effects and skips unchanged ref writes", () => {

@@ -19,6 +19,7 @@
 - Added `v-once` support for one-time element/component rendering and keyed `v-for` records.
 - Extended `v-model` with named component models, named model modifiers, and checkbox array support.
 - Added writable `computed({ get, set })` refs and `watch(..., { once: true })` callbacks.
+- Changed `computed` to evaluate lazily and cache values until dependencies change.
 - Added `watchEffect()` with cleanup registration and `effect(fn, { scheduler })` for scheduled reruns.
 - Added `queueJob()`, `flushJobs()`, and job-aware `nextTick()` for deduped microtask scheduling.
 - Added `mikuru({ batchedUpdates: true })` and `compile(..., { batchedUpdates: true })` for opt-in queued generated DOM updates.
