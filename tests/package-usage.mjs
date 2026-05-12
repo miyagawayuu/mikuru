@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const { compile, compileSsr } = await import("mikuru/compiler");
+const { compile, compileHydration, compileSsr } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
 const { escapeHtml, renderAttr, renderComponentToString, renderRouteToString, renderToString } = await import("mikuru/server");
@@ -55,6 +55,18 @@ const message = "SSR <ok>";
   { filename: "PackageSsr.mikuru" }
 );
 assert.match(ssrResult.code, /export async function renderToString/);
+const hydrationResult = compileHydration(
+  `<template><button @click="increment">{{ count }}</button></template>
+<script>
+import { ref } from "mikuru";
+const count = ref(0);
+function increment() {
+  count.value += 1;
+}
+</script>`,
+  { filename: "PackageHydration.mikuru" }
+);
+assert.match(hydrationResult.code, /export function hydrate/);
 assert.equal(escapeHtml("<ok>"), "&lt;ok&gt;");
 assert.equal(renderAttr("data-count", 2), " data-count=\"2\"");
 assert.equal(renderToString({ renderToString: () => "<main>SSR</main>" }), "<main>SSR</main>");

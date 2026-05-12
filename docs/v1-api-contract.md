@@ -5,7 +5,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 ## Package Exports
 
 - `mikuru`: re-exports the compiler entry, runtime reactivity helpers, and public runtime helper types.
-- `mikuru/compiler`: exposes `compile`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
+- `mikuru/compiler`: exposes `compile`, `compileSsr`, `compileHydration`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
 - `mikuru/runtime`: exposes `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
 - `mikuru/server`: exposes `renderToString`, `renderComponentToString`, `renderRouteToString`, `escapeHtml`, `renderAttr`, and `renderAttrs` for SSR integrations.
@@ -117,6 +117,13 @@ Unsupported in v1:
 - `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output.
 - `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, and nested route components using default slots.
 - Hydration, SSR component tree context, Teleport SSR, and browser-side router hydration are future work.
+
+## Hydration Contract
+
+- `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
+- Hydration phase 1 reuses matching existing static DOM, attaches DOM event listeners, and syncs text interpolation plus static and bound attributes with effects.
+- Root mismatches warn and fall back to normal `mount`.
+- Dynamic `v-if`, `v-for`, component hydration, Teleport hydration, and router hydration are future work.
 
 ## Macro Contract
 
