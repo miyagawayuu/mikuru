@@ -34,12 +34,12 @@
       <input v-model.trim="ownerName" />
     </label>
 
-    <p class="model-summary">{{ phrase }}:{{ priority }}:{{ flags.join(",") }}:{{ cardTitle }}:{{ cardEnabled }}:{{ ownerFirst }}:{{ ownerLast }}:{{ ownerWatch }}:{{ ownerEffect }}</p>
+    <p class="model-summary">{{ phrase }}:{{ priority }}:{{ flags.join(",") }}:{{ cardTitle }}:{{ cardEnabled }}:{{ ownerFirst }}:{{ ownerLast }}:{{ ownerWatch }}:{{ ownerEffect }}:{{ ownerQueued }}</p>
   </section>
 </template>
 
 <script>
-import { computed, ref, watch, watchEffect } from "mikuru";
+import { computed, effect, queueJob, ref, watch, watchEffect } from "mikuru";
 import ModelEditor from "./ModelEditor.mikuru";
 
 const phrase = ref("ready");
@@ -50,6 +50,7 @@ const cardEnabled = ref(false);
 const ownerRaw = ref("Mikuru Runtime");
 const ownerWatch = ref("waiting");
 const ownerEffect = ref("effect:Mikuru Runtime");
+const ownerQueued = ref("queued:Mikuru Runtime");
 const ownerFirst = computed(() => ownerRaw.value.split(" ")[0] ?? "");
 const ownerLast = computed(() => ownerRaw.value.split(" ").slice(1).join(" "));
 const ownerName = computed({
@@ -66,6 +67,10 @@ watch(ownerName, (nextName, previousName) => {
 watchEffect(() => {
   ownerEffect.value = "effect:" + ownerName.value;
 });
+
+effect(() => {
+  ownerQueued.value = "queued:" + ownerName.value;
+}, { scheduler: queueJob });
 </script>
 
 <style scoped>

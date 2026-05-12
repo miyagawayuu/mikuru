@@ -33,5 +33,17 @@ export type {
   WritableComputedOptions,
   WritableComputedRef
 } from "./reactivity.js";
-export { nextTick, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount, onUnmounted, provide, inject } from "./lifecycle.js";
-export type { WatchCallback, WatchCleanup, WatchCleanupRegistrar, WatchOptions, WatchSource } from "./lifecycle.js";
+export {
+  flushJobs,
+  inject,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  provide,
+  queueJob,
+  watch
+} from "./lifecycle.js";
+export type { SchedulerJob, WatchCallback, WatchCleanup, WatchCleanupRegistrar, WatchOptions, WatchSource } from "./lifecycle.js";

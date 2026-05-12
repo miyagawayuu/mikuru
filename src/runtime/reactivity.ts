@@ -29,6 +29,7 @@ type Dep = Set<ReactiveEffect>;
 
 type ReactiveEffect = {
   fn: EffectFn;
+  runner: EffectRunner;
   deps: Set<Dep>;
   active: boolean;
   scheduler?: EffectScheduler;
@@ -88,6 +89,7 @@ export function computed<T>(source: (() => T) | WritableComputedOptions<T>): Com
 export function effect(fn: EffectFn, options: EffectOptions = {}): () => void {
   const reactiveEffect: ReactiveEffect = {
     fn,
+    runner: () => runEffect(reactiveEffect),
     deps: new Set(),
     active: true,
     scheduler: options.scheduler
@@ -151,7 +153,7 @@ function trigger(dep: Dep): void {
   for (const reactiveEffect of [...dep]) {
     if (reactiveEffect.active) {
       if (reactiveEffect.scheduler) {
-        reactiveEffect.scheduler(() => runEffect(reactiveEffect));
+        reactiveEffect.scheduler(reactiveEffect.runner);
       } else {
         runEffect(reactiveEffect);
       }

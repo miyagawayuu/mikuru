@@ -6,6 +6,7 @@ import {
   createDebugInspector,
   effect,
   emitDebugEvent,
+  flushJobs,
   inject,
   nextTick,
   normalizeClass,
@@ -16,6 +17,7 @@ import {
   onMounted,
   onUnmounted,
   provide,
+  queueJob,
   ref,
   registerDebugComponent,
   setAttribute,
@@ -174,6 +176,57 @@ describe("runtime reactivity", () => {
     count.value = 2;
     expect(queue).toHaveLength(0);
     expect(observed).toBe(1);
+  });
+
+  it("dedupes queued jobs and flushes them before nextTick callbacks", async () => {
+    const calls: string[] = [];
+    const job = () => calls.push("job");
+
+    queueJob(job);
+    queueJob(job);
+    const tick = nextTick(() => calls.push("tick"));
+    calls.push("sync");
+
+    expect(calls).toEqual(["sync"]);
+
+    await tick;
+
+    expect(calls).toEqual(["sync", "job", "tick"]);
+  });
+
+  it("flushes queued jobs synchronously and drains nested jobs", () => {
+    const calls: string[] = [];
+    const nested = () => calls.push("nested");
+
+    queueJob(() => {
+      calls.push("job");
+      queueJob(nested);
+    });
+
+    flushJobs();
+
+    expect(calls).toEqual(["job", "nested"]);
+  });
+
+  it("uses queueJob as an effect scheduler", async () => {
+    const count = ref(0);
+    let observed = 0;
+
+    const stop = effect(() => {
+      observed = count.value;
+    }, {
+      scheduler: queueJob
+    });
+
+    count.value = 1;
+    count.value = 2;
+    expect(observed).toBe(0);
+
+    await nextTick();
+
+    expect(observed).toBe(2);
+
+    stop();
   });
 
   it("runs watchEffect with cleanup until stopped", () => {

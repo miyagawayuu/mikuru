@@ -1,5 +1,6 @@
 import { effect } from "./reactivity.js";
 
+export type SchedulerJob = () => void;
 export type WatchSource<T = unknown> = (() => T) | { value: T } | T;
 export type WatchOptions = {
   immediate?: boolean;
@@ -26,15 +27,54 @@ type MikuruRuntimeRegistrar = {
   inject?: (key: any) => InjectionLookup;
 };
 
+const resolvedPromise = Promise.resolve();
+const jobQueue = new Set<SchedulerJob>();
+let isFlushingJobs = false;
+let currentFlushPromise: Promise<void> | undefined;
+
+export function queueJob(job: SchedulerJob): void {
+  jobQueue.add(job);
+  queueFlush();
+}
+
+export function flushJobs(): void {
+  if (isFlushingJobs) {
+    return;
+  }
+
+  isFlushingJobs = true;
+
+  try {
+    for (const job of jobQueue) {
+      jobQueue.delete(job);
+      try {
+        job();
+      } catch (e) {
+        setTimeout(() => { throw e; });
+      }
+    }
+  } finally {
+    isFlushingJobs = false;
+    currentFlushPromise = undefined;
+    if (jobQueue.size > 0) {
+      queueFlush();
+    }
+  }
+}
+
 export function nextTick(fn?: () => void): Promise<void> {
-  const p = Promise.resolve().then(() => {
+  const p = currentFlushPromise ?? resolvedPromise;
+  return p.then(() => {
     try {
       fn?.();
     } catch (e) {
       setTimeout(() => { throw e; });
     }
   });
-  return p;
+}
+
+function queueFlush(): void {
+  currentFlushPromise ??= resolvedPromise.then(flushJobs);
 }
 
 function isRefLike(value: unknown): value is { value: unknown } {

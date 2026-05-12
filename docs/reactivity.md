@@ -85,6 +85,21 @@ effect(() => {
 queue.shift()?.();
 ```
 
+Mikuru also exposes a tiny microtask job queue for the common scheduled effect case:
+
+```js
+import { effect, nextTick, queueJob } from "mikuru";
+
+effect(() => {
+  button.textContent = String(count.value);
+}, { scheduler: queueJob });
+
+count.value += 1;
+count.value += 1;
+
+await nextTick();
+```
+
 主な用途:
 
 - 補間テキストの更新
@@ -163,7 +178,9 @@ v1では、テンプレートで参照されるトップレベル識別子が `r
 
 - `.value` 書き込み時に依存 `effect` を即時実行する。
 - `effect(fn, { scheduler })` は初回を同期実行し、依存値更新時は scheduler に runner を渡す。
-- `nextTick(fn?)` は任意のコールバックをmicrotaskへ送る補助APIとして提供する。
+- `queueJob(job)` はmicrotaskでjobを実行し、同じjobを同一flush内で重複実行しない。
+- `flushJobs()` は保留中のjobを同期的にdrainする。
+- `nextTick(fn?)` は保留中のjob flush後に任意のコールバックをmicrotaskで実行する。
 - effect全体のバッチングや重複実行の排除は後続課題にする。
 
 ## クリーンアップ
@@ -221,5 +238,5 @@ stopEffect();
 
 - Proxyによる深いリアクティビティ
 - Vue互換の `reactive`
-- effect全体の非同期バッチング
+- 生成DOM更新をすべて非同期化すること
 - devtools連携
