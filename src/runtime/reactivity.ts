@@ -1,4 +1,12 @@
 export type EffectFn = () => void;
+export type EffectRunner = () => void;
+export type EffectScheduler = (runner: EffectRunner) => void;
+export type EffectOptions = {
+  scheduler?: EffectScheduler;
+};
+export type WatchEffectCleanup = () => void;
+export type WatchEffectCleanupRegistrar = (cleanup: WatchEffectCleanup) => void;
+export type WatchEffectFn = (onCleanup: WatchEffectCleanupRegistrar) => void;
 
 export type Ref<T> = {
   value: T;
@@ -20,9 +28,10 @@ export type WritableComputedRef<T> = {
 type Dep = Set<ReactiveEffect>;
 
 type ReactiveEffect = {
-  run: EffectFn;
+  fn: EffectFn;
   deps: Set<Dep>;
   active: boolean;
+  scheduler?: EffectScheduler;
 };
 
 const effectStack: ReactiveEffect[] = [];
@@ -76,11 +85,12 @@ export function computed<T>(source: (() => T) | WritableComputedOptions<T>): Com
   };
 }
 
-export function effect(fn: EffectFn): () => void {
+export function effect(fn: EffectFn, options: EffectOptions = {}): () => void {
   const reactiveEffect: ReactiveEffect = {
-    run: fn,
+    fn,
     deps: new Set(),
-    active: true
+    active: true,
+    scheduler: options.scheduler
   };
 
   runEffect(reactiveEffect);
@@ -88,6 +98,35 @@ export function effect(fn: EffectFn): () => void {
   return () => {
     reactiveEffect.active = false;
     cleanupEffect(reactiveEffect);
+  };
+}
+
+export function watchEffect(fn: WatchEffectFn): () => void {
+  let cleanup: WatchEffectCleanup | undefined;
+
+  const onCleanup: WatchEffectCleanupRegistrar = (nextCleanup) => {
+    cleanup = nextCleanup;
+  };
+
+  const runCleanup = () => {
+    if (!cleanup) return;
+    const fn = cleanup;
+    cleanup = undefined;
+    try {
+      fn();
+    } catch (e) {
+      setTimeout(() => { throw e; });
+    }
+  };
+
+  const stopEffect = effect(() => {
+    runCleanup();
+    fn(onCleanup);
+  });
+
+  return () => {
+    runCleanup();
+    stopEffect();
   };
 }
 
@@ -111,18 +150,26 @@ function track(dep: Dep): void {
 function trigger(dep: Dep): void {
   for (const reactiveEffect of [...dep]) {
     if (reactiveEffect.active) {
-      runEffect(reactiveEffect);
+      if (reactiveEffect.scheduler) {
+        reactiveEffect.scheduler(() => runEffect(reactiveEffect));
+      } else {
+        runEffect(reactiveEffect);
+      }
     }
   }
 }
 
 function runEffect(reactiveEffect: ReactiveEffect): void {
+  if (!reactiveEffect.active) {
+    return;
+  }
+
   cleanupEffect(reactiveEffect);
   effectStack.push(reactiveEffect);
   activeEffect = reactiveEffect;
 
   try {
-    reactiveEffect.run();
+    reactiveEffect.fn();
   } finally {
     effectStack.pop();
     activeEffect = effectStack.at(-1);

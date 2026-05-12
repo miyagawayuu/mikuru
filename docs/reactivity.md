@@ -69,6 +69,22 @@ effect(() => {
 
 `effect` はリアクティブ値を読み取り、その値が変わったときに再実行される関数を登録する。
 
+依存値の更新時に実行タイミングを制御したい場合は、scheduler を渡せる。初回だけは同期実行され、以後の更新では scheduler に runner が渡される。
+
+```js
+const queue = [];
+
+effect(() => {
+  button.textContent = String(count.value);
+}, {
+  scheduler: (runner) => {
+    queue.push(runner);
+  }
+});
+
+queue.shift()?.();
+```
+
 主な用途:
 
 - 補間テキストの更新
@@ -146,6 +162,7 @@ v1では、テンプレートで参照されるトップレベル識別子が `r
 リアクティブな `effect` は同期実行する。
 
 - `.value` 書き込み時に依存 `effect` を即時実行する。
+- `effect(fn, { scheduler })` は初回を同期実行し、依存値更新時は scheduler に runner を渡す。
 - `nextTick(fn?)` は任意のコールバックをmicrotaskへ送る補助APIとして提供する。
 - effect全体のバッチングや重複実行の排除は後続課題にする。
 
@@ -168,6 +185,7 @@ v1では、アプリ側の実用性を補うために小さな監視・ライフ
 - `watch(source, cb, { immediate: true })` は現在値で初回コールバックを即時実行する。
 - `watch(source, cb, { once: true })` は最初のコールバック後に自動停止する。`immediate` と組み合わせた場合は初回実行だけで停止する。
 - `watch` のコールバックは第3引数 `onCleanup(fn)` を受け取り、次のコールバック直前または停止時にcleanupを実行できる。
+- `watchEffect(fn)` は実行中に読んだref風の値を監視し、変更時に再実行する。`fn(onCleanup)` の cleanup は次の再実行直前または停止時に呼ばれる。
 - `onMounted(fn)`、`onBeforeUnmount(fn)`、`onUnmounted(fn)` はmount中のMikuruコンポーネントに対してコールバックを登録する。`onActivated(fn)` / `onDeactivated(fn)` は `<KeepAlive>` にcacheされたgenerated componentが表示/非表示に戻るタイミングで実行される。
 - `provide(key, value)` と `inject(key, fallback?)` は現在mount中のコンポーネントツリーにスコープされ、子コンポーネントは親から提供された値を参照できる。
 
@@ -183,6 +201,20 @@ const stop = watch(count, (next, previous, onCleanup) => {
 }, { immediate: true });
 
 stop();
+```
+
+```js
+const stopEffect = watchEffect((onCleanup) => {
+  const timer = setTimeout(() => {
+    console.log(count.value);
+  }, 100);
+
+  onCleanup(() => {
+    clearTimeout(timer);
+  });
+});
+
+stopEffect();
 ```
 
 ## 非目標

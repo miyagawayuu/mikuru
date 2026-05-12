@@ -49,7 +49,7 @@ button {
 
 制約:
 
-- `ref`、`computed`、`effect`、`watch` は `mikuru` または `mikuru/runtime` からimportする。`computed` は `computed(() => value)` と `computed({ get, set })` の両方に対応する。
+- `ref`、`computed`、`effect`、`watch`、`watchEffect` は `mikuru` または `mikuru/runtime` からimportする。`computed` は `computed(() => value)` と `computed({ get, set })` の両方に対応する。
 - トップレベルで宣言された変数と関数をテンプレートから参照できる。
 - `script setup` 互換はv1対象外にする。
 - 複数の `<script>` ブロックは許可しない。

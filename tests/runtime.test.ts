@@ -20,7 +20,8 @@ import {
   registerDebugComponent,
   setAttribute,
   unwrap,
-  watch
+  watch,
+  watchEffect
 } from "../src/runtime/index.js";
 
 describe("runtime debug inspector", () => {
@@ -145,6 +146,59 @@ describe("runtime reactivity", () => {
     stop();
     count.value = 2;
     expect(runs).toBe(2);
+  });
+
+  it("schedules effects when a scheduler is provided", () => {
+    const count = ref(0);
+    const queue: Array<() => void> = [];
+    let observed = 0;
+
+    const stop = effect(() => {
+      observed = count.value;
+    }, {
+      scheduler: (runner) => {
+        queue.push(runner);
+      }
+    });
+
+    expect(observed).toBe(0);
+
+    count.value = 1;
+    expect(observed).toBe(0);
+    expect(queue).toHaveLength(1);
+
+    queue.shift()?.();
+    expect(observed).toBe(1);
+
+    stop();
+    count.value = 2;
+    expect(queue).toHaveLength(0);
+    expect(observed).toBe(1);
+  });
+
+  it("runs watchEffect with cleanup until stopped", () => {
+    const count = ref(0);
+    const calls: string[] = [];
+    const stop = watchEffect((onCleanup) => {
+      calls.push(`effect:${count.value}`);
+      onCleanup(() => {
+        calls.push(`cleanup:${count.value}`);
+      });
+    });
+
+    count.value = 1;
+    count.value = 2;
+    stop();
+    count.value = 3;
+
+    expect(calls).toEqual([
+      "effect:0",
+      "cleanup:1",
+      "effect:1",
+      "cleanup:2",
+      "effect:2",
+      "cleanup:2"
+    ]);
   });
 
   it("unwraps ref-like values", () => {

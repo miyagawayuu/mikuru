@@ -15,7 +15,8 @@ export {
   provide,
   ref,
   unwrap,
-  watch
+  watch,
+  watchEffect
 } from "./runtime/index.js";
 export type {
   MikuruDebugComponentMetadata,
@@ -29,6 +30,9 @@ export type {
   AsyncComponentOptions,
   ComputedRef,
   EffectFn,
+  EffectOptions,
+  EffectRunner,
+  EffectScheduler,
   MikuruAsyncBoundaryFallbackProps,
   MikuruComponent,
   MikuruComponentInstance,
@@ -39,6 +43,9 @@ export type {
   WatchCallback,
   WatchCleanup,
   WatchCleanupRegistrar,
+  WatchEffectCleanup,
+  WatchEffectCleanupRegistrar,
+  WatchEffectFn,
   WatchOptions,
   WatchSource,
   WritableComputedOptions,
