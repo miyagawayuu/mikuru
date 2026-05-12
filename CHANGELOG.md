@@ -18,6 +18,7 @@
 - Added keyed `v-for` `v-memo` support to skip updating reused records while memo dependencies are unchanged.
 - Added `v-once` support for one-time element/component rendering and keyed `v-for` records.
 - Added minimal built-in `<KeepAlive>` support for caching a single dynamic `<component :is>` child.
+- Extended `<KeepAlive>` with `:include`, `:exclude`, and `:max` cache controls.
 - Added a dogfood AsyncBoundary lab and E2E coverage for loading and retryable async fallback.
 - Added a dogfood ErrorBoundary lab and E2E coverage for diagnostics, fallback reset, and `:reset-key` recovery.
 - Exported `MikuruErrorBoundaryFallbackProps` for typed ErrorBoundary fallback components.

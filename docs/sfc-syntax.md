@@ -481,12 +481,12 @@ v1では、曖昧な構文を黙って無視しない。
 ### KeepAlive
 
 ```mikuru
-<KeepAlive>
+<KeepAlive include="ProfilePanel,SettingsPanel" :exclude="/Draft/" :max="2">
   <component :is="currentPanel" />
 </KeepAlive>
 ```
 
-`<KeepAlive>` は1つの `<component :is>` childをcacheし、component typeを切り替えて戻った時に同じinstanceを再利用する。v1では `include` / `exclude` / `max` などの属性は未対応で、親componentのunmount時にcache全体を破棄する。
+`<KeepAlive>` は1つの `<component :is>` childをcacheし、component typeを切り替えて戻った時に同じinstanceを再利用する。`include` / `exclude` はcomponentの `name` / `displayName` / `__name` / constructor nameに対して、comma区切りstring、array、`RegExp` で判定する。`:max` はcache上限を指定し、least recently used順に古いinstanceを破棄する。親componentのunmount時にはcache全体を破棄する。
 
 ```mikuru
 <Panel v-slot:header>

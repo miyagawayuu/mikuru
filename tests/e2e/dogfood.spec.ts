@@ -94,6 +94,14 @@ test("dogfood app keeps dynamic panel state alive", async ({ page }) => {
 
   await page.getByRole("button", { name: "First panel" }).click();
   await expect(page.getByRole("button", { name: "First kept count: 1" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Third transient panel" }).click();
+  await page.getByRole("button", { name: "Third transient count: 0" }).click();
+  await expect(page.getByRole("button", { name: "Third transient count: 1" })).toBeVisible();
+
+  await page.getByRole("button", { name: "First panel" }).click();
+  await page.getByRole("button", { name: "Third transient panel" }).click();
+  await expect(page.getByRole("button", { name: "Third transient count: 0" })).toBeVisible();
 });
 
 test("dogfood app exposes debug inspector panel", async ({ page }) => {

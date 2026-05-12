@@ -8,9 +8,10 @@
     <nav class="keep-alive-actions">
       <button @click="showFirst">First panel</button>
       <button @click="showSecond">Second panel</button>
+      <button @click="showThird">Third transient panel</button>
     </nav>
 
-    <KeepAlive>
+    <KeepAlive :include="['FirstPanel', 'SecondPanel']" :max="2">
       <component :is="currentPanel" />
     </KeepAlive>
   </section>
@@ -21,8 +22,8 @@ import { computed, ref } from "mikuru";
 
 const active = ref("first");
 
-function createCounterPanel(name) {
-  return {
+function createCounterPanel(name, componentName) {
+  const component = {
     mount(target) {
       let count = 0;
       const button = document.createElement("button");
@@ -43,11 +44,20 @@ function createCounterPanel(name) {
       };
     }
   };
+  component.name = componentName;
+  return component;
 }
 
-const FirstPanel = createCounterPanel("First kept count");
-const SecondPanel = createCounterPanel("Second kept count");
-const currentPanel = computed(() => active.value === "first" ? FirstPanel : SecondPanel);
+const FirstPanel = createCounterPanel("First kept count", "FirstPanel");
+const SecondPanel = createCounterPanel("Second kept count", "SecondPanel");
+const ThirdPanel = createCounterPanel("Third transient count", "ThirdPanel");
+const currentPanel = computed(() => {
+  if (active.value === "first") {
+    return FirstPanel;
+  }
+
+  return active.value === "second" ? SecondPanel : ThirdPanel;
+});
 
 function showFirst() {
   active.value = "first";
@@ -55,6 +65,10 @@ function showFirst() {
 
 function showSecond() {
   active.value = "second";
+}
+
+function showThird() {
+  active.value = "third";
 }
 </script>
 
