@@ -76,17 +76,21 @@ export function escapeHtml(value: unknown): string {
 }
 
 export function renderAttr(name: string, value: unknown): string {
-  if (!name || unsafeAttributeNamePattern.test(name) || value === false || value === null || value === undefined) {
+  if (!name || unsafeAttributeNamePattern.test(name) || value === null || value === undefined) {
     return "";
   }
 
   const normalizedName = name.toLowerCase();
+  if (value === false && booleanAttributes.has(normalizedName)) {
+    return "";
+  }
+
   if (value === true && booleanAttributes.has(normalizedName)) {
     return ` ${name}`;
   }
 
   if (value === true) {
-    return ` ${name}=""`;
+    return ` ${name}="true"`;
   }
 
   if (normalizedName === "class") {

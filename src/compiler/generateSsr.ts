@@ -426,7 +426,7 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
 
   for (const attr of node.attrs) {
     if (attr.name === "v-cloak") {
-      emit(context, indent, `__mikuru_html += __mikuru_renderAttr("v-cloak", true);`);
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr("v-cloak", "");`);
       continue;
     }
 

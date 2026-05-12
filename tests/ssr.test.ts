@@ -13,6 +13,9 @@ describe("server rendering", () => {
     expect(renderAttr("class", ["base", { active: true, hidden: false }])).toBe(" class=\"base active\"");
     expect(renderAttr("style", ["color: red", { fontSize: "12px", display: null }])).toBe(" style=\"color: red; font-size: 12px\"");
     expect(renderAttr("bad name", "skip")).toBe("");
+    expect(renderAttr("disabled", false)).toBe("");
+    expect(renderAttr("data-enabled", false)).toBe(" data-enabled=\"false\"");
+    expect(renderAttr("data-enabled", true)).toBe(" data-enabled=\"true\"");
     expect(renderAttrs({ id: "app", hidden: false, "data-count": 2 })).toBe(" id=\"app\" data-count=\"2\"");
   });
 
@@ -116,6 +119,23 @@ const value = "ready";
     const render = loadSsrRender(result.code);
 
     await expect(render()).resolves.toBe('<section data-mode="ready">Dynamic</section>');
+  });
+
+  it("renders boolean attributes and false non-boolean attributes", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <button :disabled="disabled">Action</button>
+    <p :data-enabled="enabled">Flag</p>
+  </section>
+</template>
+<script>
+const disabled = false;
+const enabled = false;
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><button>Action</button><p data-enabled="false">Flag</p></section>');
   });
 
   it("keeps SSR compile output importable from the public compiler entry", () => {
