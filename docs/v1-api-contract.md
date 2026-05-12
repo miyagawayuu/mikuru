@@ -36,6 +36,7 @@ Supported in v1:
 - `v-for` with `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
 - `:key` / `v-bind:key` on `v-for` for keyed DOM reuse.
 - `v-memo` on keyed `v-for` records, with an array expression dependency list.
+- `v-once` for one-time element/component rendering and keyed `v-for` records.
 - `v-model` for text input, textarea, checkbox, radio, select, multiple select, modifiers, and child components.
 - Template refs with `ref="name"`, dynamic `:ref`, callback refs, and `v-for` ref arrays for DOM elements and child components.
 - Default slots through `<slot />`.

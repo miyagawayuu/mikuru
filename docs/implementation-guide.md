@@ -208,6 +208,13 @@ Use `v-memo` with keyed `v-for` when a reused record should skip subtree updates
 
 When the key is reused and the memo array is unchanged, Mikuru keeps the existing DOM/component record and does not update the generated item/index refs for that record.
 
+Use `v-once` when a subtree should render only once. On regular elements/components, bound text, attributes, and component props are evaluated during the initial render and then left alone. On keyed `v-for` records, `v-once` behaves like an empty memo dependency list for reused records.
+
+```mikuru
+<h2 v-once>{{ staticTitle }}</h2>
+<NoteCard v-for="note in notes" :key="note.id" v-once :note="note" />
+```
+
 ## Conditional Rendering
 
 Use `v-if`, `v-else-if`, and `v-else` for conditional DOM creation.

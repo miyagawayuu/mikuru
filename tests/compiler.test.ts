@@ -694,6 +694,14 @@ const count = 0;
       /Unsupported directive "v-els"\. Did you mean v-else\?/
     );
 
+    expect(() => compile(`<template><p v-onc>Once</p></template>`)).toThrow(
+      /Unsupported directive "v-onc"\. Did you mean v-once\?/
+    );
+
+    expect(() => compile(`<template><p v-once="value">Once</p></template>`)).toThrow(
+      /v-once does not accept a value/
+    );
+
     expect(() => compile(`<template><input v-modle="name" /></template>`)).toThrow(
       /Unsupported directive "v-modle"\. Did you mean v-model\?/
     );
