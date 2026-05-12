@@ -2952,6 +2952,91 @@ const RetryAsync = defineAsyncComponent({
     expect(fixture.root.querySelector("button")).toBeNull();
   });
 
+  it("passes aggregated AsyncBoundary errors and pending count to fallback", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncBoundary :loading="Loading" :fallback="ErrorView">
+    <SlowAsync />
+    <FlakyAsync />
+  </AsyncBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+let attempts = 0;
+
+const Loading = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = "Boundary loading " + props.pending;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const SlowLoaded = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "slow loaded";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const FlakyLoaded = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "flaky recovered";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = "pending:" + props.pending + "|errors:" + props.errors.length + "|" + props.error.message;
+    button.addEventListener("click", () => props.retry());
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+
+const SlowAsync = defineAsyncComponent({
+  loader: () => new Promise((resolve) => setTimeout(() => resolve(SlowLoaded), 30))
+});
+
+const FlakyAsync = defineAsyncComponent({
+  loader: () => new Promise((resolve, reject) => {
+    attempts += 1;
+    setTimeout(() => {
+      if (attempts === 1) {
+        reject(new Error("partial failed"));
+        return;
+      }
+      resolve(FlakyLoaded);
+    }, 10);
+  })
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.textContent).toContain("Boundary loading 2");
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(fixture.root.querySelector("button")?.textContent).toBe("pending:1|errors:1|partial failed");
+    expect(fixture.root.textContent).not.toContain("slow loaded");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(fixture.root.textContent).toContain("slow loaded");
+    expect(fixture.root.textContent).toContain("flaky recovered");
+    expect(fixture.root.querySelector("button")).toBeNull();
+  });
+
   it("routes async component timeouts to ErrorBoundary when no error component is provided", async () => {
     const fixture = compileForDom(`<template>
   <ErrorBoundary :fallback="ErrorView">

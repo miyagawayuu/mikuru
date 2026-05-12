@@ -48,6 +48,7 @@ export type MikuruErrorBoundaryFallbackProps = {
 
 export type MikuruAsyncBoundaryFallbackProps = {
   error?: unknown;
+  errors?: unknown[];
   errorInfo?: MikuruErrorInfo;
   pending: number;
   retry: () => void;
