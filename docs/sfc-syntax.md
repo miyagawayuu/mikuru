@@ -436,6 +436,8 @@ const AsyncPanel = defineAsyncComponent({
 
 `<ErrorBoundary>` はchild componentのmount時エラー、生成されたevent handler、lifecycle callback、cleanupのエラーを捕捉し、fallback componentを描画する。fallback componentには `error`、`errorInfo`、`retry`、`reset` propsを渡す。`errorInfo` にはcomponent、filename、phase、boundary metadataが入る。`retry` と `reset` はboundary childを再描画する。`:reset-key` が変わるとfallbackをclearしてchildをremountする。
 
+`errorInfo.phase` は `MikuruErrorPhase` として公開される。値は `runtime`、`mount`、`event`、`emit`、`mounted`、`cleanup`、`unmounted`、`async-loader`、`async-timeout` のいずれか。
+
 ## v1で扱わない構文
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`

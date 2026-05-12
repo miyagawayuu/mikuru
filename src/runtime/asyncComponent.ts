@@ -18,16 +18,31 @@ export type AsyncComponentOptions = {
   timeout?: number;
 };
 
+export type MikuruErrorPhase =
+  | "runtime"
+  | "mount"
+  | "event"
+  | "emit"
+  | "mounted"
+  | "cleanup"
+  | "unmounted"
+  | "async-loader"
+  | "async-timeout";
+
+export type MikuruErrorInfo = {
+  component?: string;
+  filename?: string;
+  phase?: MikuruErrorPhase;
+  boundary?: {
+    component?: string;
+    filename?: string;
+  };
+};
+
 type MikuruComponentContext = {
   component?: string;
   filename?: string;
   errorHandler?: (error: unknown, errorInfo?: MikuruErrorInfo) => void;
-};
-
-type MikuruErrorInfo = {
-  component?: string;
-  filename?: string;
-  phase?: string;
 };
 
 export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | AsyncComponentOptions): MikuruComponent {
@@ -88,7 +103,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         }
       };
 
-      const reportError = (error: unknown, phase: string) => {
+      const reportError = (error: unknown, phase: MikuruErrorPhase) => {
         if (typeof context?.errorHandler === "function") {
           context.errorHandler(error, { component: context.component, filename: context.filename, phase });
           return;
