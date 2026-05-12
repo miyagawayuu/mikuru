@@ -8,6 +8,9 @@ import {
   emitDebugEvent,
   flushJobs,
   inject,
+  isProxy,
+  isReactive,
+  isReadonly,
   nextTick,
   normalizeClass,
   normalizeStyle,
@@ -18,9 +21,12 @@ import {
   onUnmounted,
   provide,
   queueJob,
+  reactive,
+  readonly,
   ref,
   registerDebugComponent,
   setAttribute,
+  toRaw,
   unwrap,
   watch,
   watchEffect
@@ -180,6 +186,69 @@ describe("runtime reactivity", () => {
     count.value = 3;
 
     expect(calls).toEqual([{ next: 4, previous: 2 }]);
+  });
+
+  it("tracks reactive object property writes and deletes", () => {
+    const state = reactive<{ count: number; label?: string }>({ count: 0, label: "idle" });
+    const observed: string[] = [];
+
+    const stop = effect(() => {
+      observed.push(`${state.count}:${"label" in state}:${state.label ?? "missing"}`);
+    });
+
+    state.count = 1;
+    delete state.label;
+    stop();
+    state.count = 2;
+
+    expect(observed).toEqual(["0:true:idle", "1:true:idle", "1:false:missing"]);
+    expect(isReactive(state)).toBe(true);
+    expect(isReadonly(state)).toBe(false);
+    expect(isProxy(state)).toBe(true);
+    expect(toRaw(state)).toEqual({ count: 2 });
+  });
+
+  it("tracks reactive iteration and array length", () => {
+    const state = reactive<{ items: string[]; extra?: string }>({ items: ["a"] });
+    const keys: string[] = [];
+    const lengths: number[] = [];
+
+    const stopKeys = effect(() => {
+      keys.push(Object.keys(state).join(","));
+    });
+    const stopLength = effect(() => {
+      lengths.push(state.items.length);
+    });
+
+    state.extra = "ready";
+    state.items.push("b");
+    delete state.extra;
+    stopKeys();
+    stopLength();
+
+    expect(keys).toEqual(["items", "items,extra", "items"]);
+    expect(lengths).toEqual([1, 2]);
+  });
+
+  it("keeps readonly objects stable and blocks mutation", () => {
+    const source = { count: 0 };
+    const state = readonly(source);
+    const observed: number[] = [];
+
+    const stop = effect(() => {
+      observed.push(state.count);
+    });
+
+    (state as { count: number }).count = 1;
+    delete (state as { count?: number }).count;
+    stop();
+
+    expect(source).toEqual({ count: 0 });
+    expect(observed).toEqual([0]);
+    expect(isReactive(state)).toBe(false);
+    expect(isReadonly(state)).toBe(true);
+    expect(isProxy(state)).toBe(true);
+    expect(toRaw(state)).toBe(source);
   });
 
   it("stops effects and skips unchanged ref writes", () => {

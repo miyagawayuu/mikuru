@@ -57,6 +57,30 @@ v1での方針:
 - 依存する `ref` が変わったときはdirtyになり、次の `.value` 読み取りで再計算される。
 - 依存が変わるまでは同じ `.value` 読み取りでgetterを再実行しない。
 
+### `reactive` and `readonly`
+
+```js
+import { reactive, readonly, toRaw } from "mikuru";
+
+const state = reactive({ count: 0, tags: ["runtime"] });
+state.count += 1;
+state.tags.push("compiler");
+
+const locked = readonly(state);
+locked.count = 10; // no-op
+
+toRaw(state);
+```
+
+`reactive` はオブジェクトや配列をProxyで包み、propertyの読み取り・書き込み・削除・key列挙を追跡する。ネストしたオブジェクトや配列は読み取り時に同じくProxy化される。`readonly` は同じ読み取り追跡を行うが、書き込みと削除はno-opにする。
+
+補助API:
+
+- `isReactive(value)`
+- `isReadonly(value)`
+- `isProxy(value)`
+- `toRaw(value)`
+
 ### `effect`
 
 ```js
@@ -236,7 +260,7 @@ stopEffect();
 
 ## 非目標
 
-- Proxyによる深いリアクティビティ
 - Vue互換の `reactive`
+- `reactive` collection types such as `Map` and `Set`
 - 生成DOM更新をすべて非同期化すること
 - devtools連携

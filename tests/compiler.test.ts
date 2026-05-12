@@ -143,15 +143,21 @@ describe("compiler", () => {
   it("keeps runtime helper imports available inside normalized scripts", () => {
     const result = compile(`<template><p>{{ status }}</p></template>
 <script>
-import { computed, flushJobs, inject, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, onUnmounted, provide, queueJob, ref, watch, watchEffect } from "mikuru";
+import { computed, flushJobs, inject, isProxy, isReactive, isReadonly, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, onUnmounted, provide, queueJob, reactive, readonly, ref, toRaw, watch, watchEffect } from "mikuru";
 import { nextTick as tick } from "mikuru/runtime";
 
 const status = ref("idle");
+const state = reactive({ status });
+const locked = readonly(state);
 const ready = computed(() => status.value);
 const stop = watch(status, () => {});
 const stopEffect = watchEffect(() => {});
 queueJob(() => {});
 flushJobs();
+isReactive(state);
+isReadonly(locked);
+isProxy(locked);
+toRaw(state);
 provide("status", ready.value);
 inject("status");
 nextTick(() => {});
@@ -166,6 +172,9 @@ onUnmounted(stopEffect);
     expect(result.code).toContain("computed");
     expect(result.code).toContain("flushJobs");
     expect(result.code).toContain("inject");
+    expect(result.code).toContain("isProxy");
+    expect(result.code).toContain("isReactive");
+    expect(result.code).toContain("isReadonly");
     expect(result.code).toContain("nextTick");
     expect(result.code).toContain("nextTick as tick");
     expect(result.code).toContain("onMounted");
@@ -175,6 +184,9 @@ onUnmounted(stopEffect);
     expect(result.code).toContain("onUnmounted");
     expect(result.code).toContain("provide");
     expect(result.code).toContain("queueJob");
+    expect(result.code).toContain("reactive");
+    expect(result.code).toContain("readonly");
+    expect(result.code).toContain("toRaw");
     expect(result.code).toContain("const stop = watch(status");
     expect(result.code).toContain("const stopEffect = watchEffect");
   });

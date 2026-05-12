@@ -178,7 +178,7 @@ Lower-level compiler and runtime entries are also public:
 
 ```ts
 import { compile } from "mikuru/compiler";
-import { effect, flushJobs, nextTick, queueJob, ref, unwrap, watch, watchEffect } from "mikuru/runtime";
+import { effect, flushJobs, nextTick, queueJob, reactive, readonly, ref, unwrap, watch, watchEffect } from "mikuru/runtime";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
@@ -203,7 +203,7 @@ npx vite build
 ## Notes
 
 - Mikuru is not Vue-compatible. It supports a small Vue-like SFC subset.
-- Use `ref` and `computed` from `mikuru`.
+- Use `ref`, `reactive`, `readonly`, and `computed` from `mikuru`.
 - Use `mikuru/vite` for `.mikuru` file transformation.
 - Use stable `:key` values for dynamic lists.
 - Import `mikuru/env` from a local `.d.ts` file when using TypeScript.

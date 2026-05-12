@@ -12,6 +12,9 @@ export type Ref<T> = {
   value: T;
 };
 
+export type Reactive<T extends object> = T;
+export type ReadonlyReactive<T extends object> = Readonly<T>;
+
 export type ComputedRef<T> = {
   readonly value: T;
 };
@@ -37,6 +40,13 @@ type ReactiveEffect = {
 
 const effectStack: ReactiveEffect[] = [];
 let activeEffect: ReactiveEffect | undefined;
+const targetDeps = new WeakMap<object, Map<PropertyKey, Dep>>();
+const reactiveCache = new WeakMap<object, object>();
+const readonlyCache = new WeakMap<object, object>();
+const rawTargets = new WeakMap<object, object>();
+const reactiveTargets = new WeakSet<object>();
+const readonlyTargets = new WeakSet<object>();
+const ITERATE_KEY = Symbol("mikuru.iterate");
 
 export function ref<T>(initialValue: T): Ref<T> {
   let currentValue = initialValue;
@@ -56,6 +66,30 @@ export function ref<T>(initialValue: T): Ref<T> {
       trigger(dep);
     }
   };
+}
+
+export function reactive<T extends object>(target: T): Reactive<T> {
+  return createReactiveProxy(target, false) as Reactive<T>;
+}
+
+export function readonly<T extends object>(target: T): ReadonlyReactive<T> {
+  return createReactiveProxy(target, true) as ReadonlyReactive<T>;
+}
+
+export function isReactive(value: unknown): boolean {
+  return typeof value === "object" && value !== null && reactiveTargets.has(value);
+}
+
+export function isReadonly(value: unknown): boolean {
+  return typeof value === "object" && value !== null && readonlyTargets.has(value);
+}
+
+export function isProxy(value: unknown): boolean {
+  return isReactive(value) || isReadonly(value);
+}
+
+export function toRaw<T>(value: T): T {
+  return ((typeof value === "object" && value !== null ? rawTargets.get(value) : undefined) as T | undefined) ?? value;
 }
 
 export function computed<T>(getter: () => T): ComputedRef<T>;
@@ -175,8 +209,52 @@ function track(dep: Dep): void {
   activeEffect.deps.add(dep);
 }
 
+function trackTarget(target: object, key: PropertyKey): void {
+  if (!activeEffect || !activeEffect.active) {
+    return;
+  }
+
+  let deps = targetDeps.get(target);
+  if (!deps) {
+    deps = new Map();
+    targetDeps.set(target, deps);
+  }
+
+  let dep = deps.get(key);
+  if (!dep) {
+    dep = new Set();
+    deps.set(key, dep);
+  }
+
+  track(dep);
+}
+
 function trigger(dep: Dep): void {
   for (const reactiveEffect of [...dep]) {
+    if (reactiveEffect.active) {
+      if (reactiveEffect.scheduler) {
+        reactiveEffect.scheduler(reactiveEffect.runner);
+      } else {
+        runEffect(reactiveEffect);
+      }
+    }
+  }
+}
+
+function triggerTargetKeys(target: object, keys: PropertyKey[]): void {
+  const deps = targetDeps.get(target);
+  if (!deps) {
+    return;
+  }
+
+  const effects = new Set<ReactiveEffect>();
+  for (const key of keys) {
+    for (const reactiveEffect of deps.get(key) ?? []) {
+      effects.add(reactiveEffect);
+    }
+  }
+
+  for (const reactiveEffect of effects) {
     if (reactiveEffect.active) {
       if (reactiveEffect.scheduler) {
         reactiveEffect.scheduler(reactiveEffect.runner);
@@ -214,4 +292,97 @@ function cleanupEffect(reactiveEffect: ReactiveEffect): void {
 
 function isRefLike<T>(value: T | Ref<T> | ComputedRef<T>): value is Ref<T> | ComputedRef<T> {
   return typeof value === "object" && value !== null && "value" in value;
+}
+
+function createReactiveProxy<T extends object>(target: T, readonlyMode: boolean): T {
+  if ((readonlyMode && isReadonly(target)) || (!readonlyMode && isReactive(target))) {
+    return target;
+  }
+
+  const rawTarget = toRaw(target);
+  const cache = readonlyMode ? readonlyCache : reactiveCache;
+  const cached = cache.get(rawTarget);
+  if (cached) {
+    return cached as T;
+  }
+
+  const proxy = new Proxy(rawTarget, {
+    get(nextTarget, key, receiver) {
+      if (key === "__mikuru_raw") {
+        return nextTarget;
+      }
+
+      trackTarget(nextTarget, key);
+      const value = Reflect.get(nextTarget, key, receiver);
+      if (typeof value === "object" && value !== null) {
+        return readonlyMode ? readonly(value) : reactive(value);
+      }
+      return value;
+    },
+    set(nextTarget, key, value, receiver) {
+      if (readonlyMode) {
+        return true;
+      }
+
+      const oldValue = Reflect.get(nextTarget, key, receiver);
+      const hadKey = Object.prototype.hasOwnProperty.call(nextTarget, key);
+      const result = Reflect.set(nextTarget, key, value, receiver);
+
+      if (!result || Object.is(oldValue, value)) {
+        return result;
+      }
+
+      const keys: PropertyKey[] = [key];
+      if (!hadKey) {
+        keys.push(ITERATE_KEY);
+        if (Array.isArray(nextTarget) && isArrayIndex(key)) {
+          keys.push("length");
+        }
+      }
+      triggerTargetKeys(nextTarget, keys);
+      return result;
+    },
+    deleteProperty(nextTarget, key) {
+      if (readonlyMode) {
+        return true;
+      }
+
+      const hadKey = Object.prototype.hasOwnProperty.call(nextTarget, key);
+      const result = Reflect.deleteProperty(nextTarget, key);
+      if (result && hadKey) {
+        const keys: PropertyKey[] = [key, ITERATE_KEY];
+        if (Array.isArray(nextTarget) && isArrayIndex(key)) {
+          keys.push("length");
+        }
+        triggerTargetKeys(nextTarget, keys);
+      }
+      return result;
+    },
+    ownKeys(nextTarget) {
+      trackTarget(nextTarget, Array.isArray(nextTarget) ? "length" : ITERATE_KEY);
+      return Reflect.ownKeys(nextTarget);
+    },
+    has(nextTarget, key) {
+      trackTarget(nextTarget, key);
+      return Reflect.has(nextTarget, key);
+    }
+  });
+
+  cache.set(rawTarget, proxy);
+  rawTargets.set(proxy, rawTarget);
+  if (readonlyMode) {
+    readonlyTargets.add(proxy);
+  } else {
+    reactiveTargets.add(proxy);
+  }
+
+  return proxy as T;
+}
+
+function isArrayIndex(key: PropertyKey): boolean {
+  if (typeof key === "symbol") {
+    return false;
+  }
+  const value = typeof key === "number" ? key : Number(key);
+  return Number.isInteger(value) && value >= 0;
 }
