@@ -4,6 +4,7 @@ import { compile, createCodeFrame, getSourceLocation, MikuruCompileError } from 
 
 export type MikuruPluginOptions = {
   debug?: boolean;
+  batchedUpdates?: boolean;
   include?: RegExp;
 };
 
@@ -20,7 +21,11 @@ export function mikuru(options: MikuruPluginOptions = {}): Plugin {
       let result: ReturnType<typeof compile>;
 
       try {
-        result = compile(source, { filename: id, debug: options.debug === true });
+        result = compile(source, {
+          filename: id,
+          debug: options.debug === true,
+          batchedUpdates: options.batchedUpdates === true
+        });
       } catch (error) {
         this.error(formatViteTransformError(error, source, id));
         throw error;

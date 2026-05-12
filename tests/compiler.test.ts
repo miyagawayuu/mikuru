@@ -131,6 +131,15 @@ describe("compiler", () => {
     expect(result.code).toContain("unmount()");
   });
 
+  it("can generate batched DOM update effects", () => {
+    const result = compile(counterSource, { filename: "Counter.mikuru", batchedUpdates: true });
+
+    expect(result.code).toContain("queueJob");
+    expect(result.code).toContain("const __mikuru_effect = (fn) => effect(fn, { scheduler: queueJob });");
+    expect(result.code).toMatch(/const stop\d+ = __mikuru_effect\(\(\) =>/);
+    expect(result.code).not.toMatch(/const stop\d+ = effect\(\(\) =>/);
+  });
+
   it("keeps runtime helper imports available inside normalized scripts", () => {
     const result = compile(`<template><p>{{ status }}</p></template>
 <script>
@@ -801,6 +810,23 @@ const count = 0;
       })
     });
     expect(result.code).toContain("registerDebugComponent");
+  });
+
+  it("passes batched update options through the Vite plugin", async () => {
+    const plugin = mikuru({ batchedUpdates: true });
+    const transform = plugin.transform as unknown as Function;
+    const result = await transform.call(
+      {
+        error(error: string | Error) {
+          throw error instanceof Error ? error : new Error(error);
+        }
+      },
+      `<template><p>{{ message }}</p></template><script>const message = ref("batched");</script>`,
+      "Batched.mikuru"
+    );
+
+    expect(result.code).toContain("queueJob");
+    expect(result.code).toContain("__mikuru_effect");
   });
 
   it("normalizes Windows paths in Vite debug source URLs", async () => {

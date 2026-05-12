@@ -16,6 +16,7 @@ import {
   onMounted,
   onUnmounted,
   provide,
+  queueJob,
   ref,
   registerDebugComponent,
   setAttribute,
@@ -587,6 +588,41 @@ const name = ref("Mikuru");
     }
 
     expect(paragraph?.textContent).toBe("Vue-like");
+  });
+
+  it("batches generated DOM updates when enabled", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="update">Update</button>
+    <p>{{ first }}:{{ second }}</p>
+  </section>
+</template>
+
+<script>
+import { nextTick, ref } from "mikuru";
+
+const first = ref("a");
+const second = ref("b");
+
+function update() {
+  first.value = "A";
+  second.value = "B";
+}
+</script>`, { batchedUpdates: true });
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(paragraph?.textContent).toBe("a:b");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.textContent).toBe("a:b");
+
+    await nextTick();
+
+    expect(paragraph?.textContent).toBe("A:B");
   });
 
   it("syncs textarea, checkbox, and select controls with v-model", () => {
@@ -4429,11 +4465,15 @@ const aboutRoute = { name: "about" };
   });
 });
 
-function compileForDom(source: string, options: { debug?: boolean; filename?: string } = {}): CompiledFixture {
+function compileForDom(source: string, options: { batchedUpdates?: boolean; debug?: boolean; filename?: string } = {}): CompiledFixture {
   const window = new Window();
   const document = window.document;
   const root = document.createElement("div");
-  const { code } = compile(source, { filename: options.filename ?? "GeneratedDom.mikuru", debug: options.debug });
+  const { code } = compile(source, {
+    filename: options.filename ?? "GeneratedDom.mikuru",
+    batchedUpdates: options.batchedUpdates,
+    debug: options.debug
+  });
   const domDocument = document as unknown as Document;
   const module = loadCompiledModule(code, domDocument);
 
@@ -4467,6 +4507,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "onUnmounted",
     "provide",
     "provideRouter",
+    "queueJob",
     "ref",
     "registerDebugComponent",
     "setAttribute",
@@ -4495,6 +4536,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     onUnmountedArg: typeof onUnmounted,
     provideArg: typeof provide,
     provideRouterArg: typeof provideRouter,
+    queueJobArg: typeof queueJob,
     refArg: typeof ref,
     registerDebugComponentArg: typeof registerDebugComponent,
     setAttributeArg: typeof setAttribute,
@@ -4524,6 +4566,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     onUnmounted,
     provide,
     provideRouter,
+    queueJob,
     ref,
     registerDebugComponent,
     setAttribute,

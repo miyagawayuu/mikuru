@@ -53,6 +53,7 @@ export type Binding =
 export type CompileOptions = {
   filename?: string;
   debug?: boolean;
+  batchedUpdates?: boolean;
 };
 
 export type CompileResult = {

@@ -13,7 +13,7 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
     offset: descriptor.templateOffset
   });
   const bindings = analyzeTemplate(ast, { source, filename: options.filename });
-  const code = generate(descriptor, ast, { debug: options.debug === true });
+  const code = generate(descriptor, ast, { debug: options.debug === true, batchedUpdates: options.batchedUpdates === true });
   const map = createSourceMap(code, descriptor, ast);
 
   return {

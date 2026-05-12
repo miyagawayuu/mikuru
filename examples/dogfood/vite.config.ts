@@ -9,7 +9,7 @@ const repoRoot = resolve(__dirname, "../..");
 
 export default defineConfig({
   root: resolve(__dirname, "src"),
-  plugins: [mikuru({ debug: true })],
+  plugins: [mikuru({ batchedUpdates: true, debug: true })],
   server: { port: 5174 },
   resolve: {
     alias: [

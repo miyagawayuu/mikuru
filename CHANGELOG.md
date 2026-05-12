@@ -21,6 +21,7 @@
 - Added writable `computed({ get, set })` refs and `watch(..., { once: true })` callbacks.
 - Added `watchEffect()` with cleanup registration and `effect(fn, { scheduler })` for scheduled reruns.
 - Added `queueJob()`, `flushJobs()`, and job-aware `nextTick()` for deduped microtask scheduling.
+- Added `mikuru({ batchedUpdates: true })` and `compile(..., { batchedUpdates: true })` for opt-in queued generated DOM updates.
 - Added built-in `<TransitionGroup>` for keyed list enter, leave, and move classes.
 - Added minimal built-in `<KeepAlive>` support for caching a single dynamic `<component :is>` child.
 - Extended `<KeepAlive>` with `:include`, `:exclude`, and `:max` cache controls.
