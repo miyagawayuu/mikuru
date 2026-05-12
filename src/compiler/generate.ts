@@ -1612,9 +1612,9 @@ function generateElement(
           emit(context, indent + 1, `if ($event.target !== ${elementVar}) { return; }`);
         }
 
-        const keyGuard = eventKeyGuardExpression(event);
-        if (keyGuard) {
-          emit(context, indent + 1, `if (${keyGuard}) { return; }`);
+        const modifierGuard = eventModifierGuardExpression(event);
+        if (modifierGuard) {
+          emit(context, indent + 1, `if (${modifierGuard}) { return; }`);
         }
 
         if (event.modifiers.includes("prevent")) {
@@ -4474,7 +4474,7 @@ function modelAssignedValue(modelMode: string, modifiers: string[], expression: 
 }
 
 function validateEventModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext): void {
-  const supportedModifiers = [...eventControlModifiers, ...eventOptionModifiers, ...eventSystemModifiers, ...eventKeyModifiers];
+  const supportedModifiers = [...eventControlModifiers, ...eventOptionModifiers, ...eventSystemModifiers, ...eventMouseModifiers, ...eventKeyModifiers, "exact"];
 
   for (const modifier of event.modifiers) {
     if (!supportedModifiers.includes(modifier)) {
@@ -4518,14 +4518,22 @@ function eventListenerOptions(event: EventDirective): string | undefined {
 const eventControlModifiers = ["prevent", "stop", "self"];
 const eventOptionModifiers = ["once", "capture", "passive"];
 const eventSystemModifiers = ["ctrl", "shift", "alt", "meta"];
+const eventMouseModifiers = ["left", "right", "middle"];
 const eventKeyModifiers = ["enter", "escape", "esc", "space", "tab", "delete", "backspace", "up", "down", "left", "right"];
 
-function eventKeyGuardExpression(event: EventDirective): string | undefined {
+function eventModifierGuardExpression(event: EventDirective): string | undefined {
   const checks: string[] = [];
+  const mouseEvent = isMouseEventName(event.name);
 
   for (const modifier of event.modifiers) {
     if (eventSystemModifiers.includes(modifier)) {
       checks.push(`!$event.${modifier}Key`);
+      continue;
+    }
+
+    const mouseExpression = mouseEvent ? eventMouseButtonExpression(modifier) : undefined;
+    if (mouseExpression) {
+      checks.push(`$event.button !== ${mouseExpression}`);
       continue;
     }
 
@@ -4535,7 +4543,28 @@ function eventKeyGuardExpression(event: EventDirective): string | undefined {
     }
   }
 
+  if (event.modifiers.includes("exact")) {
+    for (const modifier of eventSystemModifiers) {
+      if (!event.modifiers.includes(modifier)) {
+        checks.push(`$event.${modifier}Key`);
+      }
+    }
+  }
+
   return checks.length ? checks.join(" || ") : undefined;
+}
+
+function isMouseEventName(name: string | undefined): boolean {
+  return !!name && /^(?:click|dblclick|auxclick|contextmenu|mousedown|mouseup|mousemove|mouseover|mouseout|mouseenter|mouseleave|pointerdown|pointerup|pointermove|pointerover|pointerout|pointerenter|pointerleave)$/.test(name);
+}
+
+function eventMouseButtonExpression(modifier: string): string | undefined {
+  const mouseButtons: Record<string, string> = {
+    left: "0",
+    middle: "1",
+    right: "2"
+  };
+  return mouseButtons[modifier];
 }
 
 function eventKeyExpression(modifier: string): string | undefined {

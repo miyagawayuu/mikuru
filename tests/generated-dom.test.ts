@@ -422,6 +422,41 @@ function submitCtrl() {
     expect(summary?.textContent).toBe("2:1:1");
   });
 
+  it("supports mouse button and exact event modifiers", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click.left="left += 1" @click.right="right += 1" @click.middle="middle += 1" @click.ctrl.exact="exact += 1">{{ left }}:{{ right }}:{{ middle }}:{{ exact }}</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const left = ref(0);
+const right = ref(0);
+const middle = ref(0);
+const exact = ref(0);
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    button?.dispatchEvent(new fixture.window.MouseEvent("click", { button: 0 }) as unknown as Event);
+    expect(button?.textContent).toBe("1:0:0:0");
+
+    button?.dispatchEvent(new fixture.window.MouseEvent("click", { button: 2 }) as unknown as Event);
+    expect(button?.textContent).toBe("1:1:0:0");
+
+    button?.dispatchEvent(new fixture.window.MouseEvent("click", { button: 1 }) as unknown as Event);
+    expect(button?.textContent).toBe("1:1:1:0");
+
+    button?.dispatchEvent(new fixture.window.MouseEvent("click", { button: 0, ctrlKey: true, shiftKey: true }) as unknown as Event);
+    expect(button?.textContent).toBe("2:1:1:0");
+
+    button?.dispatchEvent(new fixture.window.MouseEvent("click", { button: 0, ctrlKey: true }) as unknown as Event);
+    expect(button?.textContent).toBe("3:1:1:1");
+  });
+
   it("supports inline event handler assignments and updates", () => {
     const fixture = compileForDom(`<template>
   <section>
