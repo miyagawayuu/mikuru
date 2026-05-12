@@ -540,6 +540,14 @@ const activeSlot = "header";
     expect(result.code).toContain('addEventListener("keydown"');
   });
 
+  it("emits guards for DOM mouse button and exact modifiers", () => {
+    const mouse = compile(`<template><button @click.right="open">Open</button></template><script>function open() {}</script>`);
+    const exact = compile(`<template><button @click.ctrl.exact="open">Open</button></template><script>function open() {}</script>`);
+
+    expect(mouse.code).toContain("$event.button !== 2");
+    expect(exact.code).toContain("!$event.ctrlKey || $event.shiftKey || $event.altKey || $event.metaKey");
+  });
+
   it("emits inline event handler assignments", () => {
     const result = compile(`<template><button @click="count += 1">{{ count }}</button></template><script>const count = ref(0);</script>`);
 

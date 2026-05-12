@@ -24,6 +24,7 @@
 - Added `v-pre` and `v-cloak` support across generated DOM, SSR, and hydration.
 - Added dynamic template arguments with `:[name]`, `v-bind:[name]`, `@[event]`, and `v-on:[event]`.
 - Added DOM event key and system modifiers such as `@keydown.enter` and `@keydown.ctrl.enter`.
+- Added DOM mouse button and exact modifiers such as `@click.right` and `@click.ctrl.exact`.
 - Added inline DOM event handler assignments such as `@click="count += 1"` and `$event` usage.
 - Improved boolean and form property bindings so `disabled`, `checked`, `selected`, and `value` sync DOM properties while non-boolean `false` renders as `"false"`.
 - Added hydration component context for scoped `provide()` / `inject()`, lifecycle callbacks, and child component context forwarding.
