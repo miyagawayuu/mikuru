@@ -538,7 +538,7 @@ Unsupported event modifier .prevet. Did you mean .prevent?
 
 For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules.
 
-The Vite plugin forwards transform failures with `id`, `loc`, and `frame`, including fallback metadata for non-standard compile-time errors. The compiler returns a v3 source map with `sourcesContent`, and the Vite plugin forwards that map. Segment precision is currently coarse, so generated code inspection may still be needed for complex compiler issues.
+The Vite plugin forwards transform failures with `id`, `loc`, and `frame`, including fallback metadata for non-standard compile-time errors. The compiler returns a v3 source map with `sourcesContent`, and generated template element, interpolation, bound attribute, event handler, and script lines map back to their original SFC lines. Generated code inspection can still help for complex compiler issues.
 
 ## Testing Applications
 

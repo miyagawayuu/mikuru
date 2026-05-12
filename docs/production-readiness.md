@@ -8,8 +8,8 @@ Mikuru v1 is usable for experiments, demos, and small app validation. Before ado
 - Built-in component attribute, directive, and modifier typos include close-match suggestions such as `Did you mean :fallback?`, `Did you mean v-model?`, and `Did you mean .prevent?`.
 - The Vite plugin forwards Mikuru compile errors with `id`, `loc`, and `frame`, and falls back to a source-level location/frame for other transform-time errors.
 - The Vite plugin supports `mikuru({ debug: true })`, which appends a generated `sourceURL` comment to transformed `.mikuru` modules.
-- The compiler returns a v3 source map with `file`, `sources`, `sourcesContent`, `names`, and mappings for generated lines. Vite forwards that map to the bundler.
-- Source map segment precision is intentionally coarse in v1. Generated JavaScript can be inspected, but precise original-template stepping is a later milestone.
+- The compiler returns a v3 source map with `file`, `sources`, `sourcesContent`, `names`, and generated-line mappings for template elements, interpolations, bound attributes, event handlers, script lines, and style injection. Vite forwards that map to the bundler.
+- Source map segment precision is line-oriented in v1. Generated JavaScript can still be inspected when a compiler issue needs exact generated-code context.
 
 ## Parser Limits
 

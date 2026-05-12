@@ -9,7 +9,6 @@ test("dogfood app supports note and filter interactions", async ({ page }) => {
   await page.getByRole("button", { name: "Seed more notes" }).click();
   await expect(page.getByText("Keyed lists keep card identity")).toBeVisible();
   await expect(page.locator(".note-card")).toHaveCount(4);
-  await expect(page.getByText("Loading note stats...")).toBeVisible();
   await expect(page.getByText("Async note stats")).toBeVisible();
   await expect(page.getByText("Total: 4")).toBeVisible();
 

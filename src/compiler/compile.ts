@@ -14,7 +14,7 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
   });
   const bindings = analyzeTemplate(ast, { source, filename: options.filename });
   const code = generate(descriptor, ast);
-  const map = createSourceMap(code, descriptor);
+  const map = createSourceMap(code, descriptor, ast);
 
   return {
     code,
