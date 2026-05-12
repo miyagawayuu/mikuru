@@ -59,7 +59,7 @@ export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): strin
     emit(context, 0, "");
   }
 
-  emit(context, 0, "export function renderToString(props = {}) {");
+  emit(context, 0, "export async function renderToString(props = {}) {");
   emit(context, 1, "let __mikuru_html = \"\";");
   emitNode(context, root, 1);
   emit(context, 1, "return __mikuru_html;");
@@ -174,17 +174,56 @@ function emitComponent(context: SsrGenerateContext, node: ElementNode, indent: n
   emitComponentProps(context, node, propsVar, indent);
 
   if (node.children.length > 0) {
-    const slotVar = nextName(context, "slot");
-    emit(context, indent, `const ${slotVar} = () => {`);
-    emit(context, indent + 1, "let __mikuru_html = \"\";");
-    emitChildren(context, node.children, indent + 1);
-    emit(context, indent + 1, "return __mikuru_html;");
-    emit(context, indent, "};");
-    emit(context, indent, `${propsVar}.children = ${slotVar};`);
-    emit(context, indent, `${propsVar}.slots = { default: ${slotVar} };`);
+    emitComponentSlots(context, node, propsVar, indent);
   }
 
-  emit(context, indent, `__mikuru_html += __mikuru_renderComponent(${node.tag}, ${propsVar});`);
+  emit(context, indent, `__mikuru_html += await __mikuru_renderComponent(${node.tag}, ${propsVar});`);
+}
+
+function emitComponentSlots(context: SsrGenerateContext, node: ElementNode, propsVar: string, indent: number): void {
+  const defaultChildren: TemplateNode[] = [];
+  const namedSlots: Array<{ name: string; children: TemplateNode[]; scope?: string }> = [];
+
+  for (const child of node.children) {
+    if (child.type === "element" && child.tag === "template") {
+      const slot = getSlotTemplate(child);
+      if (slot) {
+        namedSlots.push({ ...slot, children: child.children });
+        continue;
+      }
+    }
+    defaultChildren.push(child);
+  }
+
+  const slotEntries: string[] = [];
+  if (defaultChildren.length > 0) {
+    const slotVar = emitSlotFunction(context, defaultChildren, indent, undefined);
+    emit(context, indent, `${propsVar}.children = ${slotVar};`);
+    slotEntries.push(`default: ${slotVar}`);
+  }
+
+  for (const slot of namedSlots) {
+    const slotVar = emitSlotFunction(context, slot.children, indent, slot.scope);
+    slotEntries.push(`${quote(slot.name)}: ${slotVar}`);
+  }
+
+  if (slotEntries.length > 0) {
+    emit(context, indent, `${propsVar}.slots = { ${slotEntries.join(", ")} };`);
+  }
+}
+
+function emitSlotFunction(context: SsrGenerateContext, children: TemplateNode[], indent: number, scope: string | undefined): string {
+  const slotVar = nextName(context, "slot");
+  const propsVar = nextName(context, "slotProps");
+  emit(context, indent, `const ${slotVar} = async (${propsVar} = {}) => {`);
+  if (scope) {
+    emit(context, indent + 1, `const ${scope} = ${propsVar};`);
+  }
+  emit(context, indent + 1, "let __mikuru_html = \"\";");
+  emitChildren(context, children, indent + 1);
+  emit(context, indent + 1, "return __mikuru_html;");
+  emit(context, indent, "};");
+  return slotVar;
 }
 
 function emitComponentProps(context: SsrGenerateContext, node: ElementNode, propsVar: string, indent: number): void {
@@ -210,9 +249,13 @@ function emitComponentProps(context: SsrGenerateContext, node: ElementNode, prop
 
 function emitSlot(context: SsrGenerateContext, node: ElementNode, indent: number): void {
   const slotVar = nextName(context, "slotValue");
-  emit(context, indent, `const ${slotVar} = props.slots?.default ?? props.children;`);
+  const slotName = getSlotName(context, node);
+  const slotPropsVar = nextName(context, "slotProps");
+  emit(context, indent, `const ${slotVar} = props.slots?.[${slotName}] ?? ${slotName === "\"default\"" ? "props.children" : "undefined"};`);
+  emit(context, indent, `const ${slotPropsVar} = {};`);
+  emitSlotProps(context, node, slotPropsVar, indent);
   emit(context, indent, `if (typeof ${slotVar} === "function") {`);
-  emit(context, indent + 1, `__mikuru_html += ${slotVar}();`);
+  emit(context, indent + 1, `__mikuru_html += await ${slotVar}(${slotPropsVar});`);
   emit(context, indent, `} else if (${slotVar} !== undefined && ${slotVar} !== null) {`);
   emit(context, indent + 1, `__mikuru_html += __mikuru_escape(${slotVar});`);
   if (node.children.length > 0) {
@@ -220,6 +263,27 @@ function emitSlot(context: SsrGenerateContext, node: ElementNode, indent: number
     emitChildren(context, node.children, indent + 1);
   }
   emit(context, indent, "}");
+}
+
+function emitSlotProps(context: SsrGenerateContext, node: ElementNode, propsVar: string, indent: number): void {
+  for (const attr of node.attrs) {
+    if (attr.name === "name" || attr.name === ":name" || attr.name === "v-bind:name" || shouldSkipAttr(attr)) {
+      continue;
+    }
+
+    if (attr.name === "v-bind") {
+      emit(context, indent, `Object.assign(${propsVar}, __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), "slot v-bind")}) ?? {});`);
+      continue;
+    }
+
+    const dynamicName = getDynamicAttrName(attr.name);
+    if (dynamicName) {
+      emit(context, indent, `${propsVar}[${quote(dynamicName)}] = __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), attr.name)});`);
+      continue;
+    }
+
+    emit(context, indent, `${propsVar}[${quote(attr.name)}] = ${attr.value === true ? "true" : quote(attr.value)};`);
+  }
 }
 
 function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -283,6 +347,35 @@ function getDynamicAttrName(name: string): string | undefined {
     return name.slice("v-bind:".length);
   }
   return undefined;
+}
+
+function getSlotTemplate(node: ElementNode): { name: string; scope?: string } | undefined {
+  for (const attr of node.attrs) {
+    if (attr.name === "v-slot") {
+      return { name: "default", scope: attr.value === true ? undefined : String(attr.value) };
+    }
+    if (attr.name.startsWith("#") && !attr.name.startsWith("#[")) {
+      return { name: attr.name.slice(1) || "default", scope: attr.value === true ? undefined : String(attr.value) };
+    }
+    if (attr.name.startsWith("v-slot:")) {
+      return { name: attr.name.slice("v-slot:".length) || "default", scope: attr.value === true ? undefined : String(attr.value) };
+    }
+  }
+  return undefined;
+}
+
+function getSlotName(context: SsrGenerateContext, node: ElementNode): string {
+  const dynamicName = getAttr(node, ":name") ?? getAttr(node, "v-bind:name");
+  if (dynamicName && dynamicName.value !== true) {
+    return `String(__mikuru_unwrap(${compileSsrExpression(context, String(dynamicName.value), "slot name")}) ?? "default")`;
+  }
+
+  const staticName = getAttr(node, "name");
+  if (staticName && staticName.value !== true) {
+    return quote(staticName.value);
+  }
+
+  return quote("default");
 }
 
 function isComponentTag(tag: string): boolean {
