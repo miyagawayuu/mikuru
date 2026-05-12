@@ -156,9 +156,10 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 
 ```mikuru
 <button v-on="listeners">Save</button>
+<button v-on.once="listeners">Save once</button>
 ```
 
-`v-on="listeners"` はオブジェクトのkeyをイベント名、valueをhandlerとして扱う。依存値が変わると古いlistenerを外して新しいlistenerを登録する。子コンポーネントでは `select` が `onSelect` のようなイベントpropsに変換される。
+`v-on="listeners"` はオブジェクトのkeyをイベント名、valueをhandlerとして扱う。依存値が変わると古いlistenerを外して新しいlistenerを登録する。native elementのobject-form `v-on` は `.once`、`.capture`、`.passive` modifiers をサポートする。子コンポーネントでは `select` が `onSelect` のようなイベントpropsに変換される。
 
 ### テキスト入力
 

@@ -371,6 +371,23 @@ const childListeners = { select() {} };
     expect(component.code).toContain("childListeners");
   });
 
+  it("generates object-form v-on option modifiers for native elements", () => {
+    const element = compile(`<template><button v-on.once.capture.passive="listeners">Save</button></template>
+<script>
+const listeners = { click() {} };
+</script>`);
+
+    expect(element.code).toContain("once: true");
+    expect(element.code).toContain("capture: true");
+    expect(element.code).toContain("passive: true");
+    expect(() => compile(`<template><button v-on.prevent="listeners">Save</button></template><script>const listeners = {};</script>`)).toThrow(
+      /Object v-on modifier \.prevent is not supported/
+    );
+    expect(() => compile(`<template><Child v-on.once="listeners" /></template><script>import Child from "./Child.mikuru"; const listeners = {};</script>`)).toThrow(
+      /Object v-on modifiers are only supported on native elements/
+    );
+  });
+
   it("generates v-bind modifiers for element and component bindings", () => {
     const element = compile(`<template>
   <input :indeterminate.prop="mixed" :data-user-id.camel="userId" :aria-hidden.attr="hidden" :[name].camel="value" />

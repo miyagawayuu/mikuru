@@ -23,6 +23,7 @@
 - Added `v-html` and `v-text` content directives across generated DOM, SSR, and hydration.
 - Added `v-pre` and `v-cloak` support across generated DOM, SSR, and hydration.
 - Added dynamic template arguments with `:[name]`, `v-bind:[name]`, `@[event]`, and `v-on:[event]`.
+- Added object-form `v-on.once`, `v-on.capture`, and `v-on.passive` option modifiers for native elements.
 - Added `v-bind` modifiers `.prop`, `.attr`, and `.camel` for native element attribute/property control.
 - Added object-form `v-bind.prop`, `v-bind.attr`, and `v-bind.camel` modifiers for native elements.
 - Added DOM event key and system modifiers such as `@keydown.enter` and `@keydown.ctrl.enter`.

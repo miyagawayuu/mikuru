@@ -26,7 +26,7 @@ Supported in v1:
 
 - Text interpolation with `{{ expression }}`.
 - DOM events with `@event` and `v-on:event`.
-- Object-form events with `v-on="listeners"`.
+- Object-form events with `v-on="listeners"` and native-element option modifiers such as `v-on.once`, `v-on.capture`, and `v-on.passive`.
 - DOM event modifiers `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`.
 - Component event modifier `.once`.
 - Attribute bindings with `:name`, `v-bind:name`, dynamic arguments, and `.prop` / `.attr` / `.camel` modifiers.

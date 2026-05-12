@@ -1959,6 +1959,12 @@ function emitObjectListeners(
   cleanupVar: string,
   indent: number
 ): void {
+  const event = parseObjectOnDirective(attr.name);
+  if (!event) {
+    return;
+  }
+  validateObjectOnModifiers(event, attr, context, "element");
+  const eventOptions = eventListenerOptions(event);
   const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
   const listenersVar = nextVar(context, "listeners");
   const stopVar = nextVar(context, "stop");
@@ -1969,7 +1975,7 @@ function emitObjectListeners(
   emit(context, indent, `const ${listenersVar} = new Map();`);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   emit(context, indent + 1, `for (const [${eventVar}, ${handlerVar}] of ${listenersVar}) {`);
-  emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar});`);
+  emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `${listenersVar}.clear();`);
   emit(context, indent + 1, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
@@ -1977,7 +1983,7 @@ function emitObjectListeners(
   emit(context, indent + 2, `for (const [${eventVar}, ${handlerVar}] of Object.entries(${sourceVar})) {`);
   emit(context, indent + 3, `if (typeof ${handlerVar} === "function") {`);
   emit(context, indent + 4, `const ${wrappedHandlerVar} = __mikuru_guardEventHandler(${handlerVar});`);
-  emit(context, indent + 4, `${elementVar}.addEventListener(${eventVar}, ${wrappedHandlerVar});`);
+  emit(context, indent + 4, `${elementVar}.addEventListener(${eventVar}, ${wrappedHandlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
   emit(context, indent + 4, `${listenersVar}.set(${eventVar}, ${wrappedHandlerVar});`);
   emit(context, indent + 3, "}");
   emit(context, indent + 2, "}");
@@ -1986,7 +1992,7 @@ function emitObjectListeners(
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `${stopVar}();`);
   emit(context, indent + 1, `for (const [${eventVar}, ${handlerVar}] of ${listenersVar}) {`);
-  emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar});`);
+  emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `${listenersVar}.clear();`);
   emit(context, indent, "});");
@@ -3354,6 +3360,9 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   for (const attr of objectBindAttrs) {
     validateObjectBindModifiers(parseObjectBindDirective(attr.name) ?? { modifiers: [] }, attr, context, "component");
   }
+  for (const attr of objectOnAttrs) {
+    validateObjectOnModifiers(parseObjectOnDirective(attr.name) ?? { modifiers: [] }, attr, context, "component");
+  }
   const slots = collectComponentSlots(context, node);
   const defaultSlot = slots.find((slot) => !slot.nameExpression && slot.name === "default");
   const needsProxy = objectBindAttrs.length > 0 || objectOnAttrs.length > 0;
@@ -4424,7 +4433,19 @@ function getAttr(node: ElementNode, name: string): TemplateAttribute | undefined
 }
 
 function isObjectOnAttr(attr: TemplateAttribute): boolean {
-  return attr.name === "v-on";
+  return Boolean(parseObjectOnDirective(attr.name));
+}
+
+function parseObjectOnDirective(name: string): EventDirective | undefined {
+  if (name === "v-on") {
+    return { modifiers: [] };
+  }
+
+  if (!name.startsWith("v-on.")) {
+    return undefined;
+  }
+
+  return { modifiers: name.slice("v-on.".length).split(".").filter(Boolean) };
 }
 
 function parseEventDirective(name: string): EventDirective | undefined {
@@ -4537,6 +4558,20 @@ function validateComponentEventModifiers(event: EventDirective, attr: TemplateAt
       const suggestion = suggestModifierName(modifier, supportedModifiers);
       const suggestionMessage = suggestion ? ` Did you mean .${suggestion}?` : "";
       throwTemplateError(`Event modifier .${modifier} is only supported on DOM events.${suggestionMessage}`, context, attr.loc);
+    }
+  }
+}
+
+function validateObjectOnModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext, target: "element" | "component"): void {
+  if (target === "component" && event.modifiers.length > 0) {
+    throwTemplateError("Object v-on modifiers are only supported on native elements", context, attr.loc);
+  }
+
+  for (const modifier of event.modifiers) {
+    if (!eventOptionModifiers.includes(modifier)) {
+      const suggestion = suggestModifierName(modifier, eventOptionModifiers);
+      const suggestionMessage = suggestion ? ` Did you mean .${suggestion}?` : "";
+      throwTemplateError(`Object v-on modifier .${modifier} is not supported. Use .once, .capture, or .passive.${suggestionMessage}`, context, attr.loc);
     }
   }
 }

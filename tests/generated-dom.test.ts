@@ -893,6 +893,49 @@ function swap() {
     expect(fixture.root.querySelector("p")?.textContent).toBe("second");
   });
 
+  it("supports object-form v-on option modifiers on DOM elements", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button v-on.once="onceListeners">Once</button>
+    <div v-on.capture="captureListeners">
+      <button @click="inner">Capture</button>
+    </div>
+    <p>{{ count }}:{{ order }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const count = ref(0);
+const order = ref("");
+const onceListeners = {
+  click() {
+    count.value += 1;
+  }
+};
+const captureListeners = {
+  click() {
+    order.value += "outer";
+  }
+};
+
+function inner() {
+  order.value += "-inner";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const buttons = fixture.root.querySelectorAll("button");
+
+    buttons[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("1:");
+
+    buttons[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(fixture.root.querySelector("p")?.textContent).toBe("1:outer-inner");
+  });
+
   it("supports prevent and stop event modifiers on DOM events", () => {
     const fixture = compileForDom(`<template>
   <form @submit.prevent="submit">
