@@ -17,6 +17,7 @@
 - Added `hydrateRoute(..., { listen: true })` to start browser/router history listening after route hydration and stop it on unmount.
 - Added hydration support for `v-show` and DOM `v-model` controls, including checkbox arrays and multiple selects.
 - Added hydration support for child component `v-model` props, update handlers, named models, and modifiers.
+- Added hydration support for DOM and component template refs, including `v-for` array refs and unmount cleanup.
 - Added hydration component context for scoped `provide()` / `inject()`, lifecycle callbacks, and child component context forwarding.
 - Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.

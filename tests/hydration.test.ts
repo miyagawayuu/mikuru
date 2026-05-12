@@ -182,6 +182,135 @@ const Child = {
     }
   });
 
+  it("hydrates DOM template refs and v-for array refs", async () => {
+    const source = `<template>
+  <section>
+    <input ref="inputEl" value="initial" />
+    <p v-for="item in items" ref="rows">{{ item }}</p>
+  </section>
+</template>
+<script>
+import { onMounted, onUnmounted, ref } from "mikuru";
+const inputEl = ref(null);
+const rows = ref([]);
+const items = ["one", "two"];
+onMounted(() => {
+  globalThis.__mikuruHydrationRefs = {
+    input: inputEl.value,
+    rows: rows.value.slice()
+  };
+});
+onUnmounted(() => {
+  globalThis.__mikuruHydrationRefsAfterUnmount = {
+    input: inputEl.value,
+    rows: rows.value.slice()
+  };
+});
+</script>`;
+    const previousRefs = (globalThis as { __mikuruHydrationRefs?: unknown }).__mikuruHydrationRefs;
+    const previousAfterUnmount = (globalThis as { __mikuruHydrationRefsAfterUnmount?: unknown }).__mikuruHydrationRefsAfterUnmount;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    try {
+      root.innerHTML = await renderToString();
+      const instance = module.hydrate(root as unknown as Element);
+      const refs = (globalThis as { __mikuruHydrationRefs?: { input: Element | null; rows: Element[] } }).__mikuruHydrationRefs;
+
+      expect(refs?.input).toBe(root.querySelector("input"));
+      expect(refs?.rows).toEqual(Array.from(root.querySelectorAll("p")));
+      expect(refs?.rows.map((row) => row.textContent)).toEqual(["one", "two"]);
+
+      instance.unmount();
+      expect((globalThis as { __mikuruHydrationRefsAfterUnmount?: { input: Element | null; rows: Element[] } }).__mikuruHydrationRefsAfterUnmount).toEqual({
+        input: null,
+        rows: []
+      });
+    } finally {
+      if (previousRefs === undefined) {
+        delete (globalThis as { __mikuruHydrationRefs?: unknown }).__mikuruHydrationRefs;
+      } else {
+        (globalThis as { __mikuruHydrationRefs?: unknown }).__mikuruHydrationRefs = previousRefs;
+      }
+      if (previousAfterUnmount === undefined) {
+        delete (globalThis as { __mikuruHydrationRefsAfterUnmount?: unknown }).__mikuruHydrationRefsAfterUnmount;
+      } else {
+        (globalThis as { __mikuruHydrationRefsAfterUnmount?: unknown }).__mikuruHydrationRefsAfterUnmount = previousAfterUnmount;
+      }
+    }
+  });
+
+  it("hydrates component template refs", async () => {
+    const source = `<template>
+  <section>
+    <Child ref="childRef" label="single" />
+    <Child v-for="item in items" ref="childRefs" :label="item" />
+  </section>
+</template>
+<script>
+import { onMounted, onUnmounted, ref } from "mikuru";
+const childRef = ref(null);
+const childRefs = ref([]);
+const items = ["one", "two"];
+onMounted(() => {
+  globalThis.__mikuruHydrationComponentRef = {
+    single: childRef.value?.exposed,
+    list: childRefs.value.map((child) => child.exposed)
+  };
+});
+onUnmounted(() => {
+  globalThis.__mikuruHydrationComponentRefAfterUnmount = {
+    single: childRef.value,
+    list: childRefs.value.slice()
+  };
+});
+const Child = {
+  renderToString(props) {
+    return '<button>' + props.label + '</button>';
+  },
+  hydrate(target, props) {
+    return { element: target, exposed: props.label, unmount() { target.setAttribute("data-unmounted", "true"); } };
+  }
+};
+</script>`;
+    const previousRef = (globalThis as { __mikuruHydrationComponentRef?: unknown }).__mikuruHydrationComponentRef;
+    const previousAfterUnmount = (globalThis as { __mikuruHydrationComponentRefAfterUnmount?: unknown }).__mikuruHydrationComponentRefAfterUnmount;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    try {
+      root.innerHTML = await renderToString();
+      const instance = module.hydrate(root as unknown as Element);
+
+      expect((globalThis as { __mikuruHydrationComponentRef?: unknown }).__mikuruHydrationComponentRef).toEqual({
+        single: "single",
+        list: ["one", "two"]
+      });
+
+      instance.unmount();
+      expect((globalThis as { __mikuruHydrationComponentRefAfterUnmount?: unknown }).__mikuruHydrationComponentRefAfterUnmount).toEqual({
+        single: null,
+        list: []
+      });
+      expect(Array.from(root.querySelectorAll("button")).map((button) => button.getAttribute("data-unmounted"))).toEqual(["true", "true", "true"]);
+    } finally {
+      if (previousRef === undefined) {
+        delete (globalThis as { __mikuruHydrationComponentRef?: unknown }).__mikuruHydrationComponentRef;
+      } else {
+        (globalThis as { __mikuruHydrationComponentRef?: unknown }).__mikuruHydrationComponentRef = previousRef;
+      }
+      if (previousAfterUnmount === undefined) {
+        delete (globalThis as { __mikuruHydrationComponentRefAfterUnmount?: unknown }).__mikuruHydrationComponentRefAfterUnmount;
+      } else {
+        (globalThis as { __mikuruHydrationComponentRefAfterUnmount?: unknown }).__mikuruHydrationComponentRefAfterUnmount = previousAfterUnmount;
+      }
+    }
+  });
+
   it("hydrates child component v-model props and update handlers", async () => {
     const source = `<template>
   <section>
@@ -614,8 +743,8 @@ function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promi
     .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
     .replace("export async function renderToString", "async function renderToString");
-  const factory = new Function("helpers", `const { ref } = helpers;\n${executable}\nreturn renderToString;`) as (helpers: Record<string, unknown>) => (props?: Record<string, unknown>) => Promise<string>;
-  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, ref, unwrap });
+  const factory = new Function("helpers", `const { onMounted, onUnmounted, ref } = helpers;\n${executable}\nreturn renderToString;`) as (helpers: Record<string, unknown>) => (props?: Record<string, unknown>) => Promise<string>;
+  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, onMounted: () => {}, onUnmounted: () => {}, ref, unwrap });
 }
 
 function loadHydrationModule(code: string, documentOverride?: Document): { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any } {

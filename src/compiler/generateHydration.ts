@@ -5,6 +5,7 @@ type HydrationContext = {
   lines: string[];
   index: number;
   teleportIndex: number;
+  templateRefMode?: "single" | "array";
   source?: string;
   filename?: string;
 };
@@ -54,6 +55,23 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
   emit(context, 1, "const __mikuru_warn = (message) => { if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message}`); };");
   emit(context, 1, "const __mikuru_findComment = (parent, value) => Array.from(parent.childNodes ?? []).find((node) => node.nodeType === 8 && node.nodeValue === value);");
   emit(context, 1, "const __mikuru_findNextComment = (node, value) => { for (let cursor = node.nextSibling; cursor; cursor = cursor.nextSibling) { if (cursor.nodeType === 8 && cursor.nodeValue === value) return cursor; } return undefined; };");
+  emit(context, 1, "const __mikuru_setRef = (target, value, multiple = false) => {");
+  emit(context, 2, "if (typeof target === \"function\") {");
+  emit(context, 3, "target(value);");
+  emit(context, 3, "return () => target(null);");
+  emit(context, 2, "}");
+  emit(context, 2, "if (!target || typeof target !== \"object\" || !(\"value\" in target)) {");
+  emit(context, 3, "return () => {};");
+  emit(context, 2, "}");
+  emit(context, 2, "if (multiple) {");
+  emit(context, 3, "const list = Array.isArray(target.value) ? target.value : [];");
+  emit(context, 3, "if (target.value !== list) { target.value = list; }");
+  emit(context, 3, "list.push(value);");
+  emit(context, 3, "return () => { const index = list.indexOf(value); if (index >= 0) { list.splice(index, 1); } };");
+  emit(context, 2, "}");
+  emit(context, 2, "target.value = value;");
+  emit(context, 2, "return () => { if (target.value === value) { target.value = null; } };");
+  emit(context, 1, "};");
   if (script.body.trim()) {
     emitRaw(context, script.body.trim(), 1);
     emit(context, 1, "");
@@ -94,6 +112,7 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
   hydrateAttrs(context, node, elementVar, indent);
   hydrateEvents(context, node, elementVar, indent);
   hydrateModelAndShow(context, node, elementVar, indent);
+  hydrateTemplateRef(context, node, elementVar, indent);
   hydrateChildren(context, node.children, elementVar, indent);
 }
 
@@ -183,9 +202,12 @@ function hydrateTeleport(context: HydrationContext, node: ElementNode, elementVa
 function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
   const condition = getAttrValue(node, "v-if");
   const childVar = nextName(context, "branch");
+  const elementCheck = isComponentTag(node.tag)
+    ? `!${childVar} || ${childVar}.nodeType !== 1`
+    : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}`;
   emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
   emit(context, indent, `if (unwrap(${compileHydrationExpression(context, condition, "v-if")})) {`);
-  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}) { __mikuru_warn("Branch mismatch; dynamic v-if hydration will remount in a future phase."); } else {`);
+  emit(context, indent + 1, `if (${elementCheck}) { __mikuru_warn("Branch mismatch; dynamic v-if hydration will remount in a future phase."); } else {`);
   hydrateElement(context, withoutAttrs(node, ["v-if"]), childVar, indent + 2);
   emit(context, indent + 1, "}");
   emit(context, indent, `} else if (${childVar}) {`);
@@ -203,6 +225,9 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
   const listVar = nextName(context, "list");
   const itemVar = nextName(context, "item");
   const childVar = nextName(context, "row");
+  const elementCheck = isComponentTag(node.tag)
+    ? `!${childVar} || ${childVar}.nodeType !== 1`
+    : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}`;
   emit(context, indent, `const ${listVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
   emit(context, indent, `for (const [__mikuru_index, ${itemVar}] of ${listVar}.entries()) {`);
   emit(context, indent + 1, `const ${forExpression.item} = ${itemVar};`);
@@ -210,8 +235,10 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
     emit(context, indent + 1, `const ${forExpression.index} = __mikuru_index;`);
   }
   emit(context, indent + 1, `const ${childVar} = ${parentVar}.childNodes[${domIndex} + __mikuru_index];`);
-  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}) { __mikuru_warn("List mismatch; dynamic v-for hydration will remount in a future phase."); } else {`);
-  hydrateElement(context, withoutAttrs(node, ["v-for"]), childVar, indent + 2);
+  emit(context, indent + 1, `if (${elementCheck}) { __mikuru_warn("List mismatch; dynamic v-for hydration will remount in a future phase."); } else {`);
+  withTemplateRefMode(context, "array", () => {
+    hydrateElement(context, withoutAttrs(node, ["v-for"]), childVar, indent + 2);
+  });
   emit(context, indent + 1, "}");
   emit(context, indent, "}");
   if (advanceVar) {
@@ -248,6 +275,7 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   emit(context, indent, `if (${node.tag} && typeof ${node.tag}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${node.tag}.hydrate(${elementVar}, ${propsVar});`);
   emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  hydrateTemplateRef(context, node, "__mikuru_child", indent + 1);
   emit(context, indent, `} else if (${node.tag} && typeof ${node.tag}.mount === "function") {`);
   emit(context, indent + 1, "__mikuru_warn(\"Component hydration fallback; child component does not expose hydrate().\");");
   emit(context, indent + 1, `const __mikuru_parent = ${elementVar}.parentNode;`);
@@ -259,6 +287,7 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   emit(context, indent + 1, "__mikuru_parent?.insertBefore(__mikuru_fragment, __mikuru_anchor);");
   emit(context, indent + 1, "__mikuru_anchor.remove();");
   emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  hydrateTemplateRef(context, node, "__mikuru_child", indent + 1);
   emit(context, indent, "} else {");
   emit(context, indent + 1, `__mikuru_warn(${quote(`Component mismatch at <${node.tag}>.`)});`);
   emit(context, indent, "}");
@@ -386,6 +415,42 @@ function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string,
   emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_text = ${expression || "\"\""}; if (${nodeVar}.textContent !== __mikuru_text) ${nodeVar}.textContent = __mikuru_text; }));`);
 }
 
+function hydrateTemplateRef(context: HydrationContext, node: ElementNode, valueExpression: string, indent: number): void {
+  const refAttr = getTemplateRefAttr(node);
+
+  if (!refAttr) {
+    return;
+  }
+
+  const targetExpression = templateRefTargetExpression(context, refAttr);
+  const cleanupRefVar = nextName(context, "cleanupRef");
+  const multiple = context.templateRefMode === "array";
+  emit(context, indent, `const ${cleanupRefVar} = __mikuru_setRef(${targetExpression}, ${valueExpression}, ${multiple ? "true" : "false"});`);
+  emit(context, indent, `__mikuru_cleanup.push(${cleanupRefVar});`);
+}
+
+function getTemplateRefAttr(node: ElementNode): TemplateAttribute | undefined {
+  return node.attrs.find((attr) => attr.name === "ref" || getDynamicAttrName(attr.name) === "ref");
+}
+
+function templateRefTargetExpression(context: HydrationContext, attr: TemplateAttribute): string {
+  if (getDynamicAttrName(attr.name) === "ref") {
+    return compileHydrationExpression(context, requireAttrValue(attr), attr.name);
+  }
+
+  if (attr.value === true || !attr.value.trim()) {
+    throw new Error("Template ref requires a ref object name, for example ref=\"inputEl\"");
+  }
+
+  const name = attr.value.trim();
+
+  if (!isIdentifier(name)) {
+    throw new Error("Template ref must be a simple identifier that points to a ref object");
+  }
+
+  return name;
+}
+
 function isHydratableNode(node: TemplateNode): boolean {
   return node.type === "element" || node.parts.some((part) => part.type === "expression" || (part.type === "static" && part.value.length > 0));
 }
@@ -400,6 +465,7 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name.startsWith("v-model.")
     || attr.name.startsWith("v-model:")
     || attr.name === "ref"
+    || getDynamicAttrName(attr.name) === "ref"
     || attr.name === "key"
     || attr.name.startsWith("@")
     || attr.name.startsWith("v-on:");
@@ -451,6 +517,14 @@ function toComponentEventProp(eventName: string): string {
 
 function getAttrValueFromDirective(attr: TemplateAttribute): string {
   return attr.value === true ? "" : String(attr.value);
+}
+
+function requireAttrValue(attr: TemplateAttribute): string {
+  if (attr.value === true) {
+    throw new Error(`Attribute ${attr.name} requires a value`);
+  }
+
+  return attr.value;
 }
 
 function getStaticAttrValue(node: ElementNode, name: string): string | undefined {
@@ -515,6 +589,21 @@ function compileHydrationExpression(context: HydrationContext, expression: strin
     offset: 0,
     filename: context.filename
   });
+}
+
+function isIdentifier(value: string): boolean {
+  return /^[A-Za-z_$][\w$]*$/.test(value);
+}
+
+function withTemplateRefMode<T>(context: HydrationContext, mode: "single" | "array", callback: () => T): T {
+  const previousMode = context.templateRefMode;
+  context.templateRefMode = mode;
+
+  try {
+    return callback();
+  } finally {
+    context.templateRefMode = previousMode;
+  }
 }
 
 function splitScript(script: string): ScriptParts {
