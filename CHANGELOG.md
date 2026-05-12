@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Extended `<ErrorBoundary>` to catch descendant generated event handler, lifecycle callback, and cleanup errors through component tree error propagation.
+
 ## 1.0.18 - 2026-05-12
 
 - Added built-in `<ErrorBoundary>` with fallback component rendering and retry.

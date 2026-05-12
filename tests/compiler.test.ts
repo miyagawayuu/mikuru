@@ -221,7 +221,7 @@ p { color: red; }
     const result = compile(`<template><Child v-model="name" /></template><script>import Child from "./Child.mikuru"; const name = ref("Mikuru");</script>`);
 
     expect(result.code).toContain("get modelValue() { return unwrap(unwrap(name)); }");
-    expect(result.code).toContain("onUpdateModelValue: ($value) => { name.value = $value; }");
+    expect(result.code).toContain("onUpdateModelValue: __mikuru_guardEventHandler(($value) => { name.value = $value; })");
   });
 
   it("generates v-model modifiers and component v-show", () => {
@@ -424,7 +424,7 @@ const activeSlot = "header";
   it("emits once wrappers for component events", () => {
     const result = compile(`<template><Child @select.once="select" /></template><script>import Child from "./Child.mikuru"; function select() {}</script>`);
 
-    expect(result.code).toContain("onSelect: (() =>");
+    expect(result.code).toContain("onSelect: __mikuru_guardEventHandler((() =>");
     expect(result.code).toContain("return (...$args) =>");
     expect(result.code).toContain("return handler");
   });

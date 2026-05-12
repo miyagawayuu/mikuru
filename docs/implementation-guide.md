@@ -295,7 +295,7 @@ const AsyncPanel = defineAsyncComponent({
 </script>
 ```
 
-Use `<ErrorBoundary>` around a child component when its mount should fail into a local fallback instead of breaking the whole parent mount.
+Use `<ErrorBoundary>` around a child component when its mount, generated event handler, lifecycle callback, or cleanup error should fail into a local fallback instead of breaking the whole parent mount.
 
 ```mikuru
 <ErrorBoundary :fallback="ErrorPanel">
