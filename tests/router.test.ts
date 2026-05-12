@@ -34,6 +34,43 @@ function textComponent(text: string): RouteComponent {
   };
 }
 
+describe("router debug events", () => {
+  it("emits navigation events when a devtools hook is present", async () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    const events: Array<{ type: string; payload?: { status?: string; to?: RouteLocation; from?: RouteLocation } }> = [];
+    (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = {
+      components: new Map(),
+      events,
+      nextId: 1
+    };
+
+    try {
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [
+          { path: "/", component: textComponent("home") },
+          { path: "/about", component: textComponent("about") }
+        ]
+      });
+
+      await router.push("/about");
+
+      expect(events.map((event) => `${event.type}:${event.payload?.status}`)).toEqual([
+        "route:navigate:start",
+        "route:navigate:success"
+      ]);
+      expect(events[1]?.payload?.to?.path).toBe("/about");
+      expect(events[1]?.payload?.from?.path).toBe("/");
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+});
+
 function propTextComponent(propName: string): RouteComponent {
   return {
     mount(target, props = {}) {

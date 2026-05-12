@@ -1,5 +1,7 @@
 export { normalizeClass, normalizeStyle, setAttribute } from "./dom.js";
 export type { ClassValue, StyleValue } from "./dom.js";
+export { emitDebugEvent, registerDebugComponent } from "./devtools.js";
+export type { MikuruDebugComponentMetadata, MikuruDebugEvent, MikuruDevtoolsHook } from "./devtools.js";
 export { defineAsyncComponent } from "./asyncComponent.js";
 export type {
   AsyncComponentLoader,

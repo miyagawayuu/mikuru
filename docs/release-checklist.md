@@ -41,7 +41,7 @@ Confirm these exports work from the packed package:
 
 ## Known v1 Limits
 
-- No SSR, hydration, or stable devtools API. Debug builds expose only an unstable internal devtools metadata hook.
+- No SSR, hydration, or stable devtools API. Debug builds expose only an unstable internal devtools metadata/event hook.
 - No Vue compatibility guarantee.
 - `v-html` remains unsupported.
 - Source maps include original SFC content and line-oriented mappings for common template/script generated lines.
