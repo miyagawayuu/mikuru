@@ -669,6 +669,32 @@ const count = 0;
     );
   });
 
+  it("suggests supported directives and modifiers for template typos", () => {
+    expect(() => compile(`<template><p v-iff="ok">Hi</p></template>`)).toThrow(
+      /Unsupported directive "v-iff"\. Did you mean v-if\?/
+    );
+
+    expect(() => compile(`<template><p v-els>Fallback</p></template>`)).toThrow(
+      /Unsupported directive "v-els"\. Did you mean v-else\?/
+    );
+
+    expect(() => compile(`<template><input v-modle="name" /></template>`)).toThrow(
+      /Unsupported directive "v-modle"\. Did you mean v-model\?/
+    );
+
+    expect(() => compile(`<template><p v-bindd:title="title">Hi</p></template>`)).toThrow(
+      /Unsupported directive "v-bindd:title"\. Did you mean v-bind:title\?/
+    );
+
+    expect(() => compile(`<template><button @click.prevet="save">Save</button></template>`)).toThrow(
+      /Unsupported event modifier \.prevet\. Did you mean \.prevent\?/
+    );
+
+    expect(() => compile(`<template><input v-model.trm="name" /></template>`)).toThrow(
+      /Unsupported v-model modifier \.trm\. Did you mean \.trim\?/
+    );
+  });
+
   it("adds generated source URLs in Vite debug mode", async () => {
     const plugin = mikuru({ debug: true });
     const transform = plugin.transform as unknown as Function;

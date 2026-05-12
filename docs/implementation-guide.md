@@ -529,6 +529,13 @@ Built-in components also report unsupported attributes with suggestions when the
 Unsupported attribute ":fallbak" on <AsyncBoundary>. Did you mean :fallback?
 ```
 
+Directive and modifier typos use the same style:
+
+```text
+Unsupported directive "v-modle". Did you mean v-model?
+Unsupported event modifier .prevet. Did you mean .prevent?
+```
+
 For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules.
 
 The compiler returns a v3 source map with `sourcesContent`, and the Vite plugin forwards that map. Segment precision is currently coarse, so generated code inspection may still be needed for complex compiler issues.

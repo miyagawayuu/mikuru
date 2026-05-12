@@ -7,6 +7,7 @@
 - Added `<AsyncBoundary :delay :timeout>` for delayed loading UI and boundary-level async timeouts.
 - Added `errors` to `MikuruAsyncBoundaryFallbackProps` so async fallbacks can inspect aggregated failures.
 - Improved compile diagnostics for built-in component attribute typos with `Did you mean ...?` suggestions.
+- Improved compile diagnostics for directive and event/model modifier typos with close-match suggestions.
 - Added a dogfood AsyncBoundary lab and E2E coverage for loading and retryable async fallback.
 - Added a dogfood ErrorBoundary lab and E2E coverage for diagnostics, fallback reset, and `:reset-key` recovery.
 - Exported `MikuruErrorBoundaryFallbackProps` for typed ErrorBoundary fallback components.

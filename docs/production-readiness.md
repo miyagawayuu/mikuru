@@ -5,7 +5,7 @@ Mikuru v1 is usable for experiments, demos, and small app validation. Before ado
 ## Debuggability
 
 - Compile errors include filename, line, column, and a one-line code frame.
-- Built-in component attribute typos include close-match suggestions such as `Did you mean :fallback?`.
+- Built-in component attribute, directive, and modifier typos include close-match suggestions such as `Did you mean :fallback?`, `Did you mean v-model?`, and `Did you mean .prevent?`.
 - The Vite plugin forwards Mikuru compile errors with `id`, `loc`, and `frame`, so Vite can display the original source location.
 - The Vite plugin supports `mikuru({ debug: true })`, which appends a generated `sourceURL` comment to transformed `.mikuru` modules.
 - The compiler returns a v3 source map with `file`, `sources`, `sourcesContent`, `names`, and mappings for generated lines. Vite forwards that map to the bundler.
