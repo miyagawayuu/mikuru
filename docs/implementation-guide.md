@@ -345,7 +345,7 @@ export const ErrorPanel: MikuruComponent = {
 };
 ```
 
-The dogfood example includes an ErrorBoundary lab that exercises `errorInfo.phase`, fallback `reset`, and `:reset-key` recovery under E2E coverage.
+The dogfood example includes AsyncBoundary and ErrorBoundary labs that exercise async loading, retryable async fallback, `errorInfo.phase`, fallback `reset`, and `:reset-key` recovery under E2E coverage.
 
 Use `<Teleport>` when content should render elsewhere in the document while staying owned by the current component.
 
