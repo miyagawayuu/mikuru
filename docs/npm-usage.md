@@ -179,11 +179,11 @@ Lower-level compiler, runtime, and server entries are also public:
 ```ts
 import { compile, compileSsr } from "mikuru/compiler";
 import { effect, flushJobs, isRef, nextTick, queueJob, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch, watchEffect } from "mikuru/runtime";
-import { escapeHtml, renderComponentToString, renderToString } from "mikuru/server";
+import { escapeHtml, renderComponentToString, renderRouteToString, renderToString } from "mikuru/server";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
-`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, and scoped slot props; hydration is intentionally separate future work.
+`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, and scoped slot props. `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, and nested route slots for router SSR; hydration is intentionally separate future work.
 
 Routing helpers are available from `mikuru/router`:
 

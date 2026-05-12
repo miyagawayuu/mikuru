@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { compileSsr } from "../src/compiler/index.js";
-import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderToString } from "../src/server.js";
+import { createMemoryHistory, createRouter } from "../src/router/index.js";
+import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToString } from "../src/server.js";
 import { unwrap } from "../src/runtime/index.js";
 
 describe("server rendering", () => {
@@ -131,6 +132,41 @@ const item = { label: "child" };
         item: async ({ item }: { item: { label: string } }) => '<strong>' + item.label + '</strong>'
       }
     })).resolves.toBe("<article><strong>child</strong></article>");
+  });
+
+  it("renders router matches with redirects, lazy components, props, and nested default slots", async () => {
+    const Shell = {
+      async renderToString(props: Record<string, any>) {
+        return `<main data-route="${props.route.path}"><h1>Shell</h1>${await props.children()}</main>`;
+      }
+    };
+    const UserPage = {
+      renderToString(props: Record<string, any>) {
+        return `<p data-id="${props.id}" data-tab="${props.tab}">User ${props.route.params.id}</p>`;
+      }
+    };
+    const router = createRouter({
+      history: createMemoryHistory("/"),
+      routes: [
+        {
+          path: "/",
+          component: Shell as any,
+          children: [
+            { path: "", redirect: "/users/7?tab=info" },
+            {
+              path: "users/:id",
+              component: async () => ({ default: UserPage as any }),
+              props: (route) => ({ id: route.params.id, tab: route.query.tab })
+            }
+          ]
+        }
+      ]
+    });
+
+    const result = await renderRouteToString(router, "/");
+
+    expect(result.route.fullPath).toBe("/users/7?tab=info");
+    expect(result.html).toBe('<main data-route="/users/7"><h1>Shell</h1><p data-id="7" data-tab="info">User 7</p></main>');
   });
 
   it("keeps sibling v-for temporary variables unique", async () => {

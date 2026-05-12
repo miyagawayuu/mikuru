@@ -5,6 +5,7 @@
 - Added SSR phase 1 with `compileSsr()` and `mikuru/server` helpers for escaped HTML, attributes, `v-if` chains, and `v-for` output.
 - Added SSR child component rendering with props and default slot projection.
 - Added async SSR child rendering plus named and scoped SSR slots.
+- Added `renderRouteToString()` for router SSR with redirects, lazy route components, nested route slots, and route props.
 - Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.
 - Extended `<AsyncBoundary>` to support multiple child nodes with live `pending` updates.
