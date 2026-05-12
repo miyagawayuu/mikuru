@@ -327,6 +327,8 @@ export const ErrorPanel: MikuruComponent = {
 };
 ```
 
+The dogfood example includes an ErrorBoundary lab that exercises `errorInfo.phase`, fallback `reset`, and `:reset-key` recovery under E2E coverage.
+
 Use `<Teleport>` when content should render elsewhere in the document while staying owned by the current component.
 
 ```mikuru

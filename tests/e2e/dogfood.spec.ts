@@ -38,3 +38,29 @@ test("dogfood app teleports the summary modal", async ({ page }) => {
   await page.getByRole("button", { name: "Close summary" }).click();
   await expect(modalRoot.getByRole("dialog")).toHaveCount(0);
 });
+
+test("dogfood app demonstrates ErrorBoundary diagnostics and recovery", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "ErrorBoundary lab" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Trigger boundary error" }).click();
+
+  const alert = page.getByRole("alert");
+  await expect(alert).toBeVisible();
+  await expect(alert).toContainText("Boundary caught an error");
+  await expect(alert).toContainText("event in");
+  await expect(alert).toContainText("Dogfood boundary failure");
+  await expect(page.getByRole("button", { name: "Trigger boundary error" })).toHaveCount(0);
+
+  await alert.getByRole("button", { name: "Reset boundary" }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Trigger boundary error" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Trigger boundary error" }).click();
+  await expect(page.getByRole("alert")).toContainText("Dogfood boundary failure");
+
+  await page.locator(".error-lab").getByRole("button", { name: "Reset boundary key" }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Trigger boundary error" })).toBeVisible();
+});
