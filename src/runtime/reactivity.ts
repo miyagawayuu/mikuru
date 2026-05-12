@@ -62,23 +62,43 @@ export function computed<T>(getter: () => T): ComputedRef<T>;
 export function computed<T>(options: WritableComputedOptions<T>): WritableComputedRef<T>;
 export function computed<T>(source: (() => T) | WritableComputedOptions<T>): ComputedRef<T> | WritableComputedRef<T> {
   const getter = typeof source === "function" ? source : source.get;
-  const result = ref<T>(getter());
+  const dep: Dep = new Set();
+  let value: T;
+  let dirty = true;
 
-  effect(() => {
-    result.value = getter();
+  const computedEffect = createReactiveEffect(() => {
+    value = getter();
+    dirty = false;
+  }, {
+    scheduler: () => {
+      if (dirty) {
+        return;
+      }
+
+      dirty = true;
+      trigger(dep);
+    }
   });
 
   if (typeof source === "function") {
     return {
       get value() {
-        return result.value;
+        track(dep);
+        if (dirty) {
+          runEffect(computedEffect);
+        }
+        return value!;
       }
     };
   }
 
   return {
     get value() {
-      return result.value;
+      track(dep);
+      if (dirty) {
+        runEffect(computedEffect);
+      }
+      return value!;
     },
     set value(nextValue) {
       source.set(nextValue);
@@ -87,6 +107,17 @@ export function computed<T>(source: (() => T) | WritableComputedOptions<T>): Com
 }
 
 export function effect(fn: EffectFn, options: EffectOptions = {}): () => void {
+  const reactiveEffect = createReactiveEffect(fn, options);
+
+  runEffect(reactiveEffect);
+
+  return () => {
+    reactiveEffect.active = false;
+    cleanupEffect(reactiveEffect);
+  };
+}
+
+function createReactiveEffect(fn: EffectFn, options: EffectOptions = {}): ReactiveEffect {
   const reactiveEffect: ReactiveEffect = {
     fn,
     runner: () => runEffect(reactiveEffect),
@@ -95,12 +126,7 @@ export function effect(fn: EffectFn, options: EffectOptions = {}): () => void {
     scheduler: options.scheduler
   };
 
-  runEffect(reactiveEffect);
-
-  return () => {
-    reactiveEffect.active = false;
-    cleanupEffect(reactiveEffect);
-  };
+  return reactiveEffect;
 }
 
 export function watchEffect(fn: WatchEffectFn): () => void {

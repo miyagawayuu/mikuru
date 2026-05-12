@@ -98,7 +98,7 @@ Unsupported in v1:
 
 ## Runtime Contract
 
-- `ref`, `computed`, and `effect` provide shallow ref-based reactivity. `computed` supports both read-only getters and writable `{ get, set }` refs.
+- `ref`, `computed`, and `effect` provide shallow ref-based reactivity. `computed` supports both read-only getters and writable `{ get, set }` refs, with lazy cached evaluation.
 - `effect(fn)` runs immediately and returns a stop function. `effect(fn, { scheduler })` runs initially, then passes a runner to the scheduler on dependency updates.
 - `queueJob(job)` schedules a deduped microtask job, `flushJobs()` drains queued jobs synchronously, and `nextTick(fn?)` waits for pending jobs before running the optional callback.
 - `compile(source, { batchedUpdates: true })` and `mikuru({ batchedUpdates: true })` generate template effects with `queueJob` scheduling; the default remains synchronous.
