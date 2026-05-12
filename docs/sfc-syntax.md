@@ -217,6 +217,21 @@ button {
 - 条件がfalsyなら `display` を `"none"` にする。
 - 既存のdisplay値の退避やCSS cascadeとの厳密な統合は後続課題にする。
 
+### コンテンツと静的化ディレクティブ
+
+```mikuru
+<article v-html="trustedHtml"></article>
+<p v-text="message"></p>
+<code v-pre>{{ raw }}</code>
+<main v-cloak>{{ message }}</main>
+```
+
+`v-html` は式の値を `innerHTML` として入れる。値はサニタイズ済みであることを前提にする。`v-text` は `textContent` として入れるため、HTMLは文字列として扱われる。
+
+`v-pre` は対象elementと子孫をコンパイル対象から外し、補間やディレクティブ風の属性を文字どおり出力する。`v-pre` 自体は出力しない。
+
+`v-cloak` はSSRでは属性として残し、hydration後に外す。通常のDOM mountでは最初から属性を出さない。未hydrated状態をCSSで隠したい場合に使う。
+
 ### 繰り返し
 
 ```mikuru
@@ -468,7 +483,6 @@ const AsyncPanel = defineAsyncComponent({
 ## v1で扱わない構文
 
 - テンプレート式内の文、代入、更新式、`new`、`eval`、`Function`
-- `v-html`
 
 ## エラー方針
 
@@ -482,10 +496,10 @@ v1では、曖昧な構文を黙って無視しない。
 未対応構文では、できるだけ次に取れる選択肢もエラーに含める。
 
 ```mikuru
-<div v-html="html"></div>
+<div v-unknown="value"></div>
 ```
 
-`v-html` はv1対象外。プレーンテキストなら補間を使い、HTMLを扱う場合はscript側でサニタイズ済みのDOM更新として明示する。
+未対応ディレクティブは `Unsupported directive` として報告し、近い組み込みディレクティブがあれば `Did you mean ...?` を付ける。
 
 `<component :is="current" />` は、`current` が `mount()` を持つコンポーネントオブジェクトへ解決される場合に対応する。文字列タグ名への解決は対象外。
 

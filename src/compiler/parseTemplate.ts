@@ -52,7 +52,9 @@ export function parseTemplate(template: string, options: ParseTemplateOptions = 
 
   for (const token of tokenizeTemplate(template, context)) {
     if (token.type === "text") {
-      const textNode = parseText(token.value, token.start, context);
+      const textNode = isPreMode(stack)
+        ? parseRawText(token.value, token.start, context)
+        : parseText(token.value, token.start, context);
 
       if (textNode) {
         currentParent(stack).children.push(textNode);
@@ -347,6 +349,18 @@ function parseText(token: string, tokenStart: number, context: LocationContext):
   };
 }
 
+function parseRawText(token: string, tokenStart: number, context: LocationContext): TextNode | undefined {
+  if (!token.trim()) {
+    return undefined;
+  }
+
+  return {
+    type: "text",
+    parts: [{ type: "static", value: token }],
+    loc: toLocation(tokenStart, context)
+  };
+}
+
 function closeElement(token: string, tokenStart: number, stack: ElementNode[], context: LocationContext): void {
   const tag = token.replace(/^<\//, "").replace(/>$/, "").trim();
   const current = stack.pop();
@@ -354,6 +368,10 @@ function closeElement(token: string, tokenStart: number, stack: ElementNode[], c
   if (!current || current.tag !== tag) {
     throw createCompileError(`Unexpected closing tag </${tag}>`, context.source, context.offset + tokenStart, context.filename);
   }
+}
+
+function isPreMode(stack: ElementNode[]): boolean {
+  return stack.some((node) => node.attrs.some((attr) => attr.name === "v-pre"));
 }
 
 function currentParent(stack: ElementNode[]): ElementNode {

@@ -87,6 +87,23 @@ const message = "<safe>";
     await expect(render()).resolves.toBe("<section><article><strong>raw</strong></article><p>&lt;safe&gt;</p></section>");
   });
 
+  it("renders v-pre literally and keeps v-cloak for hydration", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <article v-pre :id="rawId" @click="ignored">{{ message }}<span v-if="false">Raw</span></article>
+    <p v-cloak>{{ message }}</p>
+  </section>
+</template>
+<script>
+const message = "Hello";
+const rawId = "raw";
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><article :id="rawId" @click="ignored">{{ message }}<span v-if="false">Raw</span></article><p v-cloak="">Hello</p></section>');
+  });
+
   it("keeps SSR compile output importable from the public compiler entry", () => {
     const result = compileSsr(`<template><main id="app">{{ message }}</main></template><script>const message = "hello";</script>`);
 

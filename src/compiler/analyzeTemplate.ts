@@ -11,18 +11,30 @@ type AnalyzeTemplateOptions = {
 
 export function analyzeTemplate(root: ElementNode, options: AnalyzeTemplateOptions = {}): Binding[] {
   const bindings: Binding[] = [];
-  visitNode(root, bindings, options);
+  visitNode(root, bindings, options, false);
   return bindings;
 }
 
-function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemplateOptions): void {
+function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemplateOptions, inPre: boolean): void {
   if (node.type === "text") {
+    if (inPre) {
+      return;
+    }
+
     for (const part of node.parts) {
       if (part.type === "expression") {
         bindings.push({ type: "text", expression: part.value });
       }
     }
 
+    return;
+  }
+
+  const pre = inPre || hasAttr(node, "v-pre");
+  if (pre) {
+    for (const child of node.children) {
+      visitNode(child, bindings, options, true);
+    }
     return;
   }
 
@@ -138,8 +150,12 @@ function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemp
   }
 
   for (const child of node.children) {
-    visitNode(child, bindings, options);
+    visitNode(child, bindings, options, false);
   }
+}
+
+function hasAttr(node: ElementNode, name: string): boolean {
+  return node.attrs.some((attr) => attr.name === name);
 }
 
 function rejectUnsupportedNodeFeatures(node: ElementNode, options: AnalyzeTemplateOptions): void {

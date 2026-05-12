@@ -192,6 +192,50 @@ function update() {
     expect(article?.innerHTML).toBe("<em>next</em>");
   });
 
+  it("hydrates v-pre literally and removes v-cloak", async () => {
+    const source = `<template>
+  <section>
+    <article v-pre :id="rawId" @click="ignored">{{ message }}<span v-if="false">Raw</span></article>
+    <p v-cloak>{{ message }}</p>
+    <button @click="update">Update</button>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const message = ref("Hello");
+const rawId = "raw";
+function update() {
+  message.value = "Updated";
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    expect(root.querySelector("p")?.hasAttribute("v-cloak")).toBe(true);
+
+    const instance = module.hydrate(root as unknown as Element);
+    const article = root.querySelector("article");
+    const paragraph = root.querySelector("p");
+    const span = root.querySelector("span");
+
+    expect(article?.textContent).toBe("{{ message }}Raw");
+    expect(article?.getAttribute(":id")).toBe("rawId");
+    expect(article?.getAttribute("@click")).toBe("ignored");
+    expect(span?.getAttribute("v-if")).toBe("false");
+    expect(paragraph?.hasAttribute("v-cloak")).toBe(false);
+    expect(paragraph?.textContent).toBe("Hello");
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+
+    expect(article?.textContent).toBe("{{ message }}Raw");
+    expect(paragraph?.textContent).toBe("Updated");
+
+    instance.unmount();
+  });
+
   it("hydrates child components when they expose hydrate and falls back to mount otherwise", async () => {
     const source = `<template>
   <section>

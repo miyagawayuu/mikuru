@@ -99,6 +99,11 @@ function hydrateNode(context: HydrationContext, node: TemplateNode, nodeVar: str
 }
 
 function hydrateElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  if (getAttr(node, "v-pre")) {
+    hydratePreElement(context, node, elementVar, indent);
+    return;
+  }
+
   if (node.tag === "Teleport") {
     hydrateTeleport(context, node, elementVar, indent);
     return;
@@ -129,13 +134,13 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       return;
     }
 
-    if (child.type === "element" && getAttr(child, "v-if")) {
+    if (child.type === "element" && getAttr(child, "v-if") && !getAttr(child, "v-pre")) {
       hydrateIf(context, child, parentVar, domIndexVar, indent);
       emit(context, indent, `${domIndexVar} += 1;`);
       return;
     }
 
-    if (child.type === "element" && getAttr(child, "v-for")) {
+    if (child.type === "element" && getAttr(child, "v-for") && !getAttr(child, "v-pre")) {
       hydrateFor(context, child, parentVar, domIndexVar, indent, domIndexVar);
       return;
     }
@@ -253,6 +258,11 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
   const staticClass = getStaticAttrValue(node, "class");
   const staticStyle = getStaticAttrValue(node, "style");
   for (const attr of node.attrs) {
+    if (attr.name === "v-cloak") {
+      emit(context, indent, `${elementVar}.removeAttribute("v-cloak");`);
+      continue;
+    }
+
     if (shouldSkipAttr(attr)) {
       continue;
     }
@@ -308,6 +318,33 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
 
     emit(context, indent, `setAttribute(${elementVar}, ${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
   }
+}
+
+function hydratePreElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  for (const attr of node.attrs) {
+    if (attr.name === "v-pre") {
+      continue;
+    }
+
+    emit(context, indent, `setAttribute(${elementVar}, ${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
+  }
+
+  const children = node.children.filter(isHydratableNode);
+  const domIndexVar = nextName(context, "preIndex");
+  emit(context, indent, `let ${domIndexVar} = 0;`);
+  children.forEach((child) => {
+    const childVar = nextName(context, "preNode");
+    emit(context, indent, `const ${childVar} = ${elementVar}.childNodes[${domIndexVar}];`);
+    if (child.type === "element") {
+      emit(context, indent, `if (${childVar} && ${childVar}.nodeType === 1) {`);
+      hydratePreElement(context, child, childVar, indent + 1);
+      emit(context, indent, "}");
+    } else {
+      const text = child.parts.map((part) => part.value).join("");
+      emit(context, indent, `if (${childVar} && ${childVar}.nodeType === 3 && ${childVar}.textContent !== ${quote(text)}) { ${childVar}.textContent = ${quote(text)}; }`);
+    }
+    emit(context, indent, `${domIndexVar} += 1;`);
+  });
 }
 
 function hydrateComponent(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -518,6 +555,8 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "v-show"
     || attr.name === "v-html"
     || attr.name === "v-text"
+    || attr.name === "v-pre"
+    || attr.name === "v-cloak"
     || attr.name === "v-model"
     || attr.name.startsWith("v-model.")
     || attr.name.startsWith("v-model:")
