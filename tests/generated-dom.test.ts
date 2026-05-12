@@ -2261,6 +2261,130 @@ const ErrorView = {
     expect(fixture.root.querySelector("button")).toBeNull();
   });
 
+  it("renders ErrorBoundary fallback for descendant event handler errors", async () => {
+    const previousChild = (globalThis as unknown as { __mikuruBoundaryEventChild?: CompiledModule }).__mikuruBoundaryEventChild;
+    const child = loadCompiledModule(
+      compile(`<template>
+  <button @click="explode">Explode</button>
+</template>
+
+<script>
+function explode() {
+  throw new Error("child clicked");
+}
+</script>`).code,
+      new Window().document as unknown as Document
+    );
+    (globalThis as unknown as { __mikuruBoundaryEventChild?: CompiledModule }).__mikuruBoundaryEventChild = child;
+
+    try {
+      const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <Child />
+  </ErrorBoundary>
+</template>
+
+<script>
+const Child = globalThis.__mikuruBoundaryEventChild;
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+      fixture.module.mount(fixture.root);
+      fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+      await Promise.resolve();
+
+      expect(fixture.root.querySelector("p")?.textContent).toBe("child clicked");
+      expect(fixture.root.querySelector("button")).toBeNull();
+    } finally {
+      (globalThis as unknown as { __mikuruBoundaryEventChild?: CompiledModule }).__mikuruBoundaryEventChild = previousChild;
+    }
+  });
+
+  it("renders ErrorBoundary fallback for generated DOM event handler errors", async () => {
+    const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <button @click="explode">Explode</button>
+  </ErrorBoundary>
+</template>
+
+<script>
+function explode() {
+  throw new Error("button exploded");
+}
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("button exploded");
+    expect(fixture.root.querySelector("button")).toBeNull();
+  });
+
+  it("renders ErrorBoundary fallback for descendant mounted callback errors", async () => {
+    const previousChild = (globalThis as unknown as { __mikuruBoundaryMountedChild?: CompiledModule }).__mikuruBoundaryMountedChild;
+    const child = loadCompiledModule(
+      compile(`<template>
+  <p>Mounted child</p>
+</template>
+
+<script>
+import { onMounted } from "mikuru";
+
+onMounted(() => {
+  throw new Error("mounted exploded");
+});
+</script>`).code,
+      new Window().document as unknown as Document
+    );
+    (globalThis as unknown as { __mikuruBoundaryMountedChild?: CompiledModule }).__mikuruBoundaryMountedChild = child;
+
+    try {
+      const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <Child />
+  </ErrorBoundary>
+</template>
+
+<script>
+const Child = globalThis.__mikuruBoundaryMountedChild;
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+      fixture.module.mount(fixture.root);
+      await Promise.resolve();
+
+      expect(fixture.root.querySelector("p")?.textContent).toBe("mounted exploded");
+    } finally {
+      (globalThis as unknown as { __mikuruBoundaryMountedChild?: CompiledModule }).__mikuruBoundaryMountedChild = previousChild;
+    }
+  });
+
   it("teleports children to a target and can disable teleporting", () => {
     const fixture = compileForDom(`<template>
   <section>
