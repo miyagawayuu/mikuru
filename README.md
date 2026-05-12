@@ -132,7 +132,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `.mikuru` SFCs with `<template>`, `<script>`, and `<style>`
 - Vite plugin support through `mikuru/vite`
 - Template interpolation with `{{ value }}`
-- DOM events with `@click`, `v-on:click`, inline handlers, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, `.passive`, key, mouse button, system, and `.exact` modifiers
+- DOM events with `@click`, `v-on:click`, inline handlers, object-form option modifiers, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, `.passive`, key, mouse button, system, and `.exact` modifiers
 - Component events with `@select` and `.once`
 - Attribute bindings with normalized `:class` and `:style`, boolean/form property sync, direct/object `v-bind` modifiers like `.prop`, `.attr`, and `.camel`, plus dynamic arguments like `:[name]` and `@[event]`
 - `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, `v-html`, `v-text`, `v-pre`, and `v-cloak`
