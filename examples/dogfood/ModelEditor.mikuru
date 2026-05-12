@@ -1,0 +1,50 @@
+<template>
+  <section class="model-editor">
+    <label>
+      <span>Card title</span>
+      <input :value="title" @input="updateTitle($event)" />
+    </label>
+    <label class="model-editor-check">
+      <input type="checkbox" :checked="checked" @change="updateChecked($event)" />
+      <span>Feature enabled</span>
+    </label>
+    <small>{{ trimStatus }}</small>
+  </section>
+</template>
+
+<script>
+const { title, checked, titleModifiers } = defineProps({
+  title: String,
+  checked: Boolean,
+  titleModifiers: Object
+});
+const emit = defineEmits(["update:title", "update:checked"]);
+
+const trimStatus = titleModifiers.value?.trim ? "Title model trims in the child" : "Title model is raw";
+
+function updateTitle(event) {
+  const nextTitle = titleModifiers.value?.trim ? event.target.value.trim() : event.target.value;
+  emit("update:title", nextTitle);
+}
+
+function updateChecked(event) {
+  emit("update:checked", event.target.checked);
+}
+</script>
+
+<style scoped>
+.model-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.model-editor label {
+  display: grid;
+  gap: 4px;
+}
+
+.model-editor-check {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+</style>

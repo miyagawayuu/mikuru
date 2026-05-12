@@ -1491,6 +1491,9 @@ function generateElement(
 
     if (modelDirective) {
       validateModelModifiers(modelDirective, attr, context);
+      if (modelDirective.argument) {
+        throwTemplateError("v-model arguments are only supported on components in v1", context, attr.loc);
+      }
       const expression = validateAssignableExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
       const stopVar = nextVar(context, "stop");
       const handlerVar = nextVar(context, "handler");
@@ -1510,13 +1513,13 @@ function generateElement(
       const propertyName = modelMode === "checkbox" || modelMode === "radio" ? "checked" : "value";
       const renderedValue =
         modelMode === "checkbox"
-          ? `Boolean(unwrap(${expression}))`
+          ? `(() => { const value = unwrap(${expression}); const checkboxValue = ${modelElementValueExpression(`${elementVar}`, modelDirective.modifiers)}; return Array.isArray(value) ? value.some((item) => Object.is(item, checkboxValue)) : Boolean(value); })()`
           : modelMode === "radio"
-            ? `(${modelDirective.modifiers.includes("number") ? `Number(${elementVar}.getAttribute("value") ?? "on")` : `(${elementVar}.getAttribute("value") ?? "on")`} === unwrap(${expression}))`
+            ? `Object.is(${modelElementValueExpression(`${elementVar}`, modelDirective.modifiers)}, unwrap(${expression}))`
             : modelMode === "select-multiple"
               ? `Array.from(${elementVar}.options).forEach((option) => { option.selected = (unwrap(${expression}) ?? []).map(String).includes(option.getAttribute("value") ?? option.textContent ?? ""); })`
               : `String(unwrap(${expression}) ?? "")`;
-      const assignedValue = modelAssignedValue(modelMode, modelDirective.modifiers);
+      const assignedValue = modelAssignedValue(modelMode, modelDirective.modifiers, expression);
 
       emit(context, indent, `const ${stopVar} = effect(() => {`);
       if (modelMode === "select-multiple") {
@@ -3314,14 +3317,17 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
     validateModelModifiers(modelDirective, attr, context);
     const expression = validateAssignableExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     const valueExpression = compileTemplateExpression(expression, attr.name, toExpressionContext(context, attr.valueLoc));
+    const propName = modelDirective.argument ?? "modelValue";
+    const updatePropName = toComponentEventProp(`update:${propName}`);
+    const modifiersPropName = modelDirective.argument ? `${propName}Modifiers` : "modelModifiers";
 
     const entries = [
-      `get modelValue() { return unwrap(${valueExpression}); }`,
-      `onUpdateModelValue: __mikuru_guardEventHandler(($value) => { ${expression}.value = $value; })`
+      `get ${quotePropertyName(propName)}() { return unwrap(${valueExpression}); }`,
+      `${quotePropertyName(updatePropName)}: __mikuru_guardEventHandler(($value) => { ${expression}.value = $value; })`
     ];
 
     if (modelDirective.modifiers.length > 0) {
-      entries.push(`modelModifiers: { ${modelDirective.modifiers.map((modifier) => `${quotePropertyName(modifier)}: true`).join(", ")} }`);
+      entries.push(`${quotePropertyName(modifiersPropName)}: { ${modelDirective.modifiers.map((modifier) => `${quotePropertyName(modifier)}: true`).join(", ")} }`);
     }
 
     return entries;
@@ -3871,20 +3877,30 @@ function parseEventDirective(name: string): EventDirective | undefined {
   };
 }
 
-function parseModelDirective(name: string): { modifiers: string[] } | undefined {
+function parseModelDirective(name: string): { argument?: string; modifiers: string[] } | undefined {
   if (name === "v-model") {
     return { modifiers: [] };
   }
 
-  if (!name.startsWith("v-model.")) {
+  if (!name.startsWith("v-model.") && !name.startsWith("v-model:")) {
     return undefined;
+  }
+
+  if (name.startsWith("v-model:")) {
+    const raw = name.slice("v-model:".length);
+    const [argument = "", ...modifiers] = raw.split(".");
+    return { argument, modifiers: modifiers.filter(Boolean) };
   }
 
   return { modifiers: name.slice("v-model.".length).split(".").filter(Boolean) };
 }
 
-function validateModelModifiers(model: { modifiers: string[] }, attr: TemplateAttribute, context: GenerateContext): void {
+function validateModelModifiers(model: { argument?: string; modifiers: string[] }, attr: TemplateAttribute, context: GenerateContext): void {
   const supportedModifiers = ["trim", "number", "lazy"];
+
+  if (model.argument !== undefined && !model.argument) {
+    throwTemplateError("v-model argument must not be empty", context, attr.loc);
+  }
 
   for (const modifier of model.modifiers) {
     if (!supportedModifiers.includes(modifier)) {
@@ -3895,14 +3911,19 @@ function validateModelModifiers(model: { modifiers: string[] }, attr: TemplateAt
   }
 }
 
-function modelAssignedValue(modelMode: string, modifiers: string[]): string {
+function modelElementValueExpression(targetExpression: string, modifiers: string[]): string {
+  const valueExpression = `(${targetExpression}.getAttribute("value") ?? "on")`;
+  return modifiers.includes("number") ? `Number(${valueExpression})` : valueExpression;
+}
+
+function modelAssignedValue(modelMode: string, modifiers: string[], expression: string): string {
   if (modelMode === "checkbox") {
-    return "$event.target.checked";
+    const valueExpression = modelElementValueExpression("$event.target", modifiers);
+    return `(() => { const checked = $event.target.checked; const current = unwrap(${expression}); const value = ${valueExpression}; if (Array.isArray(current)) { const hasValue = current.some((item) => Object.is(item, value)); return checked ? (hasValue ? current : [...current, value]) : current.filter((item) => !Object.is(item, value)); } return checked; })()`;
   }
 
   if (modelMode === "radio") {
-    const valueExpression = `($event.target.getAttribute("value") ?? "on")`;
-    return modifiers.includes("number") ? `Number(${valueExpression})` : valueExpression;
+    return modelElementValueExpression("$event.target", modifiers);
   }
 
   if (modelMode === "select-multiple") {

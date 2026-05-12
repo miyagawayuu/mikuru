@@ -688,6 +688,38 @@ const selected = ref([1, 3]);
     expect(paragraph?.textContent).toBe("1:trimmed:42:2,3");
   });
 
+  it("syncs checkbox arrays with v-model", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input type="checkbox" value="1" v-model.number="selected">
+    <input type="checkbox" value="2" v-model.number="selected">
+    <p>{{ selected.join(",") }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const selected = ref([2]);
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const checkboxes = fixture.root.querySelectorAll<HTMLInputElement>("input[type='checkbox']");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(checkboxes[0]?.checked).toBe(false);
+    expect(checkboxes[1]?.checked).toBe(true);
+    expect(paragraph?.textContent).toBe("2");
+
+    checkboxes[0].checked = true;
+    checkboxes[0].dispatchEvent(createEvent(fixture.window, "change"));
+    expect(paragraph?.textContent).toBe("2,1");
+
+    checkboxes[1].checked = false;
+    checkboxes[1].dispatchEvent(createEvent(fixture.window, "change"));
+    expect(paragraph?.textContent).toBe("1");
+  });
+
   it("adds scoped style attributes and injects scoped CSS", () => {
     const fixture = compileForDom(`<template>
   <section>
@@ -3929,6 +3961,54 @@ const Child = {
 
     expect(button?.textContent).toBe("Updated");
     expect(fixture.root.querySelector("p")?.textContent).toBe("Updated");
+  });
+
+  it("passes multiple component v-model props and modifiers", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <Child v-model:title.trim="title" v-model:checked="checked" />
+    <p>{{ title }}:{{ checked }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const title = ref("Mikuru");
+const checked = ref(false);
+
+const Child = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    const stop = effect(() => {
+      button.textContent = props.title + ":" + props.checked + ":" + Boolean(props.titleModifiers?.trim);
+    });
+    button.addEventListener("click", () => {
+      props.onUpdateTitle("Updated");
+      props.onUpdateChecked(true);
+    });
+    target.appendChild(button);
+    return {
+      element: button,
+      unmount() {
+        stop();
+        button.remove();
+      }
+    };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+
+    expect(button?.textContent).toBe("Mikuru:false:true");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Mikuru:false");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(button?.textContent).toBe("Updated:true:true");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Updated:true");
   });
 
   it("renders default slot content in child components", () => {

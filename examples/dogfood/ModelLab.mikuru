@@ -1,0 +1,84 @@
+<template>
+  <section class="model-lab" aria-label="v-model lab">
+    <div>
+      <h2>v-model lab</h2>
+      <p>Native modifiers, checkbox arrays, and multiple component models stay in sync.</p>
+    </div>
+
+    <label>
+      <span>Search phrase</span>
+      <input v-model.trim.lazy="phrase" />
+    </label>
+
+    <label>
+      <span>Priority</span>
+      <input type="number" v-model.number="priority" />
+    </label>
+
+    <fieldset>
+      <legend>Flags</legend>
+      <label>
+        <input type="checkbox" value="1" v-model.number="flags" />
+        One
+      </label>
+      <label>
+        <input type="checkbox" value="2" v-model.number="flags" />
+        Two
+      </label>
+    </fieldset>
+
+    <ModelEditor v-model:title.trim="cardTitle" v-model:checked="cardEnabled" />
+
+    <p class="model-summary">{{ phrase }}:{{ priority }}:{{ flags.join(",") }}:{{ cardTitle }}:{{ cardEnabled }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+import ModelEditor from "./ModelEditor.mikuru";
+
+const phrase = ref("ready");
+const priority = ref(1);
+const flags = ref([2]);
+const cardTitle = ref("Launch checklist");
+const cardEnabled = ref(false);
+</script>
+
+<style scoped>
+.model-lab {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  color: #4c1d95;
+  background: #f5f3ff;
+}
+
+.model-lab h2,
+.model-lab p {
+  margin: 0;
+}
+
+.model-lab label,
+.model-lab fieldset {
+  display: grid;
+  gap: 6px;
+}
+
+.model-lab fieldset {
+  grid-template-columns: repeat(2, max-content);
+  align-items: center;
+  border: 1px solid #ddd6fe;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.model-lab legend {
+  padding: 0 4px;
+}
+
+.model-summary {
+  font-weight: 700;
+}
+</style>

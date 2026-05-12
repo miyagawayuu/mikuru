@@ -148,6 +148,7 @@ button {
 <input v-model="name" />
 <textarea v-model="message"></textarea>
 <input type="checkbox" v-model="enabled" />
+<input type="checkbox" value="1" v-model.number="selectedIds" />
 <input type="radio" value="mint" v-model="flavor" />
 <select v-model="flavor">
   <option value="mint">Mint</option>
@@ -164,7 +165,7 @@ button {
 制約:
 
 - `input` / `textarea` は `value` と `input` イベントで同期する。
-- `input type="checkbox"` は `checked` と `change` イベントで真偽値を同期する。
+- `input type="checkbox"` は `checked` と `change` イベントで真偽値を同期する。モデル値が配列の場合は、チェックボックスの `value` を追加・削除する。
 - `input type="radio"` は `value` と `change` イベントで同期する。
 - `select` は `value` と `change` イベントで同期する。
 - `select multiple` は選択されたoption値の配列と `change` イベントで同期する。
@@ -266,7 +267,7 @@ slot scopeの未対応パターンはコンパイルエラーにする。配列�
 - v1ではdefault importされたコンポーネントを想定する。
 - 静的属性と `:prop` / `v-bind:prop` をpropsとして渡す。
 - `@select="select"` / `v-on:select="select"` は `props.onSelect` として子へ渡す。
-- `v-model="value"` は `modelValue` と `onUpdateModelValue` を渡す。子側は `defineProps()` で `modelValue` を読み、`defineEmits(["update:modelValue"])` で更新を通知する。
+- `v-model="value"` は `modelValue` と `onUpdateModelValue` を渡す。`v-model:title="title"` は `title` と `onUpdateTitle` を渡す。修飾子は `modelModifiers` または `titleModifiers` として渡す。
 - 専用emit API、動的コンポーネントは後続課題にする。
 
 ### Props宣言
