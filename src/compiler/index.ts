@@ -1,5 +1,6 @@
 export { analyzeTemplate } from "./analyzeTemplate.js";
 export { compile } from "./compile.js";
+export { compileHydration } from "./compileHydration.js";
 export { compileSsr } from "./compileSsr.js";
 export { createCodeFrame, createCompileError, getSourceLocation, MikuruCompileError } from "./errors.js";
 export type { SourceLocation } from "./errors.js";
