@@ -98,9 +98,9 @@ Unsupported in v1:
 
 ## Runtime Contract
 
-- `ref`, `computed`, and `effect` provide shallow ref-based reactivity.
+- `ref`, `computed`, and `effect` provide shallow ref-based reactivity. `computed` supports both read-only getters and writable `{ get, set }` refs.
 - `effect(fn)` runs immediately and returns a stop function.
-- `watch(source, cb)` accepts a ref-like value, getter, raw value, or array of sources and returns a stop function.
+- `watch(source, cb)` accepts a ref-like value, getter, raw value, or array of sources and returns a stop function. Watch options support `immediate` and `once`.
 - `nextTick(fn?)` schedules an optional callback in a microtask and returns a promise.
 - `onMounted`, `onActivated`, `onDeactivated`, `onBeforeUnmount`, and `onUnmounted` register callbacks with the currently mounting Mikuru component when one is active.
 - `provide` and `inject` are component-tree scoped when called while a Mikuru component is mounting; child components can read values from their parent chain.

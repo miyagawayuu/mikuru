@@ -3,6 +3,7 @@ import { effect } from "./reactivity.js";
 export type WatchSource<T = unknown> = (() => T) | { value: T } | T;
 export type WatchOptions = {
   immediate?: boolean;
+  once?: boolean;
 };
 export type WatchCleanup = () => void;
 export type WatchCleanupRegistrar = (cleanup: WatchCleanup) => void;
@@ -75,12 +76,24 @@ export function watch<T = unknown>(
     }
   };
 
+  let stopEffect: (() => void) | undefined;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    runCleanup();
+    stopEffect?.();
+  };
+
   if (options.immediate) {
     const curr = oldVals.length === 1 ? oldVals[0] : oldVals.slice();
     runCallback(curr, undefined);
+    if (options.once) {
+      stop();
+      return stop;
+    }
   }
 
-  const stopEffect = effect(() => {
+  stopEffect = effect(() => {
     if (stopped) return;
     const nextVals = sources.map((s) => (isRefLike(s) ? (s as any).value : typeof s === "function" ? (s as any)() : s));
     let changed = false;
@@ -95,15 +108,13 @@ export function watch<T = unknown>(
       const curr = nextVals.length === 1 ? nextVals[0] : nextVals.slice();
       oldVals = nextVals;
       runCallback(curr, prev);
+      if (options.once) {
+        stop();
+      }
     }
   });
 
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    runCleanup();
-    stopEffect();
-  };
+  return stop;
 }
 
 export function onMounted(fn: () => void): void {

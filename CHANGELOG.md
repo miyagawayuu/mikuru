@@ -18,6 +18,7 @@
 - Added keyed `v-for` `v-memo` support to skip updating reused records while memo dependencies are unchanged.
 - Added `v-once` support for one-time element/component rendering and keyed `v-for` records.
 - Extended `v-model` with named component models, named model modifiers, and checkbox array support.
+- Added writable `computed({ get, set })` refs and `watch(..., { once: true })` callbacks.
 - Added built-in `<TransitionGroup>` for keyed list enter, leave, and move classes.
 - Added minimal built-in `<KeepAlive>` support for caching a single dynamic `<component :is>` child.
 - Extended `<KeepAlive>` with `:include`, `:exclude`, and `:max` cache controls.

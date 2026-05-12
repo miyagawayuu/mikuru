@@ -43,7 +43,7 @@ The compiler emits a JavaScript module with `mount(target, props)` and a default
 
 ## State and Derived Values
 
-Use `ref` for mutable state and `computed` for derived state.
+Use `ref` for mutable state and `computed` for derived state. Use `computed({ get, set })` when a derived value should also accept writes, for example as a `v-model` bridge.
 
 ```mikuru
 <script>
@@ -54,6 +54,13 @@ const items = ref(["compiler", "runtime", "dx"]);
 const visibleItems = computed(() =>
   items.value.filter((item) => item.includes(query.value))
 );
+
+const queryLabel = computed({
+  get: () => query.value.trim(),
+  set: (nextQuery) => {
+    query.value = nextQuery.trim();
+  }
+});
 </script>
 ```
 
