@@ -9,8 +9,11 @@ export type StyleValue =
   | Record<string, string | number | boolean | null | undefined | { value: unknown }>;
 
 export function setAttribute(element: Element, name: string, value: unknown): void {
-  if (value === null || value === undefined || value === false) {
+  const normalizedName = name.toLowerCase();
+
+  if (value === null || value === undefined || (value === false && booleanAttributes.has(normalizedName))) {
     element.removeAttribute(name);
+    setDomProperty(element, normalizedName, value);
     return;
   }
 
@@ -32,11 +35,73 @@ export function setAttribute(element: Element, name: string, value: unknown): vo
   }
 
   if (value === true) {
-    element.setAttribute(name, "");
+    if (booleanAttributes.has(normalizedName)) {
+      element.setAttribute(name, "");
+      setDomProperty(element, normalizedName, true);
+      return;
+    }
+
+    element.setAttribute(name, "true");
     return;
   }
 
+  if (setDomProperty(element, normalizedName, value)) {
+    if (value === false) {
+      element.setAttribute(name, "false");
+      return;
+    }
+
+    if (normalizedName === "value") {
+      element.setAttribute(name, String(value));
+      return;
+    }
+  }
+
   element.setAttribute(name, String(value));
+}
+
+const booleanAttributes = new Set([
+  "allowfullscreen",
+  "async",
+  "autofocus",
+  "checked",
+  "controls",
+  "default",
+  "defer",
+  "disabled",
+  "formnovalidate",
+  "hidden",
+  "inert",
+  "ismap",
+  "itemscope",
+  "loop",
+  "multiple",
+  "muted",
+  "nomodule",
+  "novalidate",
+  "open",
+  "playsinline",
+  "readonly",
+  "required",
+  "reversed",
+  "selected"
+]);
+
+const propertyAttributeNames = new Set(["checked", "disabled", "multiple", "muted", "open", "readonly", "required", "selected", "value"]);
+
+function setDomProperty(element: Element, normalizedName: string, value: unknown): boolean {
+  if (!propertyAttributeNames.has(normalizedName) || !(normalizedName in element)) {
+    return false;
+  }
+
+  const target = element as Element & Record<string, unknown>;
+  if (normalizedName === "value") {
+    target[normalizedName] = value == null ? "" : String(value);
+    return true;
+  }
+
+  target[normalizedName] = Boolean(value);
+  return true;
 }
 
 export function normalizeClass(value: ClassValue): string {

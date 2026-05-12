@@ -151,6 +151,58 @@ function toggle() {
     expect(paragraph?.textContent).toBe("Done");
   });
 
+  it("hydrates boolean and form property bindings", async () => {
+    const source = `<template>
+  <section>
+    <button :disabled="disabled">Action</button>
+    <input type="checkbox" :checked="checked" />
+    <input :value="name" />
+    <p :data-enabled="enabled">{{ enabled }}</p>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const disabled = ref(true);
+const checked = ref(true);
+const name = ref("Mikuru");
+const enabled = ref(false);
+function toggle() {
+  disabled.value = false;
+  checked.value = false;
+  name.value = "Updated";
+  enabled.value = true;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const button = root.querySelector("button") as HTMLButtonElement | null;
+    const checkbox = root.querySelector("input[type='checkbox']") as HTMLInputElement | null;
+    const textInput = root.querySelector("input:not([type])") as HTMLInputElement | null;
+    const paragraph = root.querySelector("p");
+
+    expect(button?.disabled).toBe(true);
+    expect(checkbox?.checked).toBe(true);
+    expect(textInput?.value).toBe("Mikuru");
+    expect(paragraph?.getAttribute("data-enabled")).toBe("false");
+
+    root.querySelectorAll("button")[1]?.dispatchEvent(new window.Event("click"));
+
+    expect(button?.disabled).toBe(false);
+    expect(button?.hasAttribute("disabled")).toBe(false);
+    expect(checkbox?.checked).toBe(false);
+    expect(checkbox?.hasAttribute("checked")).toBe(false);
+    expect(textInput?.value).toBe("Updated");
+    expect(paragraph?.getAttribute("data-enabled")).toBe("true");
+
+    instance.unmount();
+  });
+
   it("hydrates v-html and v-text content directives", async () => {
     const source = `<template>
   <section>

@@ -127,12 +127,15 @@ DOM keyboardイベントでは `.enter`、`.escape` / `.esc`、`.space`、`.tab`
 <div v-bind:class="className"></div>
 <div v-bind="attrs"></div>
 <div :[attrName]="value"></div>
+<button :disabled="busy">Save</button>
+<input :value="name" :checked="selected" />
 <div :class="['base', { active: isActive }]"></div>
 <div :style="[{ color }, { fontSize: size, '--tone': tone }]"></div>
 ```
 
 `:attr="expr"` と `v-bind:attr="expr"` は、依存値が変わったときに属性を更新する。`v-bind="attrs"` はオブジェクトのkey/valueをまとめて属性へ反映し、消えたkeyは削除する。
 `:[attrName]="value"` と `v-bind:[attrName]="value"` は属性名を式から決める。属性名が変わると古い属性を削除して新しい属性を設定する。
+boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`value` などのフォーム系属性は対応するDOM propertyも同期する。通常属性に真偽値を渡した場合は `"true"` / `"false"` として出力する。
 
 生成方針:
 
