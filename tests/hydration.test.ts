@@ -129,6 +129,48 @@ const MountOnlyChild = {
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates child component v-model props and update handlers", async () => {
+    const source = `<template>
+  <section>
+    <ModelChild v-model.trim="name" v-model:checked="checked" />
+    <p>{{ name }}:{{ checked }}</p>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const name = ref("Ada");
+const checked = ref(false);
+const ModelChild = {
+  renderToString(props) {
+    return '<button>' + props.modelValue + ':' + props.checked + '</button>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-model", props.modelValue);
+    target.setAttribute("data-checked", String(props.checked));
+    target.setAttribute("data-trim", String(props.modelModifiers.trim));
+    props.onUpdateModelValue("Grace");
+    props.onUpdateChecked(true);
+    return { element: target, unmount() { target.removeAttribute("data-model"); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("button")?.getAttribute("data-model")).toBe("Ada");
+    expect(root.querySelector("button")?.getAttribute("data-checked")).toBe("false");
+    expect(root.querySelector("button")?.getAttribute("data-trim")).toBe("true");
+    expect(root.querySelector("p")?.textContent).toBe("Grace:true");
+
+    instance.unmount();
+    expect(root.querySelector("button")?.hasAttribute("data-model")).toBe(false);
+  });
+
   it("hydrates v-show and DOM v-model controls", async () => {
     const source = `<template>
   <form>

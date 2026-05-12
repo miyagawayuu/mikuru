@@ -16,6 +16,7 @@
 - Added router SSR and route hydration context propagation, including provided router access for route components.
 - Added `hydrateRoute(..., { listen: true })` to start browser/router history listening after route hydration and stop it on unmount.
 - Added hydration support for `v-show` and DOM `v-model` controls, including checkbox arrays and multiple selects.
+- Added hydration support for child component `v-model` props, update handlers, named models, and modifiers.
 - Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.
 - Extended `<AsyncBoundary>` to support multiple child nodes with live `pending` updates.
