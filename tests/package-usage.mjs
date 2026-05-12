@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 
-const { compile } = await import("mikuru/compiler");
+const { compile, compileSsr } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
+const { escapeHtml, renderAttr, renderToString } = await import("mikuru/server");
 const {
   createDebugInspector,
   effect,
@@ -44,6 +45,19 @@ assert.match(result.code, /export function mount/);
 assert.match(result.code, /addEventListener\("click"/);
 assert.equal(result.map.sources[0], "PackageSmoke.mikuru");
 assert.match(result.map.sourcesContent[0], /const count = ref\(0\)/);
+
+const ssrResult = compileSsr(
+  `<template><main :data-count="count">{{ message }}</main></template>
+<script>
+const count = 2;
+const message = "SSR <ok>";
+</script>`,
+  { filename: "PackageSsr.mikuru" }
+);
+assert.match(ssrResult.code, /export function renderToString/);
+assert.equal(escapeHtml("<ok>"), "&lt;ok&gt;");
+assert.equal(renderAttr("data-count", 2), " data-count=\"2\"");
+assert.equal(renderToString({ renderToString: () => "<main>SSR</main>" }), "<main>SSR</main>");
 
 const count = ref(0);
 let observed = 0;

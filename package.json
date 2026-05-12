@@ -29,6 +29,10 @@
       "types": "./dist/router/index.d.ts",
       "default": "./dist/router/index.js"
     },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
     "./env": {
       "types": "./types/env.d.ts",
       "default": "./dist/env.js"

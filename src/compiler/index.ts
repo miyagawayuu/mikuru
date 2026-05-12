@@ -1,5 +1,6 @@
 export { analyzeTemplate } from "./analyzeTemplate.js";
 export { compile } from "./compile.js";
+export { compileSsr } from "./compileSsr.js";
 export { createCodeFrame, createCompileError, getSourceLocation, MikuruCompileError } from "./errors.js";
 export type { SourceLocation } from "./errors.js";
 export { generate } from "./generate.js";
@@ -12,6 +13,7 @@ export type {
   CompileResult,
   ElementNode,
   SfcDescriptor,
+  SsrCompileResult,
   TemplateAttribute,
   TemplateNode,
   TextNode,
