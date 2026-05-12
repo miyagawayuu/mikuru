@@ -10,6 +10,8 @@ describe("server rendering", () => {
     expect(escapeHtml(`<span title="x">Mikuru & SSR</span>`)).toBe("&lt;span title=&quot;x&quot;&gt;Mikuru &amp; SSR&lt;/span&gt;");
     expect(renderAttr("disabled", true)).toBe(" disabled");
     expect(renderAttr("title", `"quoted" & <tag>`)).toBe(" title=\"&quot;quoted&quot; &amp; &lt;tag&gt;\"");
+    expect(renderAttr("class", ["base", { active: true, hidden: false }])).toBe(" class=\"base active\"");
+    expect(renderAttr("style", ["color: red", { fontSize: "12px", display: null }])).toBe(" style=\"color: red; font-size: 12px\"");
     expect(renderAttr("bad name", "skip")).toBe("");
     expect(renderAttrs({ id: "app", hidden: false, "data-count": 2 })).toBe(" id=\"app\" data-count=\"2\"");
   });
@@ -42,6 +44,30 @@ const items = [{ label: "one" }, { label: "two & more" }];
     const render = loadSsrRender(result.code);
 
     await expect(render()).resolves.toBe("<section class=\"card\" data-count=\"2\"><h1>SSR &lt;phase&gt;</h1><p>Ready &amp; &lt;script&gt;</p><ul><li data-index=\"0\">one</li><li data-index=\"1\">two &amp; more</li></ul></section>");
+  });
+
+  it("normalizes SSR class and style bindings with static values", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <p class="card" :class="{ active }">classed</p>
+    <div style="border-color: black" :style="{ color, fontSize: size }">styled</div>
+    <aside class="panel" style="margin-top: 4px" v-bind="attrs">bound</aside>
+  </section>
+</template>
+<script>
+const active = true;
+const color = "red";
+const size = "12px";
+const attrs = {
+  class: ["bound", { open: true }],
+  style: { backgroundColor: "yellow" },
+  "data-mode": "ready"
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><p class="card active">classed</p><div style="border-color: black; color: red; font-size: 12px">styled</div><aside class="panel bound open" style="margin-top: 4px; background-color: yellow" data-mode="ready">bound</aside></section>');
   });
 
   it("keeps SSR compile output importable from the public compiler entry", () => {

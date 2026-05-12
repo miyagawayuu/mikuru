@@ -341,6 +341,50 @@ function update() {
     expect(paragraph?.getAttribute("style")).toBe("color: blue; font-size: 16px");
   });
 
+  it("preserves static styles when dynamic style bindings update", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <p style="border-color: black" :style="{ color, fontSize: size }">styled</p>
+    <div style="margin-top: 4px" v-bind="attrs">bound</div>
+    <button @click="update">Update</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const color = ref("red");
+const size = ref("12px");
+const attrs = ref({
+  style: { backgroundColor: "yellow" },
+  title: "ready"
+});
+
+function update() {
+  color.value = "blue";
+  size.value = "16px";
+  attrs.value = {
+    "data-mode": "done"
+  };
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+    const bound = fixture.root.querySelector("div");
+
+    expect(paragraph?.getAttribute("style")).toBe("border-color: black; color: red; font-size: 12px");
+    expect(bound?.getAttribute("style")).toBe("margin-top: 4px; background-color: yellow");
+    expect(bound?.getAttribute("title")).toBe("ready");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.getAttribute("style")).toBe("border-color: black; color: blue; font-size: 16px");
+    expect(bound?.getAttribute("style")).toBe("margin-top: 4px");
+    expect(bound?.hasAttribute("title")).toBe(false);
+    expect(bound?.getAttribute("data-mode")).toBe("done");
+  });
+
   it("auto-unwraps refs inside event call expressions", () => {
     const fixture = compileForDom(`<template>
   <section>

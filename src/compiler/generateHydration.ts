@@ -248,6 +248,7 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
 
 function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
   const staticClass = getStaticAttrValue(node, "class");
+  const staticStyle = getStaticAttrValue(node, "style");
   for (const attr of node.attrs) {
     if (shouldSkipAttr(attr)) {
       continue;
@@ -256,7 +257,12 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
     const dynamicName = getDynamicAttrName(attr.name);
     if (dynamicName) {
       const expression = compileHydrationExpression(context, String(attr.value), attr.name);
-      const valueExpression = dynamicName === "class" && staticClass ? `[${quote(staticClass)}, unwrap(${expression})]` : `unwrap(${expression})`;
+      const valueExpression =
+        dynamicName === "class" && staticClass
+          ? `[${quote(staticClass)}, unwrap(${expression})]`
+          : dynamicName === "style" && staticStyle
+            ? `[${quote(staticStyle)}, unwrap(${expression})]`
+            : `unwrap(${expression})`;
       emit(context, indent, `__mikuru_cleanup.push(effect(() => setAttribute(${elementVar}, ${quote(dynamicName)}, ${valueExpression})));`);
       continue;
     }
@@ -275,8 +281,8 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
       emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${attrsVar})) {`);
       emit(context, indent + 3, `${nextKeysVar}.add(${keyVar});`);
-      if (staticClass) {
-        emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" ? [${quote(staticClass)}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
+      if (staticClass || staticStyle) {
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, unwrap(${valueVar})] : ${keyVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
       } else {
         emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
       }
@@ -284,8 +290,8 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       emit(context, indent + 1, "}");
       emit(context, indent + 1, `for (const ${staleKeyVar} of ${prevKeysVar}) {`);
       emit(context, indent + 2, `if (!${nextKeysVar}.has(${staleKeyVar})) {`);
-      if (staticClass) {
-        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" ? ${quote(staticClass)} : null);`);
+      if (staticClass || staticStyle) {
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" && ${staticClass ? "true" : "false"} ? ${quote(staticClass ?? "")} : ${staleKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? ${quote(staticStyle ?? "")} : null);`);
       } else {
         emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
       }

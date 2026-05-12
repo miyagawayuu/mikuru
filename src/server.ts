@@ -1,4 +1,5 @@
 import type { NavigationFailure, RouteLocation, RouteLocationRaw, RouteRecord, Router } from "./router/index.js";
+import { normalizeClass, normalizeStyle } from "./runtime/dom.js";
 
 export type MikuruSsrComponent = {
   renderToString: (props?: Record<string, unknown>) => string | Promise<string>;
@@ -86,6 +87,16 @@ export function renderAttr(name: string, value: unknown): string {
 
   if (value === true) {
     return ` ${name}=""`;
+  }
+
+  if (normalizedName === "class") {
+    const className = normalizeClass(value as Parameters<typeof normalizeClass>[0]);
+    return className ? ` ${name}="${escapeHtml(className)}"` : "";
+  }
+
+  if (normalizedName === "style") {
+    const style = normalizeStyle(value as Parameters<typeof normalizeStyle>[0]);
+    return style ? ` ${name}="${escapeHtml(style)}"` : "";
   }
 
   return ` ${name}="${escapeHtml(value)}"`;

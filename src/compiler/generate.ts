@@ -1625,9 +1625,13 @@ function generateElement(
 
       const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
       const stopVar = nextVar(context, "stop");
+      const staticClass = getStaticAttrValue(node, "class");
+      const staticStyle = getStaticAttrValue(node, "style");
       const valueExpression =
-        bindingName === "class" && getStaticAttrValue(node, "class")
-          ? `[${quote(getStaticAttrValue(node, "class"))}, ${expression}]`
+        bindingName === "class" && staticClass
+          ? `[${quote(staticClass)}, ${expression}]`
+          : bindingName === "style" && staticStyle
+            ? `[${quote(staticStyle)}, ${expression}]`
           : expression;
       if (context.once) {
         emit(context, indent, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression}));`);
@@ -1732,6 +1736,7 @@ function emitObjectBind(
   const valueVar = nextVar(context, "value");
   const staleKeyVar = nextVar(context, "key");
   const staticClass = getStaticAttrValue(node, "class");
+  const staticStyle = getStaticAttrValue(node, "style");
   emit(context, indent, `const ${prevKeysVar} = new Set();`);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   emit(context, indent + 1, `const ${attrsVar} = unwrap(${expression}) ?? {};`);
@@ -1739,8 +1744,8 @@ function emitObjectBind(
   emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
   emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${attrsVar})) {`);
   emit(context, indent + 3, `${nextKeysVar}.add(${keyVar});`);
-  if (staticClass) {
-    emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" ? [${quote(staticClass)}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
+  if (staticClass || staticStyle) {
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, unwrap(${valueVar})] : ${keyVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
   } else {
     emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
   }
@@ -1748,8 +1753,8 @@ function emitObjectBind(
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `for (const ${staleKeyVar} of ${prevKeysVar}) {`);
   emit(context, indent + 2, `if (!${nextKeysVar}.has(${staleKeyVar})) {`);
-  if (staticClass) {
-    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" ? ${quote(staticClass)} : null);`);
+  if (staticClass || staticStyle) {
+    emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" && ${staticClass ? "true" : "false"} ? ${quote(staticClass ?? "")} : ${staleKeyVar} === "style" && ${staticStyle ? "true" : "false"} ? ${quote(staticStyle ?? "")} : null);`);
   } else {
     emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
   }
