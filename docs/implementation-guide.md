@@ -536,7 +536,7 @@ Unsupported directive "v-modle". Did you mean v-model?
 Unsupported event modifier .prevet. Did you mean .prevent?
 ```
 
-For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules.
+For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register metadata with component name, filename, root element, and public prop keys, then unregister on unmount. Treat the hook as experimental debugging infrastructure rather than a stable public API.
 
 The Vite plugin forwards transform failures with `id`, `loc`, and `frame`, including fallback metadata for non-standard compile-time errors. The compiler returns a v3 source map with `sourcesContent`, and generated template element, interpolation, bound attribute, event handler, and script lines map back to their original SFC lines. Generated code inspection can still help for complex compiler issues.
 

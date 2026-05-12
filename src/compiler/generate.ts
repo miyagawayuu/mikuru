@@ -14,6 +14,11 @@ type GenerateContext = {
   scopeAttr?: string;
   templateRefMode?: "single" | "array";
   componentContextVar?: string;
+  debug?: boolean;
+};
+
+type GenerateOptions = {
+  debug?: boolean;
 };
 
 type ScriptParts = {
@@ -98,13 +103,14 @@ type SlotScopeBinding =
   | { kind: "property"; path: string[]; alias: string; defaultValue?: string }
   | { kind: "rest"; alias: string; exclude: string[] };
 
-export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
+export function generate(descriptor: SfcDescriptor, root: ElementNode, options: GenerateOptions = {}): string {
   const context: GenerateContext = {
     lines: [],
     index: 0,
     source: descriptor.source,
     filename: descriptor.filename,
-    scopeAttr: descriptor.styleScoped ? createScopeAttr(descriptor) : undefined
+    scopeAttr: descriptor.styleScoped ? createScopeAttr(descriptor) : undefined,
+    debug: options.debug === true
   };
   const script = normalizeScript(descriptor);
 
@@ -245,12 +251,16 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode): string {
   }
 
   const rootVar = generateNode(context, root, "target", "__mikuru_cleanup", 1);
+  emitDevtoolsRegistration(context, rootVar, 1);
   emit(context, 1, "// call mounted callbacks registered during setup and remove registrar");
   emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb, undefined, \"mounted\"); }");
   emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
   emit(context, 1, "return {");
   emit(context, 2, `element: ${rootVar},`);
   emit(context, 2, "unmount() {");
+  if (context.debug) {
+    emit(context, 3, "__mikuru_unregisterDevtools();");
+  }
   emit(context, 3, "__mikuru_runCleanup(__mikuru_cleanup);");
   emit(context, 3, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) { __mikuru_try(cb, undefined, \"unmounted\"); }");
   emit(context, 3, `__mikuru_removeNode(${rootVar});`);
@@ -275,6 +285,33 @@ function emitStyleInjection(context: GenerateContext, descriptor: SfcDescriptor,
   emit(context, indent + 1, `style.setAttribute("data-mikuru-style", ${quote(styleId)});`);
   emit(context, indent + 1, `style.textContent = ${quote(styleContent)};`);
   emit(context, indent + 1, "document.head.appendChild(style);");
+  emit(context, indent, "}");
+}
+
+function emitDevtoolsRegistration(context: GenerateContext, rootVar: string, indent: number): void {
+  if (!context.debug) {
+    return;
+  }
+
+  emit(context, indent, "let __mikuru_unregisterDevtools = () => {};");
+  emit(context, indent, "if (typeof globalThis !== \"undefined\") {");
+  emit(context, indent + 1, "const hook = globalThis.__MIKURU_DEVTOOLS__ ?? (globalThis.__MIKURU_DEVTOOLS__ = { components: new Map(), nextId: 1 });");
+  emit(context, indent + 1, "const metadata = {");
+  emit(context, indent + 2, "id: hook.nextId ?? 1,");
+  emit(context, indent + 2, "name: __mikuru_componentInfo.component,");
+  emit(context, indent + 2, "filename: __mikuru_componentInfo.filename,");
+  emit(context, indent + 2, `root: ${rootVar},`);
+  emit(context, indent + 2, "props: Object.keys(props).filter((key) => !key.startsWith(\"__mikuru_\"))");
+  emit(context, indent + 1, "};");
+  emit(context, indent + 1, "hook.nextId = metadata.id + 1;");
+  emit(context, indent + 1, "if (typeof hook.registerComponent === \"function\") {");
+  emit(context, indent + 2, "const unregister = hook.registerComponent(metadata);");
+  emit(context, indent + 2, "if (typeof unregister === \"function\") { __mikuru_unregisterDevtools = unregister; }");
+  emit(context, indent + 1, "} else {");
+  emit(context, indent + 2, "hook.components ??= new Map();");
+  emit(context, indent + 2, "hook.components.set(metadata.id, metadata);");
+  emit(context, indent + 2, "__mikuru_unregisterDevtools = () => hook.components?.delete(metadata.id);");
+  emit(context, indent + 1, "}");
   emit(context, indent, "}");
 }
 

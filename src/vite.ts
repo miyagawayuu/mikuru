@@ -20,7 +20,7 @@ export function mikuru(options: MikuruPluginOptions = {}): Plugin {
       let result: ReturnType<typeof compile>;
 
       try {
-        result = compile(source, { filename: id });
+        result = compile(source, { filename: id, debug: options.debug === true });
       } catch (error) {
         this.error(formatViteTransformError(error, source, id));
         throw error;

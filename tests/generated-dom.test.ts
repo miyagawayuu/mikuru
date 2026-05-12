@@ -37,6 +37,45 @@ type CompiledFixture = {
 };
 
 describe("generated DOM code", () => {
+  it("registers debug metadata only for debug builds", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const normalCode = compile(`<template><p>{{ message }}</p></template><script>const message = "quiet";</script>`, {
+        filename: "QuietDebug.mikuru"
+      }).code;
+      expect(normalCode).not.toContain("__MIKURU_DEVTOOLS__");
+
+      const fixture = compileForDom(
+        `<template><p>{{ message }}</p></template><script>const message = "debug";</script>`,
+        { debug: true, filename: "DebugPanel.mikuru" }
+      );
+      const instance = fixture.module.mount(fixture.root, { label: "Visible", __mikuru_context: {} });
+      const hook = (globalThis as { __MIKURU_DEVTOOLS__?: { components?: Map<number, unknown> } }).__MIKURU_DEVTOOLS__;
+      const component = Array.from(hook?.components?.values() ?? [])[0] as
+        | { filename?: string; name?: string; props?: string[]; root?: Element | Comment }
+        | undefined;
+
+      expect(component).toMatchObject({
+        filename: "DebugPanel.mikuru",
+        name: "DebugPanel.mikuru",
+        props: ["label"],
+        root: instance.element
+      });
+
+      instance.unmount();
+
+      expect(hook?.components?.size).toBe(0);
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
   it("updates interpolated text after an event handler changes state", () => {
     const fixture = compileForDom(`<template>
   <button @click="increment">count: {{ count }}</button>
@@ -3576,11 +3615,11 @@ const aboutRoute = { name: "about" };
   });
 });
 
-function compileForDom(source: string): CompiledFixture {
+function compileForDom(source: string, options: { debug?: boolean; filename?: string } = {}): CompiledFixture {
   const window = new Window();
   const document = window.document;
   const root = document.createElement("div");
-  const { code } = compile(source, { filename: "GeneratedDom.mikuru" });
+  const { code } = compile(source, { filename: options.filename ?? "GeneratedDom.mikuru", debug: options.debug });
   const domDocument = document as unknown as Document;
   const module = loadCompiledModule(code, domDocument);
 

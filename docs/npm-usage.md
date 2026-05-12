@@ -73,6 +73,8 @@ export default defineConfig({
 });
 ```
 
+Debug mode also registers mounted components with the unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. The metadata currently includes component name, filename, root element, and public prop keys, and is removed on unmount. Treat this hook as experimental; it is a future devtools/debugging foundation, not a stable public API.
+
 ## Write a Mikuru Component
 
 Create `src/App.mikuru`:

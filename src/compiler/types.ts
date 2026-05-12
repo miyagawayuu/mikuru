@@ -52,6 +52,7 @@ export type Binding =
 
 export type CompileOptions = {
   filename?: string;
+  debug?: boolean;
 };
 
 export type CompileResult = {
