@@ -434,7 +434,7 @@ const AsyncPanel = defineAsyncComponent({
 </template>
 ```
 
-`<ErrorBoundary>` はchild componentのmount時エラー、生成されたevent handler、lifecycle callback、cleanupのエラーを捕捉し、fallback componentを描画する。fallback componentには `error`、`retry`、`reset` propsを渡す。`retry` と `reset` はboundary childを再描画する。`:reset-key` が変わるとfallbackをclearしてchildをremountする。
+`<ErrorBoundary>` はchild componentのmount時エラー、生成されたevent handler、lifecycle callback、cleanupのエラーを捕捉し、fallback componentを描画する。fallback componentには `error`、`errorInfo`、`retry`、`reset` propsを渡す。`errorInfo` にはcomponent、filename、phase、boundary metadataが入る。`retry` と `reset` はboundary childを再描画する。`:reset-key` が変わるとfallbackをclearしてchildをremountする。
 
 ## v1で扱わない構文
 
