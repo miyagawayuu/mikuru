@@ -7,7 +7,7 @@ test("dogfood app supports note and filter interactions", async ({ page }) => {
   await expect(page.locator(".note-card")).toHaveCount(3);
 
   await page.getByRole("button", { name: "Seed more notes" }).click();
-  await expect(page.getByText("Keyed lists keep card identity")).toBeVisible();
+  await expect(page.locator(".note-card").getByText("Keyed lists keep card identity", { exact: true })).toBeVisible();
   await expect(page.locator(".note-card")).toHaveCount(4);
   await expect(page.getByText("Async note stats")).toBeVisible();
   await expect(page.getByText("Total: 4")).toBeVisible();
@@ -90,8 +90,16 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText("component:register").first()).toBeVisible();
 
   await panel.getByRole("button", { name: "Clear events" }).click();
-  await expect(panel.getByText("No debug events yet.")).toBeVisible();
+  await expect(panel.getByText("No matching debug events.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Seed more notes" }).click();
-  await expect(panel.getByText("component:register").first()).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByText("Current route: /settings")).toBeVisible();
+  await panel.locator(".debug-filters").getByRole("button", { name: /Router/ }).click();
+  await expect(panel.getByText("route:navigate").first()).toBeVisible();
+  await expect(panel.getByText("/ -> /settings").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Trigger boundary error" }).click();
+  await panel.locator(".debug-filters").getByRole("button", { name: /Error/ }).click();
+  await expect(panel.getByText("component:error").first()).toBeVisible();
+  await expect(panel.getByText("Dogfood boundary failure").first()).toBeVisible();
 });

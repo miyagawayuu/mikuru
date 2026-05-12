@@ -3,10 +3,21 @@
     <header class="debug-header">
       <div>
         <h2>Debug Panel</h2>
-        <p>{{ components.length }} components, {{ events.length }} events</p>
+        <p>{{ components.length }} components, {{ allEvents.length }} events</p>
       </div>
       <button @click="clearEvents">Clear events</button>
     </header>
+
+    <nav class="debug-filters" aria-label="Debug event filters">
+      <button
+        v-for="option in filterOptions"
+        :key="option.id"
+        :class="{ active: eventFilter === option.id }"
+        @click="setEventFilter(option.id)"
+      >
+        {{ option.label }} {{ option.count }}
+      </button>
+    </nav>
 
     <div class="debug-grid">
       <section class="debug-section">
@@ -46,13 +57,35 @@
 
       <section class="debug-section debug-events">
         <h3>Events</h3>
-        <ol v-if="events.length > 0" class="debug-event-list">
-          <li v-for="event in events" :key="event.id">
-            <strong>{{ event.type }}</strong>
-            <span>{{ event.summary }}</span>
+        <ol v-if="filteredEvents.length > 0" class="debug-event-list">
+          <li v-for="event in filteredEvents" :key="event.id">
+            <button
+              class="debug-event-row"
+              :class="{ selected: selectedEvent?.id === event.id, warning: event.level === 'warning' }"
+              @click="selectEvent(event.id)"
+            >
+              <strong>{{ event.type }}</strong>
+              <span>{{ event.summary }}</span>
+            </button>
           </li>
         </ol>
-        <p v-else class="debug-empty">No debug events yet.</p>
+        <p v-else class="debug-empty">No matching debug events.</p>
+      </section>
+
+      <section class="debug-section debug-event-detail">
+        <h3>Event detail</h3>
+        <div v-if="selectedEvent" class="debug-detail">
+          <strong>{{ selectedEvent.type }}</strong>
+          <span>{{ selectedEvent.summary }}</span>
+          <dl>
+            <dt>category</dt>
+            <dd>{{ selectedEvent.category }}</dd>
+            <dt>time</dt>
+            <dd>{{ selectedEvent.time }}</dd>
+          </dl>
+          <pre>{{ selectedEvent.payloadText }}</pre>
+        </div>
+        <p v-else class="debug-empty">Select an event.</p>
       </section>
     </div>
   </section>
@@ -63,12 +96,30 @@ import { computed, createDebugInspector, onBeforeUnmount, ref } from "mikuru/run
 
 const inspector = createDebugInspector();
 const components = ref([]);
-const events = ref([]);
+const allEvents = ref([]);
 const selectedId = ref(undefined);
+const selectedEventId = ref(undefined);
+const eventFilter = ref("all");
 
 const selected = computed(() =>
   components.value.find((component) => component.id === selectedId.value) ?? components.value[0]
 );
+
+const filteredEvents = computed(() =>
+  allEvents.value.filter((event) => eventFilter.value === "all" || event.category === eventFilter.value)
+);
+
+const selectedEvent = computed(() =>
+  filteredEvents.value.find((event) => event.id === selectedEventId.value) ?? filteredEvents.value[0]
+);
+
+const filterOptions = computed(() => [
+  { id: "all", label: "All", count: allEvents.value.length },
+  { id: "component", label: "Component", count: countEvents("component") },
+  { id: "async", label: "Async", count: countEvents("async") },
+  { id: "router", label: "Router", count: countEvents("router") },
+  { id: "error", label: "Error", count: countEvents("error") }
+]);
 
 function snapshot() {
   components.value = inspector.getComponents().map((component) => ({
@@ -81,23 +132,43 @@ function snapshot() {
     propsText: JSON.stringify(component.props ?? {}, null, 2)
   }));
 
-  events.value = inspector
+  allEvents.value = inspector
     .getEvents()
-    .slice(-16)
+    .slice(-24)
     .map((event, index) => ({
       id: `${event.timestamp}-${index}-${event.type}`,
       type: event.type,
-      summary: summarizeEvent(event)
+      category: categorizeEvent(event),
+      level: isErrorEvent(event) ? "warning" : "info",
+      time: new Date(event.timestamp).toLocaleTimeString(),
+      summary: summarizeEvent(event),
+      payloadText: stringifyPayload(event.payload ?? {})
     }))
     .reverse();
 
   if (selectedId.value && !components.value.some((component) => component.id === selectedId.value)) {
     selectedId.value = undefined;
   }
+
+  if (selectedEventId.value && !filteredEvents.value.some((event) => event.id === selectedEventId.value)) {
+    selectedEventId.value = undefined;
+  }
 }
 
 function summarizeEvent(event) {
   const payload = event.payload ?? {};
+  if (payload.to?.path || payload.from?.path) {
+    return `${payload.from?.path ?? "-"} -> ${payload.to?.path ?? "-"}${payload.status ? ` (${payload.status})` : ""}`;
+  }
+
+  if (payload.errorInfo?.phase) {
+    return `${payload.errorInfo.phase}: ${formatError(payload.error)}`;
+  }
+
+  if (payload.error) {
+    return formatError(payload.error);
+  }
+
   if (payload.status) {
     return String(payload.status);
   }
@@ -109,8 +180,79 @@ function summarizeEvent(event) {
   return new Date(event.timestamp).toLocaleTimeString();
 }
 
+function categorizeEvent(event) {
+  if (isErrorEvent(event)) {
+    return "error";
+  }
+
+  if (event.type.startsWith("route:")) {
+    return "router";
+  }
+
+  if (event.type.startsWith("async:")) {
+    return "async";
+  }
+
+  if (event.type.startsWith("component:")) {
+    return "component";
+  }
+
+  return "component";
+}
+
+function isErrorEvent(event) {
+  return event.type.includes("error") || event.type.endsWith(":rejected");
+}
+
+function countEvents(category) {
+  return allEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
+}
+
+function formatError(error) {
+  if (!error) {
+    return "unknown";
+  }
+
+  return error.message ?? String(error);
+}
+
+function stringifyPayload(payload) {
+  return JSON.stringify(payload, (_key, value) => {
+    if (value instanceof Error) {
+      return { name: value.name, message: value.message };
+    }
+
+    if (value instanceof Element) {
+      return `<${value.tagName.toLowerCase()}>`;
+    }
+
+    if (value instanceof Comment) {
+      return "<!--comment-->";
+    }
+
+    if (value instanceof Set) {
+      return Array.from(value);
+    }
+
+    if (typeof value === "function") {
+      return "[Function]";
+    }
+
+    return value;
+  }, 2);
+}
+
 function selectComponent(id) {
   selectedId.value = id;
+}
+
+function selectEvent(id) {
+  selectedEventId.value = id;
+}
+
+function setEventFilter(filter) {
+  eventFilter.value = filter;
+  selectedEventId.value = undefined;
 }
 
 function clearEvents() {
@@ -135,6 +277,7 @@ snapshot();
 }
 
 .debug-header,
+.debug-filters,
 .debug-grid {
   display: grid;
   gap: 12px;
@@ -143,6 +286,10 @@ snapshot();
 .debug-header {
   grid-template-columns: 1fr auto;
   align-items: start;
+}
+
+.debug-filters {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .debug-header h2,
@@ -163,6 +310,10 @@ snapshot();
 }
 
 .debug-events {
+  grid-column: 1 / -1;
+}
+
+.debug-event-detail {
   grid-column: 1 / -1;
 }
 
@@ -187,7 +338,9 @@ snapshot();
   background: #ffffff;
 }
 
-.debug-component-row.selected {
+.debug-component-row.selected,
+.debug-event-row.selected,
+.debug-filters button.active {
   border-color: #4f46e5;
   box-shadow: inset 3px 0 0 #4f46e5;
 }
@@ -236,18 +389,28 @@ snapshot();
   background: #f8fafc;
 }
 
-.debug-event-list li {
+.debug-event-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   padding: 8px 10px;
+  text-align: left;
   border: 1px solid #c7d2fe;
   border-radius: 8px;
+  color: inherit;
   background: #ffffff;
+}
+
+.debug-event-row.warning {
+  border-color: #fb923c;
+  color: #7c2d12;
+  background: #fff7ed;
 }
 
 @media (max-width: 720px) {
   .debug-header,
+  .debug-filters,
   .debug-grid {
     grid-template-columns: 1fr;
   }
