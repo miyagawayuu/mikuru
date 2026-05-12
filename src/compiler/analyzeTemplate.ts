@@ -279,27 +279,44 @@ function getEventName(name: string): string | undefined {
 }
 
 function getBindingName(name: string): string | undefined {
-  if (getDynamicBindingArgument(name)) {
+  const binding = parseBindingDirective(name);
+  if (!binding || "expression" in binding) {
     return undefined;
   }
 
-  if (name.startsWith(":")) {
-    return name.slice(1);
-  }
-
-  if (name.startsWith("v-bind:")) {
-    return name.slice("v-bind:".length);
-  }
-
-  return undefined;
+  return binding.name;
 }
 
 function getDynamicBindingArgument(name: string): { expression: string } | undefined {
-  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
-  if (!dynamic || dynamic.modifiers.length > 0) {
+  const binding = parseBindingDirective(name);
+  if (!binding || !("expression" in binding)) {
     return undefined;
   }
-  return { expression: dynamic.expression };
+  return { expression: binding.expression };
+}
+
+function parseBindingDirective(name: string): { name: string } | { expression: string } | undefined {
+  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
+  if (dynamic) {
+    return { expression: dynamic.expression };
+  }
+
+  const rawName = name.startsWith(":")
+    ? name.slice(1)
+    : name.startsWith("v-bind:")
+      ? name.slice("v-bind:".length)
+      : undefined;
+
+  if (!rawName) {
+    return undefined;
+  }
+
+  const [bindingName, ...modifiers] = rawName.split(".");
+  if (!bindingName) {
+    return undefined;
+  }
+
+  return { name: modifiers.includes("camel") ? bindingName.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase()) : bindingName };
 }
 
 function getDynamicEventArgument(name: string): { nameExpression: string; modifiers: string[] } | undefined {

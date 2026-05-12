@@ -90,6 +90,12 @@ type EventDirective = {
   modifiers: string[];
 };
 
+type BindDirective = {
+  name?: string;
+  nameExpression?: string;
+  modifiers: string[];
+};
+
 type SlotDefinition = {
   name: string;
   nameExpression?: string;
@@ -1641,16 +1647,19 @@ function generateElement(
       continue;
     }
 
-    const dynamicBinding = getDynamicBindingArgument(attr.name);
+    const bindDirective = parseBindDirective(attr.name);
+    const dynamicBinding = bindDirective?.nameExpression ? bindDirective : undefined;
 
     if (dynamicBinding) {
-      emitDynamicAttributeBinding(context, node, elementVar, attr, dynamicBinding.expression, cleanupVar, indent);
+      validateBindModifiers(dynamicBinding, attr, context, "element");
+      emitDynamicAttributeBinding(context, node, elementVar, attr, dynamicBinding, cleanupVar, indent);
       continue;
     }
 
-    const bindingName = getBindingName(attr.name);
+    const bindingName = bindDirective?.name;
 
-    if (bindingName) {
+    if (bindingName && bindDirective) {
+      validateBindModifiers(bindDirective, attr, context, "element");
       if (bindingName === "ref") {
         continue;
       }
@@ -1666,10 +1675,10 @@ function generateElement(
             ? `[${quote(staticStyle)}, ${expression}]`
           : expression;
       if (context.once) {
-        emit(context, indent, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression}));`);
+        emit(context, indent, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression})${bindOptionsExpression(bindDirective)});`);
       } else {
         emit(context, indent, `const ${stopVar} = effect(() => {`);
-        emit(context, indent + 1, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression}));`);
+        emit(context, indent + 1, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression})${bindOptionsExpression(bindDirective)});`);
         emit(context, indent, "});");
         emit(context, indent, `${cleanupVar}.push(${stopVar});`);
       }
@@ -1685,11 +1694,11 @@ function emitDynamicAttributeBinding(
   node: ElementNode,
   elementVar: string,
   attr: TemplateAttribute,
-  nameExpression: string,
+  binding: BindDirective,
   cleanupVar: string,
   indent: number
 ): void {
-  const compiledName = compileTemplateExpression(nameExpression, attr.name, toExpressionContext(context, attr.loc));
+  const compiledName = compileTemplateExpression(binding.nameExpression ?? "", attr.name, toExpressionContext(context, attr.loc));
   const compiledValue = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
   const staticClass = getStaticAttrValue(node, "class");
   const staticStyle = getStaticAttrValue(node, "style");
@@ -1700,14 +1709,14 @@ function emitDynamicAttributeBinding(
 
   emit(context, indent, `let ${previousNameVar};`);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
-  emit(context, indent + 1, `const ${nameVar} = String(unwrap(${compiledName}) ?? "");`);
+  emit(context, indent + 1, `const ${nameVar} = ${bindNameExpression(`String(unwrap(${compiledName}) ?? "")`, binding)};`);
   emit(context, indent + 1, `if (!${nameVar}) { if (${previousNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null); ${previousNameVar} = undefined; return; }`);
   emit(context, indent + 1, `if (${previousNameVar} && ${previousNameVar} !== ${nameVar}) { setAttribute(${elementVar}, ${previousNameVar}, null); }`);
   emit(context, indent + 1, `const ${valueVar} = unwrap(${compiledValue});`);
   if (staticClass || staticStyle) {
-    emit(context, indent + 1, `setAttribute(${elementVar}, ${nameVar}, ${nameVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, ${valueVar}] : ${nameVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, ${valueVar}] : ${valueVar});`);
+    emit(context, indent + 1, `setAttribute(${elementVar}, ${nameVar}, ${nameVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, ${valueVar}] : ${nameVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, ${valueVar}] : ${valueVar}${bindOptionsExpression(binding)});`);
   } else {
-    emit(context, indent + 1, `setAttribute(${elementVar}, ${nameVar}, ${valueVar});`);
+    emit(context, indent + 1, `setAttribute(${elementVar}, ${nameVar}, ${valueVar}${bindOptionsExpression(binding)});`);
   }
   emit(context, indent + 1, `${previousNameVar} = ${nameVar};`);
   emit(context, indent, "});");
@@ -3822,21 +3831,24 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
     ];
   }
 
-  const dynamicBinding = getDynamicBindingArgument(attr.name);
+  const bindDirective = parseBindDirective(attr.name);
+  const dynamicBinding = bindDirective?.nameExpression ? bindDirective : undefined;
 
   if (dynamicBinding) {
-    const nameExpression = compileTemplateExpression(dynamicBinding.expression, attr.name, toExpressionContext(context, attr.loc));
+    validateBindModifiers(dynamicBinding, attr, context, "component");
+    const nameExpression = compileTemplateExpression(dynamicBinding.nameExpression ?? "", attr.name, toExpressionContext(context, attr.loc));
     const valueExpression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
-    const propertyName = `String(unwrap(${nameExpression}) ?? "")`;
+    const propertyName = bindNameExpression(`String(unwrap(${nameExpression}) ?? "")`, dynamicBinding);
     if (context.once) {
       return [`[${propertyName}]: unwrap(${valueExpression})`];
     }
     return [`get [${propertyName}]() { return unwrap(${valueExpression}); }`];
   }
 
-  const bindingName = getBindingName(attr.name);
+  const bindingName = bindDirective?.name;
 
-  if (bindingName) {
+  if (bindingName && bindDirective) {
+    validateBindModifiers(bindDirective, attr, context, "component");
     const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
     if (context.once) {
       return [`${quotePropertyName(bindingName)}: unwrap(${expression})`];
@@ -4616,28 +4628,83 @@ function getEventName(name: string): string | undefined {
 }
 
 function getBindingName(name: string): string | undefined {
-  if (getDynamicBindingArgument(name)) {
+  const binding = parseBindDirective(name);
+  if (!binding || binding.nameExpression) {
     return undefined;
   }
 
-  if (name.startsWith(":")) {
-    return name.slice(1);
-  }
-
-  if (name.startsWith("v-bind:")) {
-    return name.slice("v-bind:".length);
-  }
-
-  return undefined;
+  return binding.name;
 }
 
 function getDynamicBindingArgument(name: string): { expression: string } | undefined {
-  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
-  if (!dynamic || dynamic.modifiers.length > 0) {
+  const binding = parseBindDirective(name);
+  if (!binding?.nameExpression) {
     return undefined;
   }
-  return { expression: dynamic.expression };
+  return { expression: binding.nameExpression };
 }
+
+function parseBindDirective(name: string): BindDirective | undefined {
+  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
+  if (dynamic) {
+    return { nameExpression: dynamic.expression, modifiers: dynamic.modifiers };
+  }
+
+  const rawName = name.startsWith(":")
+    ? name.slice(1)
+    : name.startsWith("v-bind:")
+      ? name.slice("v-bind:".length)
+      : undefined;
+
+  if (!rawName) {
+    return undefined;
+  }
+
+  const [bindingName, ...modifiers] = rawName.split(".");
+  if (!bindingName) {
+    return undefined;
+  }
+
+  return { name: modifiers.includes("camel") ? camelize(bindingName) : bindingName, modifiers };
+}
+
+function validateBindModifiers(binding: BindDirective, attr: TemplateAttribute, context: GenerateContext, target: "element" | "component"): void {
+  const allowed = new Set(["camel", "prop", "attr"]);
+  for (const modifier of binding.modifiers) {
+    if (!allowed.has(modifier)) {
+      throwTemplateError(`Unsupported v-bind modifier ".${modifier}". Use .camel, .prop, or .attr.`, context, attr.loc);
+    }
+  }
+
+  if (binding.modifiers.includes("prop") && binding.modifiers.includes("attr")) {
+    throwTemplateError("v-bind modifiers .prop and .attr cannot be used together", context, attr.loc);
+  }
+
+  if (target === "component" && (binding.modifiers.includes("prop") || binding.modifiers.includes("attr"))) {
+    throwTemplateError("v-bind .prop and .attr modifiers are only supported on native elements", context, attr.loc);
+  }
+}
+
+function bindOptionsExpression(binding: BindDirective): string {
+  if (binding.modifiers.includes("prop")) {
+    return ", { property: true }";
+  }
+
+  if (binding.modifiers.includes("attr")) {
+    return ", { attribute: true }";
+  }
+
+  return "";
+}
+
+function bindNameExpression(expression: string, binding: BindDirective): string {
+  return binding.modifiers.includes("camel") ? `(${expression}).replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase())` : expression;
+}
+
+function camelize(value: string): string {
+  return value.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+}
+
 
 function getDynamicEventArgument(name: string): EventDirective | undefined {
   const dynamic = parseDynamicArgument(name, ["@", "v-on:"]);

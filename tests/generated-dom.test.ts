@@ -540,6 +540,48 @@ function toggle() {
     expect(paragraph?.getAttribute("data-enabled")).toBe("true");
   });
 
+  it("supports v-bind .prop, .attr, and .camel modifiers", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input type="checkbox" :indeterminate.prop="mixed" />
+    <input type="checkbox" :indeterminate.attr="mixed" />
+    <div :data-user-id.camel="userId">profile</div>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const mixed = ref(true);
+const userId = ref("42");
+
+function toggle() {
+  mixed.value = false;
+  userId.value = "84";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const inputs = fixture.root.querySelectorAll<HTMLInputElement>("input");
+    const propertyInput = inputs[0];
+    const attributeInput = inputs[1];
+    const profile = fixture.root.querySelector("div");
+
+    expect(propertyInput?.indeterminate).toBe(true);
+    expect(propertyInput?.hasAttribute("indeterminate")).toBe(false);
+    expect(attributeInput?.indeterminate).toBe(false);
+    expect(attributeInput?.getAttribute("indeterminate")).toBe("true");
+    expect(profile?.getAttribute("dataUserId")).toBe("42");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(propertyInput?.indeterminate).toBe(false);
+    expect(propertyInput?.hasAttribute("indeterminate")).toBe(false);
+    expect(attributeInput?.getAttribute("indeterminate")).toBe("false");
+    expect(profile?.getAttribute("dataUserId")).toBe("84");
+  });
+
   it("normalizes array and object class bindings", () => {
     const fixture = compileForDom(`<template>
   <section>

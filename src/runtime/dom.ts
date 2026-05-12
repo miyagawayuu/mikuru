@@ -8,8 +8,46 @@ export type StyleValue =
   | StyleValue[]
   | Record<string, string | number | boolean | null | undefined | { value: unknown }>;
 
-export function setAttribute(element: Element, name: string, value: unknown): void {
+export type AttributeBindingOptions = {
+  attribute?: boolean;
+  property?: boolean;
+};
+
+export function setAttribute(element: Element, name: string, value: unknown, options: AttributeBindingOptions = {}): void {
   const normalizedName = name.toLowerCase();
+
+  if (options.property) {
+    setDomProperty(element, normalizedName, value, true, name);
+    element.removeAttribute(name);
+    return;
+  }
+
+  if (options.attribute) {
+    if (value === null || value === undefined) {
+      element.removeAttribute(name);
+      return;
+    }
+
+    if (name === "class") {
+      element.setAttribute(name, normalizeClass(value as ClassValue));
+      return;
+    }
+
+    if (name === "style") {
+      const style = normalizeStyle(value as StyleValue);
+
+      if (!style) {
+        element.removeAttribute(name);
+        return;
+      }
+
+      element.setAttribute(name, style);
+      return;
+    }
+
+    element.setAttribute(name, String(value));
+    return;
+  }
 
   if (value === null || value === undefined || (value === false && booleanAttributes.has(normalizedName))) {
     element.removeAttribute(name);
@@ -89,18 +127,22 @@ const booleanAttributes = new Set([
 
 const propertyAttributeNames = new Set(["checked", "disabled", "multiple", "muted", "open", "readonly", "required", "selected", "value"]);
 
-function setDomProperty(element: Element, normalizedName: string, value: unknown): boolean {
-  if (!propertyAttributeNames.has(normalizedName) || !(normalizedName in element)) {
+function setDomProperty(element: Element, normalizedName: string, value: unknown, force = false, propertyName = normalizedName): boolean {
+  if ((!force && !propertyAttributeNames.has(normalizedName)) || !(propertyName in element)) {
     return false;
   }
 
   const target = element as Element & Record<string, unknown>;
   if (normalizedName === "value") {
-    target[normalizedName] = value == null ? "" : String(value);
+    target[propertyName] = value == null ? "" : String(value);
     return true;
   }
 
-  target[normalizedName] = Boolean(value);
+  if (typeof target[propertyName] === "boolean") {
+    target[propertyName] = Boolean(value);
+  } else {
+    target[propertyName] = value;
+  }
   return true;
 }
 

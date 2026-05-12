@@ -73,6 +73,24 @@ const attrs = {
     await expect(render()).resolves.toBe('<section><p class="card active">classed</p><div style="border-color: black; color: red; font-size: 12px">styled</div><aside class="panel bound open" style="margin-top: 4px; background-color: yellow" data-mode="ready">bound</aside></section>');
   });
 
+  it("renders serializable v-bind modifiers for SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <input type="checkbox" :indeterminate.prop="mixed" />
+    <p :data-user-id.camel="userId" :aria-hidden.attr="hidden">profile</p>
+  </section>
+</template>
+<script>
+const mixed = true;
+const userId = "42";
+const hidden = false;
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><input type="checkbox"><p dataUserId="42" aria-hidden="false">profile</p></section>');
+  });
+
   it("renders v-html as raw HTML and v-text as escaped text", async () => {
     const result = compileSsr(`<template>
   <section>

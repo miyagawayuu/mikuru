@@ -203,6 +203,52 @@ function toggle() {
     instance.unmount();
   });
 
+  it("hydrates v-bind property, attribute, and camel modifiers", async () => {
+    const source = `<template>
+  <section>
+    <input type="checkbox" :indeterminate.prop="mixed" />
+    <input type="checkbox" :indeterminate.attr="mixed" />
+    <div :data-user-id.camel="userId">profile</div>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const mixed = ref(true);
+const userId = ref("42");
+function toggle() {
+  mixed.value = false;
+  userId.value = "84";
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const inputs = Array.from(root.querySelectorAll("input")) as unknown as HTMLInputElement[];
+    const propertyInput = inputs[0];
+    const attributeInput = inputs[1];
+    const profile = root.querySelector("div");
+
+    expect(propertyInput?.indeterminate).toBe(true);
+    expect(propertyInput?.hasAttribute("indeterminate")).toBe(false);
+    expect(attributeInput?.indeterminate).toBe(false);
+    expect(attributeInput?.getAttribute("indeterminate")).toBe("true");
+    expect(profile?.getAttribute("dataUserId")).toBe("42");
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+
+    expect(propertyInput?.indeterminate).toBe(false);
+    expect(propertyInput?.hasAttribute("indeterminate")).toBe(false);
+    expect(attributeInput?.getAttribute("indeterminate")).toBe("false");
+    expect(profile?.getAttribute("dataUserId")).toBe("84");
+
+    instance.unmount();
+  });
+
   it("hydrates v-html and v-text content directives", async () => {
     const source = `<template>
   <section>
