@@ -136,7 +136,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `v-if`, `v-else-if`, `v-else`, `v-show`, and `v-for`
 - `v-model` for common form controls, radio groups, multiple selects, modifiers, and child components
 - Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
-- CSS class transitions with built-in `<Transition name="fade">`, `v-if` chains, dynamic components, class overrides, `appear`, and `mode="out-in"`
+- CSS class transitions with built-in `<Transition name="fade">`, `v-if` chains, dynamic components, class overrides, `appear`, `mode="out-in"`, and `<TransitionGroup>` for keyed lists
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
 - Built-in `<AsyncBoundary :loading :fallback :delay :timeout>` for grouped async loading, delayed loading UI, boundary timeouts, and retryable async failures with aggregated fallback errors
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery

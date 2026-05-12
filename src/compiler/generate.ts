@@ -183,6 +183,12 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 3, "__mikuru_transitionDone(element, () => element.classList.remove(active, to));");
   emit(context, 2, "});");
   emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_applyTransitionMove = (element, transition) => {");
+  emit(context, 2, "if (!element || element.nodeType !== 1 || !transition?.name) { return; }");
+  emit(context, 2, "const move = transition.moveClass || `${transition.name}-move`;");
+  emit(context, 2, "element.classList.add(move);");
+  emit(context, 2, "__mikuru_transitionFrame(() => __mikuru_transitionDone(element, () => element.classList.remove(move)));");
+  emit(context, 1, "};");
   emit(context, 1, "const __mikuru_removeNode = (node) => {");
   emit(context, 2, "if (!node || !node.parentNode) { return; }");
   emit(context, 2, "if (node.nodeType !== 1 || !node.__mikuru_transition || node.__mikuru_transitionLeaving) { node.remove(); return; }");
@@ -380,6 +386,10 @@ function generateNode(
     return generateTransition(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (node.tag === "TransitionGroup") {
+    return generateTransitionGroup(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   if (node.tag === "Teleport") {
     return generateTeleport(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
@@ -432,6 +442,43 @@ function generateTransition(
   const childVar = generateNode(context, child, parentVar, cleanupVar, indent, beforeVar);
   emitTransitionRegistration(context, childVar, transitionVar, indent);
   return childVar;
+}
+
+function generateTransitionGroup(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  validateTransitionGroupAttributes(context, node);
+  const children = getSingleElementChild(context, node, "<TransitionGroup>");
+  const child = children[0];
+  const forExpression = getStringAttr(child, "v-for");
+  const keyExpression = getKeyExpression(child);
+
+  if (!forExpression || !keyExpression) {
+    throwTemplateError("<TransitionGroup> requires a single keyed v-for child in v1", context, child.loc);
+  }
+
+  const { item: itemName, index: indexName, source: sourceExpression } = parseForExpression(
+    forExpression,
+    toExpressionContext(context, getStringAttrLocation(child, "v-for"))
+  );
+  const groupVar = nextVar(context, "transitionGroup");
+  const groupCleanupVar = nextVar(context, "transitionGroupCleanup");
+  const transitionVar = nextVar(context, "transition");
+  emit(context, indent, `const ${transitionVar} = ${getTransitionOptionsExpression(context, node)};`);
+  emit(context, indent, `const ${groupVar} = document.createElement(String(unwrap(${getTransitionAttrExpression(context, node, "tag", "span")}) ?? "span"));`);
+  appendNode(context, parentVar, groupVar, indent, beforeVar);
+  emit(context, indent, `const ${groupCleanupVar} = [];`);
+  generateKeyedFor(context, child, groupVar, groupCleanupVar, indent, itemName, indexName, sourceExpression, keyExpression, undefined, transitionVar);
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${groupCleanupVar});`);
+  emit(context, indent + 1, `__mikuru_removeNode(${groupVar});`);
+  emit(context, indent, "});");
+  return groupVar;
 }
 
 function generateTeleport(
@@ -1951,7 +1998,8 @@ function generateKeyedFor(
   indexName: string | undefined,
   sourceExpression: string,
   keyExpression: string,
-  beforeVar?: string
+  beforeVar?: string,
+  transitionVar?: string
 ): string {
   const startVar = nextVar(context, "forStart");
   const endVar = nextVar(context, "forEnd");
@@ -2012,6 +2060,9 @@ function generateKeyedFor(
   const elementVar = withTemplateRefMode(context, "array", () =>
     generateNode(context, withoutForAttrs(node), parentVar, recordCleanupVar, indent + 4, endVar)
   );
+  if (transitionVar) {
+    emitTransitionRegistration(context, elementVar, transitionVar, indent + 4);
+  }
   emit(context, indent + 4, `${recordVar} = { element: ${elementVar}, cleanups: ${recordCleanupVar}, item: ${itemRefVar}${indexName ? `, index: ${indexRefVar}` : ""}${compiledMemo && memoVar ? `, memo: ${memoVar}` : ""} };`);
   emit(context, indent + 3, `}`);
   emit(context, indent + 2, `} else {`);
@@ -2035,6 +2086,9 @@ function generateKeyedFor(
   }
 
   emit(context, indent + 3, `${parentVar}.insertBefore(${recordVar}.element, ${endVar});`);
+  if (transitionVar) {
+    emit(context, indent + 3, `__mikuru_applyTransitionMove(${recordVar}.element, ${transitionVar});`);
+  }
   emit(context, indent + 2, `}`);
   emit(context, indent + 2, `${nextRecordsVar}.set(${keyVar}, ${recordVar});`);
   emit(context, indent + 1, `}`);
@@ -3371,7 +3425,8 @@ function getTransitionOptionsExpression(context: GenerateContext, node: ElementN
     ["enter-to-class", "enterToClass"],
     ["leave-from-class", "leaveFromClass"],
     ["leave-active-class", "leaveActiveClass"],
-    ["leave-to-class", "leaveToClass"]
+    ["leave-to-class", "leaveToClass"],
+    ["move-class", "moveClass"]
   ] as const;
 
   for (const [attrName, optionName] of classAttrs) {
@@ -3426,6 +3481,30 @@ function validateTransitionAttributes(context: GenerateContext, node: ElementNod
     }
 
     throwUnsupportedSpecialAttribute(context, "Transition", attr, supported, "name, appear, mode, and CSS class override attributes");
+  }
+}
+
+function validateTransitionGroupAttributes(context: GenerateContext, node: ElementNode): void {
+  const supported = [
+    "name",
+    "tag",
+    "enter-from-class",
+    "enter-active-class",
+    "enter-to-class",
+    "leave-from-class",
+    "leave-active-class",
+    "leave-to-class",
+    "move-class"
+  ].map((name) => ({ name, display: name }));
+
+  for (const attr of node.attrs) {
+    const name = getBindingName(attr.name) ?? attr.name;
+
+    if (supported.some((candidate) => candidate.name === name)) {
+      continue;
+    }
+
+    throwUnsupportedSpecialAttribute(context, "TransitionGroup", attr, supported, "name, tag, and CSS class override attributes");
   }
 }
 

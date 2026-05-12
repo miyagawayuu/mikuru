@@ -255,6 +255,14 @@ Wrap one conditional child or one `v-if` chain in `<Transition>` when the DOM sh
 </style>
 ```
 
+Use `<TransitionGroup>` for a single keyed `v-for` child when list rows should receive enter, leave, and move classes. The built-in renders a wrapper tag, `span` by default, and supports `tag`, `name`, `enter-*`, `leave-*`, and `move-class` attributes.
+
+```mikuru
+<TransitionGroup name="row" tag="ul" move-class="row-moving">
+  <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+</TransitionGroup>
+```
+
 ## Child Components
 
 Uppercase tags are treated as child components.
