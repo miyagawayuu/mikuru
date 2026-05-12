@@ -84,6 +84,64 @@ const items = ["one", "two"];
     expect(root.innerHTML).toBe('<section><p>Ready</p><ul><li data-index="0">one</li><li data-index="1">two</li></ul></section>');
   });
 
+  it("hydrates class bindings and object v-bind attr cleanup", async () => {
+    const source = `<template>
+  <section>
+    <p class="card" :class="{ active }">{{ label }}</p>
+    <div class="box" v-bind="attrs">box</div>
+    <button @click="toggle">Toggle</button>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const active = ref(true);
+const label = ref("Ready");
+const attrs = ref({
+  id: "status",
+  "data-mode": "ready",
+  class: ["bound"],
+  title: "ready"
+});
+function toggle() {
+  active.value = false;
+  label.value = "Done";
+  attrs.value = {
+    "data-mode": "done",
+    "aria-live": "polite"
+  };
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const paragraph = root.querySelector("p");
+    const box = root.querySelector("div");
+
+    expect(paragraph?.getAttribute("class")).toBe("card active");
+    expect(box?.getAttribute("class")).toBe("box bound");
+    expect(box?.getAttribute("id")).toBe("status");
+    expect(box?.getAttribute("title")).toBe("ready");
+    expect(box?.getAttribute("data-mode")).toBe("ready");
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+
+    expect(paragraph?.getAttribute("class")).toBe("card");
+    expect(paragraph?.textContent).toBe("Done");
+    expect(box?.getAttribute("class")).toBe("box");
+    expect(box?.hasAttribute("id")).toBe(false);
+    expect(box?.hasAttribute("title")).toBe(false);
+    expect(box?.getAttribute("data-mode")).toBe("done");
+    expect(box?.getAttribute("aria-live")).toBe("polite");
+
+    instance.unmount();
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(paragraph?.textContent).toBe("Done");
+  });
+
   it("hydrates child components when they expose hydrate and falls back to mount otherwise", async () => {
     const source = `<template>
   <section>
