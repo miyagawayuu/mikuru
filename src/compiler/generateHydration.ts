@@ -38,6 +38,7 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
   emit(context, 1, "const __mikuru_cleanup = [];");
   emit(context, 1, "const __mikuru_warn = (message) => { if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message}`); };");
   emit(context, 1, "const __mikuru_findComment = (parent, value) => Array.from(parent.childNodes ?? []).find((node) => node.nodeType === 8 && node.nodeValue === value);");
+  emit(context, 1, "const __mikuru_findNextComment = (node, value) => { for (let cursor = node.nextSibling; cursor; cursor = cursor.nextSibling) { if (cursor.nodeType === 8 && cursor.nodeValue === value) return cursor; } return undefined; };");
   emit(context, 1, "const __mikuru_root = target.nodeType === 1 && target.tagName?.toLowerCase() === " + quote(root.tag.toLowerCase()) + " ? target : target.firstElementChild;");
   emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch; falling back to mount()."); return mount(target, props); }`);
   hydrateElement(context, root, "__mikuru_root", 1);
@@ -80,7 +81,7 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
   children.forEach((child) => {
     if (child.type === "element" && child.tag === "Teleport") {
       hydrateTeleportAtIndex(context, child, parentVar, domIndex, indent);
-      domIndex += 2;
+      domIndex += getTeleportHydratableNodeCount(child);
       return;
     }
 
@@ -119,6 +120,7 @@ function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, pa
   context.teleportIndex += 1;
   const startVar = nextName(context, "teleportStart");
   const endVar = nextName(context, "teleportEnd");
+  const disabledVar = nextName(context, "teleportDisabled");
   const targetVar = nextName(context, "teleportTarget");
   const contentStartVar = nextName(context, "teleportContentStart");
   const contentEndVar = nextName(context, "teleportContentEnd");
@@ -129,21 +131,22 @@ function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, pa
   const disabledExpression = getTeleportDisabledExpression(context, node);
 
   emit(context, indent, `const ${startVar} = ${parentVar}.childNodes[${domIndex}];`);
-  emit(context, indent, `const ${endVar} = ${parentVar}.childNodes[${domIndex + 1}];`);
-  emit(context, indent, `if (!${startVar} || ${startVar}.nodeType !== 8 || ${startVar}.nodeValue !== ${quote(`teleport:${id}`)} || !${endVar} || ${endVar}.nodeType !== 8 || ${endVar}.nodeValue !== ${quote(`/teleport:${id}`)}) {`);
+  emit(context, indent, `const ${endVar} = ${startVar} ? __mikuru_findNextComment(${startVar}, ${quote(`/teleport:${id}`)}) : undefined;`);
+  emit(context, indent, `if (!${startVar} || ${startVar}.nodeType !== 8 || ${startVar}.nodeValue !== ${quote(`teleport:${id}`)} || !${endVar}) {`);
   emit(context, indent + 1, "__mikuru_warn(\"Teleport marker mismatch.\");");
   emit(context, indent, "} else {");
-  emit(context, indent + 1, `const ${targetVar} = Boolean(unwrap(${disabledExpression})) ? ${parentVar} : (typeof unwrap(${toExpression}) === "string" ? document.querySelector(unwrap(${toExpression})) : unwrap(${toExpression}));`);
-  emit(context, indent + 1, `if (!${targetVar}) { __mikuru_warn("Teleport target was not found."); } else {`);
-  emit(context, indent + 2, `const ${contentStartVar} = __mikuru_findComment(${targetVar}, ${quote(`teleport content:${id}`)});`);
-  emit(context, indent + 2, `const ${contentEndVar} = __mikuru_findComment(${targetVar}, ${quote(`/teleport content:${id}`)});`);
+  emit(context, indent + 1, `const ${disabledVar} = Boolean(unwrap(${disabledExpression}));`);
+  emit(context, indent + 1, `const ${targetVar} = ${disabledVar} ? undefined : (typeof unwrap(${toExpression}) === "string" ? document.querySelector(unwrap(${toExpression})) : unwrap(${toExpression}));`);
+  emit(context, indent + 1, `if (!${disabledVar} && !${targetVar}) { __mikuru_warn("Teleport target was not found."); } else {`);
+  emit(context, indent + 2, `const ${contentStartVar} = ${disabledVar} ? ${startVar} : __mikuru_findComment(${targetVar}, ${quote(`teleport content:${id}`)});`);
+  emit(context, indent + 2, `const ${contentEndVar} = ${disabledVar} ? ${endVar} : __mikuru_findComment(${targetVar}, ${quote(`/teleport content:${id}`)});`);
   emit(context, indent + 2, `if (!${contentStartVar} || !${contentEndVar}) { __mikuru_warn("Teleport content marker mismatch."); } else {`);
   emit(context, indent + 3, `const ${nodesVar} = [];`);
   emit(context, indent + 3, `let ${cursorVar} = ${contentStartVar}.nextSibling;`);
   emit(context, indent + 3, `while (${cursorVar} && ${cursorVar} !== ${contentEndVar}) { ${nodesVar}.push(${cursorVar}); ${cursorVar} = ${cursorVar}.nextSibling; }`);
   emit(context, indent + 3, `const ${parentProxyVar} = { childNodes: ${nodesVar} };`);
   hydrateChildren(context, node.children, parentProxyVar, indent + 3);
-  emit(context, indent + 3, `__mikuru_cleanup.push(() => { ${contentStartVar}.remove(); ${contentEndVar}.remove(); });`);
+  emit(context, indent + 3, `if (!${disabledVar}) __mikuru_cleanup.push(() => { ${contentStartVar}.remove(); ${contentEndVar}.remove(); });`);
   emit(context, indent + 2, "}");
   emit(context, indent + 1, "}");
   emit(context, indent, "}");
@@ -280,6 +283,18 @@ function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string,
 
 function isHydratableNode(node: TemplateNode): boolean {
   return node.type === "element" || node.parts.some((part) => part.type === "expression" || (part.type === "static" && part.value.length > 0));
+}
+
+function getTeleportHydratableNodeCount(node: ElementNode): number {
+  return hasStaticDisabledTeleport(node)
+    ? node.children.filter(isHydratableNode).length + 2
+    : 2;
+}
+
+function hasStaticDisabledTeleport(node: ElementNode): boolean {
+  return !!getAttr(node, "disabled")
+    && !getAttr(node, ":disabled")
+    && !getAttr(node, "v-bind:disabled");
 }
 
 function shouldSkipAttr(attr: TemplateAttribute): boolean {
