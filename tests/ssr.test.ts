@@ -155,6 +155,25 @@ const message = "Modal <safe>";
     expect(teleports["#modal-root"]).toBe("<!--teleport content:t0--><p>Modal &lt;safe&gt;</p><!--/teleport content:t0-->");
   });
 
+  it("renders disabled Teleport SSR content inline", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <Teleport to="#modal-root" disabled>
+      <p>{{ message }}</p>
+    </Teleport>
+    <footer>done</footer>
+  </section>
+</template>
+<script>
+const message = "Inline";
+</script>`);
+    const render = loadSsrRender(result.code);
+    const teleports: Record<string, string> = {};
+
+    await expect(render({ __mikuru_teleports: teleports })).resolves.toBe("<section><!--teleport:t0--><p>Inline</p><!--/teleport:t0--><footer>done</footer></section>");
+    expect(teleports).toEqual({});
+  });
+
   it("renders router matches with redirects, lazy components, props, and nested default slots", async () => {
     const Shell = {
       async renderToString(props: Record<string, any>) {
