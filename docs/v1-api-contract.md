@@ -122,7 +122,7 @@ Unsupported in v1:
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
-- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates initial `v-if` / `v-for` DOM, reuses Teleport target content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates `v-show`, DOM `v-model`, initial `v-if` / `v-for` DOM, reuses Teleport target content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 - Root mismatches warn and fall back to normal `mount`.
 - Dynamic branch/list reconciliation after the initial state is future work.
 

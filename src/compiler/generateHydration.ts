@@ -1,4 +1,4 @@
-import { compileTemplateExpression, parseForExpression } from "./parseExpression.js";
+import { compileTemplateExpression, parseForExpression, validateAssignableExpression } from "./parseExpression.js";
 import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode } from "./types.js";
 
 type HydrationContext = {
@@ -72,6 +72,7 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
 
   hydrateAttrs(context, node, elementVar, indent);
   hydrateEvents(context, node, elementVar, indent);
+  hydrateModelAndShow(context, node, elementVar, indent);
   hydrateChildren(context, node.children, elementVar, indent);
 }
 
@@ -276,6 +277,64 @@ function hydrateEvents(context: HydrationContext, node: ElementNode, elementVar:
   }
 }
 
+function hydrateModelAndShow(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  for (const attr of node.attrs) {
+    const modelDirective = parseModelDirective(attr.name);
+    if (modelDirective) {
+      if (modelDirective.argument) {
+        continue;
+      }
+      const expression = validateAssignableExpression(getAttrValueFromDirective(attr), attr.name, {
+        source: context.source ?? String(attr.value),
+        offset: attr.valueLoc?.offset ?? attr.loc?.offset ?? 0,
+        filename: context.filename
+      });
+      const handlerVar = nextName(context, "handler");
+      const inputType = getStaticAttrValue(node, "type")?.toLowerCase();
+      const multiple = node.tag === "select" && hasStaticBooleanAttr(node, "multiple");
+      const modelMode =
+        node.tag === "input" && inputType === "checkbox"
+          ? "checkbox"
+          : node.tag === "input" && inputType === "radio"
+            ? "radio"
+            : node.tag === "select" && multiple
+              ? "select-multiple"
+              : node.tag === "select"
+                ? "select"
+                : "text";
+      const eventName = modelMode === "text" && !modelDirective.modifiers.includes("lazy") ? "input" : "change";
+      const propertyName = modelMode === "checkbox" || modelMode === "radio" ? "checked" : "value";
+      const renderedValue =
+        modelMode === "checkbox"
+          ? `(() => { const value = unwrap(${expression}); const checkboxValue = ${modelElementValueExpression(`${elementVar}`, modelDirective.modifiers)}; return Array.isArray(value) ? value.some((item) => Object.is(item, checkboxValue)) : Boolean(value); })()`
+          : modelMode === "radio"
+            ? `Object.is(${modelElementValueExpression(`${elementVar}`, modelDirective.modifiers)}, unwrap(${expression}))`
+            : modelMode === "select-multiple"
+              ? `Array.from(${elementVar}.options).forEach((option) => { option.selected = (unwrap(${expression}) ?? []).map(String).includes(option.getAttribute("value") ?? option.textContent ?? ""); })`
+              : `String(unwrap(${expression}) ?? "")`;
+      const assignedValue = modelAssignedValue(modelMode, modelDirective.modifiers, expression);
+
+      emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
+      if (modelMode === "select-multiple") {
+        emit(context, indent + 1, renderedValue);
+      } else {
+        emit(context, indent + 1, `if (${elementVar}.${propertyName} !== ${renderedValue}) {`);
+        emit(context, indent + 2, `${elementVar}.${propertyName} = ${renderedValue};`);
+        emit(context, indent + 1, "}");
+      }
+      emit(context, indent, "}));");
+      emit(context, indent, `const ${handlerVar} = ($event) => { ${expression}.value = ${assignedValue}; };`);
+      emit(context, indent, `${elementVar}.addEventListener(${quote(eventName)}, ${handlerVar});`);
+      emit(context, indent, `__mikuru_cleanup.push(() => ${elementVar}.removeEventListener(${quote(eventName)}, ${handlerVar}));`);
+      continue;
+    }
+
+    if (attr.name === "v-show") {
+      emit(context, indent, `__mikuru_cleanup.push(effect(() => { ${elementVar}.style.display = unwrap(${compileHydrationExpression(context, getAttrValueFromDirective(attr), attr.name)}) ? "" : "none"; }));`);
+    }
+  }
+}
+
 function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string, indent: number): void {
   const expression = node.parts.map((part) => {
     if (part.type === "static") {
@@ -333,6 +392,51 @@ function getEventName(name: string): string | undefined {
   if (name.startsWith("@")) return name.slice(1).split(".")[0];
   if (name.startsWith("v-on:")) return name.slice("v-on:".length).split(".")[0];
   return undefined;
+}
+
+function parseModelDirective(name: string): { argument?: string; modifiers: string[] } | undefined {
+  if (name === "v-model") return { modifiers: [] };
+  if (name.startsWith("v-model.")) return { modifiers: name.slice("v-model.".length).split(".").filter(Boolean) };
+  if (!name.startsWith("v-model:")) return undefined;
+  const [argument = "", ...modifiers] = name.slice("v-model:".length).split(".");
+  return { argument, modifiers: modifiers.filter(Boolean) };
+}
+
+function getAttrValueFromDirective(attr: TemplateAttribute): string {
+  return attr.value === true ? "" : String(attr.value);
+}
+
+function getStaticAttrValue(node: ElementNode, name: string): string | undefined {
+  const attr = getAttr(node, name);
+  return attr && attr.value !== true ? String(attr.value) : undefined;
+}
+
+function hasStaticBooleanAttr(node: ElementNode, name: string): boolean {
+  const attr = getAttr(node, name);
+  return !!attr && (attr.value === true || attr.value === "");
+}
+
+function modelElementValueExpression(targetExpression: string, modifiers: string[]): string {
+  const raw = `(${targetExpression}.getAttribute("value") ?? ${targetExpression}.value ?? "")`;
+  const trimmed = modifiers.includes("trim") ? `String(${raw}).trim()` : raw;
+  return modifiers.includes("number") ? `Number(${trimmed})` : trimmed;
+}
+
+function modelAssignedValue(modelMode: string, modifiers: string[], expression: string): string {
+  if (modelMode === "checkbox") {
+    const valueExpression = modelElementValueExpression("$event.target", modifiers);
+    return `(() => { const current = unwrap(${expression}); if (Array.isArray(current)) { return $event.target.checked ? [...current, ${valueExpression}] : current.filter((item) => !Object.is(item, ${valueExpression})); } return $event.target.checked; })()`;
+  }
+  if (modelMode === "radio") {
+    return modelElementValueExpression("$event.target", modifiers);
+  }
+  if (modelMode === "select-multiple") {
+    const raw = `Array.from($event.target.selectedOptions).map((option) => option.getAttribute("value") ?? option.textContent ?? "")`;
+    return modifiers.includes("number") ? `${raw}.map(Number)` : raw;
+  }
+  const raw = "$event.target.value";
+  const trimmed = modifiers.includes("trim") ? `${raw}.trim()` : raw;
+  return modifiers.includes("number") ? `Number(${trimmed})` : trimmed;
 }
 
 function getTeleportToExpression(context: HydrationContext, node: ElementNode): string {

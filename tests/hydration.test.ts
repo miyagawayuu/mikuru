@@ -129,6 +129,62 @@ const MountOnlyChild = {
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates v-show and DOM v-model controls", async () => {
+    const source = `<template>
+  <form>
+    <p v-show="visible">{{ name }}</p>
+    <input v-model.trim="name" />
+    <input type="checkbox" value="2" v-model.number="selected" />
+    <select multiple v-model.number="selected">
+      <option value="1">One</option>
+      <option value="2">Two</option>
+      <option value="3">Three</option>
+    </select>
+  </form>
+</template>
+<script>
+import { ref } from "mikuru";
+const visible = ref(false);
+const name = ref("Ada");
+const selected = ref([1]);
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const paragraph = root.querySelector("p") as unknown as HTMLElement;
+    const input = root.querySelector("input:not([type])") as unknown as HTMLInputElement;
+    const checkbox = root.querySelector("input[type=checkbox]") as unknown as HTMLInputElement;
+    const select = root.querySelector("select") as unknown as HTMLSelectElement;
+
+    expect(paragraph.style.display).toBe("none");
+    expect(input.value).toBe("Ada");
+    expect(checkbox.checked).toBe(false);
+    expect(Array.from(select.options).map((option) => option.selected)).toEqual([true, false, false]);
+
+    input.value = "  Grace  ";
+    input.dispatchEvent(new window.Event("input") as unknown as Event);
+    expect(paragraph.textContent).toBe("Grace");
+
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new window.Event("change") as unknown as Event);
+    expect(Array.from(select.options).map((option) => option.selected)).toEqual([true, true, false]);
+
+    select.options[0]!.selected = false;
+    select.options[1]!.selected = false;
+    select.options[2]!.selected = true;
+    select.dispatchEvent(new window.Event("change") as unknown as Event);
+    expect(checkbox.checked).toBe(false);
+
+    instance.unmount();
+    input.value = "Lovelace";
+    input.dispatchEvent(new window.Event("input") as unknown as Event);
+    expect(paragraph.textContent).toBe("Grace");
+  });
+
   it("hydrates SSR Teleport content in its target", async () => {
     const source = `<template>
   <section>
