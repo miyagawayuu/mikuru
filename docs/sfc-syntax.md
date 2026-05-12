@@ -222,16 +222,18 @@ button {
 <li v-for="item in items">{{ item.label }}</li>
 <li v-for="(item, index) of items">{{ index }}: {{ item.label }}</li>
 <li v-for="item in items" :key="item.id" v-memo="[item.version]">{{ item.label }}</li>
+<li v-for="item in items" :key="item.id" v-once>{{ item.label }}</li>
 ```
 
 `v-for` は配列から同じテンプレート断片を生成する。
 `v-memo` は keyed `v-for` と組み合わせると、同じ key のrecordでmemo配列が変わらない間、そのrecordのitem/index更新をskipする。値は配列式である必要がある。
+`v-once` は通常のelement/componentでは初回だけ評価し、keyed `v-for` では空のmemo配列と同じようにreused recordの更新をskipする。
 
 制約:
 
 - `item in items`、`item of items`、`(item, index) in items`、`(item, index) of items` に対応する。
 - `:key` / `v-bind:key` は keyed DOM/component record reuse に使われる。
-- `v-memo` は keyed record の更新skipに使われる。ネストした `v-for` の高度な最適化は後続課題にする。
+- `v-memo` と `v-once` は keyed record の更新skipに使われる。ネストした `v-for` の高度な最適化は後続課題にする。
 
 ### コンポーネント
 

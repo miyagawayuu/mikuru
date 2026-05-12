@@ -744,6 +744,72 @@ function toggle() {
     expect(paragraph?.style.display).toBe("");
   });
 
+  it("renders v-once element bindings only once", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="change">Change</button>
+    <p v-once :title="message">{{ message }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const message = ref("Initial");
+
+function change() {
+  message.value = "Updated";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const paragraph = fixture.root.querySelector("p");
+    expect(paragraph?.textContent).toBe("Initial");
+    expect(paragraph?.getAttribute("title")).toBe("Initial");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+
+    expect(paragraph?.textContent).toBe("Initial");
+    expect(paragraph?.getAttribute("title")).toBe("Initial");
+  });
+
+  it("passes v-once component props as one-time snapshots", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="change">Change</button>
+    <Child v-once :message="message" />
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const message = ref("Initial");
+
+const Child = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+function change() {
+  message.value = "Updated";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Initial");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Initial");
+  });
+
   it("mounts and unmounts v-if branches", () => {
     const fixture = compileForDom(`<template>
   <section>
@@ -1099,6 +1165,33 @@ function renameWithMemoChange() {
     fixture.root.querySelectorAll("button")[1]?.dispatchEvent(createEvent(fixture.window, "click"));
     await Promise.resolve();
     expect(fixture.root.querySelector("article")?.textContent).toBe("Visible");
+  });
+
+  it("treats v-once keyed v-for records like empty memo dependencies", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="rename">Rename</button>
+    <article v-for="item in items" :key="item.id" v-once>{{ item.label }}</article>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([{ id: "a", label: "Alpha" }]);
+
+function rename() {
+  items.value = [{ id: "a", label: "Hidden" }];
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    expect(fixture.root.querySelector("article")?.textContent).toBe("Alpha");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("article")?.textContent).toBe("Alpha");
   });
 
   it("unmounts removed keyed component records exactly once", () => {

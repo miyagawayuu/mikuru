@@ -15,6 +15,7 @@ type GenerateContext = {
   templateRefMode?: "single" | "array";
   componentContextVar?: string;
   debug?: boolean;
+  once?: boolean;
 };
 
 type GenerateOptions = {
@@ -336,6 +337,11 @@ function generateNode(
 ): string {
   if (node.type === "text") {
     return generateText(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
+  if (hasAttr(node, "v-once") && !hasAttr(node, "v-for")) {
+    validateOnceAttribute(context, node);
+    return withOnceMode(context, () => generateNode(context, withoutAttrs(node, ["v-once"]), parentVar, cleanupVar, indent, beforeVar));
   }
 
   const forExpression = getStringAttr(node, "v-for");
@@ -1316,11 +1322,15 @@ function generateElement(
 
     if (attr.name === "v-show") {
       const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
-      const stopVar = nextVar(context, "stop");
-      emit(context, indent, `const ${stopVar} = effect(() => {`);
-      emit(context, indent + 1, `${elementVar}.style.display = unwrap(${expression}) ? "" : "none";`);
-      emit(context, indent, "});");
-      emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+      if (context.once) {
+        emit(context, indent, `${elementVar}.style.display = unwrap(${expression}) ? "" : "none";`);
+      } else {
+        const stopVar = nextVar(context, "stop");
+        emit(context, indent, `const ${stopVar} = effect(() => {`);
+        emit(context, indent + 1, `${elementVar}.style.display = unwrap(${expression}) ? "" : "none";`);
+        emit(context, indent, "});");
+        emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+      }
       continue;
     }
 
@@ -1386,10 +1396,14 @@ function generateElement(
         bindingName === "class" && getStaticAttrValue(node, "class")
           ? `[${quote(getStaticAttrValue(node, "class"))}, ${expression}]`
           : expression;
-      emit(context, indent, `const ${stopVar} = effect(() => {`);
-      emit(context, indent + 1, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression}));`);
-      emit(context, indent, "});");
-      emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+      if (context.once) {
+        emit(context, indent, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression}));`);
+      } else {
+        emit(context, indent, `const ${stopVar} = effect(() => {`);
+        emit(context, indent + 1, `setAttribute(${elementVar}, ${quote(bindingName)}, unwrap(${valueExpression}));`);
+        emit(context, indent, "});");
+        emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+      }
     }
   }
 
@@ -1451,11 +1465,15 @@ function generateText(
   emit(context, indent, `const ${textVar} = document.createTextNode("");`);
 
   if (node.parts.some((part) => part.type === "expression")) {
-    const stopVar = nextVar(context, "stop");
-    emit(context, indent, `const ${stopVar} = effect(() => {`);
-    emit(context, indent + 1, `${textVar}.textContent = ${textExpression(node.parts, context)};`);
-    emit(context, indent, "});");
-    emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+    if (context.once) {
+      emit(context, indent, `${textVar}.textContent = ${textExpression(node.parts, context)};`);
+    } else {
+      const stopVar = nextVar(context, "stop");
+      emit(context, indent, `const ${stopVar} = effect(() => {`);
+      emit(context, indent + 1, `${textVar}.textContent = ${textExpression(node.parts, context)};`);
+      emit(context, indent, "});");
+      emit(context, indent, `${cleanupVar}.push(${stopVar});`);
+    }
   } else {
     emit(context, indent, `${textVar}.textContent = ${quote(node.parts.map((part) => part.value).join(""))};`);
   }
@@ -1772,7 +1790,7 @@ function generateKeyedFor(
   const stopVar = nextVar(context, "stop");
   const compiledSource = compileTemplateExpression(sourceExpression, "v-for source", toExpressionContext(context, getStringAttrLocation(node, "v-for")));
   const compiledKey = compileTemplateExpression(keyExpression, "v-for key", toExpressionContext(context, getKeyAttrLocation(node)));
-  const compiledMemo = getMemoExpression(context, node);
+  const compiledMemo = getMemoExpression(context, node) ?? getOnceMemoExpression(context, node);
   emit(context, indent, `const ${recordsVar} = new Map();`);
   emit(context, indent, `const ${startVar} = document.createComment("for");`);
   emit(context, indent, `const ${endVar} = document.createComment("/for");`);
@@ -1899,6 +1917,17 @@ function withTemplateRefMode<T>(context: GenerateContext, mode: "single" | "arra
     return callback();
   } finally {
     context.templateRefMode = previousMode;
+  }
+}
+
+function withOnceMode<T>(context: GenerateContext, callback: () => T): T {
+  const previousOnce = context.once;
+  context.once = true;
+
+  try {
+    return callback();
+  } finally {
+    context.once = previousOnce;
   }
 }
 
@@ -2543,6 +2572,15 @@ function getMemoExpression(context: GenerateContext, node: ElementNode): string 
   return compileTemplateExpression(expression, "v-memo", toExpressionContext(context, attr.valueLoc));
 }
 
+function getOnceMemoExpression(context: GenerateContext, node: ElementNode): string | undefined {
+  if (!hasAttr(node, "v-once")) {
+    return undefined;
+  }
+
+  validateOnceAttribute(context, node);
+  return "[]";
+}
+
 function toExpressionContext(
   context: GenerateContext,
   location: SourceLocation | undefined
@@ -2563,7 +2601,7 @@ function withoutAttr(node: ElementNode, name: string): ElementNode {
 }
 
 function withoutForAttrs(node: ElementNode): ElementNode {
-  return withoutAttrs(node, ["v-for", "key", ":key", "v-bind:key", "v-memo"]);
+  return withoutAttrs(node, ["v-for", "key", ":key", "v-bind:key", "v-memo", "v-once"]);
 }
 
 function withoutAttrs(node: ElementNode, names: string[]): ElementNode {
@@ -3084,6 +3122,9 @@ function componentPropEntries(context: GenerateContext, attr: TemplateAttribute)
 
   if (bindingName) {
     const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+    if (context.once) {
+      return [`${quotePropertyName(bindingName)}: unwrap(${expression})`];
+    }
     return [`get ${quotePropertyName(bindingName)}() { return unwrap(${expression}); }`];
   }
 
@@ -3459,9 +3500,21 @@ function validateAttributes(context: GenerateContext, node: ElementNode): void {
       throwUnsupportedDirective(context, attr);
     }
 
+    if (attr.name === "v-once") {
+      validateOnceAttribute(context, node);
+    }
+
     if (attr.name === "v-memo") {
       getMemoExpression(context, node);
     }
+  }
+}
+
+function validateOnceAttribute(context: GenerateContext, node: ElementNode): void {
+  const attr = node.attrs.find((candidate) => candidate.name === "v-once");
+
+  if (attr && attr.value !== true) {
+    throwTemplateError("v-once does not accept a value", context, attr.valueLoc ?? attr.loc);
   }
 }
 
@@ -3472,7 +3525,7 @@ function throwUnsupportedDirective(context: GenerateContext, attr: TemplateAttri
 }
 
 function suggestDirectiveName(name: string): string | undefined {
-  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-memo", "v-model", "v-bind", "v-on", "v-slot"];
+  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-once", "v-memo", "v-model", "v-bind", "v-on", "v-slot"];
   const directiveName = name.includes(":") ? name.slice(0, name.indexOf(":")) : name.includes(".") ? name.slice(0, name.indexOf(".")) : name;
   const suggestion = suggestName(directiveName, supported.map((candidate) => ({ name: candidate, display: candidate })));
 
@@ -3496,7 +3549,7 @@ function isDirectiveAttr(attr: TemplateAttribute): boolean {
 }
 
 function isStructuralAttr(attr: TemplateAttribute): boolean {
-  return attr.name === "v-if" || attr.name === "v-else-if" || attr.name === "v-else" || attr.name === "v-for" || attr.name === "v-memo";
+  return attr.name === "v-if" || attr.name === "v-else-if" || attr.name === "v-else" || attr.name === "v-for" || attr.name === "v-once" || attr.name === "v-memo";
 }
 
 function isSlotDirectiveAttr(attr: TemplateAttribute): boolean {
@@ -3510,6 +3563,7 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
     attr.name === "v-else" ||
     attr.name === "v-for" ||
     attr.name === "v-show" ||
+    attr.name === "v-once" ||
     attr.name === "v-memo" ||
     Boolean(parseModelDirective(attr.name)) ||
     isObjectBindAttr(attr) ||
