@@ -134,6 +134,27 @@ const item = { label: "child" };
     })).resolves.toBe("<article><strong>child</strong></article>");
   });
 
+  it("collects Teleport SSR content by target selector", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <h1>{{ title }}</h1>
+    <Teleport to="#modal-root">
+      <p>{{ message }}</p>
+    </Teleport>
+    <footer>done</footer>
+  </section>
+</template>
+<script>
+const title = "Shell";
+const message = "Modal <safe>";
+</script>`);
+    const render = loadSsrRender(result.code);
+    const teleports: Record<string, string> = {};
+
+    await expect(render({ __mikuru_teleports: teleports })).resolves.toBe("<section><h1>Shell</h1><!--teleport:t0--><!--/teleport:t0--><footer>done</footer></section>");
+    expect(teleports["#modal-root"]).toBe("<!--teleport content:t0--><p>Modal &lt;safe&gt;</p><!--/teleport content:t0-->");
+  });
+
   it("renders router matches with redirects, lazy components, props, and nested default slots", async () => {
     const Shell = {
       async renderToString(props: Record<string, any>) {

@@ -128,6 +128,51 @@ const MountOnlyChild = {
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates SSR Teleport content in its target", async () => {
+    const source = `<template>
+  <section>
+    <h1>{{ title }}</h1>
+    <Teleport to="#modal-root">
+      <button @click="increment">{{ count }}</button>
+    </Teleport>
+    <p>after</p>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const title = "Teleport SSR";
+const count = ref(1);
+function increment() {
+  count.value += 1;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const window = new Window();
+    const app = window.document.createElement("div");
+    const modalRoot = window.document.createElement("div");
+    modalRoot.id = "modal-root";
+    window.document.body.append(app, modalRoot);
+    const teleports: Record<string, string> = {};
+    const module = loadHydrationModule(compileHydration(source).code, window.document as unknown as Document);
+
+    app.innerHTML = await renderToString({ __mikuru_teleports: teleports });
+    modalRoot.innerHTML = teleports["#modal-root"];
+
+    expect(app.innerHTML).toBe("<section><h1>Teleport SSR</h1><!--teleport:t0--><!--/teleport:t0--><p>after</p></section>");
+    expect(modalRoot.innerHTML).toBe("<!--teleport content:t0--><button>1</button><!--/teleport content:t0-->");
+
+    const instance = module.hydrate(app as unknown as Element);
+    const button = modalRoot.querySelector("button");
+    button?.dispatchEvent(new window.Event("click"));
+
+    expect(button?.textContent).toBe("2");
+    expect(app.querySelector("p")?.textContent).toBe("after");
+
+    instance.unmount();
+    button?.dispatchEvent(new window.Event("click"));
+    expect(button?.textContent).toBe("2");
+  });
+
   it("hydrates router matches with lazy nested route components and mount fallback", async () => {
     const window = new Window();
     const root = window.document.createElement("div");
@@ -222,7 +267,7 @@ const MountOnlyChild = {
 
 function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
   const executable = code
-    .replace(/import\s+\{([^}]+)\}\s+from\s+["']mikuru["'];?\n+/g, "const { $1 } = helpers;\n")
+    .replace(/import\s+\{([^}]+)\}\s+from\s+["']mikuru["'];?\n+/g, "")
     .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
     .replace("export async function renderToString", "async function renderToString");
@@ -230,7 +275,7 @@ function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promi
   return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, ref, unwrap });
 }
 
-function loadHydrationModule(code: string): { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any } {
+function loadHydrationModule(code: string, documentOverride?: Document): { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any } {
   const executable = code
     .replace(/import\s+\{[^}]+\}\s+from\s+["'][^"']*mikuru[^"']*["'];?\n+/g, "")
     .replace("export function mount", "function mount")
@@ -243,6 +288,6 @@ function loadHydrationModule(code: string): { mount: (target: Element, props?: R
     unwrapArg: typeof unwrap,
     documentArg: Document
   ) => { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any };
-  const window = new Window();
-  return factory(effect, ref, setAttribute, unwrap, window.document as unknown as Document);
+  const window = documentOverride ? undefined : new Window();
+  return factory(effect, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document);
 }
