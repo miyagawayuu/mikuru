@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 const { compile } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
-const { effect, nextTick, ref, watch } = await import("mikuru/runtime");
+const { createDebugInspector, effect, emitDebugEvent, nextTick, ref, watch } = await import("mikuru/runtime");
 const { mikuru } = await import("mikuru/vite");
 
 assert.deepEqual(Object.keys(env), []);
@@ -49,6 +49,12 @@ await nextTick(() => {
   ticked = true;
 });
 assert.equal(ticked, true);
+
+const inspector = createDebugInspector();
+emitDebugEvent("package-smoke");
+assert.equal(inspector.getEvents().at(-1).type, "package-smoke");
+inspector.clearEvents();
+assert.equal(inspector.getEvents().length, 0);
 
 const router = createRouter({
   history: createMemoryHistory("/"),

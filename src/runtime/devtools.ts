@@ -4,6 +4,8 @@ export type MikuruDebugEvent = {
   payload?: Record<string, unknown>;
 };
 
+export type MikuruDebugListener = (event: MikuruDebugEvent) => void;
+
 export type MikuruDebugComponentMetadata = {
   id: number;
   name?: string;
@@ -29,9 +31,18 @@ export type MikuruDebugComponentRegistration = {
 export type MikuruDevtoolsHook = {
   components?: Map<number, MikuruDebugComponentMetadata>;
   events?: MikuruDebugEvent[];
+  listeners?: Set<MikuruDebugListener>;
   nextId?: number;
   registerComponent?(metadata: MikuruDebugComponentMetadata): void | (() => void);
   emit?(event: MikuruDebugEvent): void;
+};
+
+export type MikuruDebugInspector = {
+  hook: MikuruDevtoolsHook;
+  getComponents(): MikuruDebugComponentMetadata[];
+  getEvents(): MikuruDebugEvent[];
+  clearEvents(): void;
+  subscribe(listener: MikuruDebugListener): () => void;
 };
 
 declare global {
@@ -63,16 +74,31 @@ export function registerDebugComponent(
 
   const customUnregister =
     typeof hook.registerComponent === "function" ? hook.registerComponent(fullMetadata) : undefined;
+  dispatchDebugEvent(hook, {
+    type: "component:register",
+    timestamp: Date.now(),
+    payload: { componentId: id, component: fullMetadata }
+  });
 
   return {
     id,
     metadata: fullMetadata,
     update(nextMetadata) {
       Object.assign(fullMetadata, nextMetadata);
+      dispatchDebugEvent(hook, {
+        type: "component:update",
+        timestamp: Date.now(),
+        payload: { componentId: id, component: fullMetadata, updates: nextMetadata }
+      });
     },
     unregister() {
       fullMetadata.unmountedAt = Date.now();
       parent?.children?.delete(id);
+      dispatchDebugEvent(hook, {
+        type: "component:unregister",
+        timestamp: Date.now(),
+        payload: { componentId: id, component: fullMetadata }
+      });
       if (typeof customUnregister === "function") {
         customUnregister();
       }
@@ -93,24 +119,66 @@ export function emitDebugEvent(type: string, payload?: Record<string, unknown>):
     payload
   };
 
-  if (typeof hook.emit === "function") {
-    hook.emit(event);
-    return;
-  }
+  dispatchDebugEvent(hook, event);
+}
 
-  hook.events ??= [];
-  hook.events.push(event);
+export function createDebugInspector(hook = getOrCreateDevtoolsHook()): MikuruDebugInspector {
+  ensureDevtoolsStorage(hook);
+
+  return {
+    hook,
+    getComponents() {
+      return Array.from(hook.components?.values() ?? []);
+    },
+    getEvents() {
+      return [...(hook.events ?? [])];
+    },
+    clearEvents() {
+      if (hook.events) {
+        hook.events.length = 0;
+      }
+    },
+    subscribe(listener) {
+      hook.listeners ??= new Set();
+      hook.listeners.add(listener);
+      return () => hook.listeners?.delete(listener);
+    }
+  };
 }
 
 function getOrCreateDevtoolsHook(): MikuruDevtoolsHook {
   const root = globalThis as typeof globalThis & { __MIKURU_DEVTOOLS__?: MikuruDevtoolsHook };
   root.__MIKURU_DEVTOOLS__ ??= { components: new Map(), events: [], nextId: 1 };
-  root.__MIKURU_DEVTOOLS__.components ??= new Map();
-  root.__MIKURU_DEVTOOLS__.events ??= [];
-  root.__MIKURU_DEVTOOLS__.nextId ??= 1;
+  ensureDevtoolsStorage(root.__MIKURU_DEVTOOLS__);
   return root.__MIKURU_DEVTOOLS__;
 }
 
 function readDevtoolsHook(): MikuruDevtoolsHook | undefined {
   return (globalThis as typeof globalThis & { __MIKURU_DEVTOOLS__?: MikuruDevtoolsHook }).__MIKURU_DEVTOOLS__;
+}
+
+function ensureDevtoolsStorage(hook: MikuruDevtoolsHook): void {
+  hook.components ??= new Map();
+  hook.events ??= [];
+  hook.listeners ??= new Set();
+  hook.nextId ??= 1;
+}
+
+function dispatchDebugEvent(hook: MikuruDevtoolsHook, event: MikuruDebugEvent): void {
+  hook.events ??= [];
+  hook.events.push(event);
+
+  if (typeof hook.emit === "function") {
+    hook.emit(event);
+  }
+
+  for (const listener of hook.listeners ?? []) {
+    try {
+      listener(event);
+    } catch (error) {
+      setTimeout(() => {
+        throw error;
+      });
+    }
+  }
 }
