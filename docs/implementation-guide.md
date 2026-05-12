@@ -295,10 +295,10 @@ const AsyncPanel = defineAsyncComponent({
 </script>
 ```
 
-Use `<ErrorBoundary>` around a child component when its mount, generated event handler, lifecycle callback, or cleanup error should fail into a local fallback instead of breaking the whole parent mount.
+Use `<ErrorBoundary>` around a child component when its mount, generated event handler, lifecycle callback, or cleanup error should fail into a local fallback instead of breaking the whole parent mount. The fallback component receives `{ error, retry, reset }`; `retry` and `reset` both re-render the boundary child. Use `:reset-key` when an outside state change should automatically clear the fallback and remount the child.
 
 ```mikuru
-<ErrorBoundary :fallback="ErrorPanel">
+<ErrorBoundary :fallback="ErrorPanel" :reset-key="route.path">
   <RiskyPanel />
 </ErrorBoundary>
 ```

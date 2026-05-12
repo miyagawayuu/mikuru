@@ -428,13 +428,13 @@ const AsyncPanel = defineAsyncComponent({
 
 ```mikuru
 <template>
-  <ErrorBoundary :fallback="ErrorPanel">
+  <ErrorBoundary :fallback="ErrorPanel" :reset-key="version">
     <RiskyPanel />
   </ErrorBoundary>
 </template>
 ```
 
-`<ErrorBoundary>` はchild componentのmount時エラー、生成されたevent handler、lifecycle callback、cleanupのエラーを捕捉し、fallback componentを描画する。fallback componentには `error` と `retry` propsを渡す。
+`<ErrorBoundary>` はchild componentのmount時エラー、生成されたevent handler、lifecycle callback、cleanupのエラーを捕捉し、fallback componentを描画する。fallback componentには `error`、`retry`、`reset` propsを渡す。`retry` と `reset` はboundary childを再描画する。`:reset-key` が変わるとfallbackをclearしてchildをremountする。
 
 ## v1で扱わない構文
 
