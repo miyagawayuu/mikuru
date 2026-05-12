@@ -29,12 +29,17 @@
 
     <ModelEditor v-model:title.trim="cardTitle" v-model:checked="cardEnabled" />
 
-    <p class="model-summary">{{ phrase }}:{{ priority }}:{{ flags.join(",") }}:{{ cardTitle }}:{{ cardEnabled }}</p>
+    <label>
+      <span>Owner name</span>
+      <input v-model.trim="ownerName" />
+    </label>
+
+    <p class="model-summary">{{ phrase }}:{{ priority }}:{{ flags.join(",") }}:{{ cardTitle }}:{{ cardEnabled }}:{{ ownerFirst }}:{{ ownerLast }}:{{ ownerWatch }}</p>
   </section>
 </template>
 
 <script>
-import { ref } from "mikuru";
+import { computed, ref, watch } from "mikuru";
 import ModelEditor from "./ModelEditor.mikuru";
 
 const phrase = ref("ready");
@@ -42,6 +47,20 @@ const priority = ref(1);
 const flags = ref([2]);
 const cardTitle = ref("Launch checklist");
 const cardEnabled = ref(false);
+const ownerRaw = ref("Mikuru Runtime");
+const ownerWatch = ref("waiting");
+const ownerFirst = computed(() => ownerRaw.value.split(" ")[0] ?? "");
+const ownerLast = computed(() => ownerRaw.value.split(" ").slice(1).join(" "));
+const ownerName = computed({
+  get: () => ownerRaw.value,
+  set: (nextName) => {
+    ownerRaw.value = nextName.trim();
+  }
+});
+
+watch(ownerName, (nextName, previousName) => {
+  ownerWatch.value = previousName + " -> " + nextName;
+}, { once: true });
 </script>
 
 <style scoped>

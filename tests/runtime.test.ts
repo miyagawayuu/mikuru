@@ -107,6 +107,27 @@ describe("runtime reactivity", () => {
     expect(doubled.value).toBe(8);
   });
 
+  it("supports writable computed refs", () => {
+    const first = ref("Mikuru");
+    const last = ref("Runtime");
+    const fullName = computed({
+      get: () => `${first.value} ${last.value}`,
+      set: (nextValue: string) => {
+        const [nextFirst = "", nextLast = ""] = nextValue.split(" ");
+        first.value = nextFirst;
+        last.value = nextLast;
+      }
+    });
+
+    expect(fullName.value).toBe("Mikuru Runtime");
+
+    fullName.value = "Writable Computed";
+
+    expect(first.value).toBe("Writable");
+    expect(last.value).toBe("Computed");
+    expect(fullName.value).toBe("Writable Computed");
+  });
+
   it("stops effects and skips unchanged ref writes", () => {
     const count = ref(0);
     let runs = 0;
@@ -201,6 +222,34 @@ describe("runtime reactivity", () => {
       { next: 2, previous: undefined },
       { next: 3, previous: 2 }
     ]);
+  });
+
+  it("supports once watch callbacks", () => {
+    const count = ref(0);
+    const calls: Array<{ next: unknown; previous: unknown }> = [];
+    const stop = watch(count, (next, previous) => {
+      calls.push({ next, previous });
+    }, { once: true });
+
+    count.value = 1;
+    count.value = 2;
+    stop();
+    count.value = 3;
+
+    expect(calls).toEqual([{ next: 1, previous: 0 }]);
+  });
+
+  it("supports immediate once watch callbacks", () => {
+    const count = ref(2);
+    const calls: Array<{ next: unknown; previous: unknown }> = [];
+    const stop = watch(count, (next, previous) => {
+      calls.push({ next, previous });
+    }, { immediate: true, once: true });
+
+    count.value = 3;
+    stop();
+
+    expect(calls).toEqual([{ next: 2, previous: undefined }]);
   });
 
   it("runs watch cleanup before the next callback and when stopped", () => {

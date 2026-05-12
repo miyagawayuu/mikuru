@@ -8,6 +8,15 @@ export type ComputedRef<T> = {
   readonly value: T;
 };
 
+export type WritableComputedOptions<T> = {
+  get: () => T;
+  set: (value: T) => void;
+};
+
+export type WritableComputedRef<T> = {
+  value: T;
+};
+
 type Dep = Set<ReactiveEffect>;
 
 type ReactiveEffect = {
@@ -39,16 +48,30 @@ export function ref<T>(initialValue: T): Ref<T> {
   };
 }
 
-export function computed<T>(getter: () => T): ComputedRef<T> {
+export function computed<T>(getter: () => T): ComputedRef<T>;
+export function computed<T>(options: WritableComputedOptions<T>): WritableComputedRef<T>;
+export function computed<T>(source: (() => T) | WritableComputedOptions<T>): ComputedRef<T> | WritableComputedRef<T> {
+  const getter = typeof source === "function" ? source : source.get;
   const result = ref<T>(getter());
 
   effect(() => {
     result.value = getter();
   });
 
+  if (typeof source === "function") {
+    return {
+      get value() {
+        return result.value;
+      }
+    };
+  }
+
   return {
     get value() {
       return result.value;
+    },
+    set value(nextValue) {
+      source.set(nextValue);
     }
   };
 }

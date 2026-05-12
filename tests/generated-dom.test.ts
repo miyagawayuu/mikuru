@@ -4011,6 +4011,54 @@ const Child = {
     expect(fixture.root.querySelector("p")?.textContent).toBe("Updated:true");
   });
 
+  it("uses writable computed refs with v-model and once watchers", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <input v-model="fullName" />
+    <p>{{ rawName }}:{{ watchLog }}</p>
+  </section>
+</template>
+
+<script>
+import { computed, ref, watch } from "mikuru";
+
+const rawName = ref("Mikuru Runtime");
+const watchLog = ref("waiting");
+const fullName = computed({
+  get: () => rawName.value,
+  set: (nextValue) => {
+    rawName.value = nextValue.trim();
+  }
+});
+
+watch(fullName, (next, previous) => {
+  watchLog.value = previous + " -> " + next;
+}, { once: true });
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const input = fixture.root.querySelector("input");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(input?.value).toBe("Mikuru Runtime");
+    expect(paragraph?.textContent).toBe("Mikuru Runtime:waiting");
+
+    if (input) {
+      input.value = "Writable Computed";
+      input.dispatchEvent(createEvent(fixture.window, "input"));
+    }
+
+    expect(input?.value).toBe("Writable Computed");
+    expect(paragraph?.textContent).toBe("Writable Computed:Mikuru Runtime -> Writable Computed");
+
+    if (input) {
+      input.value = "Ignored Update";
+      input.dispatchEvent(createEvent(fixture.window, "input"));
+    }
+
+    expect(paragraph?.textContent).toBe("Ignored Update:Mikuru Runtime -> Writable Computed");
+  });
+
   it("renders default slot content in child components", () => {
     const fixture = compileForDom(`<template>
   <section>

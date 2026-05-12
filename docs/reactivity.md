@@ -32,9 +32,28 @@ const doubled = computed(() => count.value * 2);
 
 `computed` は他のリアクティブ値から派生値を作る。
 
+書き込み可能な派生値が必要な場合は、`get` / `set` を持つオブジェクトを渡せる。フォームや子コンポーネントの `v-model` と組み合わせると、表示用の値と内部状態を分けやすい。
+
+```js
+const first = ref("Mikuru");
+const last = ref("Runtime");
+
+const fullName = computed({
+  get: () => `${first.value} ${last.value}`,
+  set: (nextName) => {
+    const [nextFirst = "", nextLast = ""] = nextName.split(" ");
+    first.value = nextFirst;
+    last.value = nextLast;
+  }
+});
+
+fullName.value = "Writable Computed";
+```
+
 v1での方針:
 
-- 返り値は読み取り専用の `.value` を持つ。
+- 関数で作った返り値は読み取り専用の `.value` を持つ。
+- `computed({ get, set })` の返り値は `.value` へ書き込むと `set` を呼ぶ。
 - 依存する `ref` が変わったときに再計算される。
 - キャッシュの厳密な最適化は後続課題にする。
 
@@ -147,6 +166,7 @@ v1では、アプリ側の実用性を補うために小さな監視・ライフ
 
 - `watch(source, cb)` はref風の値、getter、通常値、またはそれらの配列を監視し、変更時にコールバックを呼ぶ。
 - `watch(source, cb, { immediate: true })` は現在値で初回コールバックを即時実行する。
+- `watch(source, cb, { once: true })` は最初のコールバック後に自動停止する。`immediate` と組み合わせた場合は初回実行だけで停止する。
 - `watch` のコールバックは第3引数 `onCleanup(fn)` を受け取り、次のコールバック直前または停止時にcleanupを実行できる。
 - `onMounted(fn)`、`onBeforeUnmount(fn)`、`onUnmounted(fn)` はmount中のMikuruコンポーネントに対してコールバックを登録する。`onActivated(fn)` / `onDeactivated(fn)` は `<KeepAlive>` にcacheされたgenerated componentが表示/非表示に戻るタイミングで実行される。
 - `provide(key, value)` と `inject(key, fallback?)` は現在mount中のコンポーネントツリーにスコープされ、子コンポーネントは親から提供された値を参照できる。

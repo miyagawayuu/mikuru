@@ -1,6 +1,22 @@
 export { compile } from "./compiler/index.js";
 export type { CompileOptions, CompileResult } from "./compiler/index.js";
-export { computed, createDebugInspector, defineAsyncComponent, effect, ref, unwrap } from "./runtime/index.js";
+export {
+  computed,
+  createDebugInspector,
+  defineAsyncComponent,
+  effect,
+  inject,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  provide,
+  ref,
+  unwrap,
+  watch
+} from "./runtime/index.js";
 export type {
   MikuruDebugComponentMetadata,
   MikuruDebugEvent,
@@ -19,5 +35,12 @@ export type {
   MikuruErrorBoundaryFallbackProps,
   MikuruErrorInfo,
   MikuruErrorPhase,
-  Ref
+  Ref,
+  WatchCallback,
+  WatchCleanup,
+  WatchCleanupRegistrar,
+  WatchOptions,
+  WatchSource,
+  WritableComputedOptions,
+  WritableComputedRef
 } from "./runtime/index.js";
