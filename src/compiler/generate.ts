@@ -1498,7 +1498,12 @@ function generateElement(
 
   emitTemplateRef(context, node, elementVar, cleanupVar, indent);
 
-  generateChildren(context, node.children, elementVar, cleanupVar, indent);
+  const contentDirective = getContentDirectiveAttr(node);
+  if (contentDirective) {
+    emitContentDirective(context, node, elementVar, contentDirective, cleanupVar, indent);
+  } else {
+    generateChildren(context, node.children, elementVar, cleanupVar, indent);
+  }
 
   for (const attr of node.attrs) {
     const modelDirective = parseModelDirective(attr.name);
@@ -1646,6 +1651,29 @@ function generateElement(
 
   appendNode(context, parentVar, elementVar, indent, beforeVar);
   return elementVar;
+}
+
+function emitContentDirective(
+  context: GenerateContext,
+  node: ElementNode,
+  elementVar: string,
+  attr: TemplateAttribute,
+  cleanupVar: string,
+  indent: number
+): void {
+  const expression = compileTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+  const property = attr.name === "v-html" ? "innerHTML" : "textContent";
+
+  if (context.once) {
+    emit(context, indent, `${elementVar}.${property} = String(unwrap(${expression}) ?? "");`);
+    return;
+  }
+
+  const stopVar = nextVar(context, "stop");
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `${elementVar}.${property} = String(unwrap(${expression}) ?? "");`);
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(${stopVar});`);
 }
 
 function emitTemplateRef(
@@ -3796,9 +3824,20 @@ function toComponentEventProp(eventName: string): string {
 }
 
 function validateAttributes(context: GenerateContext, node: ElementNode): void {
+  const htmlAttr = getAttr(node, "v-html");
+  const textAttr = getAttr(node, "v-text");
+
+  if (htmlAttr && textAttr) {
+    throwTemplateError("v-html and v-text cannot be used on the same element", context, textAttr.loc);
+  }
+
   for (const attr of node.attrs) {
     if (attr.name.startsWith("v-") && !isSupportedDirectiveAttr(attr)) {
       throwUnsupportedDirective(context, attr);
+    }
+
+    if ((attr.name === "v-html" || attr.name === "v-text") && attr.value === true) {
+      throwTemplateError(`${attr.name} requires a value`, context, attr.loc);
     }
 
     if (attr.name === "v-once") {
@@ -3826,7 +3865,7 @@ function throwUnsupportedDirective(context: GenerateContext, attr: TemplateAttri
 }
 
 function suggestDirectiveName(name: string): string | undefined {
-  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-once", "v-memo", "v-model", "v-bind", "v-on", "v-slot"];
+  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-html", "v-text", "v-once", "v-memo", "v-model", "v-bind", "v-on", "v-slot"];
   const directiveName = name.includes(":") ? name.slice(0, name.indexOf(":")) : name.includes(".") ? name.slice(0, name.indexOf(".")) : name;
   const suggestion = suggestName(directiveName, supported.map((candidate) => ({ name: candidate, display: candidate })));
 
@@ -3864,6 +3903,8 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
     attr.name === "v-else" ||
     attr.name === "v-for" ||
     attr.name === "v-show" ||
+    attr.name === "v-html" ||
+    attr.name === "v-text" ||
     attr.name === "v-once" ||
     attr.name === "v-memo" ||
     Boolean(parseModelDirective(attr.name)) ||
@@ -3876,6 +3917,14 @@ function isSupportedDirectiveAttr(attr: TemplateAttribute): boolean {
 
 function isObjectBindAttr(attr: TemplateAttribute): boolean {
   return attr.name === "v-bind";
+}
+
+function getContentDirectiveAttr(node: ElementNode): TemplateAttribute | undefined {
+  return getAttr(node, "v-html") ?? getAttr(node, "v-text");
+}
+
+function getAttr(node: ElementNode, name: string): TemplateAttribute | undefined {
+  return node.attrs.find((attr) => attr.name === name);
 }
 
 function isObjectOnAttr(attr: TemplateAttribute): boolean {

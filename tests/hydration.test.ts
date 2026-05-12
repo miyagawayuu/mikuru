@@ -151,6 +151,47 @@ function toggle() {
     expect(paragraph?.textContent).toBe("Done");
   });
 
+  it("hydrates v-html and v-text content directives", async () => {
+    const source = `<template>
+  <section>
+    <article v-html="html"><p>fallback</p></article>
+    <p v-text="message">fallback</p>
+    <button @click="update">Update</button>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const html = ref("<strong>raw</strong>");
+const message = ref("<safe>");
+function update() {
+  html.value = "<em>next</em>";
+  message.value = "updated";
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const article = root.querySelector("article");
+    const paragraph = root.querySelector("p");
+
+    expect(article?.innerHTML).toBe("<strong>raw</strong>");
+    expect(paragraph?.textContent).toBe("<safe>");
+    expect(paragraph?.innerHTML).toBe("&lt;safe&gt;");
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+
+    expect(article?.innerHTML).toBe("<em>next</em>");
+    expect(paragraph?.textContent).toBe("updated");
+
+    instance.unmount();
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(article?.innerHTML).toBe("<em>next</em>");
+  });
+
   it("hydrates child components when they expose hydrate and falls back to mount otherwise", async () => {
     const source = `<template>
   <section>

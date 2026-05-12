@@ -112,8 +112,11 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
   hydrateAttrs(context, node, elementVar, indent);
   hydrateEvents(context, node, elementVar, indent);
   hydrateModelAndShow(context, node, elementVar, indent);
+  hydrateContentDirective(context, node, elementVar, indent);
   hydrateTemplateRef(context, node, elementVar, indent);
-  hydrateChildren(context, node.children, elementVar, indent);
+  if (!getContentDirectiveAttr(node)) {
+    hydrateChildren(context, node.children, elementVar, indent);
+  }
 }
 
 function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[], parentVar: string, indent: number): void {
@@ -445,6 +448,18 @@ function hydrateModelAndShow(context: HydrationContext, node: ElementNode, eleme
   }
 }
 
+function hydrateContentDirective(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  const attr = getContentDirectiveAttr(node);
+
+  if (!attr || attr.value === true) {
+    return;
+  }
+
+  const expression = compileHydrationExpression(context, String(attr.value), attr.name);
+  const property = attr.name === "v-html" ? "innerHTML" : "textContent";
+  emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_content = String(unwrap(${expression}) ?? ""); if (${elementVar}.${property} !== __mikuru_content) ${elementVar}.${property} = __mikuru_content; }));`);
+}
+
 function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string, indent: number): void {
   const expression = node.parts.map((part) => {
     if (part.type === "static") {
@@ -501,6 +516,8 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "v-else"
     || attr.name === "v-for"
     || attr.name === "v-show"
+    || attr.name === "v-html"
+    || attr.name === "v-text"
     || attr.name === "v-model"
     || attr.name.startsWith("v-model.")
     || attr.name.startsWith("v-model:")
@@ -570,6 +587,10 @@ function requireAttrValue(attr: TemplateAttribute): string {
 function getStaticAttrValue(node: ElementNode, name: string): string | undefined {
   const attr = getAttr(node, name);
   return attr && attr.value !== true ? String(attr.value) : undefined;
+}
+
+function getContentDirectiveAttr(node: ElementNode): TemplateAttribute | undefined {
+  return getAttr(node, "v-html") ?? getAttr(node, "v-text");
 }
 
 function hasStaticBooleanAttr(node: ElementNode, name: string): boolean {

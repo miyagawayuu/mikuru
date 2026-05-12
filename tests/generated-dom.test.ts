@@ -254,6 +254,41 @@ function toggle() {
     expect(paragraph?.textContent).toBe("active");
   });
 
+  it("supports v-html and v-text content directives", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <article v-html="html"><p>fallback</p></article>
+    <p v-text="message">fallback</p>
+    <button @click="update">Update</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const html = ref("<strong>raw</strong>");
+const message = ref("<safe>");
+
+function update() {
+  html.value = "<em>next</em>";
+  message.value = "updated";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const article = fixture.root.querySelector("article");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(article?.innerHTML).toBe("<strong>raw</strong>");
+    expect(paragraph?.textContent).toBe("<safe>");
+    expect(paragraph?.innerHTML).toBe("&lt;safe&gt;");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(article?.innerHTML).toBe("<em>next</em>");
+    expect(paragraph?.textContent).toBe("updated");
+  });
+
   it("normalizes array and object class bindings", () => {
     const fixture = compileForDom(`<template>
   <section>
