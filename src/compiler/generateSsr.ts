@@ -355,6 +355,12 @@ function emitComponentProps(context: SsrGenerateContext, node: ElementNode, prop
       continue;
     }
 
+    const dynamicArgument = getDynamicAttrArgument(attr.name);
+    if (dynamicArgument) {
+      emit(context, indent, `${propsVar}[String(__mikuru_unwrap(${compileSsrExpression(context, dynamicArgument.expression, attr.name)}) ?? "")] = __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), attr.name)});`);
+      continue;
+    }
+
     const dynamicName = getDynamicAttrName(attr.name);
     if (dynamicName) {
       emit(context, indent, `${propsVar}[${quote(dynamicName)}] = __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), attr.name)});`);
@@ -395,6 +401,12 @@ function emitSlotProps(context: SsrGenerateContext, node: ElementNode, propsVar:
       continue;
     }
 
+    const dynamicArgument = getDynamicAttrArgument(attr.name);
+    if (dynamicArgument) {
+      emit(context, indent, `${propsVar}[String(__mikuru_unwrap(${compileSsrExpression(context, dynamicArgument.expression, attr.name)}) ?? "")] = __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), attr.name)});`);
+      continue;
+    }
+
     const dynamicName = getDynamicAttrName(attr.name);
     if (dynamicName) {
       emit(context, indent, `${propsVar}[${quote(dynamicName)}] = __mikuru_unwrap(${compileSsrExpression(context, String(attr.value), attr.name)});`);
@@ -429,6 +441,15 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
       emit(context, indent + 1, `const ${attrsVar} = __mikuru_unwrap(${compileSsrExpression(context, value, "v-bind")}) ?? {};`);
       emit(context, indent + 1, `__mikuru_html += __mikuru_renderAttrs({ ...${attrsVar}${staticClass ? `, class: [${quote(staticClass)}, ${attrsVar}.class]` : ""}${staticStyle ? `, style: [${quote(staticStyle)}, ${attrsVar}.style]` : ""} });`);
       emit(context, indent, "}");
+      continue;
+    }
+
+    const dynamicArgument = getDynamicAttrArgument(attr.name);
+    if (dynamicArgument) {
+      const value = String(attr.value);
+      const nameExpression = compileSsrExpression(context, dynamicArgument.expression, attr.name);
+      const valueExpression = compileSsrExpression(context, value, attr.name);
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr(String(__mikuru_unwrap(${nameExpression}) ?? ""), __mikuru_unwrap(${valueExpression}));`);
       continue;
     }
 
@@ -489,12 +510,49 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
 }
 
 function getDynamicAttrName(name: string): string | undefined {
+  if (getDynamicAttrArgument(name)) {
+    return undefined;
+  }
+
   if (name.startsWith(":")) {
     return name.slice(1);
   }
   if (name.startsWith("v-bind:")) {
     return name.slice("v-bind:".length);
   }
+  return undefined;
+}
+
+function getDynamicAttrArgument(name: string): { expression: string } | undefined {
+  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
+  if (!dynamic || dynamic.modifiers.length > 0) {
+    return undefined;
+  }
+  return { expression: dynamic.expression };
+}
+
+function parseDynamicArgument(name: string, prefixes: string[]): { expression: string; modifiers: string[] } | undefined {
+  for (const prefix of prefixes) {
+    if (!name.startsWith(`${prefix}[`)) {
+      continue;
+    }
+
+    const argumentStart = prefix.length + 1;
+    const argumentEnd = name.indexOf("]", argumentStart);
+    if (argumentEnd === -1) {
+      return undefined;
+    }
+
+    const expression = name.slice(argumentStart, argumentEnd).trim();
+    if (!expression) {
+      return undefined;
+    }
+
+    const rest = name.slice(argumentEnd + 1);
+    const modifiers = rest.startsWith(".") ? rest.slice(1).split(".").filter(Boolean) : [];
+    return { expression, modifiers };
+  }
+
   return undefined;
 }
 

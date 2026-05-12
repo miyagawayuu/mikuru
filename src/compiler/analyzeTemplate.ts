@@ -58,15 +58,42 @@ function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemp
     const event = parseEventDirective(attr.name);
 
     if (event) {
+      if (event.nameExpression) {
+        bindings.push({
+          type: "attribute",
+          name: "event",
+          expression: validateTemplateExpression(event.nameExpression, attr.name, toExpressionContext(attr.loc, options))
+        });
+      }
       bindings.push({
         type: "event",
-        event: event.name,
+        event: event.name ?? "dynamic",
         handler: validateTemplateExpression(
           requireStringValue(attr.name, attr.value),
           attr.name,
           toExpressionContext(attr.valueLoc, options)
         ),
         modifiers: event.modifiers.length ? event.modifiers : undefined
+      });
+      continue;
+    }
+
+    const dynamicBinding = getDynamicBindingArgument(attr.name);
+
+    if (dynamicBinding) {
+      bindings.push({
+        type: "attribute",
+        name: "name",
+        expression: validateTemplateExpression(dynamicBinding.expression, attr.name, toExpressionContext(attr.loc, options))
+      });
+      bindings.push({
+        type: "attribute",
+        name: "value",
+        expression: validateTemplateExpression(
+          requireStringValue(attr.name, attr.value),
+          attr.name,
+          toExpressionContext(attr.valueLoc, options)
+        )
       });
       continue;
     }
@@ -213,7 +240,12 @@ function throwTemplateError(message: string, location: SourceLocation | undefine
   throw new Error(message);
 }
 
-function parseEventDirective(name: string): { name: string; modifiers: string[] } | undefined {
+function parseEventDirective(name: string): { name?: string; nameExpression?: string; modifiers: string[] } | undefined {
+  const dynamic = getDynamicEventArgument(name);
+  if (dynamic) {
+    return dynamic;
+  }
+
   const rawName = getEventName(name);
 
   if (!rawName) {
@@ -225,6 +257,10 @@ function parseEventDirective(name: string): { name: string; modifiers: string[] 
 }
 
 function getEventName(name: string): string | undefined {
+  if (name.startsWith("@[") || name.startsWith("v-on:[")) {
+    return undefined;
+  }
+
   if (name.startsWith("@")) {
     return name.slice(1);
   }
@@ -237,12 +273,57 @@ function getEventName(name: string): string | undefined {
 }
 
 function getBindingName(name: string): string | undefined {
+  if (getDynamicBindingArgument(name)) {
+    return undefined;
+  }
+
   if (name.startsWith(":")) {
     return name.slice(1);
   }
 
   if (name.startsWith("v-bind:")) {
     return name.slice("v-bind:".length);
+  }
+
+  return undefined;
+}
+
+function getDynamicBindingArgument(name: string): { expression: string } | undefined {
+  const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
+  if (!dynamic || dynamic.modifiers.length > 0) {
+    return undefined;
+  }
+  return { expression: dynamic.expression };
+}
+
+function getDynamicEventArgument(name: string): { nameExpression: string; modifiers: string[] } | undefined {
+  const dynamic = parseDynamicArgument(name, ["@", "v-on:"]);
+  if (!dynamic) {
+    return undefined;
+  }
+  return { nameExpression: dynamic.expression, modifiers: dynamic.modifiers };
+}
+
+function parseDynamicArgument(name: string, prefixes: string[]): { expression: string; modifiers: string[] } | undefined {
+  for (const prefix of prefixes) {
+    if (!name.startsWith(`${prefix}[`)) {
+      continue;
+    }
+
+    const argumentStart = prefix.length + 1;
+    const argumentEnd = name.indexOf("]", argumentStart);
+    if (argumentEnd === -1) {
+      return undefined;
+    }
+
+    const expression = name.slice(argumentStart, argumentEnd).trim();
+    if (!expression) {
+      return undefined;
+    }
+
+    const rest = name.slice(argumentEnd + 1);
+    const modifiers = rest.startsWith(".") ? rest.slice(1).split(".").filter(Boolean) : [];
+    return { expression, modifiers };
   }
 
   return undefined;

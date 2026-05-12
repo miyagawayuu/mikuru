@@ -327,6 +327,56 @@ function update() {
     expect(paragraph?.textContent).toBe("Updated");
   });
 
+  it("supports dynamic attribute and event arguments", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button :[attrName]="attrValue" @[eventName]="handle">{{ count }}</button>
+    <button @click="switchBindings">Switch</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const attrName = ref("data-mode");
+const attrValue = ref("ready");
+const eventName = ref("click");
+const count = ref(0);
+
+function handle() {
+  count.value += 1;
+}
+
+function switchBindings() {
+  attrName.value = "title";
+  attrValue.value = "done";
+  eventName.value = "mouseover";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const target = fixture.root.querySelector("button");
+    const switcher = fixture.root.querySelectorAll("button")[1];
+
+    expect(target?.getAttribute("data-mode")).toBe("ready");
+    expect(target?.getAttribute("title")).toBe(null);
+    expect(target?.textContent).toBe("0");
+
+    target?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(target?.textContent).toBe("1");
+
+    switcher?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(target?.getAttribute("data-mode")).toBe(null);
+    expect(target?.getAttribute("title")).toBe("done");
+
+    target?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(target?.textContent).toBe("1");
+
+    target?.dispatchEvent(createEvent(fixture.window, "mouseover"));
+    expect(target?.textContent).toBe("2");
+  });
+
   it("normalizes array and object class bindings", () => {
     const fixture = compileForDom(`<template>
   <section>
