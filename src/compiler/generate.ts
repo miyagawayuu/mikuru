@@ -1,4 +1,4 @@
-import { parse } from "acorn";
+import { parse, parseExpressionAt } from "acorn";
 
 import { createCompileError } from "./errors.js";
 import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode, TextPart } from "./types.js";
@@ -54,6 +54,11 @@ type ScriptNode = {
   shorthand?: boolean;
   left?: ScriptNode;
   right?: ScriptNode;
+  test?: ScriptNode;
+  consequent?: ScriptNode;
+  alternate?: ScriptNode;
+  object?: ScriptNode;
+  property?: ScriptNode;
   argument?: ScriptNode;
   expression?: ScriptNode;
   elements?: Array<ScriptNode | null>;
@@ -1592,7 +1597,7 @@ function generateElement(
 
     if (event) {
       validateEventModifiers(event, attr, context);
-      const handler = validateTemplateExpression(requireAttrValue(attr), attr.name, toExpressionContext(context, attr.valueLoc));
+      const handler = validateEventHandlerExpression(requireAttrValue(attr), context, attr.valueLoc);
       const handlerVar = nextVar(context, "handler");
       const handlerExpression = eventHandlerExpression(handler, context, attr.valueLoc);
 
@@ -2913,13 +2918,294 @@ function isIdentifier(value: string): boolean {
 }
 
 function eventHandlerExpression(expression: string, context: GenerateContext, location: SourceLocation | undefined): string {
-  const validatedExpression = validateTemplateExpression(expression, "event handler", toExpressionContext(context, location));
+  const validatedExpression = validateEventHandlerExpression(expression, context, location);
 
   if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(validatedExpression)) {
     return validatedExpression;
   }
 
-  return `($event) => (${compileTemplateExpression(validatedExpression, "event handler", toExpressionContext(context, location))})`;
+  return `($event) => { return (${compileEventHandlerExpression(validatedExpression, context, location)}); }`;
+}
+
+function validateEventHandlerExpression(expression: string, context: GenerateContext, location: SourceLocation | undefined): string {
+  const source = expression.trim().replace(/;\s*$/, "");
+
+  if (!source) {
+    throwTemplateError("Invalid template expression for event handler: expression is empty", context, location);
+  }
+
+  try {
+    const ast = parseExpressionAt(source, 0, { ecmaVersion: "latest" }) as ScriptNode;
+    if (ast.end !== source.length) {
+      throw new Error("Unexpected trailing content");
+    }
+    validateEventHandlerNode(ast, context, source, location);
+    return source;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Unsupported event handler")) {
+      throwTemplateError(error.message, context, location);
+    }
+
+    try {
+      return validateTemplateExpression(source, "event handler", toExpressionContext(context, location));
+    } catch {
+      const message = error instanceof Error ? error.message : String(error);
+      throwTemplateError(`Invalid template expression for event handler: ${source} (${message})`, context, location);
+    }
+  }
+}
+
+function compileEventHandlerExpression(expression: string, context: GenerateContext, location: SourceLocation | undefined): string {
+  const ast = parseExpressionAt(expression, 0, { ecmaVersion: "latest" }) as ScriptNode;
+  const edits: ScriptEdit[] = [];
+  collectEventHandlerEdits(ast, expression, edits, "read");
+  return applyScriptEdits(expression, edits);
+}
+
+function validateEventHandlerNode(node: ScriptNode, context: GenerateContext, source: string, location: SourceLocation | undefined): void {
+  switch (node.type) {
+    case "Identifier":
+    case "Literal":
+    case "TemplateElement":
+      return;
+
+    case "ThisExpression":
+    case "NewExpression":
+      throw new Error(`Unsupported event handler expression: ${source} (${node.type})`);
+
+    case "AssignmentExpression":
+      validateEventAssignmentTarget(node.left as ScriptNode, context, source, location);
+      validateEventHandlerNode(node.right as ScriptNode, context, source, location);
+      return;
+
+    case "UpdateExpression":
+      validateEventAssignmentTarget(node.argument as ScriptNode, context, source, location);
+      return;
+
+    case "CallExpression":
+      validateEventCallExpression(node, context, source, location);
+      return;
+
+    case "MemberExpression":
+      validateEventMemberExpression(node, context, source, location);
+      return;
+
+    case "ChainExpression":
+      validateEventHandlerNode(node.expression as ScriptNode, context, source, location);
+      return;
+
+    case "UnaryExpression":
+      validateEventHandlerNode(node.argument as ScriptNode, context, source, location);
+      return;
+
+    case "BinaryExpression":
+    case "LogicalExpression":
+      validateEventHandlerNode(node.left as ScriptNode, context, source, location);
+      validateEventHandlerNode(node.right as ScriptNode, context, source, location);
+      return;
+
+    case "ConditionalExpression":
+      validateEventHandlerNode(node.test as ScriptNode, context, source, location);
+      validateEventHandlerNode(node.consequent as ScriptNode, context, source, location);
+      validateEventHandlerNode(node.alternate as ScriptNode, context, source, location);
+      return;
+
+    case "ArrayExpression":
+      for (const element of node.elements ?? []) {
+        if (element) {
+          validateEventHandlerNode(element, context, source, location);
+        }
+      }
+      return;
+
+    case "ObjectExpression":
+      for (const property of node.properties ?? []) {
+        validateEventHandlerNode(property, context, source, location);
+      }
+      return;
+
+    case "Property":
+      if (node.computed) {
+        validateEventHandlerNode(node.key as ScriptNode, context, source, location);
+      }
+      validateEventHandlerNode(node.value as ScriptNode, context, source, location);
+      return;
+
+    case "TemplateLiteral":
+      for (const quasi of (node as ScriptNode & { quasis?: ScriptNode[] }).quasis ?? []) {
+        validateEventHandlerNode(quasi, context, source, location);
+      }
+      for (const part of (node as ScriptNode & { expressions?: ScriptNode[] }).expressions ?? []) {
+        validateEventHandlerNode(part, context, source, location);
+      }
+      return;
+
+    default:
+      throw new Error(`Unsupported event handler expression: ${source} (${node.type})`);
+  }
+}
+
+function validateEventAssignmentTarget(node: ScriptNode, context: GenerateContext, source: string, location: SourceLocation | undefined): void {
+  if (node.type === "Identifier") {
+    return;
+  }
+
+  if (node.type === "MemberExpression") {
+    validateEventMemberExpression(node, context, source, location);
+    return;
+  }
+
+  throw new Error(`Unsupported event handler assignment target: ${source} (${node.type})`);
+}
+
+function validateEventCallExpression(node: ScriptNode, context: GenerateContext, source: string, location: SourceLocation | undefined): void {
+  const callee = node.callee as ScriptNode;
+  const calleeName = getEventStaticCalleeName(callee, source);
+
+  if (calleeName === "eval" || calleeName === "Function") {
+    throw new Error(`Unsupported event handler expression: ${source} (${calleeName})`);
+  }
+
+  validateEventHandlerNode(callee, context, source, location);
+
+  for (const argument of node.arguments ?? []) {
+    validateEventHandlerNode(argument, context, source, location);
+  }
+}
+
+function validateEventMemberExpression(node: ScriptNode, context: GenerateContext, source: string, location: SourceLocation | undefined): void {
+  validateEventHandlerNode(node.object as ScriptNode, context, source, location);
+
+  if (node.computed) {
+    validateEventHandlerNode(node.property as ScriptNode, context, source, location);
+    return;
+  }
+
+  const propertyName = getEventStaticPropertyName(node.property as ScriptNode, source);
+  if (propertyName === "constructor" || propertyName === "__proto__" || propertyName === "prototype") {
+    throw new Error(`Unsupported event handler expression: ${source} (${propertyName})`);
+  }
+}
+
+type EventEditMode = "read" | "write" | "callee";
+
+function collectEventHandlerEdits(node: ScriptNode | null | undefined, source: string, edits: ScriptEdit[], mode: EventEditMode): void {
+  if (!node) {
+    return;
+  }
+
+  switch (node.type) {
+    case "Identifier":
+      if (node.name === "$event") {
+        return;
+      }
+      if (mode === "write") {
+        edits.push({ start: node.start, end: node.end, replacement: `${node.name}.value` });
+        return;
+      }
+      if (mode === "callee") {
+        return;
+      }
+      edits.push({ start: node.start, end: node.end, replacement: `unwrap(${node.name})` });
+      return;
+
+    case "Literal":
+    case "TemplateElement":
+    case "ThisExpression":
+      return;
+
+    case "AssignmentExpression":
+      collectEventHandlerEdits(node.left as ScriptNode, source, edits, "write");
+      collectEventHandlerEdits(node.right as ScriptNode, source, edits, "read");
+      return;
+
+    case "UpdateExpression":
+      collectEventHandlerEdits(node.argument as ScriptNode, source, edits, "write");
+      return;
+
+    case "CallExpression":
+      collectEventHandlerEdits(node.callee as ScriptNode, source, edits, "callee");
+      for (const argument of node.arguments ?? []) {
+        collectEventHandlerEdits(argument, source, edits, "read");
+      }
+      return;
+
+    case "MemberExpression":
+      collectEventHandlerEdits(node.object as ScriptNode, source, edits, mode === "callee" ? "read" : mode);
+      if (node.computed) {
+        collectEventHandlerEdits(node.property as ScriptNode, source, edits, "read");
+      }
+      return;
+
+    case "ChainExpression":
+      collectEventHandlerEdits(node.expression as ScriptNode, source, edits, mode);
+      return;
+
+    case "UnaryExpression":
+      collectEventHandlerEdits(node.argument as ScriptNode, source, edits, "read");
+      return;
+
+    case "BinaryExpression":
+    case "LogicalExpression":
+      collectEventHandlerEdits(node.left as ScriptNode, source, edits, "read");
+      collectEventHandlerEdits(node.right as ScriptNode, source, edits, "read");
+      return;
+
+    case "ConditionalExpression":
+      collectEventHandlerEdits(node.test as ScriptNode, source, edits, "read");
+      collectEventHandlerEdits(node.consequent as ScriptNode, source, edits, "read");
+      collectEventHandlerEdits(node.alternate as ScriptNode, source, edits, "read");
+      return;
+
+    case "ArrayExpression":
+      for (const element of node.elements ?? []) {
+        collectEventHandlerEdits(element, source, edits, "read");
+      }
+      return;
+
+    case "ObjectExpression":
+      for (const property of node.properties ?? []) {
+        collectEventHandlerEdits(property, source, edits, "read");
+      }
+      return;
+
+    case "Property":
+      if (node.computed) {
+        collectEventHandlerEdits(node.key as ScriptNode, source, edits, "read");
+      }
+      collectEventHandlerEdits(node.value as ScriptNode, source, edits, "read");
+      return;
+
+    case "TemplateLiteral":
+      for (const part of (node as ScriptNode & { expressions?: ScriptNode[] }).expressions ?? []) {
+        collectEventHandlerEdits(part, source, edits, "read");
+      }
+      return;
+  }
+}
+
+function getEventStaticCalleeName(node: ScriptNode, source: string): string | undefined {
+  if (node.type === "Identifier") {
+    return source.slice(node.start, node.end);
+  }
+
+  if (node.type === "MemberExpression") {
+    return getEventStaticPropertyName(node.property as ScriptNode, source);
+  }
+
+  return undefined;
+}
+
+function getEventStaticPropertyName(node: ScriptNode, source: string): string | undefined {
+  if (node.type === "Identifier") {
+    return source.slice(node.start, node.end);
+  }
+
+  if (node.type === "Literal") {
+    return String(node.value);
+  }
+
+  return undefined;
 }
 
 function getStringAttr(node: ElementNode, name: string): string | undefined {

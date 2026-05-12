@@ -540,6 +540,13 @@ const activeSlot = "header";
     expect(result.code).toContain('addEventListener("keydown"');
   });
 
+  it("emits inline event handler assignments", () => {
+    const result = compile(`<template><button @click="count += 1">{{ count }}</button></template><script>const count = ref(0);</script>`);
+
+    expect(result.bindings).toContainEqual({ type: "event", event: "click", handler: "count += 1" });
+    expect(result.code).toContain("count.value += 1");
+  });
+
   it("transforms multiline script macros", () => {
     const result = compile(`<template><Child :title="heading" @select="select" /></template>
 <script>
@@ -615,9 +622,7 @@ function setup() {
     expect(() =>
       compile(`<template><p>{{ count; alert(1) }}</p></template><script>const count = 0;</script>`)
     ).toThrow(/Invalid template expression/);
-    expect(() => compile(`<template><button @click="count.value = 1">Set</button></template>`)).toThrow(
-      /Unsupported template expression/
-    );
+    expect(() => compile(`<template><button @click="eval('bad')">Set</button></template>`)).toThrow(/Unsupported event handler/);
   });
 
   it("reports filename, line, column, and frame for template expression errors", () => {

@@ -99,6 +99,8 @@ button {
 <form @submit.prevent="save">...</form>
 <button @click.stop="select">Select</button>
 <button @click.self.once="select">Select</button>
+<button @click="count += 1">Add</button>
+<input @input="name = $event.target.value" />
 <div @scroll.passive.capture="track"></div>
 <input @keydown.enter="submit" @keydown.ctrl.enter="submitShortcut" />
 <button @[eventName]="handle">Dynamic event</button>
@@ -106,6 +108,7 @@ button {
 ```
 
 `@event="handler"` と `v-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent`、`.stop`、`.self`、`.once`、`.capture`、`.passive` を使える。
+DOMイベントでは短いinline handlerも使える。`ref` への代入や更新は `count += 1` のように書け、生成コードでは `count.value` へ書き戻す。
 DOM keyboardイベントでは `.enter`、`.escape` / `.esc`、`.space`、`.tab`、`.delete`、`.backspace`、`.up`、`.down`、`.left`、`.right` を使える。`.ctrl`、`.shift`、`.alt`、`.meta` はsystem key条件として使える。
 コンポーネントイベントでは `.once` を使える。
 `@[eventName]` と `v-on:[eventName]` はイベント名を式から決め、式が変わった場合は古いlistenerを外して新しいlistenerを付ける。
