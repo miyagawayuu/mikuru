@@ -1,4 +1,4 @@
-import { compileTemplateExpression } from "./parseExpression.js";
+import { compileTemplateExpression, parseForExpression } from "./parseExpression.js";
 import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode } from "./types.js";
 
 type HydrationContext = {
@@ -56,15 +56,36 @@ function hydrateNode(context: HydrationContext, node: TemplateNode, nodeVar: str
 }
 
 function hydrateElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  if (isComponentTag(node.tag)) {
+    hydrateComponent(context, node, elementVar, indent);
+    return;
+  }
+
   hydrateAttrs(context, node, elementVar, indent);
   hydrateEvents(context, node, elementVar, indent);
 
   const children = node.children.filter(isHydratableNode);
-  children.forEach((child, index) => {
+  let domIndex = 0;
+  children.forEach((child) => {
+    if (child.type === "element" && getAttr(child, "v-if")) {
+      hydrateIf(context, child, elementVar, domIndex, indent);
+      domIndex += 1;
+      return;
+    }
+
+    if (child.type === "element" && getAttr(child, "v-for")) {
+      hydrateFor(context, child, elementVar, domIndex, indent);
+      domIndex += 1;
+      return;
+    }
+
     const childVar = nextName(context, "node");
-    emit(context, indent, `const ${childVar} = ${elementVar}.childNodes[${index}];`);
+    emit(context, indent, `const ${childVar} = ${elementVar}.childNodes[${domIndex}];`);
     if (child.type === "element") {
-      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}) { __mikuru_warn(${quote(`Element mismatch at <${child.tag}>`)}); } else {`);
+      const elementCheck = isComponentTag(child.tag)
+        ? `!${childVar} || ${childVar}.nodeType !== 1`
+        : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
+      emit(context, indent, `if (${elementCheck}) { __mikuru_warn(${quote(`Element mismatch at <${child.tag}>`)}); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     } else {
@@ -72,7 +93,44 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }
+    domIndex += 1;
   });
+}
+
+function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: number, indent: number): void {
+  const condition = getAttrValue(node, "v-if");
+  const childVar = nextName(context, "branch");
+  emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
+  emit(context, indent, `if (unwrap(${compileHydrationExpression(context, condition, "v-if")})) {`);
+  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}) { __mikuru_warn("Branch mismatch; dynamic v-if hydration will remount in a future phase."); } else {`);
+  hydrateElement(context, withoutAttrs(node, ["v-if"]), childVar, indent + 2);
+  emit(context, indent + 1, "}");
+  emit(context, indent, `} else if (${childVar}) {`);
+  emit(context, indent + 1, "__mikuru_warn(\"Branch mismatch; expected no v-if DOM for initial state.\");");
+  emit(context, indent, "}");
+}
+
+function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: number, indent: number): void {
+  const attr = getAttr(node, "v-for");
+  if (!attr || attr.value === true) {
+    return;
+  }
+
+  const forExpression = parseForExpression(String(attr.value));
+  const listVar = nextName(context, "list");
+  const itemVar = nextName(context, "item");
+  const childVar = nextName(context, "row");
+  emit(context, indent, `const ${listVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
+  emit(context, indent, `for (const [__mikuru_index, ${itemVar}] of ${listVar}.entries()) {`);
+  emit(context, indent + 1, `const ${forExpression.item} = ${itemVar};`);
+  if (forExpression.index) {
+    emit(context, indent + 1, `const ${forExpression.index} = __mikuru_index;`);
+  }
+  emit(context, indent + 1, `const ${childVar} = ${parentVar}.childNodes[${domIndex} + __mikuru_index];`);
+  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}) { __mikuru_warn("List mismatch; dynamic v-for hydration will remount in a future phase."); } else {`);
+  hydrateElement(context, withoutAttrs(node, ["v-for"]), childVar, indent + 2);
+  emit(context, indent + 1, "}");
+  emit(context, indent, "}");
 }
 
 function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -93,6 +151,50 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
     }
 
     emit(context, indent, `setAttribute(${elementVar}, ${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
+  }
+}
+
+function hydrateComponent(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  const propsVar = nextName(context, "props");
+  emit(context, indent, `const ${propsVar} = {};`);
+  hydrateComponentProps(context, node, propsVar, indent);
+  emit(context, indent, `if (${node.tag} && typeof ${node.tag}.hydrate === "function") {`);
+  emit(context, indent + 1, `const __mikuru_child = ${node.tag}.hydrate(${elementVar}, ${propsVar});`);
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent, `} else if (${node.tag} && typeof ${node.tag}.mount === "function") {`);
+  emit(context, indent + 1, "__mikuru_warn(\"Component hydration fallback; child component does not expose hydrate().\");");
+  emit(context, indent + 1, `const __mikuru_parent = ${elementVar}.parentNode;`);
+  emit(context, indent + 1, "const __mikuru_anchor = document.createComment(\"mikuru-hydrate-component\");");
+  emit(context, indent + 1, `__mikuru_parent?.insertBefore(__mikuru_anchor, ${elementVar});`);
+  emit(context, indent + 1, `${elementVar}.remove();`);
+  emit(context, indent + 1, "const __mikuru_fragment = document.createDocumentFragment();");
+  emit(context, indent + 1, `const __mikuru_child = ${node.tag}.mount(__mikuru_fragment, ${propsVar});`);
+  emit(context, indent + 1, "__mikuru_parent?.insertBefore(__mikuru_fragment, __mikuru_anchor);");
+  emit(context, indent + 1, "__mikuru_anchor.remove();");
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent, "} else {");
+  emit(context, indent + 1, `__mikuru_warn(${quote(`Component mismatch at <${node.tag}>.`)});`);
+  emit(context, indent, "}");
+}
+
+function hydrateComponentProps(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
+  for (const attr of node.attrs) {
+    if (shouldSkipAttr(attr)) {
+      continue;
+    }
+
+    if (attr.name === "v-bind" && attr.value !== true) {
+      emit(context, indent, `Object.assign(${propsVar}, unwrap(${compileHydrationExpression(context, String(attr.value), "v-bind")}) ?? {});`);
+      continue;
+    }
+
+    const dynamicName = getDynamicAttrName(attr.name);
+    if (dynamicName && attr.value !== true) {
+      emit(context, indent, `${propsVar}[${quote(dynamicName)}] = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)});`);
+      continue;
+    }
+
+    emit(context, indent, `${propsVar}[${quote(attr.name)}] = ${attr.value === true ? "true" : quote(attr.value)};`);
   }
 }
 
@@ -135,6 +237,26 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "key"
     || attr.name.startsWith("@")
     || attr.name.startsWith("v-on:");
+}
+
+function getAttr(node: ElementNode, name: string): TemplateAttribute | undefined {
+  return node.attrs.find((attr) => attr.name === name);
+}
+
+function getAttrValue(node: ElementNode, name: string): string {
+  const attr = getAttr(node, name);
+  return attr && attr.value !== true ? attr.value : "false";
+}
+
+function withoutAttrs(node: ElementNode, names: string[]): ElementNode {
+  return {
+    ...node,
+    attrs: node.attrs.filter((attr) => !names.includes(attr.name))
+  };
+}
+
+function isComponentTag(tag: string): boolean {
+  return /^[A-Z]/.test(tag);
 }
 
 function getDynamicAttrName(name: string): string | undefined {
