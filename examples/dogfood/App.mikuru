@@ -10,11 +10,23 @@
 
     <TextField label="Search" v-model="search" />
 
-    <AsyncStats
-      :total="notes.length"
-      :active="activeCount"
-      :archived="archivedCount"
-    />
+    <AsyncBoundary :loading="LoadingStats" :fallback="AsyncFallback">
+      <AsyncStats
+        :total="notes.length"
+        :active="activeCount"
+        :archived="archivedCount"
+      />
+    </AsyncBoundary>
+
+    <section class="async-lab" aria-label="AsyncBoundary lab">
+      <div>
+        <h2>AsyncBoundary lab</h2>
+        <p>Shared async fallback retries the whole boundary child.</p>
+      </div>
+      <AsyncBoundary :loading="LoadingStats" :fallback="AsyncFallback">
+        <FlakyAsyncPanel />
+      </AsyncBoundary>
+    </section>
 
     <section class="error-lab" aria-label="ErrorBoundary lab">
       <div>
@@ -82,8 +94,37 @@ const AsyncStats = defineAsyncComponent({
     setTimeout(() => {
       import("./StatsPanel.mikuru").then(resolve);
     }, 300);
-  }),
-  loadingComponent: LoadingStats
+  })
+});
+
+let flakyAttempts = 0;
+
+const FlakyLoadedPanel = {
+  mount(target) {
+    const panel = document.createElement("aside");
+    panel.className = "stats-panel async-success";
+    panel.textContent = "AsyncBoundary retry recovered";
+    target.appendChild(panel);
+    return {
+      element: panel,
+      unmount() {
+        panel.remove();
+      }
+    };
+  }
+};
+
+const FlakyAsyncPanel = defineAsyncComponent({
+  loader: () => new Promise((resolve, reject) => {
+    setTimeout(() => {
+      flakyAttempts += 1;
+      if (flakyAttempts === 1) {
+        reject(new Error("Dogfood async failure"));
+        return;
+      }
+      resolve(FlakyLoadedPanel);
+    }, 100);
+  })
 });
 
 const search = ref("");
@@ -135,6 +176,34 @@ const ErrorFallback = {
     reset.addEventListener("click", () => props.reset());
 
     panel.append(title, message, reset);
+    target.appendChild(panel);
+    return {
+      element: panel,
+      unmount() {
+        panel.remove();
+      }
+    };
+  }
+};
+
+const AsyncFallback = {
+  mount(target, props) {
+    const panel = document.createElement("section");
+    panel.className = "async-fallback";
+    panel.setAttribute("role", "alert");
+
+    const title = document.createElement("strong");
+    title.textContent = "AsyncBoundary caught an error";
+
+    const message = document.createElement("p");
+    const errorMessage = props.error instanceof Error ? props.error.message : String(props.error);
+    message.textContent = `${props.errorInfo?.phase ?? "async-loader"} with ${props.pending} pending: ${errorMessage}`;
+
+    const retry = document.createElement("button");
+    retry.textContent = "Retry async boundary";
+    retry.addEventListener("click", () => props.retry());
+
+    panel.append(title, message, retry);
     target.appendChild(panel);
     return {
       element: panel,
@@ -269,6 +338,29 @@ header,
   border-radius: 8px;
   color: #475569;
   background: #f8fafc;
+}
+
+.async-lab,
+.async-fallback {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #14532d;
+  background: #f0fdf4;
+}
+
+.async-lab h2,
+.async-lab p,
+.async-fallback p {
+  margin: 0;
+}
+
+.async-success {
+  border-color: #86efac;
+  color: #14532d;
+  background: #dcfce7;
 }
 
 .error-lab,

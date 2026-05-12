@@ -46,7 +46,7 @@ test("dogfood app demonstrates ErrorBoundary diagnostics and recovery", async ({
 
   await page.getByRole("button", { name: "Trigger boundary error" }).click();
 
-  const alert = page.getByRole("alert");
+  const alert = page.locator(".error-fallback");
   await expect(alert).toBeVisible();
   await expect(alert).toContainText("Boundary caught an error");
   await expect(alert).toContainText("event in");
@@ -58,9 +58,25 @@ test("dogfood app demonstrates ErrorBoundary diagnostics and recovery", async ({
   await expect(page.getByRole("button", { name: "Trigger boundary error" })).toBeVisible();
 
   await page.getByRole("button", { name: "Trigger boundary error" }).click();
-  await expect(page.getByRole("alert")).toContainText("Dogfood boundary failure");
+  await expect(page.locator(".error-fallback")).toContainText("Dogfood boundary failure");
 
   await page.locator(".error-lab").getByRole("button", { name: "Reset boundary key" }).click();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator(".error-fallback")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Trigger boundary error" })).toBeVisible();
+});
+
+test("dogfood app demonstrates AsyncBoundary loading and retry", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "AsyncBoundary lab" })).toBeVisible();
+
+  const asyncAlert = page.getByRole("alert").filter({ hasText: "AsyncBoundary caught an error" });
+  await expect(asyncAlert).toBeVisible();
+  await expect(asyncAlert).toContainText("async-loader");
+  await expect(asyncAlert).toContainText("Dogfood async failure");
+
+  await asyncAlert.getByRole("button", { name: "Retry async boundary" }).click();
+
+  await expect(asyncAlert).toHaveCount(0);
+  await expect(page.getByText("AsyncBoundary retry recovered")).toBeVisible();
 });
