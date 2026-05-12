@@ -523,6 +523,12 @@ Compile errors include:
 - column
 - a one-line code frame
 
+Built-in components also report unsupported attributes with suggestions when the typo is close to a supported name:
+
+```text
+Unsupported attribute ":fallbak" on <AsyncBoundary>. Did you mean :fallback?
+```
+
 For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules.
 
 The compiler returns a v3 source map with `sourcesContent`, and the Vite plugin forwards that map. Segment precision is currently coarse, so generated code inspection may still be needed for complex compiler issues.

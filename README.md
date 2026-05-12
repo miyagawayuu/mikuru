@@ -143,7 +143,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Runtime helpers including `ref`, `computed`, `effect`, `watch` with `immediate` and cleanup callbacks, `nextTick`, lifecycle callbacks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
 - Style injection and basic `<style scoped>` selector rewriting
-- Compile errors with filenames, line/column information, and code frames
+- Compile errors with filenames, line/column information, code frames, and built-in component attribute typo suggestions
 
 ## Package Exports
 
