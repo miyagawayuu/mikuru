@@ -428,14 +428,14 @@ const AsyncPanel = defineAsyncComponent({
 
 ```mikuru
 <template>
-  <AsyncBoundary :loading="LoadingPanel" :fallback="AsyncErrorPanel">
+  <AsyncBoundary :loading="LoadingPanel" :fallback="AsyncErrorPanel" :delay="150" :timeout="5000">
     <AsyncPanel />
     <RelatedAsyncPanel />
   </AsyncBoundary>
 </template>
 ```
 
-`<AsyncBoundary>` は配下の複数 `defineAsyncComponent()` のpending状態をまとめて扱う。`:loading` componentには `pending` propsを渡し、async childの開始/完了に合わせて更新する。`errorComponent` を持たないasync childがrejectまたはtimeoutした場合、`:fallback` componentに `error`、`errors`、`errorInfo`、`pending`、`retry`、`reset` propsを渡す。`errors` にはfallback描画までに集約されたasync failureが入る。fallback componentのprops全体は `MikuruAsyncBoundaryFallbackProps` として型付けできる。
+`<AsyncBoundary>` は配下の複数 `defineAsyncComponent()` のpending状態をまとめて扱う。`:loading` componentには `pending` propsを渡し、async childの開始/完了に合わせて更新する。`:delay` は短時間で完了するasync childのloading表示を遅らせ、`:timeout` は境界全体の待機上限として `async-timeout` fallbackへ切り替える。`errorComponent` を持たないasync childがrejectまたはtimeoutした場合、`:fallback` componentに `error`、`errors`、`errorInfo`、`pending`、`retry`、`reset` propsを渡す。`errors` にはfallback描画までに集約されたasync failureが入る。fallback componentのprops全体は `MikuruAsyncBoundaryFallbackProps` として型付けできる。
 
 ### ErrorBoundary
 

@@ -4,6 +4,7 @@
 
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.
 - Extended `<AsyncBoundary>` to support multiple child nodes with live `pending` updates.
+- Added `<AsyncBoundary :delay :timeout>` for delayed loading UI and boundary-level async timeouts.
 - Added `errors` to `MikuruAsyncBoundaryFallbackProps` so async fallbacks can inspect aggregated failures.
 - Added a dogfood AsyncBoundary lab and E2E coverage for loading and retryable async fallback.
 - Added a dogfood ErrorBoundary lab and E2E coverage for diagnostics, fallback reset, and `:reset-key` recovery.
