@@ -2261,6 +2261,102 @@ const ErrorView = {
     expect(fixture.root.querySelector("button")).toBeNull();
   });
 
+  it("passes reset to ErrorBoundary fallback components", () => {
+    const fixture = compileForDom(`<template>
+  <ErrorBoundary :fallback="ErrorView">
+    <BrokenPanel />
+  </ErrorBoundary>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const shouldFail = ref(true);
+
+const BrokenPanel = {
+  mount(target) {
+    if (shouldFail.value) {
+      throw new Error("reset me");
+    }
+
+    const p = document.createElement("p");
+    p.textContent = "Reset recovered";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = props.error.message;
+    button.addEventListener("click", () => {
+      shouldFail.value = false;
+      props.reset();
+    });
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("button")?.textContent).toBe("reset me");
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Reset recovered");
+    expect(fixture.root.querySelector("button")).toBeNull();
+  });
+
+  it("resets ErrorBoundary when reset-key changes", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <ErrorBoundary :fallback="ErrorView" :reset-key="version">
+      <button class="explode" @click="explode">Explode</button>
+    </ErrorBoundary>
+    <button class="reset" @click="resetBoundary">Reset boundary</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const version = ref(0);
+
+function explode() {
+  throw new Error("needs reset key");
+}
+
+function resetBoundary() {
+  version.value += 1;
+}
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    fixture.root.querySelector(".explode")?.dispatchEvent(createEvent(fixture.window, "click"));
+    await Promise.resolve();
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("needs reset key");
+    expect(fixture.root.querySelector(".explode")).toBeNull();
+
+    fixture.root.querySelector(".reset")?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")).toBeNull();
+    expect(fixture.root.querySelector(".explode")?.textContent).toBe("Explode");
+  });
+
   it("renders ErrorBoundary fallback for descendant event handler errors", async () => {
     const previousChild = (globalThis as unknown as { __mikuruBoundaryEventChild?: CompiledModule }).__mikuruBoundaryEventChild;
     const child = loadCompiledModule(

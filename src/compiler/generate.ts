@@ -436,6 +436,7 @@ function generateErrorBoundary(
   validateErrorBoundaryAttributes(context, node);
   const children = getSingleElementChild(context, node, "<ErrorBoundary>");
   const fallbackExpression = getErrorBoundaryFallbackExpression(context, node);
+  const resetKeyExpression = getErrorBoundaryResetKeyExpression(context, node);
   const startVar = nextVar(context, "errorBoundaryStart");
   const endVar = nextVar(context, "errorBoundaryEnd");
   const boundaryCleanupVar = nextVar(context, "errorBoundaryCleanup");
@@ -448,6 +449,10 @@ function generateErrorBoundary(
   const previousErrorHandlerVar = nextVar(context, "previousErrorHandler");
   const boundaryContextVar = nextVar(context, "errorBoundaryContext");
   const previousComponentContextVar = context.componentContextVar;
+  const boundaryResetInitializedVar = resetKeyExpression ? nextVar(context, "errorBoundaryResetInitialized") : undefined;
+  const boundaryResetValueVar = resetKeyExpression ? nextVar(context, "errorBoundaryResetValue") : undefined;
+  const boundaryResetNextVar = resetKeyExpression ? nextVar(context, "errorBoundaryResetValue") : undefined;
+  const boundaryResetStopVar = resetKeyExpression ? nextVar(context, "stop") : undefined;
   emit(context, indent, `const ${startVar} = document.createComment("error-boundary");`);
   emit(context, indent, `const ${endVar} = document.createComment("/error-boundary");`);
   appendNode(context, parentVar, startVar, indent, beforeVar);
@@ -459,7 +464,7 @@ function generateErrorBoundary(
   emit(context, indent + 1, `const ${fallbackVar} = unwrap(${fallbackExpression});`);
   emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
   emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
-  emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, retry: ${renderVar}, __mikuru_context });`);
+  emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, retry: ${renderVar}, reset: ${renderVar}, __mikuru_context });`);
   emit(context, indent + 1, `${boundaryCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
   appendNode(context, parentVar, fallbackFragmentVar, indent + 1, endVar);
   emit(context, indent, "};");
@@ -480,6 +485,18 @@ function generateErrorBoundary(
   emit(context, indent + 1, "}");
   emit(context, indent, "};");
   emit(context, indent, `${renderVar}();`);
+  if (resetKeyExpression && boundaryResetInitializedVar && boundaryResetValueVar && boundaryResetNextVar && boundaryResetStopVar) {
+    emit(context, indent, `let ${boundaryResetInitializedVar} = false;`);
+    emit(context, indent, `let ${boundaryResetValueVar};`);
+    emit(context, indent, `const ${boundaryResetStopVar} = effect(() => {`);
+    emit(context, indent + 1, `const ${boundaryResetNextVar} = unwrap(${resetKeyExpression});`);
+    emit(context, indent + 1, `if (!${boundaryResetInitializedVar}) { ${boundaryResetInitializedVar} = true; ${boundaryResetValueVar} = ${boundaryResetNextVar}; return; }`);
+    emit(context, indent + 1, `if (Object.is(${boundaryResetValueVar}, ${boundaryResetNextVar})) { return; }`);
+    emit(context, indent + 1, `${boundaryResetValueVar} = ${boundaryResetNextVar};`);
+    emit(context, indent + 1, `${renderVar}();`);
+    emit(context, indent, "});");
+    emit(context, indent, `${cleanupVar}.push(${boundaryResetStopVar});`);
+  }
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
@@ -2954,13 +2971,24 @@ function getErrorBoundaryFallbackExpression(context: GenerateContext, node: Elem
   return compileTemplateExpression(requireAttrValue(fallbackAttr), fallbackAttr.name, toExpressionContext(context, fallbackAttr.valueLoc));
 }
 
+function getErrorBoundaryResetKeyExpression(context: GenerateContext, node: ElementNode): string | undefined {
+  const resetKeyAttr = node.attrs.find((attr) => getBindingName(attr.name) === "reset-key");
+
+  if (!resetKeyAttr) {
+    return undefined;
+  }
+
+  return compileTemplateExpression(requireAttrValue(resetKeyAttr), resetKeyAttr.name, toExpressionContext(context, resetKeyAttr.valueLoc));
+}
+
 function validateErrorBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
   for (const attr of node.attrs) {
-    if (getBindingName(attr.name) === "fallback") {
+    const bindingName = getBindingName(attr.name);
+    if (bindingName === "fallback" || bindingName === "reset-key") {
       continue;
     }
 
-    throwTemplateError("<ErrorBoundary> only supports :fallback in v1", context, attr.loc);
+    throwTemplateError("<ErrorBoundary> only supports :fallback and :reset-key in v1", context, attr.loc);
   }
 }
 
