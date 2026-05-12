@@ -53,6 +53,7 @@
       <NoteCard
         v-for="note in filteredNotes"
         :key="note.id"
+        v-memo="[note.id, note.title, note.body, note.archived]"
         :note="note"
         @archive="archiveNote"
         @restore="restoreNote"

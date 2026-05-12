@@ -698,6 +698,14 @@ const count = 0;
       /Unsupported directive "v-modle"\. Did you mean v-model\?/
     );
 
+    expect(() => compile(`<template><p v-mem="[value]">Hi</p></template>`)).toThrow(
+      /Unsupported directive "v-mem"\. Did you mean v-memo\?/
+    );
+
+    expect(() => compile(`<template><p v-memo="value">Hi</p></template>`)).toThrow(
+      /v-memo requires an array expression/
+    );
+
     expect(() => compile(`<template><p v-bindd:title="title">Hi</p></template>`)).toThrow(
       /Unsupported directive "v-bindd:title"\. Did you mean v-bind:title\?/
     );
