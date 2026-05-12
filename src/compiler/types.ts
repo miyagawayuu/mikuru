@@ -64,6 +64,13 @@ export type CompileResult = {
   bindings: Binding[];
 };
 
+export type SsrCompileResult = {
+  code: string;
+  descriptor: SfcDescriptor;
+  ast: ElementNode;
+  bindings: Binding[];
+};
+
 export type SourceMap = {
   version: 3;
   file?: string;

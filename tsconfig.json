@@ -14,6 +14,7 @@
       "mikuru": ["src/index.ts"],
       "mikuru/runtime": ["src/runtime/index.ts"],
       "mikuru/router": ["src/router/index.ts"],
+      "mikuru/server": ["src/server.ts"],
       "@mikuru-src/runtime": ["src/runtime/index.ts"],
       "@mikuru-src/*": ["src/*"]
     },

@@ -1,5 +1,6 @@
 export { compile } from "./compiler/index.js";
-export type { CompileOptions, CompileResult } from "./compiler/index.js";
+export { compileSsr } from "./compiler/index.js";
+export type { CompileOptions, CompileResult, SsrCompileResult } from "./compiler/index.js";
 export {
   computed,
   createDebugInspector,
