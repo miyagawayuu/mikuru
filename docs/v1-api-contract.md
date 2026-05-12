@@ -113,18 +113,18 @@ Unsupported in v1:
 ## SSR Contract
 
 - `compileSsr(source)` returns generated module code with `renderToString(props?)`.
-- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, and scoped slot props.
+- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, scoped slot props, and Teleport collection through `props.__mikuru_teleports`.
 - `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output.
 - `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, and nested route components using default slots.
 - `hydrateRoute(router, target, location?)` resolves redirects, lazy route components, route props, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback.
-- Hydration, SSR component tree context, Teleport SSR, and browser-side router hydration are future work.
+- Hydration, SSR component tree context, disabled Teleport SSR hydration, and browser-side router hydration are future work.
 
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
-- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates initial `v-if` / `v-for` DOM, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates initial `v-if` / `v-for` DOM, reuses Teleport target content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 - Root mismatches warn and fall back to normal `mount`.
-- Dynamic branch/list reconciliation after the initial state, Teleport hydration, and browser history resume are future work.
+- Dynamic branch/list reconciliation after the initial state, disabled Teleport SSR hydration, and browser history resume are future work.
 
 ## Macro Contract
 

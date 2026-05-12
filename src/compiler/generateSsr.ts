@@ -5,6 +5,7 @@ import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextN
 type SsrGenerateContext = {
   lines: string[];
   index: number;
+  teleportIndex: number;
   source?: string;
   filename?: string;
   scopeAttr?: string;
@@ -42,6 +43,7 @@ export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): strin
   const context: SsrGenerateContext = {
     lines: [],
     index: 0,
+    teleportIndex: 0,
     source: descriptor.source,
     filename: descriptor.filename,
     scopeAttr: descriptor.styleScoped ? createScopeAttr(descriptor) : undefined
@@ -61,6 +63,7 @@ export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): strin
 
   emit(context, 0, "export async function renderToString(props = {}) {");
   emit(context, 1, "let __mikuru_html = \"\";");
+  emit(context, 1, "const __mikuru_teleports = props.__mikuru_teleports ?? {};");
   emitNode(context, root, 1);
   emit(context, 1, "return __mikuru_html;");
   emit(context, 0, "}");
@@ -152,6 +155,11 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
 
+  if (node.tag === "Teleport") {
+    emitTeleport(context, node, indent);
+    return;
+  }
+
   if (isComponentTag(node.tag)) {
     emitComponent(context, node, indent);
     return;
@@ -178,6 +186,33 @@ function emitComponent(context: SsrGenerateContext, node: ElementNode, indent: n
   }
 
   emit(context, indent, `__mikuru_html += await __mikuru_renderComponent(${node.tag}, ${propsVar});`);
+}
+
+function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  const id = `t${context.teleportIndex}`;
+  context.teleportIndex += 1;
+  const toExpression = getTeleportToExpression(context, node);
+  const disabledExpression = getTeleportDisabledExpression(context, node);
+  const disabledVar = nextName(context, "teleportDisabled");
+  const targetVar = nextName(context, "teleportTarget");
+  const previousHtmlVar = nextName(context, "previousHtml");
+  const contentVar = nextName(context, "teleportContent");
+
+  emit(context, indent, `__mikuru_html += ${quote(`<!--teleport:${id}-->`)};`);
+  emit(context, indent, `const ${disabledVar} = Boolean(__mikuru_unwrap(${disabledExpression}));`);
+  emit(context, indent, `if (${disabledVar}) {`);
+  emitChildren(context, node.children, indent + 1);
+  emit(context, indent, "} else {");
+  emit(context, indent + 1, `const ${targetVar} = __mikuru_unwrap(${toExpression});`);
+  emit(context, indent + 1, `if (typeof ${targetVar} !== "string") { throw new Error("SSR Teleport target must be a string selector."); }`);
+  emit(context, indent + 1, `const ${previousHtmlVar} = __mikuru_html;`);
+  emit(context, indent + 1, "__mikuru_html = \"\";");
+  emitChildren(context, node.children, indent + 1);
+  emit(context, indent + 1, `const ${contentVar} = __mikuru_html;`);
+  emit(context, indent + 1, `__mikuru_html = ${previousHtmlVar};`);
+  emit(context, indent + 1, `__mikuru_teleports[${targetVar}] = (__mikuru_teleports[${targetVar}] ?? "") + ${quote(`<!--teleport content:${id}-->`)} + ${contentVar} + ${quote(`<!--/teleport content:${id}-->`)};`);
+  emit(context, indent, "}");
+  emit(context, indent, `__mikuru_html += ${quote(`<!--/teleport:${id}-->`)};`);
 }
 
 function emitComponentSlots(context: SsrGenerateContext, node: ElementNode, propsVar: string, indent: number): void {
@@ -376,6 +411,29 @@ function getSlotName(context: SsrGenerateContext, node: ElementNode): string {
   }
 
   return quote("default");
+}
+
+function getTeleportToExpression(context: SsrGenerateContext, node: ElementNode): string {
+  const dynamicTarget = getAttr(node, ":to") ?? getAttr(node, "v-bind:to");
+  if (dynamicTarget && dynamicTarget.value !== true) {
+    return compileSsrExpression(context, String(dynamicTarget.value), "Teleport to");
+  }
+
+  const staticTarget = getAttr(node, "to");
+  if (staticTarget && staticTarget.value !== true) {
+    return quote(staticTarget.value);
+  }
+
+  throw createCompileError("<Teleport> requires a to target", contextSource(node), node.loc?.offset ?? 0);
+}
+
+function getTeleportDisabledExpression(context: SsrGenerateContext, node: ElementNode): string {
+  const dynamicDisabled = getAttr(node, ":disabled") ?? getAttr(node, "v-bind:disabled");
+  if (dynamicDisabled && dynamicDisabled.value !== true) {
+    return compileSsrExpression(context, String(dynamicDisabled.value), "Teleport disabled");
+  }
+
+  return getAttr(node, "disabled") ? "true" : "false";
 }
 
 function isComponentTag(tag: string): boolean {
