@@ -121,9 +121,9 @@ Unsupported in v1:
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
-- Hydration phase 1 reuses matching existing static DOM, attaches DOM event listeners, and syncs text interpolation plus static and bound attributes with effects.
+- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates initial `v-if` / `v-for` DOM, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 - Root mismatches warn and fall back to normal `mount`.
-- Dynamic `v-if`, `v-for`, component hydration, Teleport hydration, and router hydration are future work.
+- Dynamic branch/list reconciliation after the initial state, Teleport hydration, and router hydration are future work.
 
 ## Macro Contract
 

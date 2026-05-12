@@ -54,6 +54,78 @@ function increment() {
     expect(root.querySelector("p")?.textContent).toBe("mounted");
     expect(instance.element.tagName.toLowerCase()).toBe("p");
   });
+
+  it("hydrates initial v-if and v-for DOM", async () => {
+    const source = `<template>
+  <section>
+    <p v-if="ready">{{ message }}</p>
+    <ul>
+      <li v-for="(item, index) in items" :data-index="index">{{ item }}</li>
+    </ul>
+  </section>
+</template>
+<script>
+const ready = true;
+const message = "Ready";
+const items = ["one", "two"];
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const section = root.firstElementChild;
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(instance.element).toBe(section);
+    expect(root.innerHTML).toBe('<section><p>Ready</p><ul><li data-index="0">one</li><li data-index="1">two</li></ul></section>');
+  });
+
+  it("hydrates child components when they expose hydrate and falls back to mount otherwise", async () => {
+    const source = `<template>
+  <section>
+    <HydratableChild :label="label" />
+    <MountOnlyChild label="fallback" />
+  </section>
+</template>
+<script>
+const label = "child";
+const HydratableChild = {
+  renderToString(props) {
+    return '<p data-child="' + props.label + '">' + props.label + '</p>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+const MountOnlyChild = {
+  renderToString(props) {
+    return '<span>' + props.label + '</span>';
+  },
+  mount(target, props) {
+    const el = document.createElement("span");
+    el.textContent = props.label + " mounted";
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("p")?.getAttribute("data-hydrated")).toBe("child");
+    expect(root.querySelector("span")?.textContent).toBe("fallback mounted");
+
+    instance.unmount();
+    expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
+  });
 });
 
 function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
