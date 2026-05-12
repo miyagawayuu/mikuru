@@ -70,6 +70,23 @@ const attrs = {
     await expect(render()).resolves.toBe('<section><p class="card active">classed</p><div style="border-color: black; color: red; font-size: 12px">styled</div><aside class="panel bound open" style="margin-top: 4px; background-color: yellow" data-mode="ready">bound</aside></section>');
   });
 
+  it("renders v-html as raw HTML and v-text as escaped text", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <article v-html="html"><p>fallback</p></article>
+    <p v-text="message">fallback</p>
+  </section>
+</template>
+<script>
+const html = "<strong>raw</strong>";
+const message = "<safe>";
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<section><article><strong>raw</strong></article><p>&lt;safe&gt;</p></section>");
+  });
+
   it("keeps SSR compile output importable from the public compiler entry", () => {
     const result = compileSsr(`<template><main id="app">{{ message }}</main></template><script>const message = "hello";</script>`);
 

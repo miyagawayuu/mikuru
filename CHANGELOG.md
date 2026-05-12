@@ -20,6 +20,7 @@
 - Added hydration support for DOM and component template refs, including `v-for` array refs and unmount cleanup.
 - Improved hydration attribute reconciliation so static classes survive dynamic `:class` updates and object `v-bind` removes stale attrs.
 - Improved class/style normalization across SSR, mount, and hydration so static styles survive dynamic `:style` and object `v-bind` updates.
+- Added `v-html` and `v-text` content directives across generated DOM, SSR, and hydration.
 - Added hydration component context for scoped `provide()` / `inject()`, lifecycle callbacks, and child component context forwarding.
 - Added `isRef()`, `unref()`, `toRef()`, and `toRefs()` runtime ref interop helpers.
 - Added built-in `<AsyncBoundary>` for grouped async loading and retryable async failures.

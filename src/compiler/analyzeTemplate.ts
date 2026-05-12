@@ -119,6 +119,19 @@ function visitNode(node: TemplateNode, bindings: Binding[], options: AnalyzeTemp
       continue;
     }
 
+    if (attr.name === "v-html" || attr.name === "v-text") {
+      bindings.push({
+        type: "attribute",
+        name: attr.name === "v-html" ? "html" : "text",
+        expression: validateTemplateExpression(
+          requireStringValue(attr.name, attr.value),
+          attr.name,
+          toExpressionContext(attr.valueLoc, options)
+        )
+      });
+      continue;
+    }
+
     if (attr.name === "v-for") {
       bindings.push(parseForBinding(requireStringValue(attr.name, attr.value), toExpressionContext(attr.valueLoc, options)));
     }
@@ -133,14 +146,6 @@ function rejectUnsupportedNodeFeatures(node: ElementNode, options: AnalyzeTempla
 }
 
 function rejectUnsupportedAttribute(node: ElementNode, attr: TemplateAttribute, options: AnalyzeTemplateOptions): void {
-  if (attr.name === "v-html") {
-    throwTemplateError(
-      "v-html is not supported in v1. Use text interpolation for plain text or set sanitized HTML from script code.",
-      attr.loc,
-      options
-    );
-  }
-
   if ((attr.name === "v-slot" || attr.name.startsWith("v-slot:") || attr.name.startsWith("#")) && node.tag !== "template") {
     throwTemplateError(
       "v-slot must be used on a <template> child in Mikuru. Wrap slot content in <template #name>...</template>.",

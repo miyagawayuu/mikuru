@@ -671,26 +671,25 @@ function setup() {
     ).toThrow(/rest destructuring must use a simple identifier/);
   });
 
-  it("reports filename, line, column, and frame for unsupported v1 syntax", () => {
+  it("reports filename, line, column, and frame for conflicting content directives", () => {
     const error = captureCompileError(
       `<template>
   <section>
-    <article v-html="html"></article>
+    <article v-html="html" v-text="text"></article>
   </section>
 </template>`,
-      "UnsupportedSyntax.mikuru"
+      "ContentDirectiveError.mikuru"
     );
 
     expect(error).toMatchObject({
       name: "MikuruCompileError",
-      filename: "UnsupportedSyntax.mikuru",
+      filename: "ContentDirectiveError.mikuru",
       line: 3,
-      column: 14
+      column: 28
     });
-    expect(error.message).toMatch(/v-html is not supported in v1/);
-    expect(error.message).toMatch(/Use text interpolation/);
-    expect(error.message).toMatch(/UnsupportedSyntax\.mikuru:3:14/);
-    expect(error.frame).toContain('<article v-html="html"></article>');
+    expect(error.message).toMatch(/v-html and v-text cannot be used on the same element/);
+    expect(error.message).toMatch(/ContentDirectiveError\.mikuru:3:28/);
+    expect(error.frame).toContain('<article v-html="html" v-text="text"></article>');
     expect(error.frame).toContain("^");
   });
 
@@ -721,7 +720,6 @@ const count = 0;
   });
 
   it("rejects unsupported v1 template constructs explicitly", () => {
-    expect(() => compile(`<template><section v-html="html"></section></template>`)).toThrow(/Use text interpolation/);
     expect(() => compile(`<template><component /></template>`)).toThrow(/Dynamic component requires :is/);
     expect(() => compile(`<template><Panel v-slot:header>Header</Panel></template>`)).toThrow(
       /Wrap slot content in <template #name>/

@@ -189,8 +189,24 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
   emit(context, indent, "__mikuru_html += \">\";");
-  emitChildren(context, node.children, indent);
+  const contentDirective = getContentDirectiveAttr(node);
+  if (contentDirective) {
+    emitContentDirective(context, contentDirective, indent);
+  } else {
+    emitChildren(context, node.children, indent);
+  }
   emit(context, indent, `__mikuru_html += ${quote(`</${node.tag}>`)};`);
+}
+
+function emitContentDirective(context: SsrGenerateContext, attr: TemplateAttribute, indent: number): void {
+  const expression = compileSsrExpression(context, requireAttrValue(attr), attr.name);
+
+  if (attr.name === "v-html") {
+    emit(context, indent, `__mikuru_html += String(__mikuru_unwrap(${expression}) ?? "");`);
+    return;
+  }
+
+  emit(context, indent, `__mikuru_html += __mikuru_escape(__mikuru_unwrap(${expression}) ?? "");`);
 }
 
 function emitComponent(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -411,6 +427,8 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "v-else"
     || attr.name === "v-for"
     || attr.name === "v-show"
+    || attr.name === "v-html"
+    || attr.name === "v-text"
     || attr.name === "v-model"
     || attr.name === "ref"
     || attr.name === "key"
@@ -501,6 +519,18 @@ function getAttrValue(node: ElementNode, name: string): string {
 function getStaticAttrValue(node: ElementNode, name: string): string | undefined {
   const attr = getAttr(node, name);
   return attr && attr.value !== true ? String(attr.value) : undefined;
+}
+
+function getContentDirectiveAttr(node: ElementNode): TemplateAttribute | undefined {
+  return getAttr(node, "v-html") ?? getAttr(node, "v-text");
+}
+
+function requireAttrValue(attr: TemplateAttribute): string {
+  if (attr.value === true) {
+    throw new Error(`Attribute ${attr.name} requires a value`);
+  }
+
+  return attr.value;
 }
 
 function compileSsrExpression(context: SsrGenerateContext, expression: string, usage: string): string {
