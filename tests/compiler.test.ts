@@ -731,7 +731,7 @@ const count = 0;
         sourcesContent: [expect.stringContaining("debug")]
       })
     });
-    expect(result.code).toContain("__MIKURU_DEVTOOLS__");
+    expect(result.code).toContain("registerDebugComponent");
   });
 
   it("normalizes Windows paths in Vite debug source URLs", async () => {

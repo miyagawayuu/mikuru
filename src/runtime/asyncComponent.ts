@@ -1,3 +1,5 @@
+import { emitDebugEvent } from "./devtools.js";
+
 export type MikuruComponentInstance = {
   element: Element | Comment;
   unmount(): void;
@@ -67,6 +69,7 @@ type MikuruAsyncBoundary = {
 type MikuruComponentContext = {
   component?: string;
   filename?: string;
+  debugId?: number;
   errorHandler?: (error: unknown, errorInfo?: MikuruErrorInfo) => void;
   asyncBoundary?: MikuruAsyncBoundary;
 };
@@ -154,6 +157,12 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         const currentToken = ++token;
         const boundaryEntry = resolved ? undefined : context?.asyncBoundary?.start({ retry: () => startLoad() });
         clearTimers();
+        emitDebugEvent("async:pending", {
+          component: context ? { component: context.component, filename: context.filename } : undefined,
+          componentId: context?.debugId,
+          hasBoundary: Boolean(boundaryEntry),
+          cached: Boolean(resolved)
+        });
 
         if (options.loadingComponent && (options.delay ?? 0) <= 0) {
           renderFallback(options.loadingComponent, props);
@@ -173,6 +182,13 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
               pending = undefined;
               const error = new Error("Async component timed out");
               renderFallback(options.errorComponent, { ...props, error, retry: () => startLoad() });
+              emitDebugEvent("async:rejected", {
+                component: context ? { component: context.component, filename: context.filename } : undefined,
+                componentId: context?.debugId,
+                hasBoundary: Boolean(boundaryEntry),
+                error,
+                errorInfo: { component: context?.component, filename: context?.filename, phase: "async-timeout" }
+              });
               if (!options.errorComponent) {
                 boundaryEntry?.reject(error, { component: context?.component, filename: context?.filename, phase: "async-timeout" });
                 if (!boundaryEntry) {
@@ -194,6 +210,11 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
             clearTimers();
             boundaryEntry?.resolve();
+            emitDebugEvent("async:resolved", {
+              component: context ? { component: context.component, filename: context.filename } : undefined,
+              componentId: context?.debugId,
+              hasBoundary: Boolean(boundaryEntry)
+            });
             clear();
             render(component, props);
           },
@@ -204,6 +225,13 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
             clearTimers();
             renderFallback(options.errorComponent, { ...props, error, retry: () => startLoad() });
+            emitDebugEvent("async:rejected", {
+              component: context ? { component: context.component, filename: context.filename } : undefined,
+              componentId: context?.debugId,
+              hasBoundary: Boolean(boundaryEntry),
+              error,
+              errorInfo: { component: context?.component, filename: context?.filename, phase: "async-loader" }
+            });
 
             if (!options.errorComponent) {
               boundaryEntry?.reject(error, { component: context?.component, filename: context?.filename, phase: "async-loader" });

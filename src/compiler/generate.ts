@@ -118,17 +118,25 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
     emit(context, 0, importLine);
   }
 
-  const runtimeImports = mergeRuntimeImports(["computed", "effect", "ref", "setAttribute", "unwrap"], script.runtimeImports);
+  const runtimeBaseImports = ["computed", "effect", "ref", "setAttribute", "unwrap"];
+  if (context.debug) {
+    runtimeBaseImports.push("emitDebugEvent", "registerDebugComponent");
+  }
+  const runtimeImports = mergeRuntimeImports(runtimeBaseImports, script.runtimeImports);
   emit(context, 0, `import { ${runtimeImports.join(", ")} } from "mikuru/runtime";`);
   emit(context, 0, "");
   emit(context, 0, "export function mount(target, props = {}) {");
   emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
+  emitDevtoolsRegistration(context, 1);
   emit(context, 1, "const __mikuru_cleanup = [];");
   emit(context, 1, "const __mikuru_afterUnmount = [];");
   emit(context, 1, "const __mikuru_mounted = [];");
-  emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), errorHandler: props.__mikuru_context?.errorHandler, ...__mikuru_componentInfo };");
+  emit(context, 1, `const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), errorHandler: props.__mikuru_context?.errorHandler${context.debug ? ", debugId: __mikuru_debug.id" : ""}, ...__mikuru_componentInfo };`);
   emit(context, 1, "const __mikuru_errorInfo = (phase) => ({ ...__mikuru_componentInfo, phase });");
   emit(context, 1, "const __mikuru_reportError = (error, errorHandler = __mikuru_context.errorHandler, phase = \"runtime\") => {");
+  if (context.debug) {
+    emit(context, 2, "emitDebugEvent(\"component:error\", { component: __mikuru_componentInfo, error, errorInfo: __mikuru_errorInfo(phase), componentId: __mikuru_debug.id });");
+  }
   emit(context, 2, "if (typeof errorHandler === \"function\") { Promise.resolve().then(() => errorHandler(error, __mikuru_errorInfo(phase))); return; }");
   emit(context, 2, "setTimeout(() => { throw error; });");
   emit(context, 1, "};");
@@ -251,7 +259,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   }
 
   const rootVar = generateNode(context, root, "target", "__mikuru_cleanup", 1);
-  emitDevtoolsRegistration(context, rootVar, 1);
+  emitDevtoolsRootUpdate(context, rootVar, 1);
   emit(context, 1, "// call mounted callbacks registered during setup and remove registrar");
   emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb, undefined, \"mounted\"); }");
   emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
@@ -259,6 +267,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 2, `element: ${rootVar},`);
   emit(context, 2, "unmount() {");
   if (context.debug) {
+    emit(context, 3, "emitDebugEvent(\"component:unmount\", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id });");
     emit(context, 3, "__mikuru_unregisterDevtools();");
   }
   emit(context, 3, "__mikuru_runCleanup(__mikuru_cleanup);");
@@ -288,31 +297,32 @@ function emitStyleInjection(context: GenerateContext, descriptor: SfcDescriptor,
   emit(context, indent, "}");
 }
 
-function emitDevtoolsRegistration(context: GenerateContext, rootVar: string, indent: number): void {
+function emitDevtoolsRegistration(context: GenerateContext, indent: number): void {
   if (!context.debug) {
     return;
   }
 
-  emit(context, indent, "let __mikuru_unregisterDevtools = () => {};");
-  emit(context, indent, "if (typeof globalThis !== \"undefined\") {");
-  emit(context, indent + 1, "const hook = globalThis.__MIKURU_DEVTOOLS__ ?? (globalThis.__MIKURU_DEVTOOLS__ = { components: new Map(), nextId: 1 });");
-  emit(context, indent + 1, "const metadata = {");
-  emit(context, indent + 2, "id: hook.nextId ?? 1,");
-  emit(context, indent + 2, "name: __mikuru_componentInfo.component,");
-  emit(context, indent + 2, "filename: __mikuru_componentInfo.filename,");
-  emit(context, indent + 2, `root: ${rootVar},`);
-  emit(context, indent + 2, "props: Object.keys(props).filter((key) => !key.startsWith(\"__mikuru_\"))");
-  emit(context, indent + 1, "};");
-  emit(context, indent + 1, "hook.nextId = metadata.id + 1;");
-  emit(context, indent + 1, "if (typeof hook.registerComponent === \"function\") {");
-  emit(context, indent + 2, "const unregister = hook.registerComponent(metadata);");
-  emit(context, indent + 2, "if (typeof unregister === \"function\") { __mikuru_unregisterDevtools = unregister; }");
-  emit(context, indent + 1, "} else {");
-  emit(context, indent + 2, "hook.components ??= new Map();");
-  emit(context, indent + 2, "hook.components.set(metadata.id, metadata);");
-  emit(context, indent + 2, "__mikuru_unregisterDevtools = () => hook.components?.delete(metadata.id);");
-  emit(context, indent + 1, "}");
-  emit(context, indent, "}");
+  emit(context, indent, "const __mikuru_publicProps = Object.fromEntries(Object.entries(props).filter(([key]) => !key.startsWith(\"__mikuru_\")));");
+  emit(context, indent, "const __mikuru_debugAttrs = props.__mikuru_attrs && typeof props.__mikuru_attrs === \"object\" ? { ...props.__mikuru_attrs } : {};");
+  emit(context, indent, "const __mikuru_debug = registerDebugComponent({");
+  emit(context, indent + 1, "name: __mikuru_componentInfo.component,");
+  emit(context, indent + 1, "filename: __mikuru_componentInfo.filename,");
+  emit(context, indent + 1, "parentId: props.__mikuru_context?.debugId,");
+  emit(context, indent + 1, "props: __mikuru_publicProps,");
+  emit(context, indent + 1, "propKeys: Object.keys(__mikuru_publicProps),");
+  emit(context, indent + 1, "attrs: __mikuru_debugAttrs,");
+  emit(context, indent + 1, "attrKeys: Object.keys(__mikuru_debugAttrs)");
+  emit(context, indent, "});");
+  emit(context, indent, "const __mikuru_unregisterDevtools = () => __mikuru_debug.unregister();");
+}
+
+function emitDevtoolsRootUpdate(context: GenerateContext, rootVar: string, indent: number): void {
+  if (!context.debug) {
+    return;
+  }
+
+  emit(context, indent, `__mikuru_debug.update({ root: ${rootVar} });`);
+  emit(context, indent, "emitDebugEvent(\"component:mount\", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, root: __mikuru_debug.metadata.root, props: __mikuru_debug.metadata.props, attrs: __mikuru_debug.metadata.attrs });");
 }
 
 function generateNode(
@@ -509,6 +519,9 @@ function generateErrorBoundary(
   emit(context, indent + 1, `const ${fallbackVar} = unwrap(${fallbackExpression});`);
   emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
   emit(context, indent + 1, `const ${normalizedErrorInfoVar} = ${errorInfoVar} && typeof ${errorInfoVar} === "object" ? ${errorInfoVar} : {};`);
+  if (context.debug) {
+    emit(context, indent + 1, `emitDebugEvent("component:error", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo } });`);
+  }
   emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
   emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, retry: ${renderVar}, reset: ${renderVar}, __mikuru_context });`);
   emit(context, indent + 1, `${boundaryCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
@@ -640,6 +653,9 @@ function generateAsyncBoundary(
   emit(context, indent + 1, `const ${fallbackVar} = unwrap(${fallbackExpression});`);
   emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
   emit(context, indent + 1, `const ${normalizedErrorInfoVar} = ${errorInfoVar} && typeof ${errorInfoVar} === "object" ? ${errorInfoVar} : {};`);
+  if (context.debug) {
+    emit(context, indent + 1, `emitDebugEvent("async:rejected", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, error: ${errorVar}, errors: [...${errorsVar}], pending: ${pendingVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo } });`);
+  }
   emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
   emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errors: [...${errorsVar}], errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, pending: ${pendingVar}, retry: ${lastRetryVar}, reset: ${lastRetryVar}, __mikuru_context });`);
   emit(context, indent + 1, `${fallbackCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
@@ -669,6 +685,9 @@ function generateAsyncBoundary(
   emit(context, indent + 1, `start({ retry: ${retryVar} }) {`);
   emit(context, indent + 2, `${pendingVar} += 1;`);
   emit(context, indent + 2, `${lastRetryVar} = ${renderVar};`);
+  if (context.debug) {
+    emit(context, indent + 2, `emitDebugEvent("async:pending", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, pending: ${pendingVar} });`);
+  }
   emit(context, indent + 2, `if (${pendingVar} === 1) { ${scheduleLoadingVar}(); ${scheduleTimeoutVar}(); } else if (${loadingCleanupVar}.length > 0) { ${renderLoadingVar}(); }`);
   emit(context, indent + 2, `let ${settledVar} = false;`);
   emit(context, indent + 2, "return {");
@@ -676,6 +695,9 @@ function generateAsyncBoundary(
   emit(context, indent + 4, `if (${settledVar}) { return; }`);
   emit(context, indent + 4, `${settledVar} = true;`);
   emit(context, indent + 4, `${pendingVar} = Math.max(0, ${pendingVar} - 1);`);
+  if (context.debug) {
+    emit(context, indent + 4, `emitDebugEvent("async:resolved", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, pending: ${pendingVar} });`);
+  }
   emit(context, indent + 4, `if (${pendingVar} === 0) { ${clearTimersVar}(); ${clearLoadingVar}(); } else if (${loadingCleanupVar}.length > 0) { ${renderLoadingVar}(); }`);
   emit(context, indent + 3, "},");
   emit(context, indent + 3, `reject(${errorVar}, ${errorInfoVar}) {`);

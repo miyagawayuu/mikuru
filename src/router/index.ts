@@ -1,4 +1,5 @@
 import { effect, inject, provide, ref, unwrap } from "../runtime/index.js";
+import { emitDebugEvent } from "../runtime/devtools.js";
 import type { Ref } from "../runtime/index.js";
 
 export type RouteParams = Record<string, string | string[]>;
@@ -306,18 +307,26 @@ export function createRouter(options: RouterOptions): Router {
     try {
       target = resolveRouteTarget(to, from.path);
       const id = ++navigationId;
+      emitDebugEvent("route:navigate", { status: "start", to: target, from, replace });
 
       if (target.fullPath === from.fullPath) {
-        return createNavigationFailure(NavigationFailureType.duplicated, target, from);
+        const failure = createNavigationFailure(NavigationFailureType.duplicated, target, from);
+        emitDebugEvent("route:navigate", { status: "duplicated", to: target, from, replace, failure });
+        return failure;
       }
 
       const guards = [...beforeGuards, ...readBeforeEnterGuards(target.matchedRecords)];
       for (const guard of guards) {
         const result = await guard(target, from);
-        if (id !== navigationId) return createNavigationFailure(NavigationFailureType.cancelled, target, from);
+        if (id !== navigationId) {
+          const failure = createNavigationFailure(NavigationFailureType.cancelled, target, from);
+          emitDebugEvent("route:navigate", { status: "cancelled", to: target, from, replace, failure });
+          return failure;
+        }
         if (result === false) {
           const failure = createNavigationFailure(NavigationFailureType.aborted, target, from);
           for (const hook of afterHooks) hook(target, from, failure);
+          emitDebugEvent("route:navigate", { status: "aborted", to: target, from, replace, failure });
           return failure;
         }
         if (typeof result === "string" || (result && typeof result === "object")) {
@@ -336,9 +345,11 @@ export function createRouter(options: RouterOptions): Router {
         hook(target, from);
       }
       await trackReady(handleScroll(target, from));
+      emitDebugEvent("route:navigate", { status: "success", to: target, from, replace });
 
       return target;
     } catch (error) {
+      emitDebugEvent("route:error", { error, to: target, from, replace });
       notifyRouterError(error, target, from);
       throw error;
     }
@@ -350,11 +361,14 @@ export function createRouter(options: RouterOptions): Router {
 
     try {
       target = resolveRouteTarget(to, from.path);
+      emitDebugEvent("route:preload", { status: "start", to: target, from });
       await trackReady(Promise.all(
         target.matchedRecords.map((record) => record.component ? resolveRouteComponent(record) : Promise.resolve())
       ));
+      emitDebugEvent("route:preload", { status: "success", to: target, from });
       return target;
     } catch (error) {
+      emitDebugEvent("route:error", { error, to: target, from, preload: true });
       notifyRouterError(error, target, from);
       throw error;
     }

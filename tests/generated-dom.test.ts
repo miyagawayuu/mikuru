@@ -6,6 +6,7 @@ import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterVie
 import {
   computed,
   defineAsyncComponent,
+  emitDebugEvent,
   effect,
   inject,
   nextTick,
@@ -14,6 +15,7 @@ import {
   onUnmounted,
   provide,
   ref,
+  registerDebugComponent,
   setAttribute,
   unwrap,
   watch
@@ -52,21 +54,131 @@ describe("generated DOM code", () => {
         { debug: true, filename: "DebugPanel.mikuru" }
       );
       const instance = fixture.module.mount(fixture.root, { label: "Visible", __mikuru_context: {} });
-      const hook = (globalThis as { __MIKURU_DEVTOOLS__?: { components?: Map<number, unknown> } }).__MIKURU_DEVTOOLS__;
+      const hook = (globalThis as { __MIKURU_DEVTOOLS__?: { components?: Map<number, unknown>; events?: Array<{ type: string }> } }).__MIKURU_DEVTOOLS__;
       const component = Array.from(hook?.components?.values() ?? [])[0] as
-        | { filename?: string; name?: string; props?: string[]; root?: Element | Comment }
+        | {
+            id?: number;
+            filename?: string;
+            name?: string;
+            props?: Record<string, unknown>;
+            root?: Element | Comment;
+            mountedAt?: number;
+            children?: Set<number>;
+          }
         | undefined;
 
       expect(component).toMatchObject({
         filename: "DebugPanel.mikuru",
         name: "DebugPanel.mikuru",
-        props: ["label"],
+        props: { label: "Visible" },
+        propKeys: ["label"],
+        attrs: {},
+        attrKeys: [],
         root: instance.element
       });
+      expect(component?.id).toBe(1);
+      expect(component?.mountedAt).toEqual(expect.any(Number));
+      expect(component?.children).toBeInstanceOf(Set);
+      expect(hook?.events?.map((event) => event.type)).toContain("component:mount");
 
       instance.unmount();
 
       expect(hook?.components?.size).toBe(0);
+      expect(hook?.events?.map((event) => event.type)).toContain("component:unmount");
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("emits debug events for ErrorBoundary fallbacks", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const fixture = compileForDom(
+        `<template><ErrorBoundary :fallback="ErrorView"><Broken /></ErrorBoundary></template>
+<script>
+const Broken = {
+  mount() {
+    throw new Error("debug boom");
+  }
+};
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.errorInfo.phase + ":" + props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+</script>`,
+        { debug: true, filename: "DebugError.mikuru" }
+      );
+
+      fixture.module.mount(fixture.root, {});
+      const hook = (globalThis as { __MIKURU_DEVTOOLS__?: { events?: Array<{ type: string; payload?: { errorInfo?: { phase?: string } } }> } }).__MIKURU_DEVTOOLS__;
+      const errorEvent = hook?.events?.find((event) => event.type === "component:error");
+
+      expect(fixture.root.textContent).toBe("mount:debug boom");
+      expect(errorEvent?.payload?.errorInfo?.phase).toBe("mount");
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("emits debug events for AsyncBoundary pending and resolved states", async () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const fixture = compileForDom(
+        `<template><AsyncBoundary :loading="Loading" :fallback="ErrorView"><AsyncMessage /></AsyncBoundary></template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const Loading = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = "pending " + props.pending;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+const Message = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "loaded";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+const AsyncMessage = defineAsyncComponent(() => Promise.resolve(Message));
+</script>`,
+        { debug: true, filename: "DebugAsync.mikuru" }
+      );
+
+      fixture.module.mount(fixture.root, {});
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const hook = (globalThis as { __MIKURU_DEVTOOLS__?: { events?: Array<{ type: string }> } }).__MIKURU_DEVTOOLS__;
+      expect(hook?.events?.map((event) => event.type)).toEqual(expect.arrayContaining(["async:pending", "async:resolved"]));
+      expect(fixture.root.textContent).toBe("loaded");
     } finally {
       if (previousHook === undefined) {
         delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
@@ -3642,6 +3754,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "createMemoryHistory",
     "createRouter",
     "defineAsyncComponent",
+    "emitDebugEvent",
     "effect",
     "inject",
     "nextTick",
@@ -3651,6 +3764,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "provide",
     "provideRouter",
     "ref",
+    "registerDebugComponent",
     "setAttribute",
     "unwrap",
     "RouterLink",
@@ -3665,6 +3779,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     createMemoryHistoryArg: typeof createMemoryHistory,
     createRouterArg: typeof createRouter,
     defineAsyncComponentArg: typeof defineAsyncComponent,
+    emitDebugEventArg: typeof emitDebugEvent,
     effectArg: typeof effect,
     injectArg: typeof inject,
     nextTickArg: typeof nextTick,
@@ -3674,6 +3789,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     provideArg: typeof provide,
     provideRouterArg: typeof provideRouter,
     refArg: typeof ref,
+    registerDebugComponentArg: typeof registerDebugComponent,
     setAttributeArg: typeof setAttribute,
     unwrapArg: typeof unwrap,
     RouterLinkArg: typeof RouterLink,
@@ -3689,6 +3805,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     createMemoryHistory,
     createRouter,
     defineAsyncComponent,
+    emitDebugEvent,
     effect,
     inject,
     nextTick,
@@ -3698,6 +3815,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     provide,
     provideRouter,
     ref,
+    registerDebugComponent,
     setAttribute,
     unwrap,
     RouterLink,
