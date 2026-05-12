@@ -347,6 +347,12 @@ function emitSlotProps(context: SsrGenerateContext, node: ElementNode, propsVar:
 }
 
 function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  const staticClass = getStaticAttrValue(node, "class");
+  const staticStyle = getStaticAttrValue(node, "style");
+  const hasObjectBind = node.attrs.some((attr) => attr.name === "v-bind");
+  const hasDynamicClass = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "class");
+  const hasDynamicStyle = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "style");
+
   for (const attr of node.attrs) {
     if (shouldSkipAttr(attr)) {
       continue;
@@ -354,14 +360,29 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
 
     if (attr.name === "v-bind") {
       const value = String(attr.value);
-      emit(context, indent, `__mikuru_html += __mikuru_renderAttrs(__mikuru_unwrap(${compileSsrExpression(context, value, "v-bind")}));`);
+      const attrsVar = nextName(context, "attrs");
+      emit(context, indent, "{");
+      emit(context, indent + 1, `const ${attrsVar} = __mikuru_unwrap(${compileSsrExpression(context, value, "v-bind")}) ?? {};`);
+      emit(context, indent + 1, `__mikuru_html += __mikuru_renderAttrs({ ...${attrsVar}${staticClass ? `, class: [${quote(staticClass)}, ${attrsVar}.class]` : ""}${staticStyle ? `, style: [${quote(staticStyle)}, ${attrsVar}.style]` : ""} });`);
+      emit(context, indent, "}");
       continue;
     }
 
     const dynamicName = getDynamicAttrName(attr.name);
     if (dynamicName) {
       const value = String(attr.value);
-      emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(dynamicName)}, __mikuru_unwrap(${compileSsrExpression(context, value, attr.name)}));`);
+      const expression = compileSsrExpression(context, value, attr.name);
+      const valueExpression =
+        dynamicName === "class" && staticClass
+          ? `[${quote(staticClass)}, __mikuru_unwrap(${expression})]`
+          : dynamicName === "style" && staticStyle
+            ? `[${quote(staticStyle)}, __mikuru_unwrap(${expression})]`
+            : `__mikuru_unwrap(${expression})`;
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(dynamicName)}, ${valueExpression});`);
+      continue;
+    }
+
+    if ((attr.name === "class" && (hasDynamicClass || hasObjectBind)) || (attr.name === "style" && (hasDynamicStyle || hasObjectBind))) {
       continue;
     }
 
@@ -475,6 +496,11 @@ function getAttrValue(node: ElementNode, name: string): string {
     throw createCompileError(`${name} requires an expression`, contextSource(node), node.loc?.offset ?? 0);
   }
   return attr.value;
+}
+
+function getStaticAttrValue(node: ElementNode, name: string): string | undefined {
+  const attr = getAttr(node, name);
+  return attr && attr.value !== true ? String(attr.value) : undefined;
 }
 
 function compileSsrExpression(context: SsrGenerateContext, expression: string, usage: string): string {

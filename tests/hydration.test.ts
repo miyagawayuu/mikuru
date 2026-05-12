@@ -84,11 +84,12 @@ const items = ["one", "two"];
     expect(root.innerHTML).toBe('<section><p>Ready</p><ul><li data-index="0">one</li><li data-index="1">two</li></ul></section>');
   });
 
-  it("hydrates class bindings and object v-bind attr cleanup", async () => {
+  it("hydrates class and style bindings with object v-bind attr cleanup", async () => {
     const source = `<template>
   <section>
     <p class="card" :class="{ active }">{{ label }}</p>
-    <div class="box" v-bind="attrs">box</div>
+    <em style="border-color: black" :style="{ color }">style</em>
+    <div class="box" style="margin-top: 4px" v-bind="attrs">box</div>
     <button @click="toggle">Toggle</button>
   </section>
 </template>
@@ -96,15 +97,18 @@ const items = ["one", "two"];
 import { ref } from "mikuru";
 const active = ref(true);
 const label = ref("Ready");
+const color = ref("red");
 const attrs = ref({
   id: "status",
   "data-mode": "ready",
   class: ["bound"],
+  style: { backgroundColor: "yellow" },
   title: "ready"
 });
 function toggle() {
   active.value = false;
   label.value = "Done";
+  color.value = "blue";
   attrs.value = {
     "data-mode": "done",
     "aria-live": "polite"
@@ -119,10 +123,13 @@ function toggle() {
     root.innerHTML = await renderToString();
     const instance = module.hydrate(root as unknown as Element);
     const paragraph = root.querySelector("p");
+    const styleTarget = root.querySelector("em");
     const box = root.querySelector("div");
 
     expect(paragraph?.getAttribute("class")).toBe("card active");
+    expect(styleTarget?.getAttribute("style")).toBe("border-color: black; color: red");
     expect(box?.getAttribute("class")).toBe("box bound");
+    expect(box?.getAttribute("style")).toBe("margin-top: 4px; background-color: yellow");
     expect(box?.getAttribute("id")).toBe("status");
     expect(box?.getAttribute("title")).toBe("ready");
     expect(box?.getAttribute("data-mode")).toBe("ready");
@@ -131,7 +138,9 @@ function toggle() {
 
     expect(paragraph?.getAttribute("class")).toBe("card");
     expect(paragraph?.textContent).toBe("Done");
+    expect(styleTarget?.getAttribute("style")).toBe("border-color: black; color: blue");
     expect(box?.getAttribute("class")).toBe("box");
+    expect(box?.getAttribute("style")).toBe("margin-top: 4px");
     expect(box?.hasAttribute("id")).toBe(false);
     expect(box?.hasAttribute("title")).toBe(false);
     expect(box?.getAttribute("data-mode")).toBe("done");
