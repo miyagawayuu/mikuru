@@ -17,6 +17,7 @@ import {
   onUnmounted,
   provide,
   queueJob,
+  reactive,
   ref,
   registerDebugComponent,
   setAttribute,
@@ -623,6 +624,36 @@ function update() {
     await nextTick();
 
     expect(paragraph?.textContent).toBe("A:B");
+  });
+
+  it("renders reactive object state in generated DOM", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="increment">Increment</button>
+    <p>{{ state.count }}:{{ state.items.length }}</p>
+  </section>
+</template>
+
+<script>
+import { reactive } from "mikuru";
+
+const state = reactive({ count: 0, items: ["a"] });
+
+function increment() {
+  state.count += 1;
+  state.items.push("b");
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const button = fixture.root.querySelector("button");
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(paragraph?.textContent).toBe("0:1");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(paragraph?.textContent).toBe("1:2");
   });
 
   it("syncs textarea, checkbox, and select controls with v-model", () => {
@@ -4508,6 +4539,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     "provide",
     "provideRouter",
     "queueJob",
+    "reactive",
     "ref",
     "registerDebugComponent",
     "setAttribute",
@@ -4537,6 +4569,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     provideArg: typeof provide,
     provideRouterArg: typeof provideRouter,
     queueJobArg: typeof queueJob,
+    reactiveArg: typeof reactive,
     refArg: typeof ref,
     registerDebugComponentArg: typeof registerDebugComponent,
     setAttributeArg: typeof setAttribute,
@@ -4567,6 +4600,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     provide,
     provideRouter,
     queueJob,
+    reactive,
     ref,
     registerDebugComponent,
     setAttribute,

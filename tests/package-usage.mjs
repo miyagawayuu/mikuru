@@ -3,7 +3,23 @@ import assert from "node:assert/strict";
 const { compile } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
-const { createDebugInspector, effect, emitDebugEvent, flushJobs, nextTick, queueJob, ref, watch, watchEffect } = await import("mikuru/runtime");
+const {
+  createDebugInspector,
+  effect,
+  emitDebugEvent,
+  flushJobs,
+  isProxy,
+  isReactive,
+  isReadonly,
+  nextTick,
+  queueJob,
+  reactive,
+  readonly,
+  ref,
+  toRaw,
+  watch,
+  watchEffect
+} = await import("mikuru/runtime");
 const { mikuru } = await import("mikuru/vite");
 
 assert.deepEqual(Object.keys(env), []);
@@ -34,6 +50,23 @@ count.value = 2;
 stop();
 count.value = 3;
 assert.equal(observed, 2);
+
+const state = reactive({ count: 0 });
+let reactiveObserved = 0;
+const stopReactive = effect(() => {
+  reactiveObserved = state.count;
+});
+state.count = 1;
+stopReactive();
+assert.equal(reactiveObserved, 1);
+assert.equal(isReactive(state), true);
+assert.equal(isProxy(state), true);
+assert.equal(toRaw(state).count, 1);
+
+const locked = readonly({ count: 0 });
+locked.count = 1;
+assert.equal(locked.count, 0);
+assert.equal(isReadonly(locked), true);
 
 let watched = 0;
 const stopWatch = watch(count, (next) => {

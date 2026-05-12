@@ -19,13 +19,15 @@ export type {
   MikuruErrorInfo,
   MikuruErrorPhase
 } from "./asyncComponent.js";
-export { computed, effect, ref, unwrap, watchEffect } from "./reactivity.js";
+export { computed, effect, isProxy, isReactive, isReadonly, reactive, readonly, ref, toRaw, unwrap, watchEffect } from "./reactivity.js";
 export type {
   ComputedRef,
   EffectFn,
   EffectOptions,
   EffectRunner,
   EffectScheduler,
+  Reactive,
+  ReadonlyReactive,
   Ref,
   WatchEffectCleanup,
   WatchEffectCleanupRegistrar,
