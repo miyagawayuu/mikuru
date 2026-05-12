@@ -69,12 +69,8 @@ export function renderAttrs(attrs: Record<string, unknown> | null | undefined): 
   return rendered;
 }
 
-export function renderComponentToString(component: MikuruSsrComponent | ((props?: Record<string, unknown>) => string | Promise<string>), props: Record<string, unknown> = {}): string {
-  const rendered = renderToString(component, props);
-  if (rendered && typeof (rendered as Promise<string>).then === "function") {
-    throw new TypeError("Async SSR components are not supported yet.");
-  }
-  return String(rendered);
+export async function renderComponentToString(component: MikuruSsrComponent | ((props?: Record<string, unknown>) => string | Promise<string>), props: Record<string, unknown> = {}): Promise<string> {
+  return String(await renderToString(component, props));
 }
 
 export function renderToString(component: MikuruSsrComponent | ((props?: Record<string, unknown>) => string | Promise<string>), props: Record<string, unknown> = {}): string | Promise<string> {

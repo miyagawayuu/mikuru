@@ -54,11 +54,11 @@ const message = "SSR <ok>";
 </script>`,
   { filename: "PackageSsr.mikuru" }
 );
-assert.match(ssrResult.code, /export function renderToString/);
+assert.match(ssrResult.code, /export async function renderToString/);
 assert.equal(escapeHtml("<ok>"), "&lt;ok&gt;");
 assert.equal(renderAttr("data-count", 2), " data-count=\"2\"");
 assert.equal(renderToString({ renderToString: () => "<main>SSR</main>" }), "<main>SSR</main>");
-assert.equal(renderComponentToString({ renderToString: (props) => `<main>${props.message}</main>` }, { message: "component SSR" }), "<main>component SSR</main>");
+assert.equal(await renderComponentToString({ renderToString: (props) => `<main>${props.message}</main>` }, { message: "component SSR" }), "<main>component SSR</main>");
 
 const count = ref(0);
 let observed = 0;

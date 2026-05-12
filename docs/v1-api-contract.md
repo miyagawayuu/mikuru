@@ -113,9 +113,9 @@ Unsupported in v1:
 ## SSR Contract
 
 - `compileSsr(source)` returns generated module code with `renderToString(props?)`.
-- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, child components, props, and default slots.
-- `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the synchronous component helper used by generated SSR output.
-- Hydration, named/scoped SSR slots, SSR component tree context, async SSR, Teleport SSR, and router SSR are future work.
+- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, and scoped slot props.
+- `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output.
+- Hydration, SSR component tree context, Teleport SSR, and router SSR are future work.
 
 ## Macro Contract
 

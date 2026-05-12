@@ -183,7 +183,7 @@ import { escapeHtml, renderComponentToString, renderToString } from "mikuru/serv
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
-`compileSsr(source)` generates a `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, child components, props, and default slots; hydration is intentionally separate future work.
+`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, and scoped slot props; hydration is intentionally separate future work.
 
 Routing helpers are available from `mikuru/router`:
 

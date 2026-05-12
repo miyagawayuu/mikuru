@@ -16,10 +16,10 @@ describe("server rendering", () => {
   it("renders components through the server entry", async () => {
     expect(renderToString({ renderToString: () => "<p>ok</p>" })).toBe("<p>ok</p>");
     await expect(renderToString(async () => "<p>async</p>")).resolves.toBe("<p>async</p>");
-    expect(renderComponentToString({ renderToString: (props) => `<p>${props?.message}</p>` }, { message: "component" })).toBe("<p>component</p>");
+    await expect(renderComponentToString({ renderToString: (props) => `<p>${props?.message}</p>` }, { message: "component" })).resolves.toBe("<p>component</p>");
   });
 
-  it("compiles static SSR output with expressions, attrs, branches, and loops", () => {
+  it("compiles static SSR output with expressions, attrs, branches, and loops", async () => {
     const result = compileSsr(`<template>
   <section class="card" :data-count="items.length">
     <h1>{{ title }}</h1>
@@ -40,18 +40,18 @@ const items = [{ label: "one" }, { label: "two & more" }];
 
     const render = loadSsrRender(result.code);
 
-    expect(render()).toBe("<section class=\"card\" data-count=\"2\"><h1>SSR &lt;phase&gt;</h1><p>Ready &amp; &lt;script&gt;</p><ul><li data-index=\"0\">one</li><li data-index=\"1\">two &amp; more</li></ul></section>");
+    await expect(render()).resolves.toBe("<section class=\"card\" data-count=\"2\"><h1>SSR &lt;phase&gt;</h1><p>Ready &amp; &lt;script&gt;</p><ul><li data-index=\"0\">one</li><li data-index=\"1\">two &amp; more</li></ul></section>");
   });
 
   it("keeps SSR compile output importable from the public compiler entry", () => {
     const result = compileSsr(`<template><main id="app">{{ message }}</main></template><script>const message = "hello";</script>`);
 
     expect(result.code).toContain("import { escapeHtml as __mikuru_escape");
-    expect(result.code).toContain("export function renderToString");
+    expect(result.code).toContain("export async function renderToString");
     expect(result.bindings).toContainEqual({ type: "text", expression: "message" });
   });
 
-  it("renders child components with props and default slots", () => {
+  it("renders child components with props and default slots", async () => {
     const result = compileSsr(`<template>
   <section>
     <Child title="Card" :count="count" v-bind="{ role: 'note' }">
@@ -63,18 +63,18 @@ const items = [{ label: "one" }, { label: "two & more" }];
 const count = 2;
 const label = "projected";
 const Child = {
-  renderToString(props) {
-    return '<article data-title="' + props.title + '" data-count="' + props.count + '" data-role="' + props.role + '">' + props.children() + '</article>';
+  async renderToString(props) {
+    return '<article data-title="' + props.title + '" data-count="' + props.count + '" data-role="' + props.role + '">' + await props.children() + '</article>';
   }
 };
 </script>`);
 
     const render = loadSsrRender(result.code);
 
-    expect(render()).toBe("<section><article data-title=\"Card\" data-count=\"2\" data-role=\"note\"><strong>projected</strong></article></section>");
+    await expect(render()).resolves.toBe("<section><article data-title=\"Card\" data-count=\"2\" data-role=\"note\"><strong>projected</strong></article></section>");
   });
 
-  it("renders default slot content and fallback children", () => {
+  it("renders default slot content and fallback children", async () => {
     const result = compileSsr(`<template>
   <article><slot>Fallback {{ label }}</slot></article>
 </template>
@@ -84,11 +84,56 @@ const label = "slot";
 
     const render = loadSsrRender(result.code);
 
-    expect(render()).toBe("<article>Fallback slot</article>");
-    expect(render({ children: () => "<strong>provided</strong>" })).toBe("<article><strong>provided</strong></article>");
+    await expect(render()).resolves.toBe("<article>Fallback slot</article>");
+    await expect(render({ children: () => "<strong>provided</strong>" })).resolves.toBe("<article><strong>provided</strong></article>");
   });
 
-  it("keeps sibling v-for temporary variables unique", () => {
+  it("renders async child components with named and scoped slots", async () => {
+    const result = compileSsr(`<template>
+  <AsyncCard>
+    <template #header>
+      <h2>{{ title }}</h2>
+    </template>
+    <template #default="{ item }">
+      <p>{{ item.label }}</p>
+    </template>
+    <template v-slot:footer>
+      <small>done</small>
+    </template>
+  </AsyncCard>
+</template>
+<script>
+const title = "Named";
+const AsyncCard = {
+  async renderToString(props) {
+    return '<article>' + await props.slots.header() + await props.slots.default({ item: { label: "scoped" } }) + await props.slots.footer() + '</article>';
+  }
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<article><h2>Named</h2><p>scoped</p><small>done</small></article>");
+  });
+
+  it("passes slot props from child slot outlets", async () => {
+    const result = compileSsr(`<template>
+  <article><slot name="item" :item="item">Fallback</slot></article>
+</template>
+<script>
+const item = { label: "child" };
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render({
+      slots: {
+        item: async ({ item }: { item: { label: string } }) => '<strong>' + item.label + '</strong>'
+      }
+    })).resolves.toBe("<article><strong>child</strong></article>");
+  });
+
+  it("keeps sibling v-for temporary variables unique", async () => {
     const result = compileSsr(`<template>
   <section>
     <p v-for="item in first">{{ item }}</p>
@@ -102,21 +147,21 @@ const second = ["b"];
 
     const render = loadSsrRender(result.code);
 
-    expect(render()).toBe("<section><p>a</p><span>b</span></section>");
+    await expect(render()).resolves.toBe("<section><p>a</p><span>b</span></section>");
   });
 });
 
-function loadSsrRender(code: string): (props?: Record<string, unknown>) => string {
+function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
   const executable = code
     .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
-    .replace("export function renderToString", "function renderToString");
+    .replace("export async function renderToString", "async function renderToString");
   const factory = new Function("helpers", `${executable}\nreturn renderToString;`) as (helpers: {
     escapeHtml: typeof escapeHtml;
     renderAttr: typeof renderAttr;
     renderAttrs: typeof renderAttrs;
     renderComponentToString: typeof renderComponentToString;
     unwrap: typeof unwrap;
-  }) => (props?: Record<string, unknown>) => string;
+  }) => (props?: Record<string, unknown>) => Promise<string>;
   return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, unwrap });
 }
