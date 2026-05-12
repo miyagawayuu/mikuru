@@ -2716,6 +2716,106 @@ const SecondAsync = defineAsyncComponent({
     expect(fixture.root.textContent).not.toContain("Boundary loading");
   });
 
+  it("delays AsyncBoundary loading for fast async children", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="30">
+    <FastAsync />
+  </AsyncBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const Loading = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "delayed loading";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = props.error.message;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const Loaded = {
+  mount(target) {
+    const p = document.createElement("p");
+    p.textContent = "fast loaded";
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const FastAsync = defineAsyncComponent({
+  loader: () => new Promise((resolve) => setTimeout(() => resolve(Loaded), 5))
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.textContent).not.toContain("delayed loading");
+
+    await new Promise((resolve) => setTimeout(resolve, 15));
+
+    expect(fixture.root.textContent).toContain("fast loaded");
+    expect(fixture.root.textContent).not.toContain("delayed loading");
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(fixture.root.textContent).toContain("fast loaded");
+    expect(fixture.root.textContent).not.toContain("delayed loading");
+  });
+
+  it("times out pending AsyncBoundary children into fallback", async () => {
+    const fixture = compileForDom(`<template>
+  <AsyncBoundary :loading="Loading" :fallback="ErrorView" :timeout="10">
+    <NeverAsync />
+  </AsyncBoundary>
+</template>
+
+<script>
+import { defineAsyncComponent } from "mikuru";
+
+const Loading = {
+  mount(target, props) {
+    const p = document.createElement("p");
+    p.textContent = "Boundary loading " + props.pending;
+    target.appendChild(p);
+    return { element: p, unmount() { p.remove(); } };
+  }
+};
+
+const ErrorView = {
+  mount(target, props) {
+    const button = document.createElement("button");
+    button.textContent = props.errorInfo.phase + "|" + props.pending + "|" + props.errors.length + "|" + props.error.message;
+    target.appendChild(button);
+    return { element: button, unmount() { button.remove(); } };
+  }
+};
+
+const NeverAsync = defineAsyncComponent({
+  loader: () => new Promise(() => {})
+});
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.textContent).toContain("Boundary loading 1");
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(fixture.root.querySelector("button")?.textContent).toBe("async-timeout|1|1|Async boundary timed out");
+    expect(fixture.root.textContent).not.toContain("Boundary loading");
+  });
+
   it("renders async component error fallback", async () => {
     const fixture = compileForDom(`<template>
   <AsyncBroken />

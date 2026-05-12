@@ -41,7 +41,7 @@ Supported in v1:
 - Slot props through bound `<slot>` attributes and slot scope bindings with aliases, default values, nested object destructuring, and top-level rest destructuring.
 - CSS class transitions through built-in `<Transition name="fade">`, including single children, `v-if` chains, dynamic components, class override attributes, `appear` opt-out, and `mode="out-in"` for `v-if` chains.
 - Teleport through built-in `<Teleport to="#target">`, including dynamic `to` and `disabled`.
-- Async boundaries through built-in `<AsyncBoundary :loading :fallback>`.
+- Async boundaries through built-in `<AsyncBoundary :loading :fallback :delay :timeout>`.
 - Error boundaries through built-in `<ErrorBoundary :fallback>`, including `errorInfo`, `retry`, `reset`, and `:reset-key`.
 
 Unsupported in v1:

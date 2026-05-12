@@ -527,6 +527,8 @@ function generateAsyncBoundary(
   const children = getAsyncBoundaryChildren(context, node);
   const loadingExpression = getAsyncBoundaryLoadingExpression(context, node);
   const fallbackExpression = getAsyncBoundaryFallbackExpression(context, node);
+  const delayExpression = getAsyncBoundaryDelayExpression(context, node);
+  const timeoutExpression = getAsyncBoundaryTimeoutExpression(context, node);
   const startVar = nextVar(context, "asyncBoundaryStart");
   const endVar = nextVar(context, "asyncBoundaryEnd");
   const boundaryCleanupVar = nextVar(context, "asyncBoundaryCleanup");
@@ -539,6 +541,9 @@ function generateAsyncBoundary(
   const clearLoadingVar = nextVar(context, "clearAsyncBoundaryLoading");
   const renderFallbackVar = nextVar(context, "renderAsyncBoundaryFallback");
   const clearFallbackVar = nextVar(context, "clearAsyncBoundaryFallback");
+  const scheduleLoadingVar = nextVar(context, "scheduleAsyncBoundaryLoading");
+  const scheduleTimeoutVar = nextVar(context, "scheduleAsyncBoundaryTimeout");
+  const clearTimersVar = nextVar(context, "clearAsyncBoundaryTimers");
   const renderVar = nextVar(context, "renderAsyncBoundary");
   const loadingVar = nextVar(context, "asyncBoundaryLoading");
   const loadingFragmentVar = nextVar(context, "asyncBoundaryLoading");
@@ -552,6 +557,11 @@ function generateAsyncBoundary(
   const normalizedErrorInfoVar = nextVar(context, "errorInfo");
   const retryVar = nextVar(context, "retry");
   const settledVar = nextVar(context, "settled");
+  const delayVar = nextVar(context, "asyncBoundaryDelay");
+  const timeoutVar = nextVar(context, "asyncBoundaryTimeout");
+  const delayTimerVar = nextVar(context, "asyncBoundaryDelayTimer");
+  const timeoutTimerVar = nextVar(context, "asyncBoundaryTimeoutTimer");
+  const timeoutErrorVar = nextVar(context, "asyncBoundaryTimeoutError");
   const asyncContextVar = nextVar(context, "asyncBoundaryContext");
   const previousComponentContextVar = context.componentContextVar;
   emit(context, indent, `const ${startVar} = document.createComment("async-boundary");`);
@@ -565,8 +575,14 @@ function generateAsyncBoundary(
   emit(context, indent, `let ${failedVar} = false;`);
   emit(context, indent, `let ${errorsVar} = [];`);
   emit(context, indent, `let ${lastRetryVar} = () => {};`);
+  emit(context, indent, `let ${delayTimerVar};`);
+  emit(context, indent, `let ${timeoutTimerVar};`);
   emit(context, indent, `const ${clearLoadingVar} = () => __mikuru_runCleanup(${loadingCleanupVar});`);
   emit(context, indent, `const ${clearFallbackVar} = () => __mikuru_runCleanup(${fallbackCleanupVar});`);
+  emit(context, indent, `const ${clearTimersVar} = () => {`);
+  emit(context, indent + 1, `if (${delayTimerVar}) { clearTimeout(${delayTimerVar}); ${delayTimerVar} = undefined; }`);
+  emit(context, indent + 1, `if (${timeoutTimerVar}) { clearTimeout(${timeoutTimerVar}); ${timeoutTimerVar} = undefined; }`);
+  emit(context, indent, "};");
   emit(context, indent, `const ${renderLoadingVar} = () => {`);
   emit(context, indent + 1, `if (${failedVar}) { return; }`);
   emit(context, indent + 1, `${clearLoadingVar}();`);
@@ -579,6 +595,7 @@ function generateAsyncBoundary(
   emit(context, indent, "};");
   emit(context, indent, `const ${renderFallbackVar} = (${errorVar}, ${errorInfoVar} = __mikuru_errorInfo("async-loader")) => {`);
   emit(context, indent + 1, `${failedVar} = true;`);
+  emit(context, indent + 1, `${clearTimersVar}();`);
   emit(context, indent + 1, `${clearLoadingVar}();`);
   emit(context, indent + 1, `${clearFallbackVar}();`);
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
@@ -591,24 +608,45 @@ function generateAsyncBoundary(
   emit(context, indent + 1, `${fallbackCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
   appendNode(context, parentVar, fallbackFragmentVar, indent + 1, endVar);
   emit(context, indent, "};");
+  emit(context, indent, `const ${scheduleLoadingVar} = () => {`);
+  emit(context, indent + 1, `const ${delayVar} = Number(unwrap(${delayExpression}) ?? 0);`);
+  emit(context, indent + 1, `if (${delayVar} <= 0) { ${renderLoadingVar}(); return; }`);
+  emit(context, indent + 1, `if (${delayTimerVar}) { return; }`);
+  emit(context, indent + 1, `${delayTimerVar} = setTimeout(() => {`);
+  emit(context, indent + 2, `${delayTimerVar} = undefined;`);
+  emit(context, indent + 2, `if (${pendingVar} > 0 && !${failedVar}) { ${renderLoadingVar}(); }`);
+  emit(context, indent + 1, `}, ${delayVar});`);
+  emit(context, indent, "};");
+  emit(context, indent, `const ${scheduleTimeoutVar} = () => {`);
+  emit(context, indent + 1, `const ${timeoutVar} = unwrap(${timeoutExpression});`);
+  emit(context, indent + 1, `if (${timeoutVar} == null || Number(${timeoutVar}) <= 0 || ${timeoutTimerVar}) { return; }`);
+  emit(context, indent + 1, `${timeoutTimerVar} = setTimeout(() => {`);
+  emit(context, indent + 2, `${timeoutTimerVar} = undefined;`);
+  emit(context, indent + 2, `if (${pendingVar} <= 0 || ${failedVar}) { return; }`);
+  emit(context, indent + 2, `const ${timeoutErrorVar} = new Error("Async boundary timed out");`);
+  emit(context, indent + 2, `${errorsVar}.push(${timeoutErrorVar});`);
+  emit(context, indent + 2, `${renderFallbackVar}(${timeoutErrorVar}, __mikuru_errorInfo("async-timeout"));`);
+  emit(context, indent + 1, `}, Number(${timeoutVar}));`);
+  emit(context, indent, "};");
   emit(context, indent, `const ${asyncContextVar} = { parent: __mikuru_context, provides: new Map(), errorHandler: __mikuru_context.errorHandler, asyncBoundary: {`);
   emit(context, indent + 1, `start({ retry: ${retryVar} }) {`);
   emit(context, indent + 2, `${pendingVar} += 1;`);
   emit(context, indent + 2, `${lastRetryVar} = ${renderVar};`);
-  emit(context, indent + 2, `${renderLoadingVar}();`);
+  emit(context, indent + 2, `if (${pendingVar} === 1) { ${scheduleLoadingVar}(); ${scheduleTimeoutVar}(); } else if (${loadingCleanupVar}.length > 0) { ${renderLoadingVar}(); }`);
   emit(context, indent + 2, `let ${settledVar} = false;`);
   emit(context, indent + 2, "return {");
   emit(context, indent + 3, "resolve() {");
   emit(context, indent + 4, `if (${settledVar}) { return; }`);
   emit(context, indent + 4, `${settledVar} = true;`);
   emit(context, indent + 4, `${pendingVar} = Math.max(0, ${pendingVar} - 1);`);
-  emit(context, indent + 4, `if (${pendingVar} === 0) { ${clearLoadingVar}(); } else { ${renderLoadingVar}(); }`);
+  emit(context, indent + 4, `if (${pendingVar} === 0) { ${clearTimersVar}(); ${clearLoadingVar}(); } else if (${loadingCleanupVar}.length > 0) { ${renderLoadingVar}(); }`);
   emit(context, indent + 3, "},");
   emit(context, indent + 3, `reject(${errorVar}, ${errorInfoVar}) {`);
   emit(context, indent + 4, `if (${settledVar}) { return; }`);
   emit(context, indent + 4, `${settledVar} = true;`);
   emit(context, indent + 4, `${pendingVar} = Math.max(0, ${pendingVar} - 1);`);
   emit(context, indent + 4, `${errorsVar}.push(${errorVar});`);
+  emit(context, indent + 4, `${clearTimersVar}();`);
   emit(context, indent + 4, `${renderFallbackVar}(${errorVar}, ${errorInfoVar});`);
   emit(context, indent + 3, "}");
   emit(context, indent + 2, "};");
@@ -619,6 +657,7 @@ function generateAsyncBoundary(
   emit(context, indent + 1, `${pendingVar} = 0;`);
   emit(context, indent + 1, `${errorsVar} = [];`);
   emit(context, indent + 1, `${lastRetryVar} = ${renderVar};`);
+  emit(context, indent + 1, `${clearTimersVar}();`);
   emit(context, indent + 1, `${clearLoadingVar}();`);
   emit(context, indent + 1, `${clearFallbackVar}();`);
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
@@ -629,6 +668,7 @@ function generateAsyncBoundary(
   emit(context, indent, "};");
   emit(context, indent, `${renderVar}();`);
   emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${clearTimersVar}();`);
   emit(context, indent + 1, `${clearLoadingVar}();`);
   emit(context, indent + 1, `${clearFallbackVar}();`);
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
@@ -3144,6 +3184,26 @@ function getAsyncBoundaryFallbackExpression(context: GenerateContext, node: Elem
   return compileTemplateExpression(requireAttrValue(fallbackAttr), fallbackAttr.name, toExpressionContext(context, fallbackAttr.valueLoc));
 }
 
+function getAsyncBoundaryDelayExpression(context: GenerateContext, node: ElementNode): string {
+  const delayAttr = node.attrs.find((attr) => getBindingName(attr.name) === "delay");
+
+  if (!delayAttr) {
+    return "0";
+  }
+
+  return compileTemplateExpression(requireAttrValue(delayAttr), delayAttr.name, toExpressionContext(context, delayAttr.valueLoc));
+}
+
+function getAsyncBoundaryTimeoutExpression(context: GenerateContext, node: ElementNode): string {
+  const timeoutAttr = node.attrs.find((attr) => getBindingName(attr.name) === "timeout");
+
+  if (!timeoutAttr) {
+    return "undefined";
+  }
+
+  return compileTemplateExpression(requireAttrValue(timeoutAttr), timeoutAttr.name, toExpressionContext(context, timeoutAttr.valueLoc));
+}
+
 function validateErrorBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
   for (const attr of node.attrs) {
     const bindingName = getBindingName(attr.name);
@@ -3158,11 +3218,11 @@ function validateErrorBoundaryAttributes(context: GenerateContext, node: Element
 function validateAsyncBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
   for (const attr of node.attrs) {
     const bindingName = getBindingName(attr.name);
-    if (bindingName === "loading" || bindingName === "fallback") {
+    if (bindingName === "loading" || bindingName === "fallback" || bindingName === "delay" || bindingName === "timeout") {
       continue;
     }
 
-    throwTemplateError("<AsyncBoundary> only supports :loading and :fallback in v1", context, attr.loc);
+    throwTemplateError("<AsyncBoundary> only supports :loading, :fallback, :delay, and :timeout in v1", context, attr.loc);
   }
 }
 
