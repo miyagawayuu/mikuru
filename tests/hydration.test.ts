@@ -312,8 +312,9 @@ function increment() {
       },
       async hydrate(target: Element, props: Record<string, any>) {
         target.setAttribute("data-hydrated", "shell");
+        expect(props.__mikuru_context?.provides?.get(Symbol.for("mikuru.router"))).toBe(router);
         hydrated.push("shell");
-        await props.children(target.querySelector("#child") as unknown as Element);
+        await props.children(target.querySelector("#child") as unknown as Element, { __mikuru_context: props.__mikuru_context });
         return {
           element: target,
           unmount() {
@@ -327,6 +328,7 @@ function increment() {
         return `<p data-id="${props.id}">User ${props.route.params.id}</p>`;
       },
       hydrate(target: Element, props: Record<string, any>) {
+        expect(props.__mikuru_context?.provides?.get(Symbol.for("mikuru.router"))).toBe(router);
         const element = target.matches("p") ? target : target.firstElementChild as unknown as Element;
         element.setAttribute("data-hydrated", String(props.id));
         hydrated.push("user");
