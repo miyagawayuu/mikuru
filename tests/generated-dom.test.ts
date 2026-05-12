@@ -2369,6 +2369,8 @@ function makePanel(name) {
 
 const PanelA = makePanel("A");
 const PanelB = makePanel("B");
+PanelA.name = "PanelA";
+PanelB.name = "PanelB";
 const current = computed(() => currentName.value === "a" ? PanelA : PanelB);
 
 function showA() {
@@ -2394,6 +2396,145 @@ function showB() {
 
     buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
     expect(buttons().map((button) => button.textContent)).toEqual(["Show A", "Show B", "A:1"]);
+  });
+
+  it("respects KeepAlive include and exclude filters", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="showA">Show A</button>
+    <button @click="showB">Show B</button>
+    <button @click="showC">Show C</button>
+    <KeepAlive :include="['PanelA', /PanelB/]" exclude="PanelC">
+      <component :is="current" />
+    </KeepAlive>
+  </section>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const currentName = ref("a");
+
+function makePanel(name) {
+  const component = {
+    mount(target) {
+      let count = 0;
+      const button = document.createElement("button");
+      const render = () => { button.textContent = name + ":" + count; };
+      button.addEventListener("click", () => { count += 1; render(); });
+      render();
+      target.appendChild(button);
+      return { element: button, unmount() { button.remove(); } };
+    }
+  };
+  component.name = "Panel" + name;
+  return component;
+}
+
+const PanelA = makePanel("A");
+const PanelB = makePanel("B");
+const PanelC = makePanel("C");
+const current = computed(() => currentName.value === "a" ? PanelA : currentName.value === "b" ? PanelB : PanelC);
+
+function showA() {
+  currentName.value = "a";
+}
+
+function showB() {
+  currentName.value = "b";
+}
+
+function showC() {
+  currentName.value = "c";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const buttons = () => Array.from(fixture.root.querySelectorAll("button"));
+
+    buttons()[3]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("A:1");
+    buttons()[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons()[3]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("B:1");
+    buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("A:1");
+
+    buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons()[3]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("C:1");
+    buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("C:0");
+  });
+
+  it("prunes KeepAlive cache with max using least recently used order", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="showA">Show A</button>
+    <button @click="showB">Show B</button>
+    <button @click="showC">Show C</button>
+    <KeepAlive :max="2">
+      <component :is="current" />
+    </KeepAlive>
+  </section>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const currentName = ref("a");
+
+function makePanel(name) {
+  const component = {
+    mount(target) {
+      let count = 0;
+      const button = document.createElement("button");
+      const render = () => { button.textContent = name + ":" + count; };
+      button.addEventListener("click", () => { count += 1; render(); });
+      render();
+      target.appendChild(button);
+      return { element: button, unmount() { button.remove(); } };
+    }
+  };
+  component.name = "Panel" + name;
+  return component;
+}
+
+const PanelA = makePanel("A");
+const PanelB = makePanel("B");
+const PanelC = makePanel("C");
+const current = computed(() => currentName.value === "a" ? PanelA : currentName.value === "b" ? PanelB : PanelC);
+
+function showA() {
+  currentName.value = "a";
+}
+
+function showB() {
+  currentName.value = "b";
+}
+
+function showC() {
+  currentName.value = "c";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const buttons = () => Array.from(fixture.root.querySelectorAll("button"));
+
+    buttons()[3]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons()[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons()[3]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("A:1");
+    buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+    buttons()[3]?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("A:1");
+
+    buttons()[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(buttons()[3]?.textContent).toBe("B:0");
   });
 
   it("applies Transition classes on mount and delayed unmount", async () => {

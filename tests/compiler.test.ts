@@ -684,8 +684,8 @@ const count = 0;
       /Unsupported attribute "mod" on <Transition>\. Did you mean mode\?/
     );
 
-    expect(() => compile(`<template><KeepAlive include="Panel"><component :is="Panel" /></KeepAlive></template>`)).toThrow(
-      /Unsupported attribute "include" on <KeepAlive>/
+    expect(() => compile(`<template><KeepAlive keep="Panel"><component :is="Panel" /></KeepAlive></template>`)).toThrow(
+      /Unsupported attribute "keep" on <KeepAlive>/
     );
   });
 

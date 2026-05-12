@@ -947,6 +947,9 @@ function generateKeepAlive(
   }
 
   const expression = compileTemplateExpression(requireAttrValue(isAttr), isAttr.name, toExpressionContext(context, isAttr.valueLoc));
+  const includeExpression = getKeepAliveOptionExpression(context, node, "include");
+  const excludeExpression = getKeepAliveOptionExpression(context, node, "exclude");
+  const maxExpression = getKeepAliveOptionExpression(context, node, "max");
   const dynamicNode = withoutAttrs(child, ["is", ":is", "v-bind:is"]);
   const startVar = nextVar(context, "keepAliveStart");
   const endVar = nextVar(context, "keepAliveEnd");
@@ -954,7 +957,16 @@ function generateKeepAlive(
   const currentTypeVar = nextVar(context, "keepAliveCurrent");
   const currentRecordVar = nextVar(context, "keepAliveCurrent");
   const componentTypeVar = nextVar(context, "keepAliveType");
+  const componentNameVar = nextVar(context, "keepAliveName");
+  const componentNameHelperVar = nextVar(context, "keepAliveName");
+  const matchHelperVar = nextVar(context, "keepAliveMatches");
+  const includeVar = nextVar(context, "keepAliveInclude");
+  const excludeVar = nextVar(context, "keepAliveExclude");
+  const maxVar = nextVar(context, "keepAliveMax");
+  const cacheableVar = nextVar(context, "keepAliveCacheable");
   const recordVar = nextVar(context, "keepAliveRecord");
+  const staleKeyVar = nextVar(context, "keepAliveStaleKey");
+  const staleRecordVar = nextVar(context, "keepAliveStaleRecord");
   const fragmentVar = nextVar(context, "fragment");
   const attrsVar = nextVar(context, "attrs");
   const propsVar = nextVar(context, "props");
@@ -968,13 +980,43 @@ function generateKeepAlive(
   emit(context, indent, `const ${cacheVar} = new Map();`);
   emit(context, indent, `let ${currentTypeVar};`);
   emit(context, indent, `let ${currentRecordVar};`);
+  emit(context, indent, `const ${componentNameHelperVar} = (component) => component?.name ?? component?.displayName ?? component?.__name ?? component?.constructor?.name ?? "";`);
+  emit(context, indent, `const ${matchHelperVar} = (pattern, name) => pattern == null ? false : typeof pattern === "string" ? pattern.split(",").map((part) => part.trim()).filter(Boolean).includes(name) : Array.isArray(pattern) ? pattern.some((entry) => ${matchHelperVar}(entry, name)) : pattern instanceof RegExp ? pattern.test(name) : false;`);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   emit(context, indent + 1, `const ${componentTypeVar} = unwrap(${expression});`);
   emit(context, indent + 1, `if (${componentTypeVar} === ${currentTypeVar}) { return; }`);
+  emit(context, indent + 1, `if (${currentRecordVar}?.transient) { __mikuru_runCleanup(${currentRecordVar}.cleanups); }`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
   emit(context, indent + 1, `if (!${componentTypeVar}) { ${currentTypeVar} = ${componentTypeVar}; ${currentRecordVar} = undefined; return; }`);
   emit(context, indent + 1, `if (typeof ${componentTypeVar} !== "object" || typeof ${componentTypeVar}.mount !== "function") {`);
   emit(context, indent + 2, `throw new Error("KeepAlive child :is must resolve to a component object with mount()");`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `const ${componentNameVar} = ${componentNameHelperVar}(${componentTypeVar});`);
+  emit(context, indent + 1, `const ${includeVar} = unwrap(${includeExpression ?? "undefined"});`);
+  emit(context, indent + 1, `const ${excludeVar} = unwrap(${excludeExpression ?? "undefined"});`);
+  emit(context, indent + 1, `const ${maxVar} = Number(unwrap(${maxExpression ?? "undefined"}));`);
+  emit(context, indent + 1, `const ${cacheableVar} = (${includeVar} == null || ${matchHelperVar}(${includeVar}, ${componentNameVar})) && !${matchHelperVar}(${excludeVar}, ${componentNameVar});`);
+  emit(context, indent + 1, `if (!${cacheableVar}) {`);
+  emit(context, indent + 2, `const ${fragmentVar} = document.createDocumentFragment();`);
+  emit(context, indent + 2, `const ${recordCleanupVar} = [];`);
+  emitComponentAttrs(context, dynamicNode, attrsVar, indent + 2);
+  emitComponentProps(context, dynamicNode, propsVar, attrsVar, indent + 2);
+  emit(context, indent + 2, `const ${componentVar} = ${componentTypeVar}.mount(${fragmentVar}, ${propsVar});`);
+  if (context.scopeAttr) {
+    emit(context, indent + 2, `if (${componentVar}.element?.nodeType === 1) {`);
+    emit(context, indent + 3, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
+    emit(context, indent + 2, "}");
+  }
+  emit(context, indent + 2, `if (${componentTypeVar}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context, dynamicNode, componentVar, recordCleanupVar, indent + 3);
+  emit(context, indent + 2, "}");
+  emitComponentShow(context, dynamicNode, componentVar, recordCleanupVar, indent + 2);
+  emitTemplateRef(context, dynamicNode, componentVar, recordCleanupVar, indent + 2);
+  appendNode(context, parentVar, fragmentVar, indent + 2, endVar);
+  emit(context, indent + 2, `${currentTypeVar} = ${componentTypeVar};`);
+  emit(context, indent + 2, `${currentRecordVar} = { instance: ${componentVar}, element: ${componentVar}.element, cleanups: ${recordCleanupVar}, transient: true };`);
+  emit(context, indent + 2, `${recordCleanupVar}.push(() => ${componentVar}.unmount());`);
+  emit(context, indent + 2, "return;");
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `let ${recordVar} = ${cacheVar}.get(${componentTypeVar});`);
   emit(context, indent + 1, `if (!${recordVar}) {`);
@@ -995,8 +1037,19 @@ function generateKeepAlive(
   emitTemplateRef(context, dynamicNode, componentVar, recordCleanupVar, indent + 2);
   emit(context, indent + 2, `${recordVar} = { instance: ${componentVar}, element: ${componentVar}.element, cleanups: ${recordCleanupVar} };`);
   emit(context, indent + 2, `${cacheVar}.set(${componentTypeVar}, ${recordVar});`);
+  emit(context, indent + 2, `if (Number.isFinite(${maxVar}) && ${maxVar} > 0) {`);
+  emit(context, indent + 3, `while (${cacheVar}.size > ${maxVar}) {`);
+  emit(context, indent + 4, `const ${staleKeyVar} = ${cacheVar}.keys().next().value;`);
+  emit(context, indent + 4, `if (${staleKeyVar} === ${componentTypeVar}) { break; }`);
+  emit(context, indent + 4, `const ${staleRecordVar} = ${cacheVar}.get(${staleKeyVar});`);
+  emit(context, indent + 4, `${cacheVar}.delete(${staleKeyVar});`);
+  emit(context, indent + 4, `if (${staleRecordVar}) { __mikuru_runCleanup(${staleRecordVar}.cleanups); ${staleRecordVar}.instance.unmount(); }`);
+  emit(context, indent + 3, "}");
+  emit(context, indent + 2, "}");
   appendNode(context, parentVar, fragmentVar, indent + 2, endVar);
   emit(context, indent + 1, "} else {");
+  emit(context, indent + 2, `${cacheVar}.delete(${componentTypeVar});`);
+  emit(context, indent + 2, `${cacheVar}.set(${componentTypeVar}, ${recordVar});`);
   emit(context, indent + 2, `${parentVar}.insertBefore(${recordVar}.element, ${endVar});`);
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `${currentTypeVar} = ${componentTypeVar};`);
@@ -1004,6 +1057,7 @@ function generateKeepAlive(
   emit(context, indent, "});");
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `${stopVar}();`);
+  emit(context, indent + 1, `if (${currentRecordVar}?.transient) { __mikuru_runCleanup(${currentRecordVar}.cleanups); }`);
   emit(context, indent + 1, `for (const ${recordVar} of ${cacheVar}.values()) { __mikuru_runCleanup(${recordVar}.cleanups); ${recordVar}.instance.unmount(); }`);
   emit(context, indent + 1, `${cacheVar}.clear();`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
@@ -3433,6 +3487,17 @@ function getAsyncBoundaryTimeoutExpression(context: GenerateContext, node: Eleme
   return compileTemplateExpression(requireAttrValue(timeoutAttr), timeoutAttr.name, toExpressionContext(context, timeoutAttr.valueLoc));
 }
 
+function getKeepAliveOptionExpression(context: GenerateContext, node: ElementNode, name: "include" | "exclude" | "max"): string | undefined {
+  const dynamicAttr = node.attrs.find((attr) => getBindingName(attr.name) === name);
+
+  if (dynamicAttr) {
+    return compileTemplateExpression(requireAttrValue(dynamicAttr), dynamicAttr.name, toExpressionContext(context, dynamicAttr.valueLoc));
+  }
+
+  const staticValue = getStaticAttrValue(node, name);
+  return staticValue === undefined ? undefined : quote(staticValue);
+}
+
 function validateErrorBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
   const supported = [
     { name: "fallback", display: ":fallback" },
@@ -3468,8 +3533,19 @@ function validateAsyncBoundaryAttributes(context: GenerateContext, node: Element
 }
 
 function validateKeepAliveAttributes(context: GenerateContext, node: ElementNode): void {
+  const supported = [
+    { name: "include", display: ":include" },
+    { name: "exclude", display: ":exclude" },
+    { name: "max", display: ":max" }
+  ];
+
   for (const attr of node.attrs) {
-    throwUnsupportedSpecialAttribute(context, "KeepAlive", attr, [], "no attributes");
+    const name = getBindingName(attr.name) ?? attr.name;
+    if (name === "include" || name === "exclude" || name === "max") {
+      continue;
+    }
+
+    throwUnsupportedSpecialAttribute(context, "KeepAlive", attr, supported, "include, exclude, and max");
   }
 }
 

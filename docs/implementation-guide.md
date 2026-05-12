@@ -296,10 +296,10 @@ Use `<component :is="Current" />` when the component type should come from state
 
 Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `v-show` behavior as explicit child component tags.
 
-Wrap one dynamic component in `<KeepAlive>` when switching component types should preserve each component instance until the parent unmounts. The v1 built-in accepts exactly one `<component :is="...">` child and no attributes.
+Wrap one dynamic component in `<KeepAlive>` when switching component types should preserve each component instance until the parent unmounts. The v1 built-in accepts exactly one `<component :is="...">` child and optional `include`, `exclude`, and `max` cache controls. `include` and `exclude` match the component `name`, `displayName`, `__name`, or constructor name with a comma-delimited string, array, or `RegExp`; `max` prunes the least recently used cached instance.
 
 ```mikuru
-<KeepAlive>
+<KeepAlive :include="['ProfilePanel', /Settings/]" exclude="DraftPanel" :max="2">
   <component :is="currentPanel" />
 </KeepAlive>
 ```
