@@ -185,12 +185,22 @@ function addCandidate(candidates: SourceMapCandidate[], needle: string, location
 }
 
 function normalizeAttributeName(name: string): string | undefined {
+  const normalizeBindName = (rawName: string): string | undefined => {
+    const [bindingName, ...modifiers] = rawName.split(".");
+    if (!bindingName) {
+      return undefined;
+    }
+
+    return modifiers.includes("camel") ? bindingName.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase()) : bindingName;
+  };
+
   if (name.startsWith(":")) {
-    return name.slice(1);
+    return name.startsWith(":[") ? undefined : normalizeBindName(name.slice(1));
   }
 
   if (name.startsWith("v-bind:")) {
-    return name.slice("v-bind:".length);
+    const rawName = name.slice("v-bind:".length);
+    return rawName.startsWith("[") ? undefined : normalizeBindName(rawName);
   }
 
   return name.startsWith("v-") || name.startsWith("@") || name.startsWith("#") ? undefined : name;

@@ -15,6 +15,12 @@ type ScriptParts = {
   body: string;
 };
 
+type BindDirective = {
+  name?: string;
+  nameExpression?: string;
+  modifiers: string[];
+};
+
 export function generateHydration(descriptor: SfcDescriptor, root: ElementNode): string {
   const context: HydrationContext = {
     lines: [],
@@ -267,35 +273,38 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       continue;
     }
 
-    const dynamicArgument = getDynamicAttrArgument(attr.name);
+    const bindDirective = parseBindDirective(attr.name);
+    const dynamicArgument = bindDirective?.nameExpression ? bindDirective : undefined;
     if (dynamicArgument) {
-      const nameExpression = compileHydrationExpression(context, dynamicArgument.expression, attr.name);
+      validateBindModifiers(dynamicArgument, attr);
+      const nameExpression = compileHydrationExpression(context, dynamicArgument.nameExpression ?? "", attr.name);
       const valueExpression = compileHydrationExpression(context, String(attr.value), attr.name);
       const previousNameVar = nextName(context, "attrName");
       const nextNameVar = nextName(context, "attrName");
       const valueVar = nextName(context, "attrValue");
       emit(context, indent, `let ${previousNameVar};`);
       emit(context, indent, `__mikuru_cleanup.push(effect(() => {`);
-      emit(context, indent + 1, `const ${nextNameVar} = String(unwrap(${nameExpression}) ?? "");`);
+      emit(context, indent + 1, `const ${nextNameVar} = ${bindNameExpression(`String(unwrap(${nameExpression}) ?? "")`, dynamicArgument)};`);
       emit(context, indent + 1, `if (!${nextNameVar}) { if (${previousNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null); ${previousNameVar} = undefined; return; }`);
       emit(context, indent + 1, `if (${previousNameVar} && ${previousNameVar} !== ${nextNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null);`);
       emit(context, indent + 1, `const ${valueVar} = unwrap(${valueExpression});`);
-      emit(context, indent + 1, `setAttribute(${elementVar}, ${nextNameVar}, ${nextNameVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, ${valueVar}] : ${nextNameVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, ${valueVar}] : ${valueVar});`);
+      emit(context, indent + 1, `setAttribute(${elementVar}, ${nextNameVar}, ${nextNameVar} === "class" && ${staticClass ? "true" : "false"} ? [${quote(staticClass ?? "")}, ${valueVar}] : ${nextNameVar} === "style" && ${staticStyle ? "true" : "false"} ? [${quote(staticStyle ?? "")}, ${valueVar}] : ${valueVar}${bindOptionsExpression(dynamicArgument)});`);
       emit(context, indent + 1, `${previousNameVar} = ${nextNameVar};`);
       emit(context, indent, `}));`);
       continue;
     }
 
-    const dynamicName = getDynamicAttrName(attr.name);
+    const dynamicName = bindDirective?.name;
     if (dynamicName) {
+      validateBindModifiers(bindDirective, attr);
       const expression = compileHydrationExpression(context, String(attr.value), attr.name);
       const valueExpression =
         dynamicName === "class" && staticClass
           ? `[${quote(staticClass)}, unwrap(${expression})]`
           : dynamicName === "style" && staticStyle
-            ? `[${quote(staticStyle)}, unwrap(${expression})]`
+          ? `[${quote(staticStyle)}, unwrap(${expression})]`
             : `unwrap(${expression})`;
-      emit(context, indent, `__mikuru_cleanup.push(effect(() => setAttribute(${elementVar}, ${quote(dynamicName)}, ${valueExpression})));`);
+      emit(context, indent, `__mikuru_cleanup.push(effect(() => setAttribute(${elementVar}, ${quote(dynamicName)}, ${valueExpression}${bindOptionsExpression(bindDirective)})));`);
       continue;
     }
 
@@ -632,10 +641,8 @@ function isComponentTag(tag: string): boolean {
 }
 
 function getDynamicAttrName(name: string): string | undefined {
-  if (getDynamicAttrArgument(name)) return undefined;
-  if (name.startsWith(":")) return name.slice(1);
-  if (name.startsWith("v-bind:")) return name.slice("v-bind:".length);
-  return undefined;
+  const binding = parseBindDirective(name);
+  return binding?.nameExpression ? undefined : binding?.name;
 }
 
 function getEventName(name: string): string | undefined {
@@ -646,9 +653,59 @@ function getEventName(name: string): string | undefined {
 }
 
 function getDynamicAttrArgument(name: string): { expression: string } | undefined {
+  const binding = parseBindDirective(name);
+  return binding?.nameExpression ? { expression: binding.nameExpression } : undefined;
+}
+
+function parseBindDirective(name: string): BindDirective | undefined {
   const dynamic = parseDynamicArgument(name, [":", "v-bind:"]);
-  if (!dynamic || dynamic.modifiers.length > 0) return undefined;
-  return { expression: dynamic.expression };
+  if (dynamic) {
+    return { nameExpression: dynamic.expression, modifiers: dynamic.modifiers };
+  }
+
+  const rawName = name.startsWith(":")
+    ? name.slice(1)
+    : name.startsWith("v-bind:")
+      ? name.slice("v-bind:".length)
+      : undefined;
+
+  if (!rawName) {
+    return undefined;
+  }
+
+  const [bindingName, ...modifiers] = rawName.split(".");
+  if (!bindingName) {
+    return undefined;
+  }
+
+  return { name: modifiers.includes("camel") ? camelize(bindingName) : bindingName, modifiers };
+}
+
+function validateBindModifiers(binding: BindDirective, attr: TemplateAttribute): void {
+  const allowed = new Set(["camel", "prop", "attr"]);
+  for (const modifier of binding.modifiers) {
+    if (!allowed.has(modifier)) {
+      throw new Error(`Unsupported v-bind modifier ".${modifier}" on ${attr.name}. Use .camel, .prop, or .attr.`);
+    }
+  }
+
+  if (binding.modifiers.includes("prop") && binding.modifiers.includes("attr")) {
+    throw new Error(`v-bind modifiers .prop and .attr cannot be used together on ${attr.name}`);
+  }
+}
+
+function bindOptionsExpression(binding: BindDirective): string {
+  if (binding.modifiers.includes("prop")) return ", { property: true }";
+  if (binding.modifiers.includes("attr")) return ", { attribute: true }";
+  return "";
+}
+
+function bindNameExpression(expression: string, binding: BindDirective): string {
+  return binding.modifiers.includes("camel") ? `(${expression}).replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase())` : expression;
+}
+
+function camelize(value: string): string {
+  return value.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
 }
 
 function getDynamicEventArgument(name: string): { expression: string; modifiers: string[] } | undefined {

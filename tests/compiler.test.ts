@@ -371,6 +371,35 @@ const childListeners = { select() {} };
     expect(component.code).toContain("childListeners");
   });
 
+  it("generates v-bind modifiers for element and component bindings", () => {
+    const element = compile(`<template>
+  <input :indeterminate.prop="mixed" :data-user-id.camel="userId" :aria-hidden.attr="hidden" :[name].camel="value" />
+</template>
+<script>
+const mixed = true;
+const userId = "42";
+const hidden = false;
+const name = "data-current-id";
+const value = "active";
+</script>`);
+    const component = compile(`<template><Child :user-name.camel="name" /></template>
+<script>
+import Child from "./Child.mikuru";
+const name = "Mikuru";
+</script>`);
+
+    expect(element.code).toContain('setAttribute(el0, "indeterminate"');
+    expect(element.code).toContain("{ property: true }");
+    expect(element.code).toContain('setAttribute(el0, "dataUserId"');
+    expect(element.code).toContain('setAttribute(el0, "aria-hidden"');
+    expect(element.code).toContain("{ attribute: true }");
+    expect(element.code).toContain(".replace(/-([a-z])/g");
+    expect(component.code).toContain("get userName()");
+    expect(() => compile(`<template><Child :value.prop="value" /></template><script>const value = 1;</script>`)).toThrow(
+      /v-bind \.prop and \.attr modifiers are only supported on native elements/
+    );
+  });
+
   it("generates component attribute fallthrough", () => {
     const result = compile(`<template>
   <Child id="panel" title="Panel" :aria-label="label" class="parent" :class="{ active }" style="color: red" :style="{ fontSize: size }" v-bind="attrs" />

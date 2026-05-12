@@ -457,6 +457,24 @@ describe("runtime reactivity", () => {
     expect(element.hasAttribute("style")).toBe(false);
   });
 
+  it("can force DOM property or attribute bindings", () => {
+    const window = new Window();
+    const checkbox = window.document.createElement("input");
+    checkbox.type = "checkbox";
+
+    setAttribute(checkbox as unknown as Element, "indeterminate", true, { property: true });
+    expect(checkbox.indeterminate).toBe(true);
+    expect(checkbox.hasAttribute("indeterminate")).toBe(false);
+
+    setAttribute(checkbox as unknown as Element, "indeterminate", true, { attribute: true });
+    expect(checkbox.indeterminate).toBe(true);
+    expect(checkbox.getAttribute("indeterminate")).toBe("true");
+
+    setAttribute(checkbox as unknown as Element, "indeterminate", null, { property: true });
+    expect(checkbox.indeterminate).toBe(false);
+    expect(checkbox.hasAttribute("indeterminate")).toBe(false);
+  });
+
   it("runs nextTick callbacks in a microtask", async () => {
     const calls: string[] = [];
     const tick = nextTick(() => calls.push("tick"));

@@ -129,6 +129,8 @@ mouse/pointer系イベントでは `.left`、`.right`、`.middle` をbutton条�
 <div v-bind:class="className"></div>
 <div v-bind="attrs"></div>
 <div :[attrName]="value"></div>
+<input type="checkbox" :indeterminate.prop="mixed">
+<p :data-user-id.camel="userId"></p>
 <button :disabled="busy">Save</button>
 <input :value="name" :checked="selected" />
 <div :class="['base', { active: isActive }]"></div>
@@ -138,6 +140,7 @@ mouse/pointer系イベントでは `.left`、`.right`、`.middle` をbutton条�
 `:attr="expr"` と `v-bind:attr="expr"` は、依存値が変わったときに属性を更新する。`v-bind="attrs"` はオブジェクトのkey/valueをまとめて属性へ反映し、消えたkeyは削除する。
 `:[attrName]="value"` と `v-bind:[attrName]="value"` は属性名を式から決める。属性名が変わると古い属性を削除して新しい属性を設定する。
 boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`value` などのフォーム系属性は対応するDOM propertyも同期する。通常属性に真偽値を渡した場合は `"true"` / `"false"` として出力する。
+直接・動的引数の `v-bind` は `.prop`、`.attr`、`.camel` modifiers をサポートする。`.prop` はDOM propertyだけを更新し、`.attr` はDOM property同期を避けて属性だけを更新する。`.camel` はkebab-case名をcamelCaseへ変換する。`.prop` と `.attr` はnative element専用で、同時には使えない。
 
 生成方針:
 
