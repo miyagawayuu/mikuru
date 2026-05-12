@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added a dogfood ErrorBoundary lab and E2E coverage for diagnostics, fallback reset, and `:reset-key` recovery.
+
 ## 1.0.19 - 2026-05-12
 
 - Extended `<ErrorBoundary>` to catch descendant generated event handler, lifecycle callback, and cleanup errors through component tree error propagation.

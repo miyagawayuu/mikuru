@@ -16,6 +16,17 @@
       :archived="archivedCount"
     />
 
+    <section class="error-lab" aria-label="ErrorBoundary lab">
+      <div>
+        <h2>ErrorBoundary lab</h2>
+        <p>Fallback props expose phase, filename, and reset controls.</p>
+      </div>
+      <ErrorBoundary :fallback="ErrorFallback" :reset-key="boundaryVersion">
+        <button class="danger-action" @click="triggerBoundaryError">Trigger boundary error</button>
+      </ErrorBoundary>
+      <button @click="resetBoundaryKey">Reset boundary key</button>
+    </section>
+
     <nav class="filters">
       <button @click="showAll">All</button>
       <button @click="showActive">Active</button>
@@ -78,6 +89,7 @@ const AsyncStats = defineAsyncComponent({
 const search = ref("");
 const filter = ref("all");
 const summaryOpen = ref(false);
+const boundaryVersion = ref(0);
 const notes = ref([
   {
     id: "parser",
@@ -104,6 +116,34 @@ const notes = ref([
     statusLabel: "Active"
   }
 ]);
+
+const ErrorFallback = {
+  mount(target, props) {
+    const panel = document.createElement("section");
+    panel.className = "error-fallback";
+    panel.setAttribute("role", "alert");
+
+    const title = document.createElement("strong");
+    title.textContent = "Boundary caught an error";
+
+    const message = document.createElement("p");
+    const errorMessage = props.error instanceof Error ? props.error.message : String(props.error);
+    message.textContent = `${props.errorInfo?.phase ?? "runtime"} in ${props.errorInfo?.filename ?? "unknown"}: ${errorMessage}`;
+
+    const reset = document.createElement("button");
+    reset.textContent = "Reset boundary";
+    reset.addEventListener("click", () => props.reset());
+
+    panel.append(title, message, reset);
+    target.appendChild(panel);
+    return {
+      element: panel,
+      unmount() {
+        panel.remove();
+      }
+    };
+  }
+};
 
 const filteredNotes = computed(() => {
   const query = search.value.trim().toLowerCase();
@@ -169,6 +209,14 @@ function closeSummary() {
   summaryOpen.value = false;
 }
 
+function triggerBoundaryError() {
+  throw new Error("Dogfood boundary failure");
+}
+
+function resetBoundaryKey() {
+  boundaryVersion.value += 1;
+}
+
 function showAll() {
   filter.value = "all";
 }
@@ -221,6 +269,27 @@ header,
   border-radius: 8px;
   color: #475569;
   background: #f8fafc;
+}
+
+.error-lab,
+.error-fallback {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #7c2d12;
+  background: #fff7ed;
+}
+
+.error-lab h2,
+.error-lab p,
+.error-fallback p {
+  margin: 0;
+}
+
+.danger-action {
+  justify-self: start;
 }
 
 .summary-modal {
