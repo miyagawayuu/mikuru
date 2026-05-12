@@ -144,7 +144,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery
 - Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
-- SSR phase 1 through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, `v-if` chains, and `v-for` HTML output without hydration
+- SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, `v-if` chains, `v-for`, child components, props, and default slots without hydration
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
 
@@ -179,7 +179,7 @@ Compiler, runtime, and server entries are public for lower-level integrations:
 ```ts
 import { compile, compileSsr } from "mikuru/compiler";
 import { effect, isRef, nextTick, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch } from "mikuru/runtime";
-import { renderToString } from "mikuru/server";
+import { renderComponentToString, renderToString } from "mikuru/server";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 

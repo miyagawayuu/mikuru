@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 const { compile, compileSsr } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
-const { escapeHtml, renderAttr, renderToString } = await import("mikuru/server");
+const { escapeHtml, renderAttr, renderComponentToString, renderToString } = await import("mikuru/server");
 const {
   createDebugInspector,
   effect,
@@ -58,6 +58,7 @@ assert.match(ssrResult.code, /export function renderToString/);
 assert.equal(escapeHtml("<ok>"), "&lt;ok&gt;");
 assert.equal(renderAttr("data-count", 2), " data-count=\"2\"");
 assert.equal(renderToString({ renderToString: () => "<main>SSR</main>" }), "<main>SSR</main>");
+assert.equal(renderComponentToString({ renderToString: (props) => `<main>${props.message}</main>` }, { message: "component SSR" }), "<main>component SSR</main>");
 
 const count = ref(0);
 let observed = 0;
