@@ -247,6 +247,7 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
 }
 
 function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  const staticClass = getStaticAttrValue(node, "class");
   for (const attr of node.attrs) {
     if (shouldSkipAttr(attr)) {
       continue;
@@ -254,12 +255,45 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
 
     const dynamicName = getDynamicAttrName(attr.name);
     if (dynamicName) {
-      emit(context, indent, `__mikuru_cleanup.push(effect(() => setAttribute(${elementVar}, ${quote(dynamicName)}, unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)}))));`);
+      const expression = compileHydrationExpression(context, String(attr.value), attr.name);
+      const valueExpression = dynamicName === "class" && staticClass ? `[${quote(staticClass)}, unwrap(${expression})]` : `unwrap(${expression})`;
+      emit(context, indent, `__mikuru_cleanup.push(effect(() => setAttribute(${elementVar}, ${quote(dynamicName)}, ${valueExpression})));`);
       continue;
     }
 
     if (attr.name === "v-bind") {
-      emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_attrs = unwrap(${compileHydrationExpression(context, String(attr.value), "v-bind")}) ?? {}; for (const [key, value] of Object.entries(__mikuru_attrs)) setAttribute(${elementVar}, key, unwrap(value)); }));`);
+      const prevKeysVar = nextName(context, "attrsPrevKeys");
+      const nextKeysVar = nextName(context, "attrsNextKeys");
+      const attrsVar = nextName(context, "attrs");
+      const keyVar = nextName(context, "key");
+      const valueVar = nextName(context, "value");
+      const staleKeyVar = nextName(context, "staleKey");
+      emit(context, indent, `const ${prevKeysVar} = new Set();`);
+      emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
+      emit(context, indent + 1, `const ${attrsVar} = unwrap(${compileHydrationExpression(context, String(attr.value), "v-bind")}) ?? {};`);
+      emit(context, indent + 1, `const ${nextKeysVar} = new Set();`);
+      emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
+      emit(context, indent + 2, `for (const [${keyVar}, ${valueVar}] of Object.entries(${attrsVar})) {`);
+      emit(context, indent + 3, `${nextKeysVar}.add(${keyVar});`);
+      if (staticClass) {
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, ${keyVar} === "class" ? [${quote(staticClass)}, unwrap(${valueVar})] : unwrap(${valueVar}));`);
+      } else {
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${keyVar}, unwrap(${valueVar}));`);
+      }
+      emit(context, indent + 2, "}");
+      emit(context, indent + 1, "}");
+      emit(context, indent + 1, `for (const ${staleKeyVar} of ${prevKeysVar}) {`);
+      emit(context, indent + 2, `if (!${nextKeysVar}.has(${staleKeyVar})) {`);
+      if (staticClass) {
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, ${staleKeyVar} === "class" ? ${quote(staticClass)} : null);`);
+      } else {
+        emit(context, indent + 3, `setAttribute(${elementVar}, ${staleKeyVar}, null);`);
+      }
+      emit(context, indent + 2, "}");
+      emit(context, indent + 1, "}");
+      emit(context, indent + 1, `${prevKeysVar}.clear();`);
+      emit(context, indent + 1, `for (const ${keyVar} of ${nextKeysVar}) { ${prevKeysVar}.add(${keyVar}); }`);
+      emit(context, indent, "}));");
       continue;
     }
 
