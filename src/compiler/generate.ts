@@ -1179,7 +1179,7 @@ function generateElement(
     throwTemplateError("v-slot must be used on a <template> child in Mikuru", context, slotDirectiveAttr.loc);
   }
 
-  validateAttributes(node);
+  validateAttributes(context, node);
 
   const elementVar = nextVar(context, "el");
   emit(context, indent, `const ${elementVar} = document.createElement(${quote(node.tag)});`);
@@ -3304,7 +3304,11 @@ function throwUnsupportedSpecialAttribute(
 }
 
 function suggestAttributeName(name: string, supported: SupportedSpecialAttribute[]): SupportedSpecialAttribute | undefined {
-  let best: { candidate: SupportedSpecialAttribute; distance: number } | undefined;
+  return suggestName(name, supported);
+}
+
+function suggestName<T extends { name: string }>(name: string, supported: T[]): T | undefined {
+  let best: { candidate: T; distance: number } | undefined;
 
   for (const candidate of supported) {
     const distance = editDistance(name, candidate.name);
@@ -3354,12 +3358,38 @@ function toComponentEventProp(eventName: string): string {
     .join("")}`;
 }
 
-function validateAttributes(node: ElementNode): void {
+function validateAttributes(context: GenerateContext, node: ElementNode): void {
   for (const attr of node.attrs) {
     if (attr.name.startsWith("v-") && !isSupportedDirectiveAttr(attr)) {
-      throw new Error(`Unsupported directive ${attr.name}`);
+      throwUnsupportedDirective(context, attr);
     }
   }
+}
+
+function throwUnsupportedDirective(context: GenerateContext, attr: TemplateAttribute): never {
+  const suggestion = suggestDirectiveName(attr.name);
+  const suggestionMessage = suggestion ? ` Did you mean ${suggestion}?` : "";
+  throwTemplateError(`Unsupported directive ${quote(attr.name)}.${suggestionMessage}`, context, attr.loc);
+}
+
+function suggestDirectiveName(name: string): string | undefined {
+  const supported = ["v-if", "v-else-if", "v-else", "v-for", "v-show", "v-model", "v-bind", "v-on", "v-slot"];
+  const directiveName = name.includes(":") ? name.slice(0, name.indexOf(":")) : name.includes(".") ? name.slice(0, name.indexOf(".")) : name;
+  const suggestion = suggestName(directiveName, supported.map((candidate) => ({ name: candidate, display: candidate })));
+
+  if (!suggestion) {
+    return undefined;
+  }
+
+  if (suggestion.name === "v-bind" && name.includes(":")) {
+    return `v-bind:${name.slice(name.indexOf(":") + 1)}`;
+  }
+
+  if (suggestion.name === "v-on" && name.includes(":")) {
+    return `v-on:${name.slice(name.indexOf(":") + 1)}`;
+  }
+
+  return suggestion.display;
 }
 
 function isDirectiveAttr(attr: TemplateAttribute): boolean {
@@ -3424,11 +3454,13 @@ function parseModelDirective(name: string): { modifiers: string[] } | undefined 
 }
 
 function validateModelModifiers(model: { modifiers: string[] }, attr: TemplateAttribute, context: GenerateContext): void {
-  const supportedModifiers = new Set(["trim", "number", "lazy"]);
+  const supportedModifiers = ["trim", "number", "lazy"];
 
   for (const modifier of model.modifiers) {
-    if (!supportedModifiers.has(modifier)) {
-      throwTemplateError(`Unsupported v-model modifier .${modifier}`, context, attr.loc);
+    if (!supportedModifiers.includes(modifier)) {
+      const suggestion = suggestModifierName(modifier, supportedModifiers);
+      const suggestionMessage = suggestion ? ` Did you mean .${suggestion}?` : "";
+      throwTemplateError(`Unsupported v-model modifier .${modifier}.${suggestionMessage}`, context, attr.loc);
     }
   }
 }
@@ -3462,11 +3494,13 @@ function modelAssignedValue(modelMode: string, modifiers: string[]): string {
 }
 
 function validateEventModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext): void {
-  const supportedModifiers = new Set(["prevent", "stop", "self", "once", "capture", "passive"]);
+  const supportedModifiers = ["prevent", "stop", "self", "once", "capture", "passive"];
 
   for (const modifier of event.modifiers) {
-    if (!supportedModifiers.has(modifier)) {
-      throwTemplateError(`Unsupported event modifier .${modifier}`, context, attr.loc);
+    if (!supportedModifiers.includes(modifier)) {
+      const suggestion = suggestModifierName(modifier, supportedModifiers);
+      const suggestionMessage = suggestion ? ` Did you mean .${suggestion}?` : "";
+      throwTemplateError(`Unsupported event modifier .${modifier}.${suggestionMessage}`, context, attr.loc);
     }
   }
 
@@ -3476,11 +3510,19 @@ function validateEventModifiers(event: EventDirective, attr: TemplateAttribute, 
 }
 
 function validateComponentEventModifiers(event: EventDirective, attr: TemplateAttribute, context: GenerateContext): void {
+  const supportedModifiers = ["once"];
+
   for (const modifier of event.modifiers) {
     if (modifier !== "once") {
-      throwTemplateError(`Event modifier .${modifier} is only supported on DOM events`, context, attr.loc);
+      const suggestion = suggestModifierName(modifier, supportedModifiers);
+      const suggestionMessage = suggestion ? ` Did you mean .${suggestion}?` : "";
+      throwTemplateError(`Event modifier .${modifier} is only supported on DOM events.${suggestionMessage}`, context, attr.loc);
     }
   }
+}
+
+function suggestModifierName(name: string, supported: string[]): string | undefined {
+  return suggestName(name, supported.map((candidate) => ({ name: candidate, display: candidate })))?.name;
 }
 
 function eventListenerOptions(event: EventDirective): string | undefined {
