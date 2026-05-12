@@ -145,7 +145,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
 - SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, `v-if` chains, `v-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, and router route rendering with context propagation
-- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, hydrating initial `v-if` / `v-for` DOM, Teleport target and static disabled inline content, and delegating child and route components to `hydrate()` when available
+- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, hydrating initial `v-if` / `v-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
 
