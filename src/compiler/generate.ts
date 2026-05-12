@@ -524,7 +524,7 @@ function generateAsyncBoundary(
   beforeVar?: string
 ): string {
   validateAsyncBoundaryAttributes(context, node);
-  const children = getSingleElementChild(context, node, "<AsyncBoundary>");
+  const children = getAsyncBoundaryChildren(context, node);
   const loadingExpression = getAsyncBoundaryLoadingExpression(context, node);
   const fallbackExpression = getAsyncBoundaryFallbackExpression(context, node);
   const startVar = nextVar(context, "asyncBoundaryStart");
@@ -566,7 +566,8 @@ function generateAsyncBoundary(
   emit(context, indent, `const ${clearLoadingVar} = () => __mikuru_runCleanup(${loadingCleanupVar});`);
   emit(context, indent, `const ${clearFallbackVar} = () => __mikuru_runCleanup(${fallbackCleanupVar});`);
   emit(context, indent, `const ${renderLoadingVar} = () => {`);
-  emit(context, indent + 1, `if (${failedVar} || ${loadingCleanupVar}.length > 0) { return; }`);
+  emit(context, indent + 1, `if (${failedVar}) { return; }`);
+  emit(context, indent + 1, `${clearLoadingVar}();`);
   emit(context, indent + 1, `const ${loadingVar} = unwrap(${loadingExpression});`);
   emit(context, indent + 1, `if (!${loadingVar} || typeof ${loadingVar}.mount !== "function") { return; }`);
   emit(context, indent + 1, `const ${loadingFragmentVar} = document.createDocumentFragment();`);
@@ -599,7 +600,7 @@ function generateAsyncBoundary(
   emit(context, indent + 4, `if (${settledVar}) { return; }`);
   emit(context, indent + 4, `${settledVar} = true;`);
   emit(context, indent + 4, `${pendingVar} = Math.max(0, ${pendingVar} - 1);`);
-  emit(context, indent + 4, `if (${pendingVar} === 0) { ${clearLoadingVar}(); }`);
+  emit(context, indent + 4, `if (${pendingVar} === 0) { ${clearLoadingVar}(); } else { ${renderLoadingVar}(); }`);
   emit(context, indent + 3, "},");
   emit(context, indent + 3, `reject(${errorVar}, ${errorInfoVar}) {`);
   emit(context, indent + 4, `if (${settledVar}) { return; }`);
@@ -619,7 +620,7 @@ function generateAsyncBoundary(
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
   context.componentContextVar = asyncContextVar;
-  generateNode(context, children[0], parentVar, boundaryCleanupVar, indent + 1, endVar);
+  generateChildren(context, children, parentVar, boundaryCleanupVar, indent + 1, endVar);
   context.componentContextVar = previousComponentContextVar;
   emit(context, indent, "};");
   emit(context, indent, `${renderVar}();`);
@@ -3087,6 +3088,16 @@ function getSingleElementChild(context: GenerateContext, node: ElementNode, labe
   }
 
   return [meaningful[0]];
+}
+
+function getAsyncBoundaryChildren(context: GenerateContext, node: ElementNode): TemplateNode[] {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length === 0) {
+    throwTemplateError("<AsyncBoundary> requires at least one child", context, node.loc);
+  }
+
+  return node.children;
 }
 
 function getErrorBoundaryFallbackExpression(context: GenerateContext, node: ElementNode): string {

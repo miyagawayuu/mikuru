@@ -295,11 +295,12 @@ const AsyncPanel = defineAsyncComponent({
 </script>
 ```
 
-Use `<AsyncBoundary>` when multiple async children should share loading and retryable error UI. The loading component receives `{ pending }`; the fallback component receives `{ error, errorInfo, pending, retry, reset }`.
+Use `<AsyncBoundary>` when multiple async children should share loading and retryable error UI. The loading component receives `{ pending }` and is refreshed as async children start or settle. The fallback component receives `{ error, errorInfo, pending, retry, reset }`.
 
 ```mikuru
 <AsyncBoundary :loading="LoadingPanel" :fallback="AsyncErrorPanel">
   <AsyncPanel />
+  <RelatedAsyncPanel />
 </AsyncBoundary>
 ```
 
