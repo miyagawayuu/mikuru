@@ -244,6 +244,25 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
 
 function hydrateComponentProps(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
   for (const attr of node.attrs) {
+    const modelDirective = parseModelDirective(attr.name);
+    if (modelDirective) {
+      const expression = validateAssignableExpression(getAttrValueFromDirective(attr), attr.name, {
+        source: context.source ?? String(attr.value),
+        offset: attr.valueLoc?.offset ?? attr.loc?.offset ?? 0,
+        filename: context.filename
+      });
+      const valueExpression = compileHydrationExpression(context, expression, attr.name);
+      const propName = modelDirective.argument ?? "modelValue";
+      const updatePropName = toComponentEventProp(`update:${propName}`);
+      const modifiersPropName = modelDirective.argument ? `${propName}Modifiers` : "modelModifiers";
+      emit(context, indent, `Object.defineProperty(${propsVar}, ${quote(propName)}, { enumerable: true, get() { return unwrap(${valueExpression}); } });`);
+      emit(context, indent, `${propsVar}[${quote(updatePropName)}] = ($value) => { ${expression}.value = $value; };`);
+      if (modelDirective.modifiers.length > 0) {
+        emit(context, indent, `${propsVar}[${quote(modifiersPropName)}] = { ${modelDirective.modifiers.map((modifier) => `${quote(modifier)}: true`).join(", ")} };`);
+      }
+      continue;
+    }
+
     if (shouldSkipAttr(attr)) {
       continue;
     }
@@ -356,6 +375,8 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "v-for"
     || attr.name === "v-show"
     || attr.name === "v-model"
+    || attr.name.startsWith("v-model.")
+    || attr.name.startsWith("v-model:")
     || attr.name === "ref"
     || attr.name === "key"
     || attr.name.startsWith("@")
@@ -400,6 +421,10 @@ function parseModelDirective(name: string): { argument?: string; modifiers: stri
   if (!name.startsWith("v-model:")) return undefined;
   const [argument = "", ...modifiers] = name.slice("v-model:".length).split(".");
   return { argument, modifiers: modifiers.filter(Boolean) };
+}
+
+function toComponentEventProp(eventName: string): string {
+  return `on${eventName.split(":").map((part) => part ? part[0]!.toUpperCase() + part.slice(1) : "").join("")}`;
 }
 
 function getAttrValueFromDirective(attr: TemplateAttribute): string {
