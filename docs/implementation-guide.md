@@ -304,6 +304,8 @@ Wrap one dynamic component in `<KeepAlive>` when switching component types shoul
 </KeepAlive>
 ```
 
+Cached generated components can register `onActivated()` and `onDeactivated()` callbacks. The first activation fires when the component is mounted inside `<KeepAlive>`, and later activations/deactivations fire when the cached instance is reinserted or detached. Async components forward activation state to the resolved child, so an async panel can still keep local state and react to cache visibility changes.
+
 Use `defineAsyncComponent()` when the component implementation should load later. The loading fallback renders until the loader resolves, and the error fallback receives `{ error, retry }` props if the loader rejects or times out. When `errorComponent` is omitted, loader rejections and timeouts can be handled by the nearest `<ErrorBoundary>`.
 
 ```mikuru

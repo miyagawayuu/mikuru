@@ -65,7 +65,7 @@ Unsupported in v1:
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present.
 - Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `v-show`.
-- `<KeepAlive>` caches dynamic component instances across type switches, supports `include`/`exclude` string, array, and `RegExp` name filters, prunes least recently used records with `max`, and disposes the cache when the parent component unmounts.
+- `<KeepAlive>` caches dynamic component instances across type switches, supports `include`/`exclude` string, array, and `RegExp` name filters, prunes least recently used records with `max`, runs `onActivated`/`onDeactivated` for cached generated components, and disposes the cache when the parent component unmounts.
 - `defineAsyncComponent()` creates component objects from async loaders and supports loading, error, retry, and timeout fallback behavior.
 - Child component instances must return `{ element, unmount }` from `mount`.
 
@@ -101,7 +101,7 @@ Unsupported in v1:
 - `effect(fn)` runs immediately and returns a stop function.
 - `watch(source, cb)` accepts a ref-like value, getter, raw value, or array of sources and returns a stop function.
 - `nextTick(fn?)` schedules an optional callback in a microtask and returns a promise.
-- `onMounted`, `onBeforeUnmount`, and `onUnmounted` register callbacks with the currently mounting Mikuru component when one is active.
+- `onMounted`, `onActivated`, `onDeactivated`, `onBeforeUnmount`, and `onUnmounted` register callbacks with the currently mounting Mikuru component when one is active.
 - `provide` and `inject` are component-tree scoped when called while a Mikuru component is mounting; child components can read values from their parent chain.
 
 ## Macro Contract

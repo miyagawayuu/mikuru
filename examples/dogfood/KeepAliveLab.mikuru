@@ -18,7 +18,7 @@
 </template>
 
 <script>
-import { computed, ref } from "mikuru";
+import { computed, defineAsyncComponent, ref } from "mikuru";
 
 const active = ref("first");
 
@@ -49,7 +49,12 @@ function createCounterPanel(name, componentName) {
 }
 
 const FirstPanel = createCounterPanel("First kept count", "FirstPanel");
-const SecondPanel = createCounterPanel("Second kept count", "SecondPanel");
+const SecondPanel = defineAsyncComponent({
+  loader: () => new Promise((resolve) => {
+    setTimeout(() => resolve(createCounterPanel("Second kept async count", "SecondPanel")), 20);
+  })
+});
+SecondPanel.name = "SecondPanel";
 const ThirdPanel = createCounterPanel("Third transient count", "ThirdPanel");
 const currentPanel = computed(() => {
   if (active.value === "first") {

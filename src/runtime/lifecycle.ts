@@ -17,6 +17,8 @@ type InjectionLookup =
 
 type MikuruRuntimeRegistrar = {
   registerMounted?: (fn: () => void) => void;
+  registerActivated?: (fn: () => void) => void;
+  registerDeactivated?: (fn: () => void) => void;
   registerBeforeUnmount?: (fn: () => void) => void;
   registerUnmounted?: (fn: () => void) => void;
   provide?: (key: any, value: unknown) => void;
@@ -111,6 +113,20 @@ export function onMounted(fn: () => void): void {
   } else {
     // best-effort: call on nextTick if not in a mount context
     nextTick(fn);
+  }
+}
+
+export function onActivated(fn: () => void): void {
+  const reg = (globalThis as { __mikuru_currentRegistrar?: MikuruRuntimeRegistrar }).__mikuru_currentRegistrar;
+  if (reg && typeof reg.registerActivated === "function") {
+    reg.registerActivated(fn);
+  }
+}
+
+export function onDeactivated(fn: () => void): void {
+  const reg = (globalThis as { __mikuru_currentRegistrar?: MikuruRuntimeRegistrar }).__mikuru_currentRegistrar;
+  if (reg && typeof reg.registerDeactivated === "function") {
+    reg.registerDeactivated(fn);
   }
 }
 
