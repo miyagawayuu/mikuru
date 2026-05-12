@@ -104,6 +104,26 @@ test("dogfood app keeps dynamic panel state alive", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Third transient count: 0" })).toBeVisible();
 });
 
+test("dogfood app animates keyed rows with TransitionGroup", async ({ page }) => {
+  await page.goto("/");
+
+  const lab = page.getByRole("region", { name: "TransitionGroup lab" });
+  await expect(lab.getByRole("heading", { name: "TransitionGroup lab" })).toBeVisible();
+  await expect(lab.getByText("Parser diagnostics")).toBeVisible();
+
+  await lab.getByRole("button", { name: "Add row" }).click();
+  await expect(lab.getByText("Generated row 4")).toBeVisible();
+
+  await lab.getByRole("button", { name: "Remove first" }).click();
+  await expect(lab.getByText("Parser diagnostics")).toBeVisible();
+  await page.waitForTimeout(160);
+  await expect(lab.getByText("Parser diagnostics")).not.toBeVisible();
+
+  await lab.getByRole("button", { name: "Reverse rows" }).click();
+  const rows = lab.getByRole("listitem");
+  await expect(rows.first()).toContainText("Generated row 4");
+});
+
 test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await page.goto("/");
 

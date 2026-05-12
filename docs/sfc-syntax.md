@@ -393,6 +393,16 @@ class overrideを使うと、複数のTransitionで同じCSS classを共有で�
 </Transition>
 ```
 
+### TransitionGroup
+
+```mikuru
+<TransitionGroup name="row" tag="ul" move-class="row-moving">
+  <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+</TransitionGroup>
+```
+
+`<TransitionGroup>` は1つのkeyed `v-for` childを受け取り、追加時に `row-enter-*`、削除時に `row-leave-*`、再配置時に `row-moving` または `row-move` を付ける。v1では wrapper `tag` を描画し、`tag` 未指定時は `span` を使う。対応属性は `name`、`tag`、`enter-from-class` / `enter-active-class` / `enter-to-class`、`leave-from-class` / `leave-active-class` / `leave-to-class`、`move-class`。
+
 ### Teleport
 
 ```mikuru

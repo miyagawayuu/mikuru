@@ -288,6 +288,23 @@ function select() {}
     expect(result.code).toContain("\"fade\"");
   });
 
+  it("generates built-in TransitionGroup keyed list hooks", () => {
+    const result = compile(`<template>
+  <TransitionGroup name="list" tag="ul" move-class="moving">
+    <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+  </TransitionGroup>
+</template>
+<script>
+const items = ref([{ id: "a", label: "Alpha" }]);
+</script>`);
+
+    expect(result.code).toContain("__mikuru_applyTransitionEnter");
+    expect(result.code).toContain("__mikuru_applyTransitionMove");
+    expect(result.code).toContain("document.createElement(String(unwrap(\"ul\")");
+    expect(result.code).toContain("moveClass: String(unwrap(\"moving\")");
+  });
+
+
   it("generates object-form v-bind and v-on for elements and components", () => {
     const element = compile(`<template><button v-bind="attrs" v-on="listeners">Save</button></template>
 <script>
@@ -687,6 +704,14 @@ const count = 0;
     expect(() => compile(`<template><Transition mod="out-in"><p>Hi</p></Transition></template>`)).toThrow(
       /Unsupported attribute "mod" on <Transition>\. Did you mean mode\?/
     );
+
+    expect(() =>
+      compile(`<template><TransitionGroup mode="out-in"><p v-for="item in items" :key="item.id">{{ item.id }}</p></TransitionGroup></template>`)
+    ).toThrow(/Unsupported attribute "mode" on <TransitionGroup>/);
+
+    expect(() =>
+      compile(`<template><TransitionGroup><p v-for="item in items">{{ item.id }}</p></TransitionGroup></template>`)
+    ).toThrow(/<TransitionGroup> requires a single keyed v-for child in v1/);
 
     expect(() => compile(`<template><KeepAlive keep="Panel"><component :is="Panel" /></KeepAlive></template>`)).toThrow(
       /Unsupported attribute "keep" on <KeepAlive>/

@@ -44,6 +44,7 @@ Supported in v1:
 - Dynamic slot names through `<slot :name="name" />`, `<template v-slot:[name]>`, and `<template #[name]>`.
 - Slot props through bound `<slot>` attributes and slot scope bindings with aliases, default values, nested object destructuring, and top-level rest destructuring.
 - CSS class transitions through built-in `<Transition name="fade">`, including single children, `v-if` chains, dynamic components, class override attributes, `appear` opt-out, and `mode="out-in"` for `v-if` chains.
+- Keyed list transitions through built-in `<TransitionGroup name="list" tag="ul">` with one keyed `v-for` child, enter/leave class overrides, and move classes.
 - Teleport through built-in `<Teleport to="#target">`, including dynamic `to` and `disabled`.
 - Async boundaries through built-in `<AsyncBoundary :loading :fallback :delay :timeout>`.
 - Error boundaries through built-in `<ErrorBoundary :fallback>`, including `errorInfo`, `retry`, `reset`, and `:reset-key`.

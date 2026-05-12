@@ -2874,6 +2874,63 @@ function toggle() {
     expect([...fixture.root.querySelectorAll("p")].map((paragraph) => paragraph.textContent)).toEqual(["Hidden"]);
   });
 
+  it("applies TransitionGroup classes to keyed list enter, leave, and move", async () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <button @click="add">Add</button>
+    <button @click="removeFirst">Remove first</button>
+    <button @click="reverse">Reverse</button>
+    <TransitionGroup name="list" tag="ul" move-class="is-moving">
+      <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+    </TransitionGroup>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+
+function add() {
+  items.value = [...items.value, { id: "c", label: "Gamma" }];
+}
+
+function removeFirst() {
+  items.value = items.value.slice(1);
+}
+
+function reverse() {
+  items.value = [...items.value].reverse();
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const buttons = () => Array.from(fixture.root.querySelectorAll("button"));
+    const items = () => Array.from(fixture.root.querySelectorAll("li"));
+    const list = fixture.root.querySelector("ul");
+
+    expect(list).not.toBeNull();
+    expect(items().map((item) => item.textContent)).toEqual(["Alpha", "Beta"]);
+    expect(items()[0]?.classList.contains("list-enter-active")).toBe(true);
+
+    buttons()[0]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(items().map((item) => item.textContent)).toEqual(["Alpha", "Beta", "Gamma"]);
+    expect(items()[2]?.classList.contains("list-enter-active")).toBe(true);
+
+    buttons()[1]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(items().map((item) => item.textContent)).toEqual(["Alpha", "Beta", "Gamma"]);
+    expect(items()[0]?.classList.contains("list-leave-active")).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    expect(items().map((item) => item.textContent)).toEqual(["Beta", "Gamma"]);
+
+    buttons()[2]?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(items().map((item) => item.textContent)).toEqual(["Gamma", "Beta"]);
+    expect(items().some((item) => item.classList.contains("is-moving"))).toBe(true);
+  });
+
   it("renders ErrorBoundary fallback and supports retry", () => {
     const fixture = compileForDom(`<template>
   <ErrorBoundary :fallback="ErrorView">

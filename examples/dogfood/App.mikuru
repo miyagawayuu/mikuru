@@ -16,6 +16,8 @@
 
     <KeepAliveLab />
 
+    <TransitionGroupLab />
+
     <AsyncBoundary :loading="LoadingStats" :fallback="AsyncFallback">
       <AsyncStats
         :total="notes.length"
@@ -81,6 +83,7 @@ import { computed, defineAsyncComponent, ref } from "mikuru";
 import DebugPanel from "./DebugPanel.mikuru";
 import KeepAliveLab from "./KeepAliveLab.mikuru";
 import RouterLab from "./RouterLab.mikuru";
+import TransitionGroupLab from "./TransitionGroupLab.mikuru";
 import TextField from "./TextField.mikuru";
 import NoteCard from "./NoteCard.mikuru";
 

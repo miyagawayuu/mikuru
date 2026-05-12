@@ -1,0 +1,98 @@
+<template>
+  <section class="transition-group-lab" aria-label="TransitionGroup lab">
+    <div>
+      <h2>TransitionGroup lab</h2>
+      <p>Keyed rows animate when they enter, leave, and move.</p>
+    </div>
+
+    <nav class="transition-group-actions">
+      <button @click="addItem">Add row</button>
+      <button @click="removeFirst">Remove first</button>
+      <button @click="reverseItems">Reverse rows</button>
+    </nav>
+
+    <TransitionGroup name="row" tag="ul" move-class="row-moving">
+      <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+    </TransitionGroup>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+let nextId = 4;
+const items = ref([
+  { id: "row-1", label: "Parser diagnostics" },
+  { id: "row-2", label: "Runtime cleanup" },
+  { id: "row-3", label: "Dogfood coverage" }
+]);
+
+function addItem() {
+  items.value = [
+    ...items.value,
+    {
+      id: `row-${nextId}`,
+      label: `Generated row ${nextId}`
+    }
+  ];
+  nextId += 1;
+}
+
+function removeFirst() {
+  items.value = items.value.slice(1);
+}
+
+function reverseItems() {
+  items.value = [...items.value].reverse();
+}
+</script>
+
+<style scoped>
+.transition-group-lab {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  color: #0c4a6e;
+  background: #f0f9ff;
+}
+
+.transition-group-lab h2,
+.transition-group-lab p {
+  margin: 0;
+}
+
+.transition-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.transition-group-lab ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.transition-group-lab li {
+  padding: 8px 10px;
+  border: 1px solid #7dd3fc;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.row-enter-active,
+.row-leave-active,
+.row-moving {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.row-enter-from,
+.row-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>
