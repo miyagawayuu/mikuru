@@ -123,15 +123,17 @@ Object-form `v-bind` updates attributes reactively and removes stale keys when t
 - text inputs
 - textareas
 - checkboxes
+- checkbox arrays
 - radio groups
 - selects
 - multiple selects
-- child components
+- named child component models
 
 ```mikuru
 <input v-model="title">
 <textarea v-model="body"></textarea>
 <input type="checkbox" v-model="enabled">
+<input type="checkbox" value="compiler" v-model="selectedTags">
 <input type="radio" value="draft" v-model="status">
 <select v-model="tag">
   <option value="compiler">compiler</option>
@@ -143,13 +145,14 @@ Object-form `v-bind` updates attributes reactively and removes stale keys when t
 </select>
 ```
 
-DOM `v-model` supports `.trim`, `.number`, and `.lazy`. Component `v-model` passes `modelModifiers` when modifiers are present.
+DOM `v-model` supports `.trim`, `.number`, and `.lazy`. Checkbox models can be booleans or arrays; with arrays, the checkbox value is added or removed. Component `v-model` passes `modelModifiers` when modifiers are present, and named models pass `${propName}Modifiers`.
 
-For child components, `v-model` passes `modelValue` and `onUpdateModelValue`.
+For child components, `v-model` passes `modelValue` and `onUpdateModelValue`. Named models such as `v-model:title` pass `title` and `onUpdateTitle`.
 
 ```mikuru
 <!-- Parent -->
 <TextField label="Title" v-model="title" />
+<PanelEditor v-model:title.trim="title" v-model:checked="enabled" />
 ```
 
 ```mikuru
@@ -292,7 +295,7 @@ Component events are passed as camel-cased handler props. For example:
 - `@toggle="handle"` becomes `props.onToggle`
 - `@item-select="handle"` becomes `props.onItemSelect`
 - `@toggle.once="handle"` wraps `props.onToggle` so it calls `handle` only once per child mount
-- `v-model` uses `props.onUpdateModelValue`
+- `v-model` uses `props.onUpdateModelValue`; `v-model:title` uses `props.onUpdateTitle`
 
 Use `<component :is="Current" />` when the component type should come from state. `:is` must resolve to a Mikuru component object with `mount()`. When the value changes, Mikuru unmounts the previous component, cleans up its refs/fallthrough effects/slots, and mounts the next component in the same position.
 

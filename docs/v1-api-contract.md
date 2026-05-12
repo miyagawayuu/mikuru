@@ -37,7 +37,7 @@ Supported in v1:
 - `:key` / `v-bind:key` on `v-for` for keyed DOM reuse.
 - `v-memo` on keyed `v-for` records, with an array expression dependency list.
 - `v-once` for one-time element/component rendering and keyed `v-for` records.
-- `v-model` for text input, textarea, checkbox, radio, select, multiple select, modifiers, and child components.
+- `v-model` for text input, textarea, boolean checkboxes, checkbox arrays, radio, select, multiple select, modifiers, and named child component models.
 - Template refs with `ref="name"`, dynamic `:ref`, callback refs, and `v-for` ref arrays for DOM elements and child components.
 - Default slots through `<slot />`.
 - Named slots through `<slot name="header" />` and `<template #header>`.
@@ -64,7 +64,7 @@ Unsupported in v1:
 - Components can read fallthrough attributes with `useAttrs()` and opt out of automatic root fallthrough with `defineOptions({ inheritAttrs: false })`.
 - Template refs assign the child component instance to a ref object or callback and clean up on unmount; repeated refs inside `v-for` collect values in an array.
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
-- Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present.
+- Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present. Named models such as `v-model:title` pass `title`, `onUpdateTitle`, and `titleModifiers` when modifiers are present.
 - Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `v-show`.
 - `<KeepAlive>` caches dynamic component instances across type switches, supports `include`/`exclude` string, array, and `RegExp` name filters, prunes least recently used records with `max`, runs `onActivated`/`onDeactivated` for cached generated components, and disposes the cache when the parent component unmounts.
 - `defineAsyncComponent()` creates component objects from async loaders and supports loading, error, retry, and timeout fallback behavior.

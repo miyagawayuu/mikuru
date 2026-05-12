@@ -244,6 +244,16 @@ p { color: red; }
     expect(result.code).toContain("onUpdateModelValue: __mikuru_guardEventHandler(($value) => { name.value = $value; })");
   });
 
+  it("generates multiple component v-model props and modifier props", () => {
+    const result = compile(`<template><Child v-model:title.trim="title" v-model:checked="checked" /></template><script>import Child from "./Child.mikuru"; const title = ref("Mikuru"); const checked = ref(false);</script>`);
+
+    expect(result.code).toContain("get title() { return unwrap(unwrap(title)); }");
+    expect(result.code).toContain("onUpdateTitle: __mikuru_guardEventHandler(($value) => { title.value = $value; })");
+    expect(result.code).toContain("titleModifiers: { trim: true }");
+    expect(result.code).toContain("get checked() { return unwrap(unwrap(checked)); }");
+    expect(result.code).toContain("onUpdateChecked: __mikuru_guardEventHandler(($value) => { checked.value = $value; })");
+  });
+
   it("generates v-model modifiers and component v-show", () => {
     const input = compile(`<template><input v-model.trim.number.lazy="age" /></template><script>const age = ref(1);</script>`);
     const component = compile(`<template><Child v-show="visible" v-model.trim="name" /></template><script>import Child from "./Child.mikuru"; const visible = ref(true); const name = ref("Mikuru");</script>`);
@@ -757,6 +767,10 @@ const count = 0;
 
     expect(() => compile(`<template><input v-model.trm="name" /></template>`)).toThrow(
       /Unsupported v-model modifier \.trm\. Did you mean \.trim\?/
+    );
+
+    expect(() => compile(`<template><input v-model:title="name" /></template>`)).toThrow(
+      /v-model arguments are only supported on components in v1/
     );
   });
 

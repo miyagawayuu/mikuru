@@ -20,7 +20,7 @@ test("dogfood app supports note and filter interactions", async ({ page }) => {
   await page.getByRole("button", { name: "Archive", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "Restore", exact: true })).toHaveCount(2);
 
-  await page.getByLabel("Search").fill("scoped");
+  await page.getByLabel("Search", { exact: true }).fill("scoped");
   await expect(page.getByText("Scoped CSS works for simple selectors")).toBeVisible();
 });
 
@@ -122,6 +122,24 @@ test("dogfood app animates keyed rows with TransitionGroup", async ({ page }) =>
   await lab.getByRole("button", { name: "Reverse rows" }).click();
   const rows = lab.getByRole("listitem");
   await expect(rows.first()).toContainText("Generated row 4");
+});
+
+test("dogfood app syncs practical v-model forms", async ({ page }) => {
+  await page.goto("/");
+
+  const lab = page.getByRole("region", { name: "v-model lab" });
+  await expect(lab.getByRole("heading", { name: "v-model lab" })).toBeVisible();
+  await expect(lab.getByText("ready:1:2:Launch checklist:false")).toBeVisible();
+
+  await lab.getByLabel("Search phrase").fill("  shipped  ");
+  await lab.getByLabel("Priority").focus();
+  await lab.getByLabel("Priority").fill("7");
+  await lab.getByLabel("One").check();
+  await lab.getByLabel("Two").uncheck();
+  await lab.getByLabel("Card title").fill("  Release notes  ");
+  await lab.getByLabel("Feature enabled").check();
+
+  await expect(lab.getByText("shipped:7:1:Release notes:true")).toBeVisible();
 });
 
 test("dogfood app exposes debug inspector panel", async ({ page }) => {
