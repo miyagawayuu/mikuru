@@ -56,16 +56,33 @@ export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): strin
   emit(context, 0, "import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";");
   emit(context, 0, "import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";");
   emit(context, 0, "");
-  if (script.body.trim()) {
-    emitRaw(context, script.body.trim());
-    emit(context, 0, "");
-  }
 
   emit(context, 0, "export async function renderToString(props = {}) {");
   emit(context, 1, "let __mikuru_html = \"\";");
   emit(context, 1, "const __mikuru_teleports = props.__mikuru_teleports ?? {};");
-  emitNode(context, root, 1);
-  emit(context, 1, "return __mikuru_html;");
+  emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
+  emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), ...__mikuru_componentInfo };");
+  emit(context, 1, "const __mikuru_ssrRegistrar = {");
+  emit(context, 2, "provide: (key, value) => __mikuru_context.provides.set(key, value),");
+  emit(context, 2, "inject: (key) => {");
+  emit(context, 3, "for (let context = __mikuru_context; context; context = context.parent) {");
+  emit(context, 4, "if (context.provides?.has(key)) return { found: true, value: context.provides.get(key) };");
+  emit(context, 3, "}");
+  emit(context, 3, "return { found: false };");
+  emit(context, 2, "}");
+  emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_previousRegistrar = globalThis.__mikuru_currentRegistrar;");
+  emit(context, 1, "globalThis.__mikuru_currentRegistrar = __mikuru_ssrRegistrar;");
+  emit(context, 1, "try {");
+  if (script.body.trim()) {
+    emitRaw(context, script.body.trim());
+    emit(context, 2, "");
+  }
+  emitNode(context, root, 2);
+  emit(context, 2, "return __mikuru_html;");
+  emit(context, 1, "} finally {");
+  emit(context, 2, "globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar;");
+  emit(context, 1, "}");
   emit(context, 0, "}");
 
   return `${context.lines.join("\n")}\n`;
@@ -180,6 +197,7 @@ function emitComponent(context: SsrGenerateContext, node: ElementNode, indent: n
   const propsVar = nextName(context, "props");
   emit(context, indent, `const ${propsVar} = {};`);
   emitComponentProps(context, node, propsVar, indent);
+  emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
 
   if (node.children.length > 0) {
     emitComponentSlots(context, node, propsVar, indent);
@@ -251,12 +269,18 @@ function emitSlotFunction(context: SsrGenerateContext, children: TemplateNode[],
   const slotVar = nextName(context, "slot");
   const propsVar = nextName(context, "slotProps");
   emit(context, indent, `const ${slotVar} = async (${propsVar} = {}) => {`);
+  emit(context, indent + 1, "const __mikuru_previousSlotRegistrar = globalThis.__mikuru_currentRegistrar;");
+  emit(context, indent + 1, "globalThis.__mikuru_currentRegistrar = __mikuru_ssrRegistrar;");
+  emit(context, indent + 1, "try {");
   if (scope) {
-    emit(context, indent + 1, `const ${scope} = ${propsVar};`);
+    emit(context, indent + 2, `const ${scope} = ${propsVar};`);
   }
-  emit(context, indent + 1, "let __mikuru_html = \"\";");
-  emitChildren(context, children, indent + 1);
-  emit(context, indent + 1, "return __mikuru_html;");
+  emit(context, indent + 2, "let __mikuru_html = \"\";");
+  emitChildren(context, children, indent + 2);
+  emit(context, indent + 2, "return __mikuru_html;");
+  emit(context, indent + 1, "} finally {");
+  emit(context, indent + 2, "globalThis.__mikuru_currentRegistrar = __mikuru_previousSlotRegistrar;");
+  emit(context, indent + 1, "}");
   emit(context, indent, "};");
   return slotVar;
 }
@@ -509,9 +533,9 @@ function nextName(context: SsrGenerateContext, prefix: string): string {
   return name;
 }
 
-function emitRaw(context: SsrGenerateContext, source: string): void {
+function emitRaw(context: SsrGenerateContext, source: string, indent = 0): void {
   for (const line of source.split(/\r?\n/)) {
-    context.lines.push(line);
+    context.lines.push(`${"  ".repeat(indent)}${line}`);
   }
 }
 

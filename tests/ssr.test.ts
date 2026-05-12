@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter } from "../src/router/index.js";
 import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToString } from "../src/server.js";
-import { unwrap } from "../src/runtime/index.js";
+import { inject, provide, unwrap } from "../src/runtime/index.js";
 
 describe("server rendering", () => {
   it("escapes text and attributes", () => {
@@ -73,6 +73,36 @@ const Child = {
     const render = loadSsrRender(result.code);
 
     await expect(render()).resolves.toBe("<section><article data-title=\"Card\" data-count=\"2\" data-role=\"note\"><strong>projected</strong></article></section>");
+  });
+
+  it("passes SSR component context to children and runtime inject", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <Child>
+      <span>{{ inject(key) }}</span>
+    </Child>
+  </section>
+</template>
+<script>
+import { inject, provide } from "mikuru";
+const key = Symbol.for("mikuru.ssr.theme");
+provide(key, "dark");
+const Child = {
+  async renderToString(props) {
+    let value = "missing";
+    for (let context = props.__mikuru_context; context; context = context.parent) {
+      if (context.provides?.has(key)) {
+        value = context.provides.get(key);
+        break;
+      }
+    }
+    return '<article data-theme="' + value + '">' + await props.children() + '</article>';
+  }
+};
+</script>`, { filename: "SsrProvide.mikuru" });
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><article data-theme="dark"><span>dark</span></article></section>');
   });
 
   it("renders default slot content and fallback children", async () => {
@@ -229,6 +259,7 @@ const second = ["b"];
 
 function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
   const executable = code
+    .replace(/import\s+\{([^}]+)\}\s+from\s+["']mikuru["'];?\n+/g, "const { $1 } = helpers;\n")
     .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
     .replace("export async function renderToString", "async function renderToString");
@@ -237,7 +268,9 @@ function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promi
     renderAttr: typeof renderAttr;
     renderAttrs: typeof renderAttrs;
     renderComponentToString: typeof renderComponentToString;
+    inject: typeof inject;
+    provide: typeof provide;
     unwrap: typeof unwrap;
   }) => (props?: Record<string, unknown>) => Promise<string>;
-  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, unwrap });
+  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, inject, provide, unwrap });
 }
