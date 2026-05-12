@@ -6,6 +6,7 @@ export type {
   AsyncComponentOptions,
   ComputedRef,
   EffectFn,
+  MikuruAsyncBoundaryFallbackProps,
   MikuruComponent,
   MikuruComponentInstance,
   MikuruErrorBoundaryFallbackProps,

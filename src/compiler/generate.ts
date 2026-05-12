@@ -320,6 +320,10 @@ function generateNode(
     return generateTeleport(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (node.tag === "AsyncBoundary") {
+    return generateAsyncBoundary(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   if (node.tag === "ErrorBoundary") {
     return generateErrorBoundary(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
@@ -503,6 +507,125 @@ function generateErrorBoundary(
     emit(context, indent, `${cleanupVar}.push(${boundaryResetStopVar});`);
   }
   emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
+  emit(context, indent + 1, `${startVar}.remove();`);
+  emit(context, indent + 1, `${endVar}.remove();`);
+  emit(context, indent, "});");
+  return startVar;
+}
+
+function generateAsyncBoundary(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  validateAsyncBoundaryAttributes(context, node);
+  const children = getSingleElementChild(context, node, "<AsyncBoundary>");
+  const loadingExpression = getAsyncBoundaryLoadingExpression(context, node);
+  const fallbackExpression = getAsyncBoundaryFallbackExpression(context, node);
+  const startVar = nextVar(context, "asyncBoundaryStart");
+  const endVar = nextVar(context, "asyncBoundaryEnd");
+  const boundaryCleanupVar = nextVar(context, "asyncBoundaryCleanup");
+  const loadingCleanupVar = nextVar(context, "asyncBoundaryLoadingCleanup");
+  const fallbackCleanupVar = nextVar(context, "asyncBoundaryFallbackCleanup");
+  const pendingVar = nextVar(context, "asyncBoundaryPending");
+  const failedVar = nextVar(context, "asyncBoundaryFailed");
+  const lastRetryVar = nextVar(context, "asyncBoundaryRetry");
+  const renderLoadingVar = nextVar(context, "renderAsyncBoundaryLoading");
+  const clearLoadingVar = nextVar(context, "clearAsyncBoundaryLoading");
+  const renderFallbackVar = nextVar(context, "renderAsyncBoundaryFallback");
+  const clearFallbackVar = nextVar(context, "clearAsyncBoundaryFallback");
+  const renderVar = nextVar(context, "renderAsyncBoundary");
+  const loadingVar = nextVar(context, "asyncBoundaryLoading");
+  const loadingFragmentVar = nextVar(context, "asyncBoundaryLoading");
+  const loadingInstanceVar = nextVar(context, "asyncBoundaryLoading");
+  const fallbackVar = nextVar(context, "asyncBoundaryFallback");
+  const fallbackFragmentVar = nextVar(context, "asyncBoundaryFallback");
+  const fallbackInstanceVar = nextVar(context, "asyncBoundaryFallback");
+  const errorVar = nextVar(context, "error");
+  const errorInfoVar = nextVar(context, "errorInfo");
+  const normalizedErrorInfoVar = nextVar(context, "errorInfo");
+  const retryVar = nextVar(context, "retry");
+  const settledVar = nextVar(context, "settled");
+  const asyncContextVar = nextVar(context, "asyncBoundaryContext");
+  const previousComponentContextVar = context.componentContextVar;
+  emit(context, indent, `const ${startVar} = document.createComment("async-boundary");`);
+  emit(context, indent, `const ${endVar} = document.createComment("/async-boundary");`);
+  appendNode(context, parentVar, startVar, indent, beforeVar);
+  appendNode(context, parentVar, endVar, indent, beforeVar);
+  emit(context, indent, `const ${boundaryCleanupVar} = [];`);
+  emit(context, indent, `const ${loadingCleanupVar} = [];`);
+  emit(context, indent, `const ${fallbackCleanupVar} = [];`);
+  emit(context, indent, `let ${pendingVar} = 0;`);
+  emit(context, indent, `let ${failedVar} = false;`);
+  emit(context, indent, `let ${lastRetryVar} = () => {};`);
+  emit(context, indent, `const ${clearLoadingVar} = () => __mikuru_runCleanup(${loadingCleanupVar});`);
+  emit(context, indent, `const ${clearFallbackVar} = () => __mikuru_runCleanup(${fallbackCleanupVar});`);
+  emit(context, indent, `const ${renderLoadingVar} = () => {`);
+  emit(context, indent + 1, `if (${failedVar} || ${loadingCleanupVar}.length > 0) { return; }`);
+  emit(context, indent + 1, `const ${loadingVar} = unwrap(${loadingExpression});`);
+  emit(context, indent + 1, `if (!${loadingVar} || typeof ${loadingVar}.mount !== "function") { return; }`);
+  emit(context, indent + 1, `const ${loadingFragmentVar} = document.createDocumentFragment();`);
+  emit(context, indent + 1, `const ${loadingInstanceVar} = ${loadingVar}.mount(${loadingFragmentVar}, { pending: ${pendingVar}, __mikuru_context });`);
+  emit(context, indent + 1, `${loadingCleanupVar}.push(() => ${loadingInstanceVar}.unmount());`);
+  appendNode(context, parentVar, loadingFragmentVar, indent + 1, endVar);
+  emit(context, indent, "};");
+  emit(context, indent, `const ${renderFallbackVar} = (${errorVar}, ${errorInfoVar} = __mikuru_errorInfo("async-loader")) => {`);
+  emit(context, indent + 1, `${failedVar} = true;`);
+  emit(context, indent + 1, `${clearLoadingVar}();`);
+  emit(context, indent + 1, `${clearFallbackVar}();`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
+  emit(context, indent + 1, `const ${fallbackVar} = unwrap(${fallbackExpression});`);
+  emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
+  emit(context, indent + 1, `const ${normalizedErrorInfoVar} = ${errorInfoVar} && typeof ${errorInfoVar} === "object" ? ${errorInfoVar} : {};`);
+  emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
+  emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, pending: ${pendingVar}, retry: ${lastRetryVar}, reset: ${lastRetryVar}, __mikuru_context });`);
+  emit(context, indent + 1, `${fallbackCleanupVar}.push(() => ${fallbackInstanceVar}.unmount());`);
+  appendNode(context, parentVar, fallbackFragmentVar, indent + 1, endVar);
+  emit(context, indent, "};");
+  emit(context, indent, `const ${asyncContextVar} = { parent: __mikuru_context, provides: new Map(), errorHandler: __mikuru_context.errorHandler, asyncBoundary: {`);
+  emit(context, indent + 1, `start({ retry: ${retryVar} }) {`);
+  emit(context, indent + 2, `${pendingVar} += 1;`);
+  emit(context, indent + 2, `${lastRetryVar} = ${renderVar};`);
+  emit(context, indent + 2, `${renderLoadingVar}();`);
+  emit(context, indent + 2, `let ${settledVar} = false;`);
+  emit(context, indent + 2, "return {");
+  emit(context, indent + 3, "resolve() {");
+  emit(context, indent + 4, `if (${settledVar}) { return; }`);
+  emit(context, indent + 4, `${settledVar} = true;`);
+  emit(context, indent + 4, `${pendingVar} = Math.max(0, ${pendingVar} - 1);`);
+  emit(context, indent + 4, `if (${pendingVar} === 0) { ${clearLoadingVar}(); }`);
+  emit(context, indent + 3, "},");
+  emit(context, indent + 3, `reject(${errorVar}, ${errorInfoVar}) {`);
+  emit(context, indent + 4, `if (${settledVar}) { return; }`);
+  emit(context, indent + 4, `${settledVar} = true;`);
+  emit(context, indent + 4, `${pendingVar} = Math.max(0, ${pendingVar} - 1);`);
+  emit(context, indent + 4, `${renderFallbackVar}(${errorVar}, ${errorInfoVar});`);
+  emit(context, indent + 3, "}");
+  emit(context, indent + 2, "};");
+  emit(context, indent + 1, "}");
+  emit(context, indent, `}, ...__mikuru_componentInfo };`);
+  emit(context, indent, `const ${renderVar} = () => {`);
+  emit(context, indent + 1, `${failedVar} = false;`);
+  emit(context, indent + 1, `${pendingVar} = 0;`);
+  emit(context, indent + 1, `${lastRetryVar} = ${renderVar};`);
+  emit(context, indent + 1, `${clearLoadingVar}();`);
+  emit(context, indent + 1, `${clearFallbackVar}();`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
+  emitRemoveBetween(context, indent + 1, startVar, endVar);
+  context.componentContextVar = asyncContextVar;
+  generateNode(context, children[0], parentVar, boundaryCleanupVar, indent + 1, endVar);
+  context.componentContextVar = previousComponentContextVar;
+  emit(context, indent, "};");
+  emit(context, indent, `${renderVar}();`);
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${clearLoadingVar}();`);
+  emit(context, indent + 1, `${clearFallbackVar}();`);
   emit(context, indent + 1, `__mikuru_runCleanup(${boundaryCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
   emit(context, indent + 1, `${startVar}.remove();`);
@@ -2986,6 +3109,26 @@ function getErrorBoundaryResetKeyExpression(context: GenerateContext, node: Elem
   return compileTemplateExpression(requireAttrValue(resetKeyAttr), resetKeyAttr.name, toExpressionContext(context, resetKeyAttr.valueLoc));
 }
 
+function getAsyncBoundaryLoadingExpression(context: GenerateContext, node: ElementNode): string {
+  const loadingAttr = node.attrs.find((attr) => getBindingName(attr.name) === "loading");
+
+  if (!loadingAttr) {
+    throwTemplateError("<AsyncBoundary> requires :loading to resolve to a component object", context, node.loc);
+  }
+
+  return compileTemplateExpression(requireAttrValue(loadingAttr), loadingAttr.name, toExpressionContext(context, loadingAttr.valueLoc));
+}
+
+function getAsyncBoundaryFallbackExpression(context: GenerateContext, node: ElementNode): string {
+  const fallbackAttr = node.attrs.find((attr) => getBindingName(attr.name) === "fallback");
+
+  if (!fallbackAttr) {
+    throwTemplateError("<AsyncBoundary> requires :fallback to resolve to a component object", context, node.loc);
+  }
+
+  return compileTemplateExpression(requireAttrValue(fallbackAttr), fallbackAttr.name, toExpressionContext(context, fallbackAttr.valueLoc));
+}
+
 function validateErrorBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
   for (const attr of node.attrs) {
     const bindingName = getBindingName(attr.name);
@@ -2994,6 +3137,17 @@ function validateErrorBoundaryAttributes(context: GenerateContext, node: Element
     }
 
     throwTemplateError("<ErrorBoundary> only supports :fallback and :reset-key in v1", context, attr.loc);
+  }
+}
+
+function validateAsyncBoundaryAttributes(context: GenerateContext, node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const bindingName = getBindingName(attr.name);
+    if (bindingName === "loading" || bindingName === "fallback") {
+      continue;
+    }
+
+    throwTemplateError("<AsyncBoundary> only supports :loading and :fallback in v1", context, attr.loc);
   }
 }
 

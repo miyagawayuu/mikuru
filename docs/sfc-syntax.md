@@ -424,6 +424,18 @@ const AsyncPanel = defineAsyncComponent({
 
 `defineAsyncComponent()` は loader が解決するまで `loadingComponent` を描画し、reject時または `timeout` 到達時は `errorComponent` を描画する。`errorComponent` には `error` と `retry` propsを渡す。`errorComponent` を省略した場合、nearest `<ErrorBoundary>` が loader reject と timeout を捕捉できる。
 
+### AsyncBoundary
+
+```mikuru
+<template>
+  <AsyncBoundary :loading="LoadingPanel" :fallback="AsyncErrorPanel">
+    <AsyncPanel />
+  </AsyncBoundary>
+</template>
+```
+
+`<AsyncBoundary>` は配下の `defineAsyncComponent()` のpending状態をまとめて扱う。`:loading` componentには `pending` propsを渡す。`errorComponent` を持たないasync childがrejectまたはtimeoutした場合、`:fallback` componentに `error`、`errorInfo`、`pending`、`retry`、`reset` propsを渡す。fallback componentのprops全体は `MikuruAsyncBoundaryFallbackProps` として型付けできる。
+
 ### ErrorBoundary
 
 ```mikuru
