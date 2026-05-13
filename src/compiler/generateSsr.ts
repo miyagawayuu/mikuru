@@ -188,6 +188,11 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
 
+  if (node.tag === "KeepAlive") {
+    emitKeepAlive(context, node, indent);
+    return;
+  }
+
   if (node.tag === "Teleport") {
     emitTeleport(context, node, indent);
     return;
@@ -301,6 +306,21 @@ function emitDynamicComponent(context: SsrGenerateContext, node: ElementNode, in
   }
   emit(context, indent + 1, `__mikuru_html += await __mikuru_renderComponent(${componentVar}, ${propsVar});`);
   emit(context, indent, "}");
+}
+
+function emitKeepAlive(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  validateKeepAliveAttributes(node);
+  const child = getSingleElementChild(node, "<KeepAlive>");
+
+  if (child.tag !== "component") {
+    throw createCompileError("<KeepAlive> requires a single <component :is=\"...\" /> child in v1", contextSource(child), child.loc?.offset ?? 0);
+  }
+
+  if (!getDynamicComponentIsAttr(child)) {
+    throw createCompileError("<KeepAlive> dynamic child requires :is to resolve to a component object", contextSource(child), child.loc?.offset ?? 0);
+  }
+
+  emitDynamicComponent(context, child, indent);
 }
 
 function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -738,6 +758,31 @@ function getTeleportDisabledExpression(context: SsrGenerateContext, node: Elemen
   }
 
   return getAttr(node, "disabled") ? "true" : "false";
+}
+
+function validateKeepAliveAttributes(node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (name === "include" || name === "exclude" || name === "max") {
+      continue;
+    }
+
+    throw createCompileError(`Unsupported attribute "${attr.name}" on <KeepAlive>. Supported attributes: include, exclude, and max.`, contextSource(node), attr.loc?.offset ?? node.loc?.offset ?? 0);
+  }
+}
+
+function getSingleElementChild(node: ElementNode, label: string): ElementNode {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length !== 1 || meaningful[0]?.type !== "element") {
+    throw createCompileError(`${label} requires exactly one element or component child`, contextSource(node), node.loc?.offset ?? 0);
+  }
+
+  return meaningful[0];
+}
+
+function getDynamicComponentIsAttr(node: ElementNode): TemplateAttribute | undefined {
+  return node.attrs.find((attr) => parseBindDirective(attr.name)?.name === "is");
 }
 
 function withoutDynamicComponentIs(node: ElementNode): ElementNode {

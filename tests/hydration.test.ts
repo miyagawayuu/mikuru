@@ -825,6 +825,43 @@ const fallback = MountOnlyChild;
     }
   });
 
+  it("hydrates KeepAlive dynamic component children", async () => {
+    const source = `<template>
+  <section>
+    <KeepAlive include="HydratableChild" :max="2">
+      <component :is="current" :label="label" />
+    </KeepAlive>
+    <p>after</p>
+  </section>
+</template>
+<script>
+const label = "cached";
+const HydratableChild = {
+  renderToString(props) {
+    return '<p data-child="' + props.label + '">' + props.label + '</p>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+const current = HydratableChild;
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("p[data-child]")?.getAttribute("data-hydrated")).toBe("cached");
+    expect(root.querySelector("section")?.lastElementChild?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("p[data-child]")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
   it("scopes provide/inject and lifecycle callbacks during hydration", () => {
     const source = `<template>
   <section>
