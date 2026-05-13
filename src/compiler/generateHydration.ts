@@ -642,6 +642,14 @@ function hydrateModelAndShow(context: HydrationContext, node: ElementNode, eleme
       emit(context, indent, `let ${warnedVar} = false;`);
       emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
       if (modelMode === "select-multiple") {
+        const expectedValuesVar = nextName(context, "expectedValues");
+        const actualValuesVar = nextName(context, "actualValues");
+        const optionValueVar = nextName(context, "optionValue");
+        emit(context, indent + 1, `const ${expectedValuesVar} = (unwrap(${expression}) ?? []).map(String);`);
+        emit(context, indent + 1, `const ${actualValuesVar} = Array.from(${elementVar}.selectedOptions).map((option) => option.getAttribute("value") ?? option.textContent ?? "");`);
+        emit(context, indent + 1, `if (${actualValuesVar}.length !== ${expectedValuesVar}.length || ${expectedValuesVar}.some((${optionValueVar}) => !${actualValuesVar}.includes(${optionValueVar})) || ${actualValuesVar}.some((${optionValueVar}) => !${expectedValuesVar}.includes(${optionValueVar}))) {`);
+        emit(context, indent + 2, `if (!${warnedVar}) { __mikuru_warn("v-model selected mismatch: expected " + JSON.stringify(${expectedValuesVar}) + ", got " + JSON.stringify(${actualValuesVar}) + "."); ${warnedVar} = true; }`);
+        emit(context, indent + 1, "}");
         emit(context, indent + 1, renderedValue);
       } else {
         emit(context, indent + 1, `if (${elementVar}.${propertyName} !== ${renderedValue}) {`);

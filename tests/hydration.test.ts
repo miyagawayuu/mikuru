@@ -274,6 +274,37 @@ const enabled = ref(true);
     }
   });
 
+  it("warns with expected and actual multiple select v-model values", () => {
+    const source = `<template>
+  <section>
+    <select multiple v-model="selected">
+      <option value="a">A</option>
+      <option value="b">B</option>
+      <option value="c">C</option>
+    </select>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const selected = ref(["b", "c"]);
+</script>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = '<section><select multiple><option value="a" selected>A</option><option value="b">B</option><option value="c">C</option></select></section>';
+      module.hydrate(root as unknown as Element);
+      const options = Array.from(root.querySelectorAll("option")) as unknown as HTMLOptionElement[];
+
+      expect(options.map((option) => option.selected)).toEqual([false, true, true]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('v-model selected mismatch: expected ["b","c"], got ["a"].'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("hydrates initial v-if and v-for DOM", async () => {
     const source = `<template>
   <section>
