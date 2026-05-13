@@ -123,6 +123,42 @@ function inner() {
     }
   });
 
+  it("adds component context to hydration warnings and debug events", () => {
+    const source = `<template><p>{{ message }}</p></template><script>const message = "mounted";</script>`;
+    const module = loadHydrationModule(compileHydration(source, { filename: "DiagnosticHydration.mikuru" }).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const previousHook = globalThis.__MIKURU_DEVTOOLS__;
+    const events: NonNullable<typeof globalThis.__MIKURU_DEVTOOLS__>["events"] = [];
+    globalThis.__MIKURU_DEVTOOLS__ = { events };
+
+    try {
+      root.innerHTML = "<span>wrong</span>";
+      module.hydrate(root as unknown as Element);
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("phase: hydration, component: DiagnosticHydration.mikuru, file: DiagnosticHydration.mikuru"));
+      expect(events).toEqual([
+        expect.objectContaining({
+          type: "hydration:warning",
+          payload: expect.objectContaining({
+            component: "DiagnosticHydration.mikuru",
+            filename: "DiagnosticHydration.mikuru",
+            phase: "hydration",
+            message: expect.stringContaining("Root mismatch")
+          })
+        })
+      ]);
+    } finally {
+      warn.mockRestore();
+      if (previousHook === undefined) {
+        delete globalThis.__MIKURU_DEVTOOLS__;
+      } else {
+        globalThis.__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
   it("recovers structural child hydration mismatches by remounting", () => {
     const source = `<template>
   <section>
