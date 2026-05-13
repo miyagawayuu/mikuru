@@ -9,6 +9,7 @@
 - Added `renderRouteToString()` for router SSR with redirects, lazy route components, nested route slots, and route props.
 - Added hydration phase 1 with `compileHydration()` for existing DOM reuse, event attachment, and text/attribute sync.
 - Improved hydration mismatch diagnostics with expected/actual node details and extra-node warnings.
+- Added hydration support for initial dynamic `<component :is>` branches with mount fallback.
 - Added hydration static attribute mismatch diagnostics for SSR/client drift.
 - Added hydration text content mismatch diagnostics before text nodes are synchronized.
 - Added hydration `v-html` / `v-text` content mismatch diagnostics before content directives are synchronized.
