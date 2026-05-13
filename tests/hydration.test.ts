@@ -1020,6 +1020,178 @@ const AsyncPanel = defineAsyncComponent(async () => {
     expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates async component loader errors with fallback without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="BoundaryError">
+      <AsyncPanel message="broken" />
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const Loading = { renderToString() { return "<span>loading</span>"; }, mount() {} };
+const BoundaryError = { renderToString() { return "<span>boundary error</span>"; }, mount() {} };
+const ErrorView = {
+  renderToString(props) {
+    return '<aside data-phase="' + props.errorInfo.phase + '">' + props.error.message + '</aside>';
+  },
+  mount(target, props) {
+    const el = document.createElement("aside");
+    el.setAttribute("data-phase", props.errorInfo.phase);
+    el.textContent = props.error.message;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+const AsyncPanel = defineAsyncComponent({
+  loader: async () => {
+    throw new Error("load failed");
+  },
+  errorComponent: ErrorView
+});
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const hydrationModule = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    expect(root.querySelector("aside")?.getAttribute("data-phase")).toBe("async-loader");
+    const instance = hydrationModule.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(root.querySelector("aside")?.getAttribute("data-phase")).toBe("async-loader");
+    expect(root.querySelector("aside")?.textContent).toBe("load failed");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("aside")).toBeNull();
+  });
+
+  it("hydrates async component timeouts with fallback without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="BoundaryError">
+      <AsyncPanel message="slow" />
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const Loading = { renderToString() { return "<span>loading</span>"; }, mount() {} };
+const BoundaryError = { renderToString() { return "<span>boundary error</span>"; }, mount() {} };
+const ErrorView = {
+  renderToString(props) {
+    return '<aside data-phase="' + props.errorInfo.phase + '">' + props.error.message + '</aside>';
+  },
+  mount(target, props) {
+    const el = document.createElement("aside");
+    el.setAttribute("data-phase", props.errorInfo.phase);
+    el.textContent = props.error.message;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+const AsyncPanel = defineAsyncComponent({
+  loader: () => new Promise(() => {}),
+  timeout: 1,
+  errorComponent: ErrorView
+});
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const hydrationModule = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    expect(root.querySelector("aside")?.getAttribute("data-phase")).toBe("async-timeout");
+    const instance = hydrationModule.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(root.querySelector("aside")?.getAttribute("data-phase")).toBe("async-timeout");
+    expect(root.querySelector("aside")?.textContent).toBe("Async component timed out");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("aside")).toBeNull();
+  });
+
+  it("retries async component hydration fallback and mounts the resolved component", async () => {
+    const source = `<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="BoundaryError">
+      <AsyncPanel message="retry ok" />
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+let attempts = 0;
+const Loading = { renderToString() { return "<span>loading</span>"; }, mount() {} };
+const BoundaryError = { renderToString() { return "<span>boundary error</span>"; }, mount() {} };
+const ErrorView = {
+  renderToString(props) {
+    return '<button data-phase="' + props.errorInfo.phase + '">' + props.error.message + '</button>';
+  },
+  mount(target, props) {
+    const el = document.createElement("button");
+    el.setAttribute("data-phase", props.errorInfo.phase);
+    el.textContent = props.error.message;
+    el.addEventListener("click", () => props.retry());
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+const AsyncPanel = defineAsyncComponent({
+  loader: async () => {
+    attempts += 1;
+    if (attempts < 2) {
+      throw new Error("try again");
+    }
+    return {
+      renderToString(props) {
+        return '<article>' + props.message + '</article>';
+      },
+      mount(target, props) {
+        const el = document.createElement("article");
+        el.textContent = props.message;
+        target.appendChild(el);
+        return { element: el, unmount() { el.remove(); } };
+      }
+    };
+  },
+  errorComponent: ErrorView
+});
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const hydrationModule = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    expect(root.querySelector("button")?.getAttribute("data-phase")).toBe("async-loader");
+    const instance = hydrationModule.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const retry = root.querySelector("button");
+    expect(retry?.textContent).toBe("try again");
+
+    retry?.dispatchEvent(new window.Event("click"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(root.querySelector("article")?.textContent).toBe("retry ok");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("article")).toBeNull();
+  });
+
   it("hydrates ErrorBoundary children without shifting siblings", async () => {
     const source = `<template>
   <section>
