@@ -100,7 +100,7 @@ const allEvents = ref([]);
 const selectedId = ref(undefined);
 const selectedEventId = ref(undefined);
 const eventFilter = ref("all");
-const hideComponentEventsAfterClear = ref(false);
+const hideBackgroundEventsAfterClear = ref(false);
 
 const selected = computed(() =>
   components.value.find((component) => component.id === selectedId.value) ?? components.value[0]
@@ -135,12 +135,12 @@ function snapshot() {
   }));
 
   const events = inspector.getEvents();
-  if (hideComponentEventsAfterClear.value && events.some((event) => !event.type.startsWith("component:"))) {
-    hideComponentEventsAfterClear.value = false;
+  if (hideBackgroundEventsAfterClear.value && events.some(isForegroundEvent)) {
+    hideBackgroundEventsAfterClear.value = false;
   }
 
-  const visibleEvents = hideComponentEventsAfterClear.value
-    ? events.filter((event) => !event.type.startsWith("component:"))
+  const visibleEvents = hideBackgroundEventsAfterClear.value
+    ? events.filter(isForegroundEvent)
     : events;
 
   allEvents.value = visibleEvents
@@ -222,6 +222,10 @@ function isErrorEvent(event) {
   return event.type.includes("error") || event.type.endsWith(":rejected") || event.type === "hydration:warning";
 }
 
+function isForegroundEvent(event) {
+  return event.type.startsWith("route:") || event.type.startsWith("hydration:") || isErrorEvent(event);
+}
+
 function countEvents(category) {
   return allEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
 }
@@ -275,7 +279,7 @@ function setEventFilter(filter) {
 
 function clearEvents() {
   inspector.clearEvents();
-  hideComponentEventsAfterClear.value = true;
+  hideBackgroundEventsAfterClear.value = true;
   snapshot();
 }
 
