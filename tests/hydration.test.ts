@@ -1312,6 +1312,79 @@ const HydratableRow = {
     expect(Array.from(root.querySelectorAll("li")).map((node) => node.hasAttribute("data-hydrated"))).toEqual([false, false]);
   });
 
+  it("hydrates Transition and TransitionGroup async children without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <Transition name="fade">
+      <AsyncPanel label="Panel" />
+    </Transition>
+    <TransitionGroup tag="ul" name="rows">
+      <AsyncRow v-for="item in items" :key="item.id" :label="item.label" />
+    </TransitionGroup>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const items = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+];
+const AsyncPanel = defineAsyncComponent(async () => ({
+  renderToString(props) {
+    return '<article data-panel="' + props.label + '">' + props.label + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  },
+  mount(target, props) {
+    const el = document.createElement("article");
+    el.textContent = "mounted " + props.label;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+}));
+const AsyncRow = defineAsyncComponent(async () => ({
+  renderToString(props) {
+    return '<li data-row="' + props.label + '">' + props.label + '</li>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  },
+  mount(target, props) {
+    const el = document.createElement("li");
+    el.textContent = "mounted " + props.label;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+}));
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    expect(root.innerHTML).toBe('<section><article data-panel="Panel">Panel</article><ul><li data-row="Alpha">Alpha</li><li data-row="Beta">Beta</li></ul><footer>after</footer></section>');
+    const article = root.querySelector("article");
+    const rows = Array.from(root.querySelectorAll("li"));
+    const instance = module.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(root.querySelector("article")).toBe(article);
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("Panel");
+    expect(Array.from(root.querySelectorAll("li")).map((node) => node.getAttribute("data-hydrated"))).toEqual(["Alpha", "Beta"]);
+    expect(Array.from(root.querySelectorAll("li"))).toEqual(rows);
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+    expect(Array.from(root.querySelectorAll("li")).map((node) => node.hasAttribute("data-hydrated"))).toEqual([false, false]);
+  });
+
   it("hydrates nested built-in wrappers without shifting siblings", async () => {
     const source = `<template>
   <section>

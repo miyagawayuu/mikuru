@@ -9,6 +9,7 @@
 - Added Teleport + AsyncBoundary hydration coverage for SSR target reuse, async child hydration, and sibling stability.
 - Added route SSR Teleport collection and RouterView + Teleport hydration coverage.
 - Added Teleport + ErrorBoundary hydration coverage for target-side DOM reuse and cleanup.
+- Added Transition and TransitionGroup async-child hydration coverage for DOM reuse, keyed order, and cleanup.
 
 ## 1.0.21 - 2026-05-13
 
