@@ -271,6 +271,9 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
 function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
   const staticClass = getStaticAttrValue(node, "class");
   const staticStyle = getStaticAttrValue(node, "style");
+  const hasObjectBind = node.attrs.some((attr) => Boolean(parseObjectBindDirective(attr.name)));
+  const hasDynamicClass = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "class");
+  const hasDynamicStyle = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "style");
   for (const attr of node.attrs) {
     if (attr.name === "v-cloak") {
       emit(context, indent, `${elementVar}.removeAttribute("v-cloak");`);
@@ -356,8 +359,16 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       continue;
     }
 
+    if (!isDirectiveAttr(attr) && !((attr.name === "class" && (hasDynamicClass || hasObjectBind)) || (attr.name === "style" && (hasDynamicStyle || hasObjectBind)))) {
+      emitStaticAttrMismatchWarning(context, elementVar, attr, indent);
+    }
     emit(context, indent, `setAttribute(${elementVar}, ${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
   }
+}
+
+function emitStaticAttrMismatchWarning(context: HydrationContext, elementVar: string, attr: TemplateAttribute, indent: number): void {
+  const expected = attr.value === true ? expectedStaticAttributeValue(attr.name) : String(attr.value);
+  emit(context, indent, `if (${elementVar}.getAttribute(${quote(attr.name)}) !== ${quote(expected)}) { __mikuru_warn(${quote(`Attribute mismatch on ${attr.name}: expected `)} + ${quote(expected)} + ${quote(", got ")} + JSON.stringify(${elementVar}.getAttribute(${quote(attr.name)})) + "."); }`);
 }
 
 function hydratePreElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -730,6 +741,43 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name.startsWith("@")
     || attr.name.startsWith("v-on:");
 }
+
+function isDirectiveAttr(attr: TemplateAttribute): boolean {
+  return shouldSkipAttr(attr)
+    || Boolean(parseBindDirective(attr.name))
+    || Boolean(parseObjectBindDirective(attr.name));
+}
+
+function expectedStaticAttributeValue(name: string): string {
+  return booleanAttributes.has(name.toLowerCase()) ? "" : "true";
+}
+
+const booleanAttributes = new Set([
+  "allowfullscreen",
+  "async",
+  "autofocus",
+  "checked",
+  "controls",
+  "default",
+  "defer",
+  "disabled",
+  "formnovalidate",
+  "hidden",
+  "inert",
+  "ismap",
+  "itemscope",
+  "loop",
+  "multiple",
+  "muted",
+  "nomodule",
+  "novalidate",
+  "open",
+  "playsinline",
+  "readonly",
+  "required",
+  "reversed",
+  "selected"
+]);
 
 function getAttr(node: ElementNode, name: string): TemplateAttribute | undefined {
   return node.attrs.find((attr) => attr.name === name);
