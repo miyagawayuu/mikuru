@@ -3,8 +3,14 @@ import AsyncShowcase from "./AsyncShowcase.mikuru?hydrate";
 import { renderToString } from "./App.mikuru?ssr";
 import { renderToString as renderAsyncShowcaseToString } from "./AsyncShowcase.mikuru?ssr";
 import { renderToStream } from "mikuru/server";
+import type { MikuruDebugEvent } from "mikuru/runtime";
 
 import "./style.css";
+
+const hydrationEvents: MikuruDebugEvent[] = [];
+globalThis.__MIKURU_DEVTOOLS__ = {
+  events: hydrationEvents
+};
 
 const hydratedProps = {
   initialCount: 2,
@@ -25,8 +31,9 @@ const driftOff = document.getElementById("drift-off");
 const streamOutput = document.getElementById("stream-output");
 const asyncShowcase = document.getElementById("async-showcase");
 const asyncModalRoot = document.getElementById("async-modal-root");
+const hydrationDiagnostics = document.getElementById("hydration-diagnostics");
 
-if (!app || !drift || !driftOff || !streamOutput || !asyncShowcase || !asyncModalRoot) {
+if (!app || !drift || !driftOff || !streamOutput || !asyncShowcase || !asyncModalRoot || !hydrationDiagnostics) {
   throw new Error("Missing SSR hydration example roots");
 }
 
@@ -45,3 +52,10 @@ const asyncTeleports: Record<string, string> = {};
 asyncShowcase.innerHTML = await renderAsyncShowcaseToString({ __mikuru_teleports: asyncTeleports });
 asyncModalRoot.innerHTML = asyncTeleports["#async-modal-root"] ?? "";
 AsyncShowcase.hydrate(asyncShowcase);
+
+for (const event of hydrationEvents.filter((entry) => entry.type === "hydration:warning")) {
+  const payload = event.payload ?? {};
+  const item = document.createElement("li");
+  item.textContent = `${payload.kind ?? "hydration"} | ${payload.action ?? "sync-dom"} | ${payload.domPath ?? payload.component ?? "unknown"} | ${payload.message ?? ""}`;
+  hydrationDiagnostics.appendChild(item);
+}

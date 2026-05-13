@@ -37,4 +37,8 @@ test("SSR hydration example reuses DOM, streams output, and recovers drift", asy
   await expect(page.getByRole("complementary", { name: "Async teleport modal" })).toBeVisible();
   await page.getByRole("button", { name: "async modal: 1" }).click();
   await expect(page.getByRole("button", { name: "async modal: 2" })).toBeVisible();
+
+  const diagnostics = page.locator("#hydration-diagnostics");
+  await expect(diagnostics.getByText(/element \| remount \| html > body > main > div:nth-of-type\(2\) > div > section > em/)).toBeVisible();
+  await expect(diagnostics.getByText(/element \| warn-only \| html > body > main > div:nth-of-type\(3\) > div > section > em/)).toBeVisible();
 });

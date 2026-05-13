@@ -593,7 +593,19 @@ Unsupported directive "v-modle". Did you mean v-model?
 Unsupported event modifier .prevet. Did you mean .prevent?
 ```
 
-For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, hydration warning events, and router navigation/preload/error events when those modules run with a devtools hook present. Hydration warnings include `phase: "hydration"`, component, filename, and the warning message in both console output and `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
+For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, hydration warning events, and router navigation/preload/error events when those modules run with a devtools hook present. Hydration warnings include `phase: "hydration"`, component, filename, warning message, `kind`, recovery `action`, inferred `expected` / `actual` values when available, and `domPath` in `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
+
+Hydration warning payloads are meant to be scanned by humans first:
+
+```text
+kind: "element"
+action: "remount"
+domPath: "main > div:nth-of-type(2) > section"
+expected: "<h1>"
+actual: "<em>"
+```
+
+`action` is one of `mount-fallback`, `remount`, `warn-only`, or `sync-dom`. The SSR hydration example renders the collected warnings so you can see how recovery and warning-only hydration differ.
 
 `createDebugInspector()` provides a small unstable reader for experiments: `getComponents()`, `getEvents()`, `clearEvents()`, and `subscribe(listener)`.
 
