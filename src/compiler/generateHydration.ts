@@ -152,6 +152,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       return;
     }
 
+    if (child.type === "element" && child.tag === "component") {
+      hydrateDynamicComponentAtIndex(context, child, parentVar, domIndexVar, indent);
+      return;
+    }
+
     if (child.type === "element" && getAttr(child, "v-if") && !getAttr(child, "v-pre")) {
       hydrateIf(context, child, parentVar, domIndexVar, indent);
       emit(context, indent, `${domIndexVar} += 1;`);
@@ -426,6 +431,52 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   hydrateTemplateRef(context, node, "__mikuru_child", indent + 1);
   emit(context, indent, "} else {");
   emit(context, indent + 1, `__mikuru_warn(${quote(`Component mismatch at <${node.tag}>.`)});`);
+  emit(context, indent, "}");
+}
+
+function hydrateDynamicComponentAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
+  const isAttr = getDynamicComponentIsAttr(node);
+
+  if (!isAttr) {
+    throw new Error("Dynamic component requires :is to resolve to a component object");
+  }
+
+  const componentTypeVar = nextName(context, "dynamicComponent");
+  const childVar = nextName(context, "node");
+  emit(context, indent, `const ${componentTypeVar} = unwrap(${compileHydrationExpression(context, requireAttrValue(isAttr), isAttr.name)});`);
+  emit(context, indent, `if (${componentTypeVar}) {`);
+  emit(context, indent + 1, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
+  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1) { __mikuru_warn("Element mismatch: expected dynamic component root, got " + __mikuru_describeNode(${childVar}) + "."); } else {`);
+  hydrateDynamicComponent(context, node, childVar, componentTypeVar, indent + 2);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `${domIndex} += 1;`);
+  emit(context, indent, "}");
+}
+
+function hydrateDynamicComponent(context: HydrationContext, node: ElementNode, elementVar: string, componentType: string, indent: number): void {
+  const dynamicNode = withoutDynamicComponentIs(node);
+  const propsVar = nextName(context, "props");
+  emit(context, indent, `const ${propsVar} = {};`);
+  hydrateComponentProps(context, dynamicNode, propsVar, indent);
+  emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  emit(context, indent, `if (${componentType} && typeof ${componentType}.hydrate === "function") {`);
+  emit(context, indent + 1, `const __mikuru_child = ${componentType}.hydrate(${elementVar}, ${propsVar});`);
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  hydrateTemplateRef(context, dynamicNode, "__mikuru_child", indent + 1);
+  emit(context, indent, `} else if (${componentType} && typeof ${componentType}.mount === "function") {`);
+  emit(context, indent + 1, "__mikuru_warn(\"Dynamic component hydration fallback; child component does not expose hydrate().\");");
+  emit(context, indent + 1, `const __mikuru_parent = ${elementVar}.parentNode;`);
+  emit(context, indent + 1, "const __mikuru_anchor = document.createComment(\"mikuru-hydrate-dynamic-component\");");
+  emit(context, indent + 1, `__mikuru_parent?.insertBefore(__mikuru_anchor, ${elementVar});`);
+  emit(context, indent + 1, `${elementVar}.remove();`);
+  emit(context, indent + 1, "const __mikuru_fragment = document.createDocumentFragment();");
+  emit(context, indent + 1, `const __mikuru_child = ${componentType}.mount(__mikuru_fragment, ${propsVar});`);
+  emit(context, indent + 1, "__mikuru_parent?.insertBefore(__mikuru_fragment, __mikuru_anchor);");
+  emit(context, indent + 1, "__mikuru_anchor.remove();");
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  hydrateTemplateRef(context, dynamicNode, "__mikuru_child", indent + 1);
+  emit(context, indent, "} else {");
+  emit(context, indent + 1, "__mikuru_warn(\"Dynamic component mismatch; :is did not resolve to hydrate() or mount().\");");
   emit(context, indent, "}");
 }
 
@@ -819,6 +870,17 @@ function withoutAttrs(node: ElementNode, names: string[]): ElementNode {
   return {
     ...node,
     attrs: node.attrs.filter((attr) => !names.includes(attr.name))
+  };
+}
+
+function getDynamicComponentIsAttr(node: ElementNode): TemplateAttribute | undefined {
+  return node.attrs.find((attr) => parseBindDirective(attr.name)?.name === "is");
+}
+
+function withoutDynamicComponentIs(node: ElementNode): ElementNode {
+  return {
+    ...node,
+    attrs: node.attrs.filter((attr) => parseBindDirective(attr.name)?.name !== "is")
   };
 }
 

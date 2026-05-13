@@ -768,6 +768,63 @@ const MountOnlyChild = {
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates dynamic components and skips empty dynamic branches", async () => {
+    const source = `<template>
+  <section>
+    <component :is="current" :label="label" />
+    <component :is="fallback" label="fallback" />
+    <component :is="empty" />
+    <p>after</p>
+  </section>
+</template>
+<script>
+const label = "dynamic";
+const empty = null;
+const HydratableChild = {
+  renderToString(props) {
+    return '<p data-child="' + props.label + '">' + props.label + '</p>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+const MountOnlyChild = {
+  renderToString(props) {
+    return '<span>' + props.label + '</span>';
+  },
+  mount(target, props) {
+    const el = document.createElement("span");
+    el.textContent = props.label + " mounted";
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+const current = HydratableChild;
+const fallback = MountOnlyChild;
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = await renderToString();
+      const instance = module.hydrate(root as unknown as Element);
+
+      expect(root.querySelector("p[data-child]")?.getAttribute("data-hydrated")).toBe("dynamic");
+      expect(root.querySelector("span")?.textContent).toBe("fallback mounted");
+      expect(root.querySelector("section")?.lastElementChild?.textContent).toBe("after");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Dynamic component hydration fallback"));
+
+      instance.unmount();
+      expect(root.querySelector("p[data-child]")?.hasAttribute("data-hydrated")).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("scopes provide/inject and lifecycle callbacks during hydration", () => {
     const source = `<template>
   <section>
