@@ -1,9 +1,13 @@
 # Changelog
 
-## 1.0.22 - 2026-05-13
+## 1.0.23 - 2026-05-13
 
 - Added structured hydration diagnostic payloads with warning kind, recovery action, inferred expected/actual values, and DOM path context.
 - Added hydration warning filtering to the dogfood Debug Panel and rendered hydration diagnostics in the SSR/hydration example.
+- Stabilized the dogfood Debug Panel clear-events flow when background component and async debug events arrive after clearing.
+
+## 1.0.22 - 2026-05-13
+
 - Generalized component slot hydration to pass default, named, dynamic, and scoped slots through `props.children` and `props.slots`.
 - Improved SSR component slots so dynamic slot names support scoped props and explicit default slot templates are exposed through `props.children`.
 - Added async component hydration delegation so SSR-rendered async children inside `<AsyncBoundary>` can be reused after streaming SSR.
