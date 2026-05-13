@@ -189,6 +189,31 @@ const label = "Label";
     }
   });
 
+  it("warns with expected and actual text content values", () => {
+    const source = `<template>
+  <section>
+    <p>{{ message }}</p>
+  </section>
+</template>
+<script>
+const message = "Expected";
+</script>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = "<section><p>Actual</p></section>";
+      module.hydrate(root as unknown as Element);
+
+      expect(root.querySelector("p")?.textContent).toBe("Expected");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Text content mismatch: expected "Expected", got "Actual".'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("hydrates initial v-if and v-for DOM", async () => {
     const source = `<template>
   <section>

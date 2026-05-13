@@ -9,6 +9,7 @@
 - Added hydration phase 1 with `compileHydration()` for existing DOM reuse, event attachment, and text/attribute sync.
 - Improved hydration mismatch diagnostics with expected/actual node details and extra-node warnings.
 - Added hydration static attribute mismatch diagnostics for SSR/client drift.
+- Added hydration text content mismatch diagnostics before text nodes are synchronized.
 - Added hydration support for initial `v-if` / `v-for` DOM reuse and child component `hydrate()` delegation with mount fallback.
 - Added `hydrateRoute()` for router hydration with redirects, lazy route components, route props, nested route slots, and mount fallback.
 - Added SSR Teleport collection and Teleport hydration for target-side DOM reuse.
