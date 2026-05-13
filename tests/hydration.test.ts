@@ -123,7 +123,7 @@ function inner() {
     }
   });
 
-  it("warns with expected and actual node details for child hydration mismatches", () => {
+  it("recovers structural child hydration mismatches by remounting", () => {
     const source = `<template>
   <section>
     <p>Ready</p>
@@ -140,10 +140,11 @@ const label = "Label";
 
     try {
       root.innerHTML = "<section><em>Wrong</em><!--extra--></section>";
-      module.hydrate(root as unknown as Element);
+      const instance = module.hydrate(root as unknown as Element);
 
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Element mismatch: expected <p>, got <em>."));
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Element mismatch: expected <span>, got comment(\"extra\")."));
+      expect(root.innerHTML).toBe("<section><p>Ready</p><span>Label</span></section>");
+      expect(instance.element.tagName.toLowerCase()).toBe("section");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Element mismatch: expected <p>, got <em>; remounting."));
     } finally {
       warn.mockRestore();
     }

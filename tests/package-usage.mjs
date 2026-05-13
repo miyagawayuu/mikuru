@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 const { compile, compileHydration, compileSsr } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
-const { escapeHtml, hydrateRoute, renderAttr, renderComponentToString, renderRouteToString, renderToString } = await import("mikuru/server");
+const { escapeHtml, hydrateRoute, renderAttr, renderComponentToString, renderRouteToString, renderToStream, renderToString } = await import("mikuru/server");
 const {
   createDebugInspector,
   effect,
@@ -71,6 +71,11 @@ assert.equal(escapeHtml("<ok>"), "&lt;ok&gt;");
 assert.equal(renderAttr("data-count", 2), " data-count=\"2\"");
 assert.equal(renderToString({ renderToString: () => "<main>SSR</main>" }), "<main>SSR</main>");
 assert.equal(await renderComponentToString({ renderToString: (props) => `<main>${props.message}</main>` }, { message: "component SSR" }), "<main>component SSR</main>");
+const streamChunks = [];
+for await (const chunk of renderToStream({ renderToString: () => "<main>stream SSR</main>" })) {
+  streamChunks.push(chunk);
+}
+assert.deepEqual(streamChunks, ["<main>stream SSR</main>"]);
 
 const ssrRouter = createRouter({
   history: createMemoryHistory("/"),

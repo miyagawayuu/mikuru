@@ -179,13 +179,13 @@ Lower-level compiler, runtime, and server entries are also public:
 ```ts
 import { compile, compileHydration, compileSsr } from "mikuru/compiler";
 import { effect, flushJobs, isRef, nextTick, queueJob, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch, watchEffect } from "mikuru/runtime";
-import { escapeHtml, hydrateRoute, renderComponentToString, renderRouteToString, renderToString } from "mikuru/server";
+import { escapeHtml, hydrateRoute, renderComponentToString, renderRouteToString, renderToStream, renderToString } from "mikuru/server";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 
-`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, scoped slot props, and component tree context for `provide()` / `inject()`. `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, nested route slots, and route component context for router SSR.
+`compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, `v-if` / `v-else-if` / `v-else`, `v-for`, async child components, props, named/default slots, scoped slot props, and component tree context for `provide()` / `inject()`. `renderToStream(component, props?)` exposes SSR output as an async iterable for app shells that want stream-shaped integration. `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, nested route slots, and route component context for router SSR.
 
-`compileHydration(source)` generates a client module with `hydrate(target, props?)`. It reuses existing SSR DOM, attaches event listeners, syncs text plus attributes, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+`compileHydration(source)` generates a client module with `hydrate(target, props?)`. It reuses existing SSR DOM, attaches event listeners, syncs text plus attributes, recovers structural mismatches by remounting the component, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, and delegates child components to `component.hydrate()` with mount fallback when unavailable. Pass `{ __mikuru_hydration: { recover: false } }` in props to keep structural mismatches as warnings without remounting.
 
 SSR Teleport content is collected into a caller-provided `__mikuru_teleports` object keyed by selector, and `compileHydration()` reuses the target-side Teleport DOM when those collected fragments are inserted into the app shell. Disabled Teleports render and hydrate inline.
 
