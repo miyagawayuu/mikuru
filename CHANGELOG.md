@@ -8,6 +8,7 @@
 - Improved async component hydration fallback handling for loader errors, timeouts, and retry recovery.
 - Added Teleport + AsyncBoundary hydration coverage for SSR target reuse, async child hydration, and sibling stability.
 - Added route SSR Teleport collection and RouterView + Teleport hydration coverage.
+- Added Teleport + ErrorBoundary hydration coverage for target-side DOM reuse and cleanup.
 
 ## 1.0.21 - 2026-05-13
 

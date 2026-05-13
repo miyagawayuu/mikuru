@@ -1756,6 +1756,75 @@ function increment() {
     expect(button?.textContent).toBe("2");
   });
 
+  it("hydrates Teleport content nested in ErrorBoundary without shifting app or target siblings", async () => {
+    const source = `<template>
+  <section>
+    <h1>{{ title }}</h1>
+    <ErrorBoundary :fallback="ErrorView" :reset-key="version">
+      <Teleport to="#modal-root">
+        <HydratablePanel label="modal error boundary" />
+        <button @click="increment">{{ count }}</button>
+      </Teleport>
+    </ErrorBoundary>
+    <p>after</p>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const title = "Teleport ErrorBoundary";
+const version = 1;
+const count = ref(1);
+const ErrorView = { renderToString() { return "<span>error</span>"; }, mount() {} };
+const HydratablePanel = {
+  renderToString(props) {
+    return '<article data-panel="' + props.label + '">' + props.label + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  },
+  mount(target, props) {
+    const el = document.createElement("article");
+    el.textContent = "mounted " + props.label;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+function increment() {
+  count.value += 1;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const window = new Window();
+    const app = window.document.createElement("div");
+    const modalRoot = window.document.createElement("div");
+    modalRoot.id = "modal-root";
+    window.document.body.append(app, modalRoot);
+    const teleports: Record<string, string> = {};
+    const module = loadHydrationModule(compileHydration(source).code, window.document as unknown as Document);
+
+    app.innerHTML = await renderToString({ __mikuru_teleports: teleports });
+    modalRoot.innerHTML = teleports["#modal-root"];
+
+    expect(app.innerHTML).toBe("<section><h1>Teleport ErrorBoundary</h1><!--teleport:t0--><!--/teleport:t0--><p>after</p></section>");
+    expect(modalRoot.innerHTML).toBe('<!--teleport content:t0--><article data-panel="modal error boundary">modal error boundary</article><button>1</button><!--/teleport content:t0-->');
+    const article = modalRoot.querySelector("article");
+    const instance = module.hydrate(app as unknown as Element);
+
+    expect(modalRoot.querySelector("article")).toBe(article);
+    expect(modalRoot.querySelector("article")?.getAttribute("data-hydrated")).toBe("modal error boundary");
+    const button = modalRoot.querySelector("button");
+    button?.dispatchEvent(new window.Event("click"));
+
+    expect(button?.textContent).toBe("2");
+    expect(app.querySelector("p")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(modalRoot.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+    button?.dispatchEvent(new window.Event("click"));
+    expect(button?.textContent).toBe("2");
+  });
+
   it("hydrates disabled SSR Teleport content inline", async () => {
     const source = `<template>
   <section>
