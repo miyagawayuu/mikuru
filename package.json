@@ -1,6 +1,6 @@
 {
   "name": "mikuru",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "private": false,
   "type": "module",
   "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",

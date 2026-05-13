@@ -4,11 +4,13 @@
       <h1>Router SSR Hydration</h1>
       <p>Current route: {{ route.fullPath }}</p>
       <nav aria-label="Router SSR routes">
-        <RouterLink to="/" label="Home" />
-        <RouterLink :to="userRoute" label="User" />
+        <RouterLink to="/" label="Home" replace />
+        <RouterLink :to="userRoute" label="User" activeClass="route-active" exactActiveClass="route-exact" />
         <RouterLink to="/legacy-user" label="Redirect" />
         <RouterLink :to="{ name: 'settings-profile' }" label="Settings" />
-        <RouterLink :to="{ name: 'lazy' }" label="Lazy" />
+        <RouterLink :to="{ name: 'lazy' }">
+          <span>Lazy Child</span>
+        </RouterLink>
         <RouterLink :to="{ name: 'admin' }" label="Admin" />
         <RouterLink to="/missing" label="Missing" />
       </nav>

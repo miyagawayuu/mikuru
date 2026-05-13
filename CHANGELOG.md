@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.21 - 2026-05-13
+
 - Added SSR and hydration support for initial `<ErrorBoundary>` children.
 - Added SSR and hydration support for initial `<Transition>` children and v-if chains.
 - Added SSR and hydration support for initial `<TransitionGroup>` keyed lists.
@@ -12,6 +14,9 @@
 - Added recovery-disabled E2E coverage plus nested built-in wrapper SSR/hydration tests.
 - Added a router SSR/hydration example and browser E2E coverage for route rendering, hydration, redirects, guards, nested routes, and lazy route components.
 - Added SSR and hydration support for generated `<RouterView>` and `<RouterLink>` usage in route components.
+- Added hydration slot forwarding for component children so SSR-rendered `<RouterLink>` child content is preserved during hydration.
+- Expanded RouterLink SSR/hydration E2E coverage for custom active classes, replace links, and child content.
+- Stabilized the dogfood Debug Panel event clearing flow in browser E2E runs.
 
 ## 1.0.20 - 2026-05-13
 
