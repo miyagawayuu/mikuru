@@ -1946,6 +1946,87 @@ const selected = ref([1]);
     expect(paragraph.textContent).toBe("Grace");
   });
 
+  it("hydrates SSR-rendered v-model form state without mismatch warnings", async () => {
+    const source = `<template>
+  <form>
+    <p>{{ name }}:{{ body }}:{{ enabled }}:{{ selected.join(",") }}:{{ status }}:{{ flavor }}</p>
+    <input v-model.trim="name" />
+    <textarea v-model="body"></textarea>
+    <input type="checkbox" v-model="enabled" />
+    <input type="checkbox" value="2" v-model.number="selected" />
+    <input type="radio" value="draft" v-model="status" />
+    <input type="radio" value="published" v-model="status" />
+    <select v-model="flavor">
+      <option value="mint">Mint</option>
+      <option value="berry">Berry</option>
+    </select>
+    <select multiple v-model.number="selected">
+      <option value="1">One</option>
+      <option value="2">Two</option>
+      <option value="3">Three</option>
+    </select>
+  </form>
+</template>
+<script>
+import { ref } from "mikuru";
+const name = ref("Ada");
+const body = ref("hello");
+const enabled = ref(true);
+const selected = ref([1, 3]);
+const status = ref("published");
+const flavor = ref("berry");
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = await renderToString();
+      const instance = module.hydrate(root as unknown as Element);
+      const inputs = root.querySelectorAll("input");
+      const textarea = root.querySelector("textarea") as unknown as HTMLTextAreaElement;
+      const selects = root.querySelectorAll("select");
+      const textInput = inputs[0] as unknown as HTMLInputElement;
+      const booleanCheckbox = inputs[1] as unknown as HTMLInputElement;
+      const arrayCheckbox = inputs[2] as unknown as HTMLInputElement;
+      const draftRadio = inputs[3] as unknown as HTMLInputElement;
+      const publishedRadio = inputs[4] as unknown as HTMLInputElement;
+      const singleSelect = selects[0] as unknown as HTMLSelectElement;
+      const multipleSelect = selects[1] as unknown as HTMLSelectElement;
+
+      expect(textInput.value).toBe("Ada");
+      expect(textarea.value).toBe("hello");
+      expect(booleanCheckbox.checked).toBe(true);
+      expect(arrayCheckbox.checked).toBe(false);
+      expect(draftRadio.checked).toBe(false);
+      expect(publishedRadio.checked).toBe(true);
+      expect(singleSelect.value).toBe("berry");
+      expect(Array.from(multipleSelect.options).map((option) => option.selected)).toEqual([true, false, true]);
+      expect(warn).not.toHaveBeenCalled();
+
+      textInput.value = "  Grace  ";
+      textInput.dispatchEvent(new window.Event("input") as unknown as Event);
+      textarea.value = "updated";
+      textarea.dispatchEvent(new window.Event("input") as unknown as Event);
+      booleanCheckbox.checked = false;
+      booleanCheckbox.dispatchEvent(new window.Event("change") as unknown as Event);
+      arrayCheckbox.checked = true;
+      arrayCheckbox.dispatchEvent(new window.Event("change") as unknown as Event);
+      draftRadio.checked = true;
+      draftRadio.dispatchEvent(new window.Event("change") as unknown as Event);
+      expect(root.querySelector("p")?.textContent).toBe("Grace:updated:false:1,3,2:draft:berry");
+
+      instance.unmount();
+      textInput.value = "Lovelace";
+      textInput.dispatchEvent(new window.Event("input") as unknown as Event);
+      expect(root.querySelector("p")?.textContent).toBe("Grace:updated:false:1,3,2:draft:berry");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("hydrates SSR Teleport content in its target", async () => {
     const source = `<template>
   <section>

@@ -14,6 +14,7 @@
 - Added nested lazy RouterView SSR hydration coverage with route-level Teleport reuse.
 - Expanded SSR/hydration examples and E2E coverage for lazy route Teleport and nested AsyncBoundary Teleport patterns.
 - Added nested AsyncBoundary error and timeout hydration coverage for inner fallback retry, sibling stability, and cleanup.
+- Added SSR `v-model` form-control state rendering for input, textarea, checkbox, radio, select, and multiple select hydration parity.
 
 ## 1.0.21 - 2026-05-13
 
