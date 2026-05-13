@@ -2098,6 +2098,81 @@ const tab = props.tab;
 
     instance.unmount();
   });
+
+  it("hydrates Teleport content rendered through RouterView route components", async () => {
+    const window = new Window();
+    const app = window.document.createElement("div");
+    const modalRoot = window.document.createElement("div");
+    modalRoot.id = "modal-root";
+    window.document.body.append(app, modalRoot);
+    const shellSource = `<template>
+  <main>
+    <h1>Shell</h1>
+    <RouterView />
+    <p>after view</p>
+  </main>
+</template>
+<script>
+import { RouterView } from "mikuru/router";
+</script>`;
+    const pageSource = `<template>
+  <article>
+    <h2>User {{ id }}</h2>
+    <Teleport to="#modal-root">
+      <button @click="increment">Route {{ id }}:{{ count }}</button>
+    </Teleport>
+    <p>inline route</p>
+  </article>
+</template>
+<script>
+import { ref } from "mikuru";
+const id = props.id;
+const count = ref(1);
+function increment() {
+  count.value += 1;
+}
+</script>`;
+    const shellRender = loadSsrRender(compileSsr(shellSource).code);
+    const pageRender = loadSsrRender(compileSsr(pageSource).code);
+    const shellHydrate = loadHydrationModule(compileHydration(shellSource).code, window.document as unknown as Document);
+    const pageHydrate = loadHydrationModule(compileHydration(pageSource).code, window.document as unknown as Document);
+    const router = createRouter({
+      history: createMemoryHistory("/users/7"),
+      routes: [
+        {
+          path: "/",
+          component: { renderToString: shellRender, hydrate: shellHydrate.hydrate } as any,
+          children: [
+            {
+              path: "users/:id",
+              component: { renderToString: pageRender, hydrate: pageHydrate.hydrate } as any,
+              props: true
+            }
+          ]
+        }
+      ]
+    });
+    const teleports: Record<string, string> = {};
+
+    const result = await renderRouteToString(router, "/users/7", { teleports });
+    app.innerHTML = result.html;
+    modalRoot.innerHTML = result.teleports["#modal-root"];
+
+    expect(app.innerHTML).toBe("<main><h1>Shell</h1><article><h2>User 7</h2><!--teleport:t0--><!--/teleport:t0--><p>inline route</p></article><p>after view</p></main>");
+    expect(modalRoot.innerHTML).toBe("<!--teleport content:t0--><button>Route 7:1</button><!--/teleport content:t0-->");
+
+    const button = modalRoot.querySelector("button");
+    const instance = await hydrateRoute(router, app.firstElementChild as unknown as Element, "/users/7");
+    button?.dispatchEvent(new window.Event("click"));
+
+    expect(button?.textContent).toBe("Route 7:2");
+    expect(app.querySelector("article p")?.textContent).toBe("inline route");
+    expect(app.querySelector("main > p")?.textContent).toBe("after view");
+
+    instance.unmount();
+    button?.dispatchEvent(new window.Event("click"));
+    expect(button?.textContent).toBe("Route 7:2");
+  });
 });
 
 function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
