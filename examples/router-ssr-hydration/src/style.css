@@ -31,6 +31,16 @@ body {
   background: #ffffff;
 }
 
+.route-modal {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #b7c7db;
+  border-radius: 8px;
+}
+
 h2,
 h3,
 p {

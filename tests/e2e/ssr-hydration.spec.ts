@@ -29,4 +29,12 @@ test("SSR hydration example reuses DOM, streams output, and recovers drift", asy
 
   await expect(page.locator("#stream-output")).toContainText("<section");
   await expect(page.locator("#stream-output")).toContainText("Server HTML is reused.");
+
+  const asyncShowcase = page.locator("#async-showcase");
+  await expect(asyncShowcase.getByRole("heading", { name: "Async Boundary SSR" })).toBeVisible();
+  await expect(asyncShowcase.getByText("outer async")).toBeVisible();
+  await expect(asyncShowcase.getByText("inner async")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Async teleport modal" })).toBeVisible();
+  await page.getByRole("button", { name: "async modal: 1" }).click();
+  await expect(page.getByRole("button", { name: "async modal: 2" })).toBeVisible();
 });

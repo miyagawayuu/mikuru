@@ -2,5 +2,21 @@
   <section class="route-page">
     <h2>Lazy SSR Route</h2>
     <p>This route component was loaded lazily for both SSR rendering and hydration.</p>
+    <Teleport to="#route-modal-root">
+      <aside class="route-modal" aria-label="Lazy route modal">
+        <p>Teleport from lazy route</p>
+        <button @click="increment">lazy modal: {{ count }}</button>
+      </aside>
+    </Teleport>
   </section>
 </template>
+
+<script>
+import { ref } from "mikuru";
+
+const count = ref(1);
+
+function increment() {
+  count.value += 1;
+}
+</script>

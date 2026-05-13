@@ -12,6 +12,7 @@
 - Added Transition and TransitionGroup async-child hydration coverage for DOM reuse, keyed order, and cleanup.
 - Added nested AsyncBoundary streaming SSR hydration coverage for parent/child async DOM reuse and cleanup.
 - Added nested lazy RouterView SSR hydration coverage with route-level Teleport reuse.
+- Expanded SSR/hydration examples and E2E coverage for lazy route Teleport and nested AsyncBoundary Teleport patterns.
 
 ## 1.0.21 - 2026-05-13
 
