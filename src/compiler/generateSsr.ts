@@ -293,12 +293,18 @@ function emitComponent(context: SsrGenerateContext, node: ElementNode, indent: n
   emit(context, indent, `const ${propsVar} = {};`);
   emitComponentProps(context, node, propsVar, indent);
   emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  emitRouterViewRouteSlot(context, node, propsVar, indent);
 
   if (node.children.length > 0) {
     emitComponentSlots(context, node, propsVar, indent);
   }
 
   emit(context, indent, `__mikuru_html += await __mikuru_renderComponent(${node.tag}, ${propsVar});`);
+}
+
+function emitRouterViewRouteSlot(context: SsrGenerateContext, node: ElementNode, propsVar: string, indent: number): void {
+  if (node.tag !== "RouterView") return;
+  emit(context, indent, `if (typeof props.children === "function") { ${propsVar}.children = props.children; ${propsVar}.slots = { ...(${propsVar}.slots ?? {}), default: props.children }; }`);
 }
 
 function emitDynamicComponent(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -321,6 +327,7 @@ function emitDynamicComponent(context: SsrGenerateContext, node: ElementNode, in
   emit(context, indent + 1, `const ${propsVar} = {};`);
   emitComponentProps(context, dynamicNode, propsVar, indent + 1);
   emit(context, indent + 1, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  emitRouterViewRouteSlot(context, dynamicNode, propsVar, indent + 1);
   if (dynamicNode.children.length > 0) {
     emitComponentSlots(context, dynamicNode, propsVar, indent + 1);
   }

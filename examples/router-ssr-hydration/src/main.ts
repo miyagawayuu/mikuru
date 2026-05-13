@@ -1,7 +1,11 @@
+import { renderToString as renderShellToString } from "./Shell.mikuru?ssr";
+import ShellHydrate from "./Shell.mikuru?hydrate";
 import { renderToString as renderHomeToString } from "./HomePage.mikuru?ssr";
 import HomeHydrate from "./HomePage.mikuru?hydrate";
 import { renderToString as renderUserToString } from "./UserPage.mikuru?ssr";
 import UserHydrate from "./UserPage.mikuru?hydrate";
+import { renderToString as renderSettingsToString } from "./SettingsPage.mikuru?ssr";
+import SettingsHydrate from "./SettingsPage.mikuru?hydrate";
 import { renderToString as renderProfileToString } from "./ProfilePage.mikuru?ssr";
 import ProfileHydrate from "./ProfilePage.mikuru?hydrate";
 import { renderToString as renderLoginToString } from "./LoginPage.mikuru?ssr";
@@ -9,9 +13,9 @@ import LoginHydrate from "./LoginPage.mikuru?hydrate";
 import { renderToString as renderNotFoundToString } from "./NotFoundPage.mikuru?ssr";
 import NotFoundHydrate from "./NotFoundPage.mikuru?hydrate";
 import { createMemoryHistory, createRouter, createWebHistory } from "mikuru/router";
-import { escapeHtml, hydrateRoute, renderRouteToString } from "mikuru/server";
+import { hydrateRoute, renderRouteToString } from "mikuru/server";
 import type { RouteComponent, RouteLocation, RouteRecord, Router } from "mikuru/router";
-import type { MikuruHydrationInstance, MikuruRouteHydrationResult, MikuruSsrComponent } from "mikuru/server";
+import type { MikuruRouteHydrationResult, MikuruSsrComponent } from "mikuru/server";
 
 import "./style.css";
 
@@ -25,10 +29,6 @@ type RouteComponents = {
   notFound: RouteComponent | MikuruSsrComponent;
   lazy: () => Promise<RouteComponent | MikuruSsrComponent | { default: RouteComponent | MikuruSsrComponent }>;
 };
-type HydrationRouteComponent = {
-  hydrate(target: Element, props?: Record<string, unknown>): MikuruHydrationInstance | Promise<MikuruHydrationInstance>;
-  mount(target: Element | DocumentFragment, props?: Record<string, unknown>): MikuruHydrationInstance;
-};
 
 const root = document.getElementById("route-root");
 const status = document.getElementById("route-status");
@@ -38,10 +38,10 @@ if (!root || !status) {
 }
 
 const ssrComponents: RouteComponents = {
-  shell: createShellSsrComponent(),
+  shell: { renderToString: renderShellToString },
   home: { renderToString: renderHomeToString },
   user: { renderToString: renderUserToString },
-  settings: createSettingsSsrComponent(),
+  settings: { renderToString: renderSettingsToString },
   profile: { renderToString: renderProfileToString },
   login: { renderToString: renderLoginToString },
   notFound: { renderToString: renderNotFoundToString },
@@ -52,10 +52,10 @@ const ssrComponents: RouteComponents = {
 };
 
 const hydrationComponents: RouteComponents = {
-  shell: createShellHydrationComponent(),
+  shell: ShellHydrate,
   home: HomeHydrate,
   user: UserHydrate,
-  settings: createSettingsHydrationComponent(),
+  settings: SettingsHydrate,
   profile: ProfileHydrate,
   login: LoginHydrate,
   notFound: NotFoundHydrate,
@@ -146,112 +146,6 @@ function installGuards(router: Router): void {
     }
     return undefined;
   });
-}
-
-function createShellSsrComponent(): MikuruSsrComponent {
-  return {
-    async renderToString(props = {}) {
-      const router = props.router as Router;
-      const route = props.route as RouteLocation;
-      const child = typeof props.children === "function" ? await props.children({ __mikuru_context: props.__mikuru_context }) : "";
-      return `<main class="router-shell" data-testid="router-shell" data-route="${escapeHtml(route.fullPath)}">
-    <header>
-      <h1>Router SSR Hydration</h1>
-      <p>Current route: ${escapeHtml(route.fullPath)}</p>
-      <nav aria-label="Router SSR routes">
-        ${renderNavLink(router, "/", "Home", "home")}
-        ${renderNavLink(router, { name: "user", params: { id: "42" }, query: { tab: "profile" } }, "User", "user")}
-        ${renderNavLink(router, "/legacy-user", "Redirect", "redirect")}
-        ${renderNavLink(router, { name: "settings-profile" }, "Settings", "settings")}
-        ${renderNavLink(router, { name: "lazy" }, "Lazy", "lazy")}
-        ${renderNavLink(router, { name: "admin" }, "Admin", "admin")}
-        ${renderNavLink(router, "/missing", "Missing", "missing")}
-      </nav>
-    </header>
-    <section class="route-outlet" data-testid="route-outlet" data-route-outlet>${child}</section>
-  </main>`;
-    }
-  };
-}
-
-function createShellHydrationComponent(): RouteComponent {
-  const component: HydrationRouteComponent = {
-    async hydrate(target: Element, props: Record<string, unknown> = {}) {
-      const router = props.router as Router;
-      const outlet = target.querySelector("[data-route-outlet]");
-      if (!outlet?.firstElementChild) {
-        throw new Error("Missing route outlet for hydration");
-      }
-      await (props.children as (target: Element, slotProps?: Record<string, unknown>) => Promise<unknown>)(outlet.firstElementChild, { __mikuru_context: props.__mikuru_context });
-      const links = Array.from(target.querySelectorAll<HTMLAnchorElement>("[data-nav]"));
-      const onClick = (event: Event) => {
-        const link = event.currentTarget as HTMLAnchorElement;
-        event.preventDefault();
-        void router.push(navTarget(link.dataset.nav));
-      };
-      for (const link of links) link.addEventListener("click", onClick);
-      return {
-        element: target,
-        unmount() {
-          for (const link of links) link.removeEventListener("click", onClick);
-        }
-      };
-    },
-    mount() {
-      throw new Error("Shell route is SSR/hydration only in this example.");
-    }
-  };
-  return component as unknown as RouteComponent;
-}
-
-function createSettingsSsrComponent(): MikuruSsrComponent {
-  return {
-    async renderToString(props = {}) {
-      const child = typeof props.children === "function" ? await props.children({ __mikuru_context: props.__mikuru_context }) : "";
-      return `<section class="route-page"><h2>Settings</h2><div data-settings-outlet>${child}</div></section>`;
-    }
-  };
-}
-
-function createSettingsHydrationComponent(): RouteComponent {
-  const component: HydrationRouteComponent = {
-    async hydrate(target: Element, props: Record<string, unknown> = {}) {
-      const outlet = target.querySelector("[data-settings-outlet]");
-      if (outlet?.firstElementChild) {
-        await (props.children as (target: Element, slotProps?: Record<string, unknown>) => Promise<unknown>)(outlet.firstElementChild, { __mikuru_context: props.__mikuru_context });
-      }
-      return { element: target, unmount() {} };
-    },
-    mount() {
-      throw new Error("Settings route is SSR/hydration only in this example.");
-    }
-  };
-  return component as unknown as RouteComponent;
-}
-
-function renderNavLink(router: Router, to: Parameters<Router["createHref"]>[0], label: string, key: string): string {
-  return `<a href="${escapeHtml(router.createHref(to))}" data-nav="${key}">${escapeHtml(label)}</a>`;
-}
-
-function navTarget(key: string | undefined) {
-  switch (key) {
-    case "home":
-      return "/";
-    case "user":
-      return { name: "user", params: { id: "42" }, query: { tab: "profile" } };
-    case "redirect":
-      return "/legacy-user";
-    case "settings":
-      return { name: "settings-profile" };
-    case "lazy":
-      return { name: "lazy" };
-    case "admin":
-      return { name: "admin" };
-    case "missing":
-      return "/missing";
-    default:
-      return "/";
-  }
 }
 
 async function renderRouteHtml(path: string) {

@@ -2,7 +2,7 @@ import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { compileHydration, compileSsr } from "../src/compiler/index.js";
-import { createMemoryHistory, createRouter } from "../src/router/index.js";
+import { createMemoryHistory, createRouter, RouterLink, RouterView } from "../src/router/index.js";
 import type { RouterHistory } from "../src/router/index.js";
 import { effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap } from "../src/runtime/index.js";
 import { escapeHtml, hydrateRoute, renderAttr, renderAttrs, renderComponentToString, renderRouteToString } from "../src/server.js";
@@ -1677,16 +1677,78 @@ function increment() {
     history.push("/users/9");
     expect(router.currentRoute.value.fullPath).toBe("/fallback");
   });
+
+  it("hydrates generated RouterView and RouterLink route components", async () => {
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const shellSource = `<template>
+  <main>
+    <RouterLink :to="userRoute" label="User" />
+    <RouterView />
+  </main>
+</template>
+<script>
+import { RouterLink, RouterView } from "mikuru/router";
+const userRoute = { name: "user", params: { id: "7" }, query: { tab: "info" } };
+</script>`;
+    const userSource = `<template>
+  <p>User {{ id }}:{{ tab }}</p>
+</template>
+<script>
+const id = props.id;
+const tab = props.tab;
+</script>`;
+    const shellRender = loadSsrRender(compileSsr(shellSource).code);
+    const userRender = loadSsrRender(compileSsr(userSource).code);
+    const shellHydrate = loadHydrationModule(compileHydration(shellSource).code, window.document as unknown as Document);
+    const userHydrate = loadHydrationModule(compileHydration(userSource).code, window.document as unknown as Document);
+    const router = createRouter({
+      history: createMemoryHistory("/users/7?tab=info"),
+      routes: [
+        {
+          path: "/",
+          component: { renderToString: shellRender, hydrate: shellHydrate.hydrate } as any,
+          children: [
+            {
+              path: "users/:id",
+              name: "user",
+              component: { renderToString: userRender, hydrate: userHydrate.hydrate } as any,
+              props: (route) => ({ id: route.params.id, tab: route.query.tab })
+            },
+            {
+              path: "fallback",
+              component: { renderToString: userRender, hydrate: userHydrate.hydrate } as any,
+              props: { id: "fallback", tab: "none" }
+            }
+          ]
+        }
+      ]
+    });
+
+    root.innerHTML = (await renderRouteToString(router)).html;
+    const instance = await hydrateRoute(router, root.firstElementChild as unknown as Element, { listen: true });
+
+    expect(root.querySelector("a")?.getAttribute("href")).toBe("/users/7?tab=info");
+    expect(root.querySelector("a")?.getAttribute("aria-current")).toBe("page");
+    expect(root.querySelector("p")?.textContent).toBe("User 7:info");
+
+    root.querySelector("a")?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }) as any);
+    await Promise.resolve();
+    expect(router.currentRoute.value.fullPath).toBe("/users/7?tab=info");
+
+    instance.unmount();
+  });
 });
 
 function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
   const executable = code
     .replace(/import\s+\{([^}]+)\}\s+from\s+["']mikuru["'];?\n+/g, "")
+    .replace(/import\s+\{([^}]+)\}\s+from\s+["']mikuru\/router["'];?\n+/g, "const { $1 } = helpers;\n")
     .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
     .replace("export async function renderToString", "async function renderToString");
   const factory = new Function("helpers", `const { onMounted, onUnmounted, ref } = helpers;\n${executable}\nreturn renderToString;`) as (helpers: Record<string, unknown>) => (props?: Record<string, unknown>) => Promise<string>;
-  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, onMounted: () => {}, onUnmounted: () => {}, ref, unwrap });
+  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, onMounted: () => {}, onUnmounted: () => {}, ref, unwrap, RouterLink, RouterView });
 }
 
 function loadHydrationModule(code: string, documentOverride?: Document): { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any } {
@@ -1695,7 +1757,7 @@ function loadHydrationModule(code: string, documentOverride?: Document): { mount
     .replace("export function mount", "function mount")
     .replace("export function hydrate", "function hydrate")
     .replace(/\n(?:export \{ hydrate \};\n)?const __mikuru_hydrationComponent = \{ \.\.\.__mikuru_component, hydrate \};\nexport default __mikuru_hydrationComponent;\n?$/, "\n");
-  const factory = new Function("effect", "inject", "onMounted", "onUnmounted", "provide", "ref", "setAttribute", "unwrap", "document", `${executable}\nreturn { mount, hydrate };`) as (
+  const factory = new Function("effect", "inject", "onMounted", "onUnmounted", "provide", "ref", "setAttribute", "unwrap", "document", "RouterLink", "RouterView", `${executable}\nreturn { mount, hydrate };`) as (
     effectArg: typeof effect,
     injectArg: typeof inject,
     onMountedArg: typeof onMounted,
@@ -1704,8 +1766,10 @@ function loadHydrationModule(code: string, documentOverride?: Document): { mount
     refArg: typeof ref,
     setAttributeArg: typeof setAttribute,
     unwrapArg: typeof unwrap,
-    documentArg: Document
+    documentArg: Document,
+    routerLinkArg: typeof RouterLink,
+    routerViewArg: typeof RouterView
   ) => { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any };
   const window = documentOverride ? undefined : new Window();
-  return factory(effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document);
+  return factory(effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document, RouterLink, RouterView);
 }

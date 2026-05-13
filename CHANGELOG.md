@@ -11,6 +11,7 @@
 - Added Vite `.mikuru?ssr` and `.mikuru?hydrate` imports plus an SSR/hydration example and recovery E2E coverage.
 - Added recovery-disabled E2E coverage plus nested built-in wrapper SSR/hydration tests.
 - Added a router SSR/hydration example and browser E2E coverage for route rendering, hydration, redirects, guards, nested routes, and lazy route components.
+- Added SSR and hydration support for generated `<RouterView>` and `<RouterLink>` usage in route components.
 
 ## 1.0.20 - 2026-05-13
 

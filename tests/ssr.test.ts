@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { compileSsr } from "../src/compiler/index.js";
-import { createMemoryHistory, createRouter } from "../src/router/index.js";
+import { createMemoryHistory, createRouter, RouterLink, RouterView } from "../src/router/index.js";
 import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToStream, renderToString } from "../src/server.js";
 import { defineAsyncComponent, inject, provide, unwrap } from "../src/runtime/index.js";
 
@@ -677,6 +677,47 @@ const message = "Inline";
     expect(result.html).toBe('<main><p data-current="/users/8">8</p></main>');
   });
 
+  it("renders RouterView and RouterLink in generated route SSR components", async () => {
+    const shellRender = loadSsrRender(compileSsr(`<template>
+  <main>
+    <RouterLink :to="userRoute" label="User" />
+    <RouterView />
+  </main>
+</template>
+<script>
+import { RouterLink, RouterView } from "mikuru/router";
+const userRoute = { name: "user", params: { id: "7" }, query: { tab: "info" } };
+</script>`).code);
+    const userRender = loadSsrRender(compileSsr(`<template>
+  <p>User {{ id }}:{{ tab }}</p>
+</template>
+<script>
+const id = props.id;
+const tab = props.tab;
+</script>`).code);
+    const router = createRouter({
+      history: createMemoryHistory("/users/7?tab=info"),
+      routes: [
+        {
+          path: "/",
+          component: { renderToString: shellRender } as any,
+          children: [
+            {
+              path: "users/:id",
+              name: "user",
+              component: { renderToString: userRender } as any,
+              props: (route) => ({ id: route.params.id, tab: route.query.tab })
+            }
+          ]
+        }
+      ]
+    });
+
+    const result = await renderRouteToString(router);
+
+    expect(result.html).toBe('<main><a href="/users/7?tab=info" class="router-link-active router-link-exact-active" aria-current="page">User</a><p>User 7:info</p></main>');
+  });
+
   it("keeps sibling v-for temporary variables unique", async () => {
     const result = compileSsr(`<template>
   <section>
@@ -698,6 +739,7 @@ const second = ["b"];
 function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
   const executable = code
     .replace(/import\s+\{([^}]+)\}\s+from\s+["']mikuru["'];?\n+/g, "const { $1 } = helpers;\n")
+    .replace(/import\s+\{([^}]+)\}\s+from\s+["']mikuru\/router["'];?\n+/g, "const { $1 } = helpers;\n")
     .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
     .replace("export async function renderToString", "async function renderToString");
@@ -710,6 +752,8 @@ function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promi
     inject: typeof inject;
     provide: typeof provide;
     unwrap: typeof unwrap;
+    RouterLink: typeof RouterLink;
+    RouterView: typeof RouterView;
   }) => (props?: Record<string, unknown>) => Promise<string>;
-  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, defineAsyncComponent, inject, provide, unwrap });
+  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, defineAsyncComponent, inject, provide, unwrap, RouterLink, RouterView });
 }
