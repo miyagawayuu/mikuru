@@ -94,7 +94,9 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
   emit(context, 2, "},");
   emit(context, 2, "registerEffect: (fn) => Promise.resolve().then(fn)");
   emit(context, 1, "};");
-  emit(context, 1, "const __mikuru_warn = (message) => { if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message}`); };");
+  emit(context, 1, "const __mikuru_emitDebug = (type, payload) => { const hook = globalThis.__MIKURU_DEVTOOLS__; if (!hook) return; const event = { type, timestamp: Date.now(), payload }; hook.events ??= []; hook.events.push(event); if (typeof hook.emit === \"function\") hook.emit(event); for (const listener of hook.listeners ?? []) { try { listener(event); } catch (error) { setTimeout(() => { throw error; }); } } };");
+  emit(context, 1, "const __mikuru_hydrationDiagnostic = (message, details = {}) => ({ ...__mikuru_componentInfo, phase: \"hydration\", message, ...details });");
+  emit(context, 1, "const __mikuru_warn = (message, details = {}) => { const diagnostic = __mikuru_hydrationDiagnostic(message, details); __mikuru_emitDebug(\"hydration:warning\", diagnostic); if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message} (phase: ${diagnostic.phase}, component: ${diagnostic.component}, file: ${diagnostic.filename})`); };");
   emit(context, 1, "const __mikuru_describeNode = (node) => { if (!node) return \"missing\"; if (node.nodeType === 1) return `<${node.tagName?.toLowerCase?.() ?? \"element\"}>`; if (node.nodeType === 3) return `text(${JSON.stringify(node.nodeValue ?? \"\")})`; if (node.nodeType === 8) return `comment(${JSON.stringify(node.nodeValue ?? \"\")})`; return `nodeType(${node.nodeType})`; };");
   emit(context, 1, "const __mikuru_restoreRegistrar = () => { if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; } };");
   emit(context, 1, "const __mikuru_recovery = {};");
