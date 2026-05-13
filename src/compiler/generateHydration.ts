@@ -46,6 +46,12 @@ type SlotTemplateDirective = {
   scopeLoc?: SourceLocation;
 };
 
+type IfBranch = {
+  node: ElementNode;
+  condition?: string;
+  directive: "v-if" | "v-else-if" | "v-else";
+};
+
 type SlotScopeBinding =
   | { kind: "props"; alias: string }
   | { kind: "property"; path: string[]; alias: string; defaultValue?: string }
@@ -227,51 +233,62 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
   const children = rawChildren.filter(isHydratableNode);
   const domIndexVar = nextName(context, "domIndex");
   emit(context, indent, `let ${domIndexVar} = 0;`);
-  children.forEach((child) => {
+  for (let index = 0; index < children.length; index += 1) {
+    const child = children[index]!;
     if (child.type === "element" && child.tag === "Teleport") {
       hydrateTeleportAtIndex(context, child, parentVar, domIndexVar, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "component") {
       hydrateDynamicComponentAtIndex(context, child, parentVar, domIndexVar, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "KeepAlive") {
       hydrateKeepAliveAtIndex(context, child, parentVar, domIndexVar, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "AsyncBoundary") {
       hydrateAsyncBoundaryAtIndex(context, child, parentVar, domIndexVar, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "ErrorBoundary") {
       hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndexVar, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "TransitionGroup") {
       hydrateTransitionGroupAtIndex(context, child, parentVar, domIndexVar, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "Transition") {
       hydrateTransitionAtIndex(context, child, parentVar, domIndexVar, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && getAttr(child, "v-if") && !getAttr(child, "v-pre")) {
-      hydrateIf(context, child, parentVar, domIndexVar, indent);
-      emit(context, indent, `${domIndexVar} += 1;`);
-      return;
+      const { branches, nextIndex } = collectIfBranches(children, index);
+      hydrateIfChain(context, branches, parentVar, domIndexVar, indent);
+      index = nextIndex - 1;
+      continue;
+    }
+
+    if (child.type === "element" && (getAttr(child, "v-else-if") || getAttr(child, "v-else"))) {
+      continue;
     }
 
     if (child.type === "element" && getAttr(child, "v-for") && !getAttr(child, "v-pre")) {
       hydrateFor(context, child, parentVar, domIndexVar, indent, domIndexVar);
-      return;
+      continue;
+    }
+
+    if (child.type === "element" && child.tag === "template") {
+      hydrateFragmentChildrenAtIndex(context, child.children, parentVar, domIndexVar, indent);
+      continue;
     }
 
     const childVar = nextName(context, "node");
@@ -289,7 +306,7 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       emit(context, indent, "}");
     }
     emit(context, indent, `${domIndexVar} += 1;`);
-  });
+  }
   emit(context, indent, `if (${parentVar}.childNodes.length > ${domIndexVar}) { __mikuru_warn("Extra DOM nodes after hydration: " + Array.from(${parentVar}.childNodes).slice(${domIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
 }
 
@@ -351,6 +368,61 @@ function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: stri
   emit(context, indent, `} else if (${childVar}) {`);
   emit(context, indent + 1, "__mikuru_recover(\"Branch mismatch: expected no v-if DOM for initial state\");");
   emit(context, indent, "}");
+}
+
+function hydrateIfChain(context: HydrationContext, branches: IfBranch[], parentVar: string, domIndex: string, indent: number): void {
+  branches.forEach((branch, index) => {
+    if (index === 0) {
+      emit(context, indent, `if (unwrap(${compileHydrationExpression(context, branch.condition ?? "", "v-if")})) {`);
+    } else if (branch.directive === "v-else-if") {
+      emit(context, indent, `else if (unwrap(${compileHydrationExpression(context, branch.condition ?? "", "v-else-if")})) {`);
+    } else {
+      emit(context, indent, "else {");
+    }
+
+    hydrateFragmentChildrenAtIndex(context, ifBranchChildren(branch.node), parentVar, domIndex, indent + 1);
+    emit(context, indent, "}");
+  });
+}
+
+function ifBranchChildren(node: ElementNode): TemplateNode[] {
+  if (node.tag === "template") {
+    return node.children;
+  }
+
+  return [withoutAttrs(node, ["v-if", "v-else-if", "v-else"])];
+}
+
+function collectIfBranches(children: TemplateNode[], startIndex: number): { branches: IfBranch[]; nextIndex: number } {
+  const first = children[startIndex];
+  if (first?.type !== "element") {
+    return { branches: [], nextIndex: startIndex + 1 };
+  }
+
+  const branches: IfBranch[] = [{ node: first, condition: getAttrValue(first, "v-if"), directive: "v-if" }];
+  let cursor = startIndex + 1;
+
+  while (cursor < children.length) {
+    const candidate = children[cursor];
+    if (candidate?.type !== "element") {
+      break;
+    }
+
+    if (getAttr(candidate, "v-else-if")) {
+      branches.push({ node: candidate, condition: getAttrValue(candidate, "v-else-if"), directive: "v-else-if" });
+      cursor += 1;
+      continue;
+    }
+
+    if (getAttr(candidate, "v-else")) {
+      branches.push({ node: candidate, directive: "v-else" });
+      cursor += 1;
+    }
+
+    break;
+  }
+
+  return { branches, nextIndex: cursor };
 }
 
 function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number, advanceVar?: string): void {
@@ -1047,51 +1119,62 @@ function hydrateTransitionGroupElement(context: HydrationContext, node: ElementN
 
 function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: TemplateNode[], parentVar: string, domIndex: string, indent: number): void {
   const children = rawChildren.filter(isHydratableNode);
-  children.forEach((child) => {
+  for (let index = 0; index < children.length; index += 1) {
+    const child = children[index]!;
     if (child.type === "element" && child.tag === "Teleport") {
       hydrateTeleportAtIndex(context, child, parentVar, domIndex, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "component") {
       hydrateDynamicComponentAtIndex(context, child, parentVar, domIndex, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "KeepAlive") {
       hydrateKeepAliveAtIndex(context, child, parentVar, domIndex, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "AsyncBoundary") {
       hydrateAsyncBoundaryAtIndex(context, child, parentVar, domIndex, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "ErrorBoundary") {
       hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndex, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "TransitionGroup") {
       hydrateTransitionGroupAtIndex(context, child, parentVar, domIndex, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && child.tag === "Transition") {
       hydrateTransitionAtIndex(context, child, parentVar, domIndex, indent);
-      return;
+      continue;
     }
 
     if (child.type === "element" && getAttr(child, "v-if") && !getAttr(child, "v-pre")) {
-      hydrateIf(context, child, parentVar, domIndex, indent);
-      emit(context, indent, `${domIndex} += 1;`);
-      return;
+      const { branches, nextIndex } = collectIfBranches(children, index);
+      hydrateIfChain(context, branches, parentVar, domIndex, indent);
+      index = nextIndex - 1;
+      continue;
+    }
+
+    if (child.type === "element" && (getAttr(child, "v-else-if") || getAttr(child, "v-else"))) {
+      continue;
     }
 
     if (child.type === "element" && getAttr(child, "v-for") && !getAttr(child, "v-pre")) {
       hydrateFor(context, child, parentVar, domIndex, indent, domIndex);
-      return;
+      continue;
+    }
+
+    if (child.type === "element" && child.tag === "template") {
+      hydrateFragmentChildrenAtIndex(context, child.children, parentVar, domIndex, indent);
+      continue;
     }
 
     const childVar = nextName(context, "node");
@@ -1109,7 +1192,7 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
       emit(context, indent, "}");
     }
     emit(context, indent, `${domIndex} += 1;`);
-  });
+  }
 }
 
 function hydrateComponentProps(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {

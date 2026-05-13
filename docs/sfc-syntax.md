@@ -215,6 +215,23 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 
 `v-if` / `v-else-if` / `v-else` は条件に応じて、同じ位置に表示する分岐を切り替える。
 
+複数の兄弟要素を1つの条件分岐としてまとめる場合は、実DOMを作らない `<template>` branch を使える。
+
+```mikuru
+<template v-if="items.length > 0">
+  <ItemRow v-for="item in items" :key="item.id" :item="item" />
+  <button @click="loadMore">Load more</button>
+  <span ref="sentinel"></span>
+</template>
+<template v-else-if="loading">
+  <p>Loading...</p>
+  <span class="spinner"></span>
+</template>
+<template v-else>
+  <p>No items</p>
+</template>
+```
+
 生成方針:
 
 - コンパイラはコメントアンカーまたは固定位置を使って差し替え位置を保持する。

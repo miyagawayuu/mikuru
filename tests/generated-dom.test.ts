@@ -1505,6 +1505,63 @@ function next() {
     expect(fixture.root.querySelector("p")?.textContent).toBe("One");
   });
 
+  it("renders template v-if branches as stable fragments", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <template v-if="mode === 'list'">
+      <p>Items</p>
+      <button @click="loadMore">Load more {{ count }}</button>
+      <span data-sentinel="list">sentinel</span>
+    </template>
+    <template v-else-if="mode === 'empty'">
+      <p>No items</p>
+      <span data-sentinel="empty">empty sentinel</span>
+    </template>
+    <template v-else>
+      <p>Failed</p>
+      <button>Retry</button>
+    </template>
+    <button data-mode="empty" @click="showEmpty">Show empty</button>
+    <button data-mode="error" @click="showError">Show error</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const mode = ref("list");
+const count = ref(1);
+
+function loadMore() {
+  count.value += 1;
+}
+
+function showEmpty() {
+  mode.value = "empty";
+}
+
+function showError() {
+  mode.value = "error";
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("template")).toBeNull();
+    expect(Array.from(fixture.root.querySelectorAll("p, button:not([data-mode]), span")).map((node) => node.textContent)).toEqual(["Items", "Load more 1", "sentinel"]);
+    expect(fixture.root.querySelector("[data-sentinel='list']")).not.toBeNull();
+
+    fixture.root.querySelector("button:not([data-mode])")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(Array.from(fixture.root.querySelectorAll("p, button:not([data-mode]), span")).map((node) => node.textContent)).toEqual(["Items", "Load more 2", "sentinel"]);
+
+    fixture.root.querySelector("[data-mode='empty']")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(Array.from(fixture.root.querySelectorAll("p, button:not([data-mode]), span")).map((node) => node.textContent)).toEqual(["No items", "empty sentinel"]);
+    expect(fixture.root.querySelector("[data-sentinel='empty']")).not.toBeNull();
+
+    fixture.root.querySelector("[data-mode='error']")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(Array.from(fixture.root.querySelectorAll("p, button:not([data-mode]), span")).map((node) => node.textContent)).toEqual(["Failed", "Retry"]);
+  });
+
   it("auto-unwraps refs inside template expressions", () => {
     const fixture = compileForDom(`<template>
   <section>

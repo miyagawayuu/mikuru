@@ -416,6 +416,49 @@ const items = ["one", "two"];
     expect(root.innerHTML).toBe('<section><p>Ready</p><ul><li data-index="0">one</li><li data-index="1">two</li></ul></section>');
   });
 
+  it("hydrates template v-if branches as fragments", async () => {
+    const source = `<template>
+  <section>
+    <template v-if="mode === 'list'">
+      <p>Items</p>
+      <button @click="loadMore">Load more {{ count }}</button>
+      <span data-sentinel="list">sentinel</span>
+    </template>
+    <template v-else-if="mode === 'empty'">
+      <p>No items</p>
+      <span data-sentinel="empty">empty sentinel</span>
+    </template>
+    <template v-else>
+      <p>Failed</p>
+      <button>Retry</button>
+    </template>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const mode = ref("list");
+const count = ref(1);
+function loadMore() {
+  count.value += 1;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const section = root.firstElementChild;
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(instance.element).toBe(section);
+    expect(root.querySelector("template")).toBeNull();
+    expect(root.innerHTML).toBe('<section><p>Items</p><button>Load more 1</button><span data-sentinel="list">sentinel</span></section>');
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(root.innerHTML).toBe('<section><p>Items</p><button>Load more 2</button><span data-sentinel="list">sentinel</span></section>');
+  });
+
   it("hydrates class and style bindings with object v-bind attr cleanup", async () => {
     const source = `<template>
   <section>

@@ -124,16 +124,25 @@ function emitChildren(context: SsrGenerateContext, children: TemplateNode[], ind
     if (child.type === "element" && getAttr(child, "v-if")) {
       const branches: IfBranch[] = [{ node: child, condition: getAttrValue(child, "v-if"), directive: "v-if" }];
       let cursor = index + 1;
-      while (cursor < children.length && children[cursor]?.type === "element") {
-        const branchNode = children[cursor] as ElementNode;
+      while (cursor < children.length) {
+        let candidateIndex = cursor;
+        while (candidateIndex < children.length && isWhitespaceText(children[candidateIndex])) {
+          candidateIndex += 1;
+        }
+
+        if (children[candidateIndex]?.type !== "element") {
+          break;
+        }
+
+        const branchNode = children[candidateIndex] as ElementNode;
         if (getAttr(branchNode, "v-else-if")) {
           branches.push({ node: branchNode, condition: getAttrValue(branchNode, "v-else-if"), directive: "v-else-if" });
-          cursor += 1;
+          cursor = candidateIndex + 1;
           continue;
         }
         if (getAttr(branchNode, "v-else")) {
           branches.push({ node: branchNode, directive: "v-else" });
-          cursor += 1;
+          cursor = candidateIndex + 1;
         }
         break;
       }
@@ -722,6 +731,10 @@ function emitText(context: SsrGenerateContext, node: TextNode, indent: number): 
 
     emit(context, indent, `__mikuru_html += __mikuru_escape(__mikuru_unwrap(${compileSsrExpression(context, part.value, "interpolation")}));`);
   }
+}
+
+function isWhitespaceText(node: TemplateNode | undefined): boolean {
+  return node?.type === "text" && node.parts.every((part) => part.type === "static" && part.value.trim() === "");
 }
 
 function shouldSkipAttr(attr: TemplateAttribute): boolean {
