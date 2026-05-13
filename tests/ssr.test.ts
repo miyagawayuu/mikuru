@@ -119,6 +119,33 @@ const items = [{ label: "one" }, { label: "two & more" }];
     await expect(render()).resolves.toBe("<section class=\"card\" data-count=\"2\"><h1>SSR &lt;phase&gt;</h1><p>Ready &amp; &lt;script&gt;</p><ul><li data-index=\"0\">one</li><li data-index=\"1\">two &amp; more</li></ul></section>");
   });
 
+  it("renders template v-if branches as SSR fragments", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <template v-if="mode === 'list'">
+      <p>Items</p>
+      <button>Load more</button>
+      <span data-sentinel="list">sentinel</span>
+    </template>
+    <template v-else-if="mode === 'empty'">
+      <p>No items</p>
+      <span data-sentinel="empty">empty sentinel</span>
+    </template>
+    <template v-else>
+      <p>Failed</p>
+      <button>Retry</button>
+    </template>
+  </section>
+</template>
+<script>
+const mode = "list";
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><p>Items</p><button>Load more</button><span data-sentinel="list">sentinel</span></section>');
+  });
+
   it("normalizes SSR class and style bindings with static values", async () => {
     const result = compileSsr(`<template>
   <section>

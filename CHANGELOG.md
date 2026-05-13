@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added shared Debug Inspector diagnostic payloads for compiler, runtime, router, SSR, and hydration warning/error events.
+- Added support for `<template v-if>` / `<template v-else-if>` / `<template v-else>` fragment branches across DOM rendering, SSR, and hydration.
 
 ## 1.0.23 - 2026-05-13
 

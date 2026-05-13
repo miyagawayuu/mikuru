@@ -445,7 +445,37 @@ function generateNode(
     return generateSlot(context, node, parentVar, cleanupVar, indent, beforeVar);
   }
 
+  if (node.tag === "template") {
+    return generateTemplateFragment(context, node, parentVar, cleanupVar, indent, beforeVar);
+  }
+
   return generateElement(context, node, parentVar, cleanupVar, indent, beforeVar);
+}
+
+function generateTemplateFragment(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  beforeVar?: string
+): string {
+  validatePlainTemplate(context, node);
+  const startVar = nextVar(context, "templateStart");
+  const endVar = nextVar(context, "templateEnd");
+  emit(context, indent, `const ${startVar} = document.createComment("template");`);
+  emit(context, indent, `const ${endVar} = document.createComment("/template");`);
+  appendNode(context, parentVar, startVar, indent, beforeVar);
+  appendNode(context, parentVar, endVar, indent, beforeVar);
+  generateChildren(context, node.children, parentVar, cleanupVar, indent, endVar);
+  return startVar;
+}
+
+function validatePlainTemplate(context: GenerateContext, node: ElementNode): void {
+  const slotAttr = node.attrs.find((attr) => isSlotDirectiveAttr(attr));
+  if (slotAttr) {
+    throwTemplateError("Slot templates must be direct children of a component", context, slotAttr.loc);
+  }
 }
 
 function generateTransition(
