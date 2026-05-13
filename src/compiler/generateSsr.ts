@@ -203,6 +203,11 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
 
+  if (node.tag === "TransitionGroup") {
+    emitTransitionGroup(context, node, indent);
+    return;
+  }
+
   if (node.tag === "Transition") {
     emitTransition(context, node, indent);
     return;
@@ -359,6 +364,16 @@ function emitTransition(context: SsrGenerateContext, node: ElementNode, indent: 
   }
 
   emitElement(context, children[0], indent);
+}
+
+function emitTransitionGroup(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  validateTransitionGroupAttributes(node);
+  const child = getTransitionGroupChild(node);
+  const tagVar = nextName(context, "transitionGroupTag");
+  emit(context, indent, `const ${tagVar} = String(__mikuru_unwrap(${getTransitionGroupTagExpression(context, node)}) ?? "span");`);
+  emit(context, indent, `__mikuru_html += "<" + ${tagVar} + ">";`);
+  emitElement(context, withoutAttrs(child, [":key", "v-bind:key"]), indent);
+  emit(context, indent, `__mikuru_html += "</" + ${tagVar} + ">";`);
 }
 
 function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -863,6 +878,29 @@ function validateTransitionAttributes(node: ElementNode): void {
   }
 }
 
+function validateTransitionGroupAttributes(node: ElementNode): void {
+  const supported = new Set([
+    "name",
+    "tag",
+    "enter-from-class",
+    "enter-active-class",
+    "enter-to-class",
+    "leave-from-class",
+    "leave-active-class",
+    "leave-to-class",
+    "move-class"
+  ]);
+
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (supported.has(name)) {
+      continue;
+    }
+
+    throw createCompileError(`Unsupported attribute "${attr.name}" on <TransitionGroup>. Supported attributes: name, tag, and CSS class override attributes.`, contextSource(node), attr.loc?.offset ?? node.loc?.offset ?? 0);
+  }
+}
+
 function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {
   const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
 
@@ -911,6 +949,36 @@ function getTransitionBranches(children: ElementNode[]): IfBranch[] {
 
     return { node: child, directive: "v-else" };
   });
+}
+
+function getTransitionGroupChild(node: ElementNode): ElementNode {
+  const child = getSingleElementChild(node, "<TransitionGroup>");
+
+  if (!getAttr(child, "v-for") || !getKeyExpression(child)) {
+    throw createCompileError("<TransitionGroup> requires a single keyed v-for child in v1", contextSource(child), child.loc?.offset ?? node.loc?.offset ?? 0);
+  }
+
+  return child;
+}
+
+function getTransitionGroupTagExpression(context: SsrGenerateContext, node: ElementNode): string {
+  const dynamicTag = node.attrs.find((attr) => parseBindDirective(attr.name)?.name === "tag");
+  if (dynamicTag) {
+    return compileSsrExpression(context, requireAttrValue(dynamicTag), dynamicTag.name);
+  }
+
+  return quote(getStaticAttrValue(node, "tag") ?? "span");
+}
+
+function getKeyExpression(node: ElementNode): string | undefined {
+  return getStaticAttrValue(node, ":key") ?? getStaticAttrValue(node, "v-bind:key");
+}
+
+function withoutAttrs(node: ElementNode, names: string[]): ElementNode {
+  return {
+    ...node,
+    attrs: node.attrs.filter((attr) => !names.includes(attr.name))
+  };
 }
 
 function getSingleElementChild(node: ElementNode, label: string): ElementNode {

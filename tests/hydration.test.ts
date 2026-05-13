@@ -982,6 +982,46 @@ const HydratableChild = {
     expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates TransitionGroup keyed lists without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <TransitionGroup :tag="groupTag" name="rows" move-class="move">
+      <HydratableRow v-for="item in items" :key="item.id" :label="item.label" />
+    </TransitionGroup>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const groupTag = "ul";
+const items = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+];
+const HydratableRow = {
+  renderToString(props) {
+    return '<li data-row="' + props.label + '">' + props.label + '</li>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(Array.from(root.querySelectorAll("li")).map((node) => node.getAttribute("data-hydrated"))).toEqual(["Alpha", "Beta"]);
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(Array.from(root.querySelectorAll("li")).map((node) => node.hasAttribute("data-hydrated"))).toEqual([false, false]);
+  });
+
   it("scopes provide/inject and lifecycle callbacks during hydration", () => {
     const source = `<template>
   <section>
