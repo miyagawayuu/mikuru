@@ -1,0 +1,6 @@
+<template>
+  <section class="route-page">
+    <h2>SSR Home</h2>
+    <p>This route was rendered with renderRouteToString() and hydrated with hydrateRoute().</p>
+  </section>
+</template>

@@ -187,7 +187,7 @@ import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps
 
 `compileHydration(source)` generates a client module with `hydrate(target, props?)`. It reuses existing SSR DOM, attaches event listeners, syncs text plus attributes, recovers structural mismatches by remounting the component, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, and delegates child components to `component.hydrate()` with mount fallback when unavailable. Pass `{ __mikuru_hydration: { recover: false } }` in props to keep structural mismatches as warnings without remounting or replacing the mismatched DOM.
 
-With the Vite plugin, import `.mikuru?ssr` for the generated `renderToString()` module and `.mikuru?hydrate` for the generated hydration component. See `examples/ssr-hydration` for minimal SSR DOM reuse, `renderToStream()`, recovery-on remount behavior, and recovery-off warning-only behavior.
+With the Vite plugin, import `.mikuru?ssr` for the generated `renderToString()` module and `.mikuru?hydrate` for the generated hydration component. See `examples/ssr-hydration` for minimal SSR DOM reuse, `renderToStream()`, recovery-on remount behavior, and recovery-off warning-only behavior. See `examples/router-ssr-hydration` for a route tree rendered through `renderRouteToString()` and hydrated through `hydrateRoute()`.
 
 SSR Teleport content is collected into a caller-provided `__mikuru_teleports` object keyed by selector, and `compileHydration()` reuses the target-side Teleport DOM when those collected fragments are inserted into the app shell. Disabled Teleports render and hydrate inline.
 

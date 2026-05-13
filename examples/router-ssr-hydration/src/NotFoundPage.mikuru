@@ -1,0 +1,10 @@
+<template>
+  <section class="route-page">
+    <h2>Not found</h2>
+    <p>{{ route.fullPath }} does not match a route.</p>
+  </section>
+</template>
+
+<script>
+const route = props.route;
+</script>

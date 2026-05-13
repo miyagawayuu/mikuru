@@ -1,0 +1,6 @@
+<template>
+  <section class="nested-route">
+    <h3>Profile</h3>
+    <p>Nested route content survived route hydration.</p>
+  </section>
+</template>
