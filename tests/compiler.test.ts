@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeTemplate, compile, MikuruCompileError, parseSfc, parseTemplate } from "../src/compiler/index.js";
+import { analyzeTemplate, compile, compileHydration, MikuruCompileError, parseSfc, parseTemplate } from "../src/compiler/index.js";
 import { mikuru } from "../src/vite.js";
 
 const counterSource = `<template>
@@ -538,6 +538,32 @@ const activeSlot = "header";
     expect(parent.code).toContain("[unwrap(activeSlot)](slotTarget");
     expect(child.code).toContain("const slotName");
     expect(child.code).toContain("props.slots?.[slotName");
+  });
+
+  it("generates hydration slots for default, named, dynamic, and scoped templates", () => {
+    const result = compileHydration(`<template>
+  <Panel>
+    <template #default="{ title = 'Untitled', item: { label }, ...rest }">
+      <h2>{{ title }}</h2>
+      <p>{{ label }} {{ rest.extra }}</p>
+    </template>
+    <template #[activeSlot]="slotProps">
+      <footer>{{ slotProps.note }}</footer>
+    </template>
+  </Panel>
+</template>
+<script>
+import Panel from "./Panel.mikuru";
+const activeSlot = "footer";
+</script>`);
+
+    expect(result.code).toContain(".children = (");
+    expect(result.code).toContain(".slots[unwrap(activeSlot)] = (");
+    expect(result.code).toContain("const value = __mikuru_slotProps");
+    expect(result.code).toContain("return value === undefined ? ('Untitled') : value");
+    expect(result.code).toContain(".item?.label");
+    expect(result.code).toContain("delete rest[\"title\"]");
+    expect(result.code).toContain("const slotProps = __mikuru_slotProps");
   });
 
   it("generates slot scope destructuring defaults", () => {

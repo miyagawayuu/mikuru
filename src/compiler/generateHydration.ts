@@ -1,4 +1,6 @@
+import { createCompileError, type SourceLocation } from "./errors.js";
 import { compileTemplateExpression, parseForExpression, validateAssignableExpression } from "./parseExpression.js";
+import type { ExpressionLocationContext } from "./parseExpression.js";
 import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode } from "./types.js";
 
 type HydrationContext = {
@@ -26,6 +28,28 @@ type EventDirective = {
   nameExpression?: string;
   modifiers: string[];
 };
+
+type SlotDefinition = {
+  name: string;
+  nameExpression?: string;
+  children: TemplateNode[];
+  scope: string | true;
+  loc?: SourceLocation;
+  scopeLoc?: SourceLocation;
+};
+
+type SlotTemplateDirective = {
+  name: string;
+  nameExpression?: string;
+  scope: string | true;
+  loc?: SourceLocation;
+  scopeLoc?: SourceLocation;
+};
+
+type SlotScopeBinding =
+  | { kind: "props"; alias: string }
+  | { kind: "property"; path: string[]; alias: string; defaultValue?: string }
+  | { kind: "rest"; alias: string; exclude: string[] };
 
 type GenerateHydrationOptions = {
   includeImports?: boolean;
@@ -516,32 +540,88 @@ function emitRouterViewRouteSlot(context: HydrationContext, node: ElementNode, p
 }
 
 function emitHydrationComponentSlots(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
-  const children = getDefaultHydrationSlotChildren(node);
+  const slots = collectHydrationComponentSlots(context, node);
 
-  if (!children || !hasMeaningfulHydrationChildren(children)) {
+  if (slots.length === 0) {
     return;
   }
 
-  const slotTargetVar = nextName(context, "slotTarget");
-  const slotPropsVar = nextName(context, "slotProps");
-  emit(context, indent, `${propsVar}.children = (${slotTargetVar}, ${slotPropsVar} = {}) => {`);
-  hydrateChildren(context, children, slotTargetVar, indent + 1);
-  emit(context, indent, "};");
-  emit(context, indent, `${propsVar}.slots = { ...(${propsVar}.slots ?? {}), default: ${propsVar}.children };`);
+  const defaultSlot = slots.find((slot) => !slot.nameExpression && slot.name === "default");
+
+  if (defaultSlot) {
+    emitHydrationSlotFunction(context, `${propsVar}.children`, defaultSlot, indent);
+  }
+
+  emit(context, indent, `${propsVar}.slots = { ...(${propsVar}.slots ?? {}) };`);
+
+  for (const slot of slots) {
+    const property = slot.nameExpression ? `[${slot.nameExpression}]` : `[${quote(slot.name)}]`;
+    emitHydrationSlotFunction(context, `${propsVar}.slots${property}`, slot, indent);
+  }
 }
 
-function getDefaultHydrationSlotChildren(node: ElementNode): TemplateNode[] | undefined {
+function emitHydrationSlotFunction(context: HydrationContext, target: string, slot: SlotDefinition, indent: number): void {
+  const slotTargetVar = nextName(context, "slotTarget");
+  const slotPropsVar = nextName(context, "slotProps");
+  emit(context, indent, `${target} = (${slotTargetVar}, ${slotPropsVar} = {}) => {`);
+  emitHydrationSlotScopeBindings(context, slot, slotPropsVar, indent + 1);
+  hydrateChildren(context, slot.children, slotTargetVar, indent + 1);
+  emit(context, indent, "};");
+}
+
+function emitHydrationSlotScopeBindings(context: HydrationContext, slot: SlotDefinition, slotPropsVar: string, indent: number): void {
+  for (const binding of parseHydrationSlotScopeBindings(slot.scope, context, slot.scopeLoc ?? slot.loc)) {
+    if (binding.kind === "props") {
+      emit(context, indent, `const ${binding.alias} = ${slotPropsVar};`);
+      continue;
+    }
+
+    if (binding.kind === "rest") {
+      emit(context, indent, `const ${binding.alias} = { get value() { const rest = { ...${slotPropsVar} }; ${binding.exclude.map((key) => `delete rest[${quote(key)}];`).join(" ")} return rest; } };`);
+      continue;
+    }
+
+    const valueExpression = slotScopePathExpression(slotPropsVar, binding.path);
+
+    if (binding.defaultValue) {
+      emit(context, indent, `const ${binding.alias} = { get value() { const value = ${valueExpression}; return value === undefined ? (${binding.defaultValue}) : value; } };`);
+      continue;
+    }
+
+    emit(context, indent, `const ${binding.alias} = { get value() { return ${valueExpression}; } };`);
+  }
+}
+
+function slotScopePathExpression(rootVar: string, path: string[]): string {
+  return path.reduce((expression, key, index) => {
+    const property = /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${quote(key)}]`;
+    return `${expression}${index === 0 ? property : `?.${property.slice(1)}`}`;
+  }, rootVar);
+}
+
+function collectHydrationComponentSlots(context: HydrationContext, node: ElementNode): SlotDefinition[] {
+  const slots: SlotDefinition[] = [];
+  const usedNames = new Set<string>();
   const defaultChildren: TemplateNode[] = [];
 
   for (const child of node.children) {
     if (child.type === "element" && child.tag === "template") {
-      const defaultSlotAttr = child.attrs.find(isDefaultSlotTemplateAttr);
+      const slotDirective = getHydrationSlotTemplateDirective(child, context);
 
-      if (defaultSlotAttr) {
-        return child.children;
-      }
+      if (slotDirective) {
+        if (usedNames.has(slotDirective.name)) {
+          throwTemplateError(`Duplicate slot template: ${slotDirective.name}`, context, slotDirective.loc);
+        }
 
-      if (child.attrs.some(isSlotTemplateAttr)) {
+        usedNames.add(slotDirective.name);
+        slots.push({
+          name: slotDirective.name,
+          nameExpression: slotDirective.nameExpression,
+          children: child.children,
+          scope: slotDirective.scope,
+          loc: child.loc,
+          scopeLoc: slotDirective.scopeLoc
+        });
         continue;
       }
     }
@@ -549,11 +629,79 @@ function getDefaultHydrationSlotChildren(node: ElementNode): TemplateNode[] | un
     defaultChildren.push(child);
   }
 
-  return defaultChildren;
+  if (hasMeaningfulHydrationChildren(defaultChildren)) {
+    if (usedNames.has("default")) {
+      throwTemplateError("Duplicate slot template: default", context, node.loc);
+    }
+
+    slots.unshift({
+      name: "default",
+      children: defaultChildren,
+      scope: true,
+      loc: node.loc
+    });
+  }
+
+  return slots;
 }
 
-function isDefaultSlotTemplateAttr(attr: TemplateAttribute): boolean {
-  return attr.name === "v-slot" || attr.name === "v-slot:default" || attr.name === "#default";
+function getHydrationSlotTemplateDirective(node: ElementNode, context: HydrationContext): SlotTemplateDirective | undefined {
+  const slotAttrs = node.attrs.filter((attr) => isSlotTemplateAttr(attr));
+
+  if (slotAttrs.length === 0) {
+    return undefined;
+  }
+
+  if (slotAttrs.length > 1) {
+    throwTemplateError("A slot template can only declare one slot target", context, slotAttrs[1]?.loc);
+  }
+
+  const attr = slotAttrs[0]!;
+  const name = getHydrationSlotTemplateName(attr, context);
+
+  return {
+    ...name,
+    scope: attr.value,
+    loc: attr.loc,
+    scopeLoc: attr.valueLoc
+  };
+}
+
+function getHydrationSlotTemplateName(attr: TemplateAttribute, context: HydrationContext): { name: string; nameExpression?: string } {
+  if (attr.name === "v-slot") {
+    return { name: "default" };
+  }
+
+  if (attr.name.startsWith("v-slot:")) {
+    return parseHydrationSlotTemplateName(attr.name.slice("v-slot:".length) || "default", attr, context);
+  }
+
+  if (attr.name.startsWith("#")) {
+    return parseHydrationSlotTemplateName(attr.name.slice(1) || "default", attr, context);
+  }
+
+  return { name: "default" };
+}
+
+function parseHydrationSlotTemplateName(rawName: string, attr: TemplateAttribute, context: HydrationContext): { name: string; nameExpression?: string } {
+  const name = rawName.trim();
+  const dynamicStart = name.indexOf("[");
+  const dynamicEnd = name.lastIndexOf("]");
+
+  if (dynamicStart >= 0 && dynamicEnd > dynamicStart) {
+    const expression = name.slice(dynamicStart + 1, dynamicEnd).trim();
+
+    if (!expression) {
+      throwTemplateError("Dynamic slot name requires an expression", context, attr.loc);
+    }
+
+    return {
+      name: `[${expression}]`,
+      nameExpression: compileTemplateExpression(expression, attr.name, toExpressionContext(context, attr.loc))
+    };
+  }
+
+  return { name };
 }
 
 function isSlotTemplateAttr(attr: TemplateAttribute): boolean {
@@ -562,6 +710,150 @@ function isSlotTemplateAttr(attr: TemplateAttribute): boolean {
 
 function hasMeaningfulHydrationChildren(children: TemplateNode[]): boolean {
   return children.some((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+}
+
+function parseHydrationSlotScopeBindings(scope: string | true, context: HydrationContext, location: SourceLocation | undefined): SlotScopeBinding[] {
+  if (scope === true || !scope.trim()) {
+    return [];
+  }
+
+  const source = scope.trim();
+
+  if (isIdentifier(source)) {
+    return [{ kind: "props", alias: source }];
+  }
+
+  if (!source.startsWith("{") || !source.endsWith("}")) {
+    throwTemplateError("Slot scope must be an identifier or object destructuring pattern", context, location);
+  }
+
+  const body = source.slice(1, -1).trim();
+
+  if (!body) {
+    return [];
+  }
+
+  return parseHydrationSlotScopeObjectPattern(body, context, location, []);
+}
+
+function parseHydrationSlotScopeObjectPattern(
+  body: string,
+  context: HydrationContext,
+  location: SourceLocation | undefined,
+  pathPrefix: string[]
+): SlotScopeBinding[] {
+  const bindings: SlotScopeBinding[] = [];
+  const excludedTopLevelKeys: string[] = [];
+
+  for (const part of splitTopLevel(body, ",")) {
+    const sourcePart = part.trim();
+
+    if (!sourcePart) {
+      continue;
+    }
+
+    if (sourcePart.startsWith("...")) {
+      const alias = sourcePart.slice(3).trim();
+
+      if (pathPrefix.length > 0) {
+        throwTemplateError("Slot scope rest destructuring is only supported at the top level", context, location);
+      }
+
+      if (!isIdentifier(alias)) {
+        throwTemplateError("Slot scope rest destructuring must use a simple identifier like ...rest", context, location);
+      }
+
+      bindings.push({ kind: "rest", alias, exclude: excludedTopLevelKeys });
+      continue;
+    }
+
+    const { left, right } = splitHydrationSlotScopeEntry(sourcePart, context, location);
+
+    if (!isIdentifier(left)) {
+      throwTemplateError(`Unsupported slot scope key "${left}". Use identifier keys in slot scope destructuring`, context, location);
+    }
+
+    if (pathPrefix.length === 0) {
+      excludedTopLevelKeys.push(left);
+    }
+
+    const path = [...pathPrefix, left];
+
+    if (right === undefined) {
+      bindings.push(...hydrationSlotScopeLeafBindings(left, path, context, location));
+      continue;
+    }
+
+    const value = right.trim();
+
+    if (value.startsWith("{") && value.endsWith("}")) {
+      bindings.push(...parseHydrationSlotScopeObjectPattern(value.slice(1, -1), context, location, path));
+      continue;
+    }
+
+    if (value.startsWith("[") || value.includes("{")) {
+      throwTemplateError("Slot scope destructuring supports nested object patterns only; array and mixed patterns are not supported", context, location);
+    }
+
+    bindings.push(...hydrationSlotScopeLeafBindings(value, path, context, location));
+  }
+
+  return bindings;
+}
+
+function splitHydrationSlotScopeEntry(
+  source: string,
+  context: HydrationContext,
+  location: SourceLocation | undefined
+): { left: string; right?: string } {
+  const colonIndex = findTopLevelToken(source, ":");
+
+  if (colonIndex >= 0) {
+    return {
+      left: source.slice(0, colonIndex).trim(),
+      right: source.slice(colonIndex + 1).trim()
+    };
+  }
+
+  const equalsIndex = findTopLevelToken(source, "=");
+
+  if (equalsIndex >= 0) {
+    const left = source.slice(0, equalsIndex).trim();
+
+    if (!isIdentifier(left)) {
+      throwTemplateError("Slot scope default values can only be assigned to simple identifiers", context, location);
+    }
+
+    return { left, right: source };
+  }
+
+  return { left: source.trim() };
+}
+
+function hydrationSlotScopeLeafBindings(
+  source: string,
+  path: string[],
+  context: HydrationContext,
+  location: SourceLocation | undefined
+): SlotScopeBinding[] {
+  const equalsIndex = findTopLevelToken(source, "=");
+  const localSource = equalsIndex >= 0 ? source.slice(0, equalsIndex).trim() : source.trim();
+  const defaultSource = equalsIndex >= 0 ? source.slice(equalsIndex + 1).trim() : undefined;
+
+  if (!isIdentifier(localSource)) {
+    throwTemplateError(`Unsupported slot scope binding "${source}". Use identifiers, aliases, defaults, nested objects, or top-level ...rest`, context, location);
+  }
+
+  return [
+    {
+      kind: "property",
+      path,
+      alias: localSource,
+      defaultValue: defaultSource
+        ? compileTemplateExpression(defaultSource, "slot scope default", toExpressionContext(context, location))
+        : undefined
+    }
+  ];
 }
 
 function hydrateDynamicComponentAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
@@ -1751,8 +2043,112 @@ function compileHydrationExpression(context: HydrationContext, expression: strin
   });
 }
 
+function toExpressionContext(
+  context: HydrationContext,
+  location: SourceLocation | undefined
+): ExpressionLocationContext | undefined {
+  if (!context.source || !location) {
+    return undefined;
+  }
+
+  return {
+    source: context.source,
+    offset: location.offset,
+    filename: context.filename
+  };
+}
+
+function throwTemplateError(message: string, context: HydrationContext, location: SourceLocation | undefined): never {
+  if (context.source && location) {
+    throw createCompileError(message, context.source, location.offset, context.filename);
+  }
+
+  throw new Error(message);
+}
+
 function isIdentifier(value: string): boolean {
   return /^[A-Za-z_$][\w$]*$/.test(value);
+}
+
+function splitTopLevel(source: string, delimiter: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quoteChar = "";
+  let start = 0;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!;
+    const previous = source[index - 1];
+
+    if (quoteChar) {
+      if (char === quoteChar && previous !== "\\") {
+        quoteChar = "";
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      quoteChar = char;
+      continue;
+    }
+
+    if (char === "{" || char === "[" || char === "(") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" || char === "]" || char === ")") {
+      depth -= 1;
+      continue;
+    }
+
+    if (depth === 0 && source.startsWith(delimiter, index)) {
+      parts.push(source.slice(start, index));
+      start = index + delimiter.length;
+      index += delimiter.length - 1;
+    }
+  }
+
+  parts.push(source.slice(start));
+  return parts;
+}
+
+function findTopLevelToken(source: string, token: string): number {
+  let depth = 0;
+  let quoteChar = "";
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!;
+    const previous = source[index - 1];
+
+    if (quoteChar) {
+      if (char === quoteChar && previous !== "\\") {
+        quoteChar = "";
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      quoteChar = char;
+      continue;
+    }
+
+    if (char === "{" || char === "[" || char === "(") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}" || char === "]" || char === ")") {
+      depth -= 1;
+      continue;
+    }
+
+    if (depth === 0 && source.startsWith(token, index)) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function withTemplateRefMode<T>(context: HydrationContext, mode: "single" | "array", callback: () => T): T {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generalized component slot hydration to pass default, named, dynamic, and scoped slots through `props.children` and `props.slots`.
+
 ## 1.0.21 - 2026-05-13
 
 - Added SSR and hydration support for initial `<ErrorBoundary>` children.
