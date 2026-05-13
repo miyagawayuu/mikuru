@@ -65,6 +65,7 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
   emit(context, 2, "registerEffect: (fn) => Promise.resolve().then(fn)");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_warn = (message) => { if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message}`); };");
+  emit(context, 1, "const __mikuru_describeNode = (node) => { if (!node) return \"missing\"; if (node.nodeType === 1) return `<${node.tagName?.toLowerCase?.() ?? \"element\"}>`; if (node.nodeType === 3) return `text(${JSON.stringify(node.nodeValue ?? \"\")})`; if (node.nodeType === 8) return `comment(${JSON.stringify(node.nodeValue ?? \"\")})`; return `nodeType(${node.nodeType})`; };");
   emit(context, 1, "const __mikuru_findComment = (parent, value) => Array.from(parent.childNodes ?? []).find((node) => node.nodeType === 8 && node.nodeValue === value);");
   emit(context, 1, "const __mikuru_findNextComment = (node, value) => { for (let cursor = node.nextSibling; cursor; cursor = cursor.nextSibling) { if (cursor.nodeType === 8 && cursor.nodeValue === value) return cursor; } return undefined; };");
   emit(context, 1, "const __mikuru_setRef = (target, value, multiple = false) => {");
@@ -89,7 +90,7 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
     emit(context, 1, "");
   }
   emit(context, 1, "const __mikuru_root = target.nodeType === 1 && target.tagName?.toLowerCase() === " + quote(root.tag.toLowerCase()) + " ? target : target.firstElementChild;");
-  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch; falling back to mount()."); if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; } return mount(target, props); }`);
+  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch: expected <${root.tag.toLowerCase()}>, got " + __mikuru_describeNode(__mikuru_root) + "; falling back to mount()."); if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; } return mount(target, props); }`);
   hydrateElement(context, root, "__mikuru_root", 1);
   emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb); }");
   emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
@@ -163,16 +164,17 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       const elementCheck = isComponentTag(child.tag)
         ? `!${childVar} || ${childVar}.nodeType !== 1`
         : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
-      emit(context, indent, `if (${elementCheck}) { __mikuru_warn(${quote(`Element mismatch at <${child.tag}>`)}); } else {`);
+      emit(context, indent, `if (${elementCheck}) { __mikuru_warn(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}) + "."); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     } else {
-      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_warn("Text node mismatch."); } else {`);
+      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_warn("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar}) + "."); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }
     emit(context, indent, `${domIndexVar} += 1;`);
   });
+  emit(context, indent, `if (${parentVar}.childNodes.length > ${domIndexVar}) { __mikuru_warn("Extra DOM nodes after hydration: " + Array.from(${parentVar}.childNodes).slice(${domIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
 }
 
 function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {

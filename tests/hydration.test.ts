@@ -1,5 +1,5 @@
 import { Window } from "happy-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { compileHydration, compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter } from "../src/router/index.js";
@@ -109,12 +109,61 @@ function inner() {
     const module = loadHydrationModule(compileHydration(source).code);
     const window = new Window();
     const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    root.innerHTML = "<span>wrong</span>";
-    const instance = module.hydrate(root as unknown as Element);
+    try {
+      root.innerHTML = "<span>wrong</span>";
+      const instance = module.hydrate(root as unknown as Element);
 
-    expect(root.querySelector("p")?.textContent).toBe("mounted");
-    expect(instance.element.tagName.toLowerCase()).toBe("p");
+      expect(root.querySelector("p")?.textContent).toBe("mounted");
+      expect(instance.element.tagName.toLowerCase()).toBe("p");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Root mismatch: expected <p>, got <span>; falling back to mount()."));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns with expected and actual node details for child hydration mismatches", () => {
+    const source = `<template>
+  <section>
+    <p>Ready</p>
+    <span>{{ label }}</span>
+  </section>
+</template>
+<script>
+const label = "Label";
+</script>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = "<section><em>Wrong</em><!--extra--></section>";
+      module.hydrate(root as unknown as Element);
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Element mismatch: expected <p>, got <em>."));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Element mismatch: expected <span>, got comment(\"extra\")."));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns when hydration leaves extra DOM nodes behind", () => {
+    const source = `<template><section><p>Ready</p></section></template>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = "<section><p>Ready</p><aside>extra</aside></section>";
+      module.hydrate(root as unknown as Element);
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Extra DOM nodes after hydration: <aside>."));
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("hydrates initial v-if and v-for DOM", async () => {
