@@ -183,6 +183,11 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
 
+  if (node.tag === "component") {
+    emitDynamicComponent(context, node, indent);
+    return;
+  }
+
   if (node.tag === "Teleport") {
     emitTeleport(context, node, indent);
     return;
@@ -269,6 +274,33 @@ function emitComponent(context: SsrGenerateContext, node: ElementNode, indent: n
   }
 
   emit(context, indent, `__mikuru_html += await __mikuru_renderComponent(${node.tag}, ${propsVar});`);
+}
+
+function emitDynamicComponent(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  const isAttr = node.attrs.find((attr) => parseBindDirective(attr.name)?.name === "is");
+
+  if (!isAttr) {
+    throw createCompileError("Dynamic component requires :is to resolve to a component object", contextSource(node), node.loc?.offset ?? 0);
+  }
+
+  const componentExpression = compileSsrExpression(context, requireAttrValue(isAttr), isAttr.name);
+  const dynamicNode = withoutDynamicComponentIs(node);
+  const componentVar = nextName(context, "dynamicComponent");
+  const propsVar = nextName(context, "props");
+
+  emit(context, indent, `const ${componentVar} = __mikuru_unwrap(${componentExpression});`);
+  emit(context, indent, `if (${componentVar}) {`);
+  emit(context, indent + 1, `if ((typeof ${componentVar} !== "object" && typeof ${componentVar} !== "function") || (typeof ${componentVar} === "object" && typeof ${componentVar}.renderToString !== "function") && typeof ${componentVar} !== "function") {`);
+  emit(context, indent + 2, `throw new Error("Dynamic component :is must resolve to a component object with renderToString()");`);
+  emit(context, indent + 1, "}");
+  emit(context, indent + 1, `const ${propsVar} = {};`);
+  emitComponentProps(context, dynamicNode, propsVar, indent + 1);
+  emit(context, indent + 1, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  if (dynamicNode.children.length > 0) {
+    emitComponentSlots(context, dynamicNode, propsVar, indent + 1);
+  }
+  emit(context, indent + 1, `__mikuru_html += await __mikuru_renderComponent(${componentVar}, ${propsVar});`);
+  emit(context, indent, "}");
 }
 
 function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -706,6 +738,13 @@ function getTeleportDisabledExpression(context: SsrGenerateContext, node: Elemen
   }
 
   return getAttr(node, "disabled") ? "true" : "false";
+}
+
+function withoutDynamicComponentIs(node: ElementNode): ElementNode {
+  return {
+    ...node,
+    attrs: node.attrs.filter((attr) => parseBindDirective(attr.name)?.name !== "is")
+  };
 }
 
 function isComponentTag(tag: string): boolean {
