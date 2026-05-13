@@ -678,7 +678,9 @@ function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string,
     }
     return `String(unwrap(${compileHydrationExpression(context, part.value, "interpolation")}) ?? "")`;
   }).join(" + ");
-  emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_text = ${expression || "\"\""}; if (${nodeVar}.textContent !== __mikuru_text) ${nodeVar}.textContent = __mikuru_text; }));`);
+  const warnedVar = nextName(context, "textMismatchWarned");
+  emit(context, indent, `let ${warnedVar} = false;`);
+  emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_text = ${expression || "\"\""}; if (${nodeVar}.textContent !== __mikuru_text) { if (!${warnedVar}) { __mikuru_warn("Text content mismatch: expected " + JSON.stringify(__mikuru_text) + ", got " + JSON.stringify(${nodeVar}.textContent ?? "") + "."); ${warnedVar} = true; } ${nodeVar}.textContent = __mikuru_text; } }));`);
 }
 
 function hydrateTemplateRef(context: HydrationContext, node: ElementNode, valueExpression: string, indent: number): void {
