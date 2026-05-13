@@ -769,6 +769,63 @@ const MountOnlyChild = {
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates component default, named, and scoped slots", async () => {
+    const source = `<template>
+  <section>
+    <Panel>
+      <template #header="{ title = 'Untitled', item: { label }, ...rest }">
+        <h2>{{ title }}</h2>
+        <p>{{ label }}</p>
+        <small>{{ rest.extra }}</small>
+      </template>
+      <template #footer>
+        <footer>{{ footerText }}</footer>
+      </template>
+      <p>{{ message }}</p>
+    </Panel>
+  </section>
+</template>
+<script>
+const message = "default body";
+const footerText = "dynamic footer";
+const Panel = {
+  async renderToString(props) {
+    return '<section><header>' +
+      await props.slots.header({ title: "SSR title", item: { label: "SSR label" }, extra: "SSR rest" }) +
+      '</header><main>' +
+      await props.children() +
+      '</main><aside>' +
+      await props.slots.footer() +
+      '</aside></section>';
+  },
+  hydrate(target, props) {
+    props.slots.header(target.querySelector("header"), { title: "Hydrated title", item: { label: "Hydrated label" }, extra: "Hydrated rest" });
+    props.children(target.querySelector("main"));
+    props.slots.footer(target.querySelector("aside"));
+    target.setAttribute("data-slots", "hydrated");
+    return { element: target, unmount() { target.removeAttribute("data-slots"); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("[data-slots]")?.getAttribute("data-slots")).toBe("hydrated");
+    expect(root.querySelector("header h2")?.textContent).toBe("Hydrated title");
+    expect(root.querySelector("header p")?.textContent).toBe("Hydrated label");
+    expect(root.querySelector("header small")?.textContent).toBe("Hydrated rest");
+    expect(root.querySelector("main p")?.textContent).toBe("default body");
+    expect(root.querySelector("aside footer")?.textContent).toBe("dynamic footer");
+
+    instance.unmount();
+    expect(root.querySelector("[data-slots]")).toBeNull();
+  });
+
   it("hydrates dynamic components and skips empty dynamic branches", async () => {
     const source = `<template>
   <section>
