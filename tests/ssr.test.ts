@@ -205,6 +205,40 @@ const Child = {
     await expect(render()).resolves.toBe("<section><article data-title=\"Card\" data-count=\"2\" data-role=\"note\"><strong>projected</strong></article></section>");
   });
 
+  it("renders dynamic components with props and slots", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <component :is="current" :message="message" v-bind="{ role: 'note' }">
+      <strong>{{ label }}</strong>
+    </component>
+    <component :is="empty" />
+  </section>
+</template>
+<script>
+const message = "dynamic";
+const label = "slot";
+const empty = null;
+const Child = {
+  async renderToString(props) {
+    return '<article data-message="' + props.message + '" data-role="' + props.role + '">' + await props.children() + '</article>';
+  }
+};
+const current = Child;
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><article data-message="dynamic" data-role="note"><strong>slot</strong></article></section>');
+  });
+
+  it("requires dynamic SSR components to expose renderToString", async () => {
+    const result = compileSsr(`<template><component :is="current" /></template><script>const current = { mount() {} };</script>`);
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).rejects.toThrow(/Dynamic component :is must resolve to a component object with renderToString\(\)/);
+    expect(() => compileSsr(`<template><component /></template>`)).toThrow(/Dynamic component requires :is/);
+  });
+
   it("passes SSR component context to children and runtime inject", async () => {
     const result = compileSsr(`<template>
   <section>
