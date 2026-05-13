@@ -27,10 +27,6 @@ test("router SSR hydration example renders, hydrates, and navigates route trees"
   await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
   await expect(page.getByText("Nested route content survived route hydration.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Lazy Child" }).click();
-  await expect(page.getByRole("heading", { name: "Lazy SSR Route" })).toBeVisible();
-  await expect(page.getByText("loaded lazily for both SSR rendering and hydration")).toBeVisible();
-
   await page.getByRole("link", { name: "Admin" }).click();
   await expect(page).toHaveURL(/\/login\?redirect=%2Fadmin$/);
   await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
@@ -39,4 +35,24 @@ test("router SSR hydration example renders, hydrates, and navigates route trees"
   await page.getByRole("link", { name: "Missing" }).click();
   await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
   await expect(page.getByText("/missing does not match a route.")).toBeVisible();
+
+  await page.goto("/users/7?tab=info");
+  await expect(page.locator("#route-status")).toHaveText("hydrated:/users/7?tab=info");
+
+  await page.getByRole("link", { name: "Lazy Child" }).click();
+  await expect(page.getByRole("heading", { name: "Lazy SSR Route" })).toBeVisible();
+  await expect(page.getByText("loaded lazily for both SSR rendering and hydration")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Lazy route modal" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Settings" }).click();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
+  await expect(page.getByText("Nested route content survived route hydration.")).toBeVisible();
+  await page.getByRole("link", { name: "Settings Lazy" }).click();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lazy SSR Route" })).toBeVisible();
+  await expect(page.locator("#route-status")).toHaveText("navigated:/settings/lazy");
+  await page.waitForTimeout(25);
+  await page.getByRole("button", { name: "lazy modal: 1" }).click();
+  await expect(page.getByRole("button", { name: "lazy modal: 2" })).toBeVisible();
 });

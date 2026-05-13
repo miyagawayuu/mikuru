@@ -31,9 +31,10 @@ type RouteComponents = {
 };
 
 const root = document.getElementById("route-root");
+const modalRoot = document.getElementById("route-modal-root");
 const status = document.getElementById("route-status");
 
-if (!root || !status) {
+if (!root || !modalRoot || !status) {
   throw new Error("Missing router SSR hydration example roots");
 }
 
@@ -74,6 +75,7 @@ clientRouter.afterEach((to, _from, failure) => {
 
 const initialResult = await renderRouteHtml(initialPath);
 root.innerHTML = initialResult.html;
+applyTeleports(initialResult.teleports);
 routeInstance = await hydrateExistingRoute(clientRouter, initialResult.route.fullPath);
 status.textContent = `hydrated:${routeInstance.route.fullPath}`;
 const stopListening = clientRouter.listen();
@@ -131,7 +133,10 @@ function createRoutes(components: RouteComponents): RouteRecord[] {
           path: "settings",
           name: "settings",
           component: components.settings as RouteComponent,
-          children: [{ path: "profile", name: "settings-profile", component: components.profile as RouteComponent }]
+          children: [
+            { path: "profile", name: "settings-profile", component: components.profile as RouteComponent },
+            { path: "lazy", name: "settings-lazy", component: components.lazy as RouteRecord["component"] }
+          ]
         },
         { path: "login", name: "login", component: components.login as RouteComponent }
       ]
@@ -149,7 +154,7 @@ function installGuards(router: Router): void {
 }
 
 async function renderRouteHtml(path: string) {
-  return renderRouteToString(createSsrRouter(path), path);
+  return renderRouteToString(createSsrRouter(path), path, { teleports: {} });
 }
 
 async function hydrateExistingRoute(router: Router, path: string): Promise<MikuruRouteHydrationResult> {
@@ -166,9 +171,14 @@ async function renderAndHydrateRoute(path: string, label: string): Promise<void>
     routeInstance?.unmount();
     const rendered = await renderRouteHtml(path);
     root!.innerHTML = rendered.html;
+    applyTeleports(rendered.teleports);
     routeInstance = await hydrateExistingRoute(clientRouter, rendered.route.fullPath);
     status!.textContent = label;
   } finally {
     hydratingNavigation = false;
   }
+}
+
+function applyTeleports(teleports: Record<string, string>): void {
+  modalRoot!.innerHTML = teleports["#route-modal-root"] ?? "";
 }

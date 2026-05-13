@@ -1,0 +1,74 @@
+<template>
+  <section class="ssr-card" data-testid="async-showcase">
+    <h1>Async Boundary SSR</h1>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="1" :timeout="1000">
+      <AsyncPanel message="outer async" />
+      <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="1" :timeout="1000">
+        <AsyncPanel message="inner async" />
+        <Teleport to="#async-modal-root">
+          <aside class="async-modal" aria-label="Async teleport modal">
+            <p>Teleport from AsyncBoundary</p>
+            <button @click="increment">async modal: {{ count }}</button>
+          </aside>
+        </Teleport>
+      </AsyncBoundary>
+    </AsyncBoundary>
+  </section>
+</template>
+
+<script>
+import { defineAsyncComponent, ref } from "mikuru";
+
+const count = ref(1);
+const Loading = { renderToString() { return "<span>loading</span>"; }, mount() {} };
+const ErrorView = { renderToString(props) { return "<span>" + props.errorInfo.phase + "</span>"; }, mount() {} };
+const AsyncPanel = defineAsyncComponent(async () => ({
+  renderToString(props) {
+    return '<article data-async="' + props.message + '">' + props.message + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.message);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  },
+  mount(target, props) {
+    const el = document.createElement("article");
+    el.textContent = props.message;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+}));
+
+function increment() {
+  count.value += 1;
+}
+</script>
+
+<style scoped>
+.ssr-card {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0;
+  padding: 20px;
+  color: #172033;
+  background: #ffffff;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+button {
+  width: fit-content;
+  padding: 8px 12px;
+  font: inherit;
+  color: #ffffff;
+  background: #25636f;
+  border: 0;
+  border-radius: 6px;
+}
+</style>
