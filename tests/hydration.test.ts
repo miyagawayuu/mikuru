@@ -243,6 +243,37 @@ const text = "Expected text";
     }
   });
 
+  it("warns with expected and actual v-model DOM property values", () => {
+    const source = `<template>
+  <section>
+    <input v-model="name" />
+    <input type="checkbox" v-model="enabled" />
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const name = ref("Expected");
+const enabled = ref(true);
+</script>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = '<section><input value="Actual"><input type="checkbox"></section>';
+      module.hydrate(root as unknown as Element);
+      const inputs = root.querySelectorAll("input");
+
+      expect((inputs[0] as unknown as HTMLInputElement | undefined)?.value).toBe("Expected");
+      expect((inputs[1] as unknown as HTMLInputElement | undefined)?.checked).toBe(true);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('v-model value mismatch: expected "Expected", got "Actual".'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("v-model checked mismatch: expected true, got false."));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("hydrates initial v-if and v-for DOM", async () => {
     const source = `<template>
   <section>

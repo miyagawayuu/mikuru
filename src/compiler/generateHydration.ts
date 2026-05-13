@@ -638,11 +638,14 @@ function hydrateModelAndShow(context: HydrationContext, node: ElementNode, eleme
               : `String(unwrap(${expression}) ?? "")`;
       const assignedValue = modelAssignedValue(modelMode, modelDirective.modifiers, expression);
 
+      const warnedVar = nextName(context, "modelMismatchWarned");
+      emit(context, indent, `let ${warnedVar} = false;`);
       emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
       if (modelMode === "select-multiple") {
         emit(context, indent + 1, renderedValue);
       } else {
         emit(context, indent + 1, `if (${elementVar}.${propertyName} !== ${renderedValue}) {`);
+        emit(context, indent + 2, `if (!${warnedVar}) { __mikuru_warn(${quote(`v-model ${propertyName} mismatch: expected `)} + JSON.stringify(${renderedValue}) + ", got " + JSON.stringify(${elementVar}.${propertyName}) + "."); ${warnedVar} = true; }`);
         emit(context, indent + 2, `${elementVar}.${propertyName} = ${renderedValue};`);
         emit(context, indent + 1, "}");
       }
