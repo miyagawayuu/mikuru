@@ -145,6 +145,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       const context = props.__mikuru_context as MikuruComponentContext | undefined;
       let child: MikuruComponentInstance | undefined;
       let cancelled = false;
+      let currentNode: Element | Comment = target;
       let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
       let token = 0;
 
@@ -165,18 +166,24 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       };
 
       const replaceWithMount = (component: MikuruComponent, nextProps: Record<string, unknown>) => {
-        const parent = target.parentNode;
+        const oldNode = currentNode;
+        const parent = oldNode.parentNode;
         if (!parent) {
           return;
         }
 
-        const anchor = (target.ownerDocument ?? globalThis.document).createComment("async-hydrate-component");
-        const fragment = (target.ownerDocument ?? globalThis.document).createDocumentFragment();
-        parent.insertBefore(anchor, target);
-        target.remove();
+        const ownerDocument = oldNode.ownerDocument ?? globalThis.document;
+        const anchor = ownerDocument.createComment("async-hydrate-component");
+        const fragment = ownerDocument.createDocumentFragment();
+        parent.insertBefore(anchor, oldNode);
+        child?.unmount();
+        if (oldNode.parentNode) {
+          oldNode.remove();
+        }
         child = component.mount(fragment, nextProps);
         parent.insertBefore(fragment, anchor);
         anchor.remove();
+        currentNode = child.element;
       };
 
       const applyResolved = (component: MikuruComponent, currentToken: number) => {
@@ -186,7 +193,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
         clearTimer();
 
-        if (typeof component.hydrate === "function") {
+        if (currentNode === target && typeof component.hydrate === "function") {
           Promise.resolve(component.hydrate(target, props)).then(
             (instance) => {
               if (cancelled || currentToken !== token) {
@@ -194,6 +201,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
                 return;
               }
               child = instance;
+              currentNode = instance.element;
             },
             (error) => reportHydrationError(error, "async-loader")
           );
