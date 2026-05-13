@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.20 - 2026-05-13
 
 - Added SSR phase 1 with `compileSsr()` and `mikuru/server` helpers for escaped HTML, attributes, `v-if` chains, and `v-for` output.
 - Added SSR child component rendering with props and default slot projection.
