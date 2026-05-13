@@ -239,6 +239,33 @@ const current = Child;
     expect(() => compileSsr(`<template><component /></template>`)).toThrow(/Dynamic component requires :is/);
   });
 
+  it("renders KeepAlive dynamic component children during SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <KeepAlive include="Panel" :max="2">
+      <component :is="current" :message="message">
+        <em>{{ label }}</em>
+      </component>
+    </KeepAlive>
+  </section>
+</template>
+<script>
+const message = "cached";
+const label = "projected";
+const Panel = {
+  async renderToString(props) {
+    return '<article data-message="' + props.message + '">' + await props.children() + '</article>';
+  }
+};
+const current = Panel;
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><article data-message="cached"><em>projected</em></article></section>');
+    expect(() => compileSsr(`<template><KeepAlive keep="Panel"><component :is="Panel" /></KeepAlive></template>`)).toThrow(/Unsupported attribute "keep" on <KeepAlive>/);
+  });
+
   it("passes SSR component context to children and runtime inject", async () => {
     const result = compileSsr(`<template>
   <section>

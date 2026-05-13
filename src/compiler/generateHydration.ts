@@ -122,6 +122,11 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
     return;
   }
 
+  if (node.tag === "KeepAlive") {
+    hydrateKeepAliveElement(context, node, elementVar, indent);
+    return;
+  }
+
   if (isComponentTag(node.tag)) {
     hydrateComponent(context, node, elementVar, indent);
     return;
@@ -154,6 +159,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
 
     if (child.type === "element" && child.tag === "component") {
       hydrateDynamicComponentAtIndex(context, child, parentVar, domIndexVar, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "KeepAlive") {
+      hydrateKeepAliveAtIndex(context, child, parentVar, domIndexVar, indent);
       return;
     }
 
@@ -477,6 +487,37 @@ function hydrateDynamicComponent(context: HydrationContext, node: ElementNode, e
   hydrateTemplateRef(context, dynamicNode, "__mikuru_child", indent + 1);
   emit(context, indent, "} else {");
   emit(context, indent + 1, "__mikuru_warn(\"Dynamic component mismatch; :is did not resolve to hydrate() or mount().\");");
+  emit(context, indent, "}");
+}
+
+function hydrateKeepAliveAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
+  validateKeepAliveAttributes(node);
+  const child = getSingleElementChild(node, "<KeepAlive>");
+
+  if (child.tag !== "component") {
+    throw new Error("<KeepAlive> requires a single <component :is=\"...\" /> child in v1");
+  }
+
+  if (!getDynamicComponentIsAttr(child)) {
+    throw new Error("<KeepAlive> dynamic child requires :is to resolve to a component object");
+  }
+
+  hydrateDynamicComponentAtIndex(context, child, parentVar, domIndex, indent);
+}
+
+function hydrateKeepAliveElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  validateKeepAliveAttributes(node);
+  const child = getSingleElementChild(node, "<KeepAlive>");
+  const isAttr = getDynamicComponentIsAttr(child);
+
+  if (child.tag !== "component" || !isAttr) {
+    throw new Error("<KeepAlive> requires a single <component :is=\"...\" /> child in v1");
+  }
+
+  const componentTypeVar = nextName(context, "dynamicComponent");
+  emit(context, indent, `const ${componentTypeVar} = unwrap(${compileHydrationExpression(context, requireAttrValue(isAttr), isAttr.name)});`);
+  emit(context, indent, `if (${componentTypeVar}) {`);
+  hydrateDynamicComponent(context, child, elementVar, componentTypeVar, indent + 1);
   emit(context, indent, "}");
 }
 
@@ -871,6 +912,27 @@ function withoutAttrs(node: ElementNode, names: string[]): ElementNode {
     ...node,
     attrs: node.attrs.filter((attr) => !names.includes(attr.name))
   };
+}
+
+function validateKeepAliveAttributes(node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (name === "include" || name === "exclude" || name === "max") {
+      continue;
+    }
+
+    throw new Error(`Unsupported attribute "${attr.name}" on <KeepAlive>. Supported attributes: include, exclude, and max.`);
+  }
+}
+
+function getSingleElementChild(node: ElementNode, label: string): ElementNode {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length !== 1 || meaningful[0]?.type !== "element") {
+    throw new Error(`${label} requires exactly one element or component child`);
+  }
+
+  return meaningful[0];
 }
 
 function getDynamicComponentIsAttr(node: ElementNode): TemplateAttribute | undefined {

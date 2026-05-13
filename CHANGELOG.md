@@ -6,6 +6,7 @@
 - Added SSR child component rendering with props and default slot projection.
 - Added async SSR child rendering plus named and scoped SSR slots.
 - Added SSR support for dynamic `<component :is>` rendering with component props and slots.
+- Added SSR and hydration support for initial `<KeepAlive><component :is>` children.
 - Added `renderRouteToString()` for router SSR with redirects, lazy route components, nested route slots, and route props.
 - Added hydration phase 1 with `compileHydration()` for existing DOM reuse, event attachment, and text/attribute sync.
 - Improved hydration mismatch diagnostics with expected/actual node details and extra-node warnings.
