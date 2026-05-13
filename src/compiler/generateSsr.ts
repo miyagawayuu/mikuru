@@ -45,6 +45,13 @@ type BindDirective = {
   modifiers: string[];
 };
 
+type ComponentSlot = {
+  name: string;
+  nameExpression?: string;
+  children: TemplateNode[];
+  scope?: string;
+};
+
 export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): string {
   const context: SsrGenerateContext = {
     lines: [],
@@ -412,12 +419,21 @@ function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: nu
 
 function emitComponentSlots(context: SsrGenerateContext, node: ElementNode, propsVar: string, indent: number): void {
   const defaultChildren: TemplateNode[] = [];
-  const namedSlots: Array<{ name: string; children: TemplateNode[]; scope?: string }> = [];
+  const namedSlots: ComponentSlot[] = [];
+  const usedSlotNames = new Set<string>();
 
   for (const child of node.children) {
     if (child.type === "element" && child.tag === "template") {
-      const slot = getSlotTemplate(child);
+      const slot = getSlotTemplate(context, child);
       if (slot) {
+        if (!slot.nameExpression && usedSlotNames.has(slot.name)) {
+          throw createCompileError(`Duplicate slot template: ${slot.name}`, context.source ?? child.tag, child.loc?.offset ?? 0, context.filename);
+        }
+
+        if (!slot.nameExpression) {
+          usedSlotNames.add(slot.name);
+        }
+
         namedSlots.push({ ...slot, children: child.children });
         continue;
       }
@@ -427,18 +443,34 @@ function emitComponentSlots(context: SsrGenerateContext, node: ElementNode, prop
 
   const slotEntries: string[] = [];
   if (defaultChildren.length > 0) {
+    if (usedSlotNames.has("default")) {
+      throw createCompileError("Duplicate slot template: default", context.source ?? node.tag, node.loc?.offset ?? 0, context.filename);
+    }
+
     const slotVar = emitSlotFunction(context, defaultChildren, indent, undefined);
     emit(context, indent, `${propsVar}.children = ${slotVar};`);
     slotEntries.push(`default: ${slotVar}`);
   }
 
+  const dynamicSlotEntries: Array<{ nameExpression: string; slotVar: string }> = [];
   for (const slot of namedSlots) {
     const slotVar = emitSlotFunction(context, slot.children, indent, slot.scope);
+    if (slot.nameExpression) {
+      dynamicSlotEntries.push({ nameExpression: slot.nameExpression, slotVar });
+      continue;
+    }
+    if (slot.name === "default") {
+      emit(context, indent, `${propsVar}.children = ${slotVar};`);
+    }
     slotEntries.push(`${quote(slot.name)}: ${slotVar}`);
   }
 
-  if (slotEntries.length > 0) {
+  if (slotEntries.length > 0 || dynamicSlotEntries.length > 0) {
     emit(context, indent, `${propsVar}.slots = { ${slotEntries.join(", ")} };`);
+  }
+
+  for (const slot of dynamicSlotEntries) {
+    emit(context, indent, `${propsVar}.slots[String(__mikuru_unwrap(${slot.nameExpression}) ?? "default")] = ${slot.slotVar};`);
   }
 }
 
@@ -768,19 +800,48 @@ function parseDynamicArgument(name: string, prefixes: string[]): { expression: s
   return undefined;
 }
 
-function getSlotTemplate(node: ElementNode): { name: string; scope?: string } | undefined {
+function getSlotTemplate(context: SsrGenerateContext, node: ElementNode): { name: string; nameExpression?: string; scope?: string } | undefined {
   for (const attr of node.attrs) {
+    const scope = attr.value === true ? undefined : String(attr.value);
+
     if (attr.name === "v-slot") {
-      return { name: "default", scope: attr.value === true ? undefined : String(attr.value) };
+      return { name: "default", scope };
     }
-    if (attr.name.startsWith("#") && !attr.name.startsWith("#[")) {
-      return { name: attr.name.slice(1) || "default", scope: attr.value === true ? undefined : String(attr.value) };
+    if (attr.name.startsWith("#")) {
+      return parseSlotTemplateName(context, attr.name.slice(1) || "default", attr, scope);
     }
     if (attr.name.startsWith("v-slot:")) {
-      return { name: attr.name.slice("v-slot:".length) || "default", scope: attr.value === true ? undefined : String(attr.value) };
+      return parseSlotTemplateName(context, attr.name.slice("v-slot:".length) || "default", attr, scope);
     }
   }
   return undefined;
+}
+
+function parseSlotTemplateName(
+  context: SsrGenerateContext,
+  rawName: string,
+  attr: TemplateAttribute,
+  scope: string | undefined
+): { name: string; nameExpression?: string; scope?: string } {
+  const name = rawName.trim() || "default";
+  const dynamicStart = name.indexOf("[");
+  const dynamicEnd = name.lastIndexOf("]");
+
+  if (dynamicStart >= 0 && dynamicEnd > dynamicStart) {
+    const expression = name.slice(dynamicStart + 1, dynamicEnd).trim();
+
+    if (!expression) {
+      throw createCompileError("Dynamic slot name requires an expression", context.source ?? attr.name, attr.loc?.offset ?? 0, context.filename);
+    }
+
+    return {
+      name: `[${expression}]`,
+      nameExpression: compileSsrExpression(context, expression, attr.name),
+      scope
+    };
+  }
+
+  return { name, scope };
 }
 
 function getSlotName(context: SsrGenerateContext, node: ElementNode): string {

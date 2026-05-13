@@ -769,7 +769,7 @@ const MountOnlyChild = {
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
-  it("hydrates component default, named, and scoped slots", async () => {
+  it("hydrates component default, named, dynamic, and scoped slots", async () => {
     const source = `<template>
   <section>
     <Panel>
@@ -778,8 +778,8 @@ const MountOnlyChild = {
         <p>{{ label }}</p>
         <small>{{ rest.extra }}</small>
       </template>
-      <template #footer>
-        <footer>{{ footerText }}</footer>
+      <template #[activeSlot]="slotProps">
+        <footer>{{ slotProps.note }}</footer>
       </template>
       <p>{{ message }}</p>
     </Panel>
@@ -787,7 +787,7 @@ const MountOnlyChild = {
 </template>
 <script>
 const message = "default body";
-const footerText = "dynamic footer";
+const activeSlot = "footer";
 const Panel = {
   async renderToString(props) {
     return '<section><header>' +
@@ -795,13 +795,13 @@ const Panel = {
       '</header><main>' +
       await props.children() +
       '</main><aside>' +
-      await props.slots.footer() +
+      await props.slots.footer({ note: "SSR footer" }) +
       '</aside></section>';
   },
   hydrate(target, props) {
     props.slots.header(target.querySelector("header"), { title: "Hydrated title", item: { label: "Hydrated label" }, extra: "Hydrated rest" });
     props.children(target.querySelector("main"));
-    props.slots.footer(target.querySelector("aside"));
+    props.slots.footer(target.querySelector("aside"), { note: "Hydrated footer" });
     target.setAttribute("data-slots", "hydrated");
     return { element: target, unmount() { target.removeAttribute("data-slots"); } };
   }
@@ -820,7 +820,7 @@ const Panel = {
     expect(root.querySelector("header p")?.textContent).toBe("Hydrated label");
     expect(root.querySelector("header small")?.textContent).toBe("Hydrated rest");
     expect(root.querySelector("main p")?.textContent).toBe("default body");
-    expect(root.querySelector("aside footer")?.textContent).toBe("dynamic footer");
+    expect(root.querySelector("aside footer")?.textContent).toBe("Hydrated footer");
 
     instance.unmount();
     expect(root.querySelector("[data-slots]")).toBeNull();

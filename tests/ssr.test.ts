@@ -569,6 +569,49 @@ const item = { label: "child" };
     })).resolves.toBe("<article><strong>child</strong></article>");
   });
 
+  it("renders dynamic slot names with scoped props", async () => {
+    const result = compileSsr(`<template>
+  <Panel>
+    <template #[activeSlot]="slotProps">
+      <h2>{{ slotProps.title }}</h2>
+    </template>
+  </Panel>
+</template>
+<script>
+const activeSlot = "header";
+const Panel = {
+  async renderToString(props) {
+    return '<article>' + await props.slots.header({ title: "Dynamic title" }) + '</article>';
+  }
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<article><h2>Dynamic title</h2></article>");
+  });
+
+  it("exposes explicit default slot templates as children during SSR", async () => {
+    const result = compileSsr(`<template>
+  <Panel>
+    <template #default="{ label }">
+      <strong>{{ label }}</strong>
+    </template>
+  </Panel>
+</template>
+<script>
+const Panel = {
+  async renderToString(props) {
+    return '<article>' + await props.children({ label: "child default" }) + '</article>';
+  }
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<article><strong>child default</strong></article>");
+  });
+
   it("collects Teleport SSR content by target selector", async () => {
     const result = compileSsr(`<template>
   <section>
