@@ -940,6 +940,48 @@ const HydratableChild = {
     expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates Transition children and branches without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <Transition name="fade" appear>
+      <HydratableChild :label="label" />
+    </Transition>
+    <Transition>
+      <p v-if="ready">Ready</p>
+      <span v-else>{{ label }}</span>
+    </Transition>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const ready = false;
+const label = "transition-ready";
+const HydratableChild = {
+  renderToString(props) {
+    return '<article data-child="' + props.label + '">' + props.label + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("transition-ready");
+    expect(root.querySelector("span")?.textContent).toBe("transition-ready");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
   it("scopes provide/inject and lifecycle callbacks during hydration", () => {
     const source = `<template>
   <section>

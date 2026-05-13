@@ -320,6 +320,35 @@ const Child = {
     expect(() => compileSsr(`<template><ErrorBoundary><p>bad</p></ErrorBoundary></template>`)).toThrow(/<ErrorBoundary> requires :fallback/);
   });
 
+  it("renders Transition children and branches during SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <Transition name="fade" appear>
+      <Child message="ready" />
+    </Transition>
+    <Transition>
+      <p v-if="ready">Ready</p>
+      <span v-else>Waiting</span>
+    </Transition>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const ready = false;
+const Child = {
+  renderToString(props) {
+    return '<article>' + props.message + '</article>';
+  }
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<section><article>ready</article><span>Waiting</span><footer>after</footer></section>");
+    expect(() => compileSsr(`<template><Transition :nam="name"><p>bad</p></Transition></template>`)).toThrow(/Unsupported attribute ":nam" on <Transition>/);
+    expect(() => compileSsr(`<template><Transition>text</Transition></template>`)).toThrow(/<Transition> requires exactly one element\/component child or one v-if chain/);
+  });
+
   it("passes SSR component context to children and runtime inject", async () => {
     const result = compileSsr(`<template>
   <section>
