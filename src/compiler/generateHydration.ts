@@ -487,6 +487,7 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   emit(context, indent, `const ${propsVar} = {};`);
   hydrateComponentProps(context, node, propsVar, indent);
   emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  emitHydrationComponentSlots(context, node, propsVar, indent);
   emitRouterViewRouteSlot(context, node, propsVar, indent);
   emit(context, indent, `if (${node.tag} && typeof ${node.tag}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${node.tag}.hydrate(${elementVar}, ${propsVar});`);
@@ -514,6 +515,55 @@ function emitRouterViewRouteSlot(context: HydrationContext, node: ElementNode, p
   emit(context, indent, `if (typeof props.children === "function") { ${propsVar}.children = props.children; ${propsVar}.slots = { ...(${propsVar}.slots ?? {}), default: props.children }; }`);
 }
 
+function emitHydrationComponentSlots(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
+  const children = getDefaultHydrationSlotChildren(node);
+
+  if (!children || !hasMeaningfulHydrationChildren(children)) {
+    return;
+  }
+
+  const slotTargetVar = nextName(context, "slotTarget");
+  const slotPropsVar = nextName(context, "slotProps");
+  emit(context, indent, `${propsVar}.children = (${slotTargetVar}, ${slotPropsVar} = {}) => {`);
+  hydrateChildren(context, children, slotTargetVar, indent + 1);
+  emit(context, indent, "};");
+  emit(context, indent, `${propsVar}.slots = { ...(${propsVar}.slots ?? {}), default: ${propsVar}.children };`);
+}
+
+function getDefaultHydrationSlotChildren(node: ElementNode): TemplateNode[] | undefined {
+  const defaultChildren: TemplateNode[] = [];
+
+  for (const child of node.children) {
+    if (child.type === "element" && child.tag === "template") {
+      const defaultSlotAttr = child.attrs.find(isDefaultSlotTemplateAttr);
+
+      if (defaultSlotAttr) {
+        return child.children;
+      }
+
+      if (child.attrs.some(isSlotTemplateAttr)) {
+        continue;
+      }
+    }
+
+    defaultChildren.push(child);
+  }
+
+  return defaultChildren;
+}
+
+function isDefaultSlotTemplateAttr(attr: TemplateAttribute): boolean {
+  return attr.name === "v-slot" || attr.name === "v-slot:default" || attr.name === "#default";
+}
+
+function isSlotTemplateAttr(attr: TemplateAttribute): boolean {
+  return attr.name === "v-slot" || attr.name.startsWith("v-slot:") || attr.name.startsWith("#");
+}
+
+function hasMeaningfulHydrationChildren(children: TemplateNode[]): boolean {
+  return children.some((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+}
+
 function hydrateDynamicComponentAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
   const isAttr = getDynamicComponentIsAttr(node);
 
@@ -539,6 +589,7 @@ function hydrateDynamicComponent(context: HydrationContext, node: ElementNode, e
   emit(context, indent, `const ${propsVar} = {};`);
   hydrateComponentProps(context, dynamicNode, propsVar, indent);
   emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  emitHydrationComponentSlots(context, dynamicNode, propsVar, indent);
   emitRouterViewRouteSlot(context, dynamicNode, propsVar, indent);
   emit(context, indent, `if (${componentType} && typeof ${componentType}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${componentType}.hydrate(${elementVar}, ${propsVar});`);

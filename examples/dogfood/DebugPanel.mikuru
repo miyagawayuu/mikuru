@@ -100,6 +100,7 @@ const allEvents = ref([]);
 const selectedId = ref(undefined);
 const selectedEventId = ref(undefined);
 const eventFilter = ref("all");
+const hideComponentEventsAfterClear = ref(false);
 
 const selected = computed(() =>
   components.value.find((component) => component.id === selectedId.value) ?? components.value[0]
@@ -132,8 +133,16 @@ function snapshot() {
     propsText: JSON.stringify(component.props ?? {}, null, 2)
   }));
 
-  allEvents.value = inspector
-    .getEvents()
+  const events = inspector.getEvents();
+  if (hideComponentEventsAfterClear.value && events.some((event) => !event.type.startsWith("component:"))) {
+    hideComponentEventsAfterClear.value = false;
+  }
+
+  const visibleEvents = hideComponentEventsAfterClear.value
+    ? events.filter((event) => !event.type.startsWith("component:"))
+    : events;
+
+  allEvents.value = visibleEvents
     .slice(-24)
     .map((event, index) => ({
       id: `${event.timestamp}-${index}-${event.type}`,
@@ -257,6 +266,7 @@ function setEventFilter(filter) {
 
 function clearEvents() {
   inspector.clearEvents();
+  hideComponentEventsAfterClear.value = true;
   snapshot();
 }
 

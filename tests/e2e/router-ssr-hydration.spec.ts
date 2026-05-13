@@ -19,13 +19,15 @@ test("router SSR hydration example renders, hydrates, and navigates route trees"
   await expect(page).toHaveURL(/\/users\/42\?tab=profile$/);
   await expect(page.getByRole("heading", { name: "User 42" })).toBeVisible();
   await expect(page.getByText("Tab: profile")).toBeVisible();
+  await expect(page.getByRole("link", { name: "User" })).toHaveClass(/route-active/);
+  await expect(page.getByRole("link", { name: "User" })).toHaveClass(/route-exact/);
 
   await page.getByRole("link", { name: "Settings" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
   await expect(page.getByText("Nested route content survived route hydration.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Lazy" }).click();
+  await page.getByRole("link", { name: "Lazy Child" }).click();
   await expect(page.getByRole("heading", { name: "Lazy SSR Route" })).toBeVisible();
   await expect(page.getByText("loaded lazily for both SSR rendering and hydration")).toBeVisible();
 
