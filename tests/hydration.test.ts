@@ -1020,6 +1020,73 @@ const AsyncPanel = defineAsyncComponent(async () => {
     expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("streams and hydrates nested AsyncBoundary async children in order", async () => {
+    const source = `<template>
+  <main>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="1" :timeout="1000">
+      <AsyncPanel message="outer" />
+      <AsyncBoundary :loading="InnerLoading" :fallback="InnerError" :delay="1" :timeout="1000">
+        <AsyncPanel message="inner" />
+        <p>{{ label }}</p>
+      </AsyncBoundary>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </main>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const label = "nested async boundary";
+const Loading = { renderToString() { return "<span>outer loading</span>"; }, mount() {} };
+const ErrorView = { renderToString(props) { return "<span>" + props.errorInfo.phase + "</span>"; }, mount() {} };
+const InnerLoading = { renderToString() { return "<span>inner loading</span>"; }, mount() {} };
+const InnerError = { renderToString(props) { return "<span>inner " + props.errorInfo.phase + "</span>"; }, mount() {} };
+const AsyncPanel = defineAsyncComponent(async () => {
+  await Promise.resolve();
+  return {
+    renderToString(props) {
+      return '<article data-async="' + props.message + '">' + props.message + '</article>';
+    },
+    hydrate(target, props) {
+      target.setAttribute("data-hydrated", props.message);
+      return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+    },
+    mount(target, props) {
+      const el = document.createElement("article");
+      el.textContent = "mounted " + props.message;
+      target.appendChild(el);
+      return { element: el, unmount() { el.remove(); } };
+    }
+  };
+});
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const hydrationModule = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const streamed: string[] = [];
+
+    for await (const chunk of renderToStream({ renderToString })) {
+      streamed.push(chunk);
+    }
+
+    root.innerHTML = await renderToString();
+    expect(streamed).toEqual([root.innerHTML]);
+    expect(root.innerHTML).toBe('<main><article data-async="outer">outer</article><article data-async="inner">inner</article><p>nested async boundary</p><footer>after</footer></main>');
+    const articles = Array.from(root.querySelectorAll("article"));
+    const instance = hydrationModule.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(Array.from(root.querySelectorAll("article"))).toEqual(articles);
+    expect(Array.from(root.querySelectorAll("article")).map((node) => node.getAttribute("data-hydrated"))).toEqual(["outer", "inner"]);
+    expect(root.querySelector("p")?.textContent).toBe("nested async boundary");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(Array.from(root.querySelectorAll("article")).map((node) => node.hasAttribute("data-hydrated"))).toEqual([false, false]);
+  });
+
   it("hydrates async component loader errors with fallback without shifting siblings", async () => {
     const source = `<template>
   <section>
