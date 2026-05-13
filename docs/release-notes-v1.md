@@ -60,6 +60,7 @@ See `docs/npm-usage.md` for a full Vite setup.
 - `examples/basic`: minimal counter and component composition.
 - `examples/realworld`: app-like task board with filters and keyed lists.
 - `examples/dogfood`: notes app written with Mikuru SFCs.
+- `examples/ssr-hydration`: SSR-to-hydration example using `.mikuru?ssr`, `.mikuru?hydrate`, stream output, and mismatch recovery.
 - `examples/mikuru-sample` and `examples/mikuru-vue-like`: additional hand-written DOM/runtime samples kept for comparison.
 
 ## Stability Boundary

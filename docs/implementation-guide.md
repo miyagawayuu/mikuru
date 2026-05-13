@@ -613,10 +613,12 @@ npm run test:create
 npm run build:basic
 npm run build:realworld
 npm run build:dogfood
+npm run build:ssr-hydration
 npm run test:package
 npm run test:pack
 npm run test:e2e
 npm run test:e2e:dogfood
+npm run test:e2e:ssr-hydration
 ```
 
 Use the dogfood app as a reference for practical Mikuru patterns:
@@ -624,6 +626,7 @@ Use the dogfood app as a reference for practical Mikuru patterns:
 - `examples/dogfood/App.mikuru`
 - `examples/dogfood/TextField.mikuru`
 - `examples/dogfood/NoteCard.mikuru`
+- `examples/ssr-hydration/src/App.mikuru`
 
 ## Practical Guidelines
 

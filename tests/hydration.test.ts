@@ -1646,7 +1646,7 @@ function loadHydrationModule(code: string, documentOverride?: Document): { mount
     .replace(/import\s+\{[^}]+\}\s+from\s+["'][^"']*mikuru[^"']*["'];?\n+/g, "")
     .replace("export function mount", "function mount")
     .replace("export function hydrate", "function hydrate")
-    .replace(/\nexport \{ hydrate \};\nconst __mikuru_hydrationComponent = \{ \.\.\.__mikuru_component, hydrate \};\nexport default __mikuru_hydrationComponent;\n?$/, "\n");
+    .replace(/\n(?:export \{ hydrate \};\n)?const __mikuru_hydrationComponent = \{ \.\.\.__mikuru_component, hydrate \};\nexport default __mikuru_hydrationComponent;\n?$/, "\n");
   const factory = new Function("effect", "inject", "onMounted", "onUnmounted", "provide", "ref", "setAttribute", "unwrap", "document", `${executable}\nreturn { mount, hydrate };`) as (
     effectArg: typeof effect,
     injectArg: typeof inject,

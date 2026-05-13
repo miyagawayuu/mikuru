@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mikuru SSR Hydration</title>
+  </head>
+  <body>
+    <main class="page">
+      <div>
+        <h2>Hydrated SSR DOM</h2>
+        <div id="app"><section class="ssr-card" data-testid="ssr-card"><h1>SSR Hydration Example</h1><button>count: 2</button><p>Server HTML is reused.</p></section></div>
+      </div>
+      <div>
+        <h2>Recovery Demo</h2>
+        <div id="drift"><section class="ssr-card" data-testid="ssr-card"><em>Drifted server node</em></section></div>
+      </div>
+      <div>
+        <h2>Stream Preview</h2>
+        <pre id="stream-output"></pre>
+      </div>
+    </main>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

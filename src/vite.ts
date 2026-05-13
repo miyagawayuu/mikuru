@@ -1,6 +1,6 @@
 import type { Plugin } from "vite";
 
-import { compile, createCodeFrame, getSourceLocation, MikuruCompileError } from "./compiler/index.js";
+import { compile, compileHydration, compileSsr, createCodeFrame, getSourceLocation, MikuruCompileError } from "./compiler/index.js";
 
 export type MikuruPluginOptions = {
   debug?: boolean;
@@ -14,27 +14,31 @@ export function mikuru(options: MikuruPluginOptions = {}): Plugin {
   return {
     name: "mikuru",
     transform(source, id) {
-      if (!include.test(id)) {
+      const [filename, query = ""] = id.split("?", 2);
+      if (!include.test(filename)) {
         return null;
       }
 
-      let result: ReturnType<typeof compile>;
+      let result: ReturnType<typeof compile> | ReturnType<typeof compileHydration> | ReturnType<typeof compileSsr>;
 
       try {
-        result = compile(source, {
-          filename: id,
+        const compileOptions = {
+          filename,
           debug: options.debug === true,
           batchedUpdates: options.batchedUpdates === true
-        });
+        };
+        result = query === "hydrate"
+          ? compileHydration(source, compileOptions)
+          : query === "ssr"
+            ? compileSsr(source, compileOptions)
+            : compile(source, compileOptions);
       } catch (error) {
-        this.error(formatViteTransformError(error, source, id));
+        this.error(formatViteTransformError(error, source, filename));
         throw error;
       }
 
-      return {
-        code: options.debug ? `${result.code}\n//# sourceURL=${toGeneratedSourceUrl(id)}\n` : result.code,
-        map: result.map
-      };
+      const code = options.debug ? `${result.code}\n//# sourceURL=${toGeneratedSourceUrl(id)}\n` : result.code;
+      return "map" in result ? { code, map: result.map as any } : { code };
     }
   };
 }

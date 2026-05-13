@@ -8,6 +8,7 @@
 - Added hydration structural mismatch recovery with a remount fallback.
 - Added `renderToStream()` for async iterable SSR output.
 - Added SSR loader resolution and error fallback rendering for `defineAsyncComponent()`.
+- Added Vite `.mikuru?ssr` and `.mikuru?hydrate` imports plus an SSR/hydration example and recovery E2E coverage.
 
 ## 1.0.20 - 2026-05-13
 

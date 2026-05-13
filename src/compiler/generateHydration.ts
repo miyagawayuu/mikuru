@@ -27,7 +27,11 @@ type EventDirective = {
   modifiers: string[];
 };
 
-export function generateHydration(descriptor: SfcDescriptor, root: ElementNode): string {
+type GenerateHydrationOptions = {
+  includeImports?: boolean;
+};
+
+export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, options: GenerateHydrationOptions = {}): string {
   const context: HydrationContext = {
     lines: [],
     index: 0,
@@ -37,11 +41,13 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
   };
   const script = splitScript(descriptor.script ?? "");
 
-  for (const importLine of script.imports) {
-    emit(context, 0, importLine);
+  if (options.includeImports !== false) {
+    for (const importLine of script.imports) {
+      emit(context, 0, importLine);
+    }
+    emit(context, 0, "import { effect, setAttribute, unwrap } from \"mikuru/runtime\";");
+    emit(context, 0, "");
   }
-  emit(context, 0, "import { effect, setAttribute, unwrap } from \"mikuru/runtime\";");
-  emit(context, 0, "");
 
   emit(context, 0, "export function hydrate(target, props = {}) {");
   emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
