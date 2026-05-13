@@ -862,6 +862,46 @@ const current = HydratableChild;
     expect(root.querySelector("p[data-child]")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates AsyncBoundary children without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="10" :timeout="1000">
+      <HydratableChild :label="label" />
+      <p>{{ label }}</p>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const label = "async-ready";
+const Loading = { renderToString() { return "<span>loading</span>"; } };
+const ErrorView = { renderToString() { return "<span>error</span>"; } };
+const HydratableChild = {
+  renderToString(props) {
+    return '<article data-child="' + props.label + '">' + props.label + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("async-ready");
+    expect(root.querySelector("p")?.textContent).toBe("async-ready");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
   it("scopes provide/inject and lifecycle callbacks during hydration", () => {
     const source = `<template>
   <section>

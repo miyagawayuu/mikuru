@@ -127,6 +127,11 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
     return;
   }
 
+  if (node.tag === "AsyncBoundary") {
+    hydrateAsyncBoundaryElement(context, node, elementVar, indent);
+    return;
+  }
+
   if (isComponentTag(node.tag)) {
     hydrateComponent(context, node, elementVar, indent);
     return;
@@ -164,6 +169,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
 
     if (child.type === "element" && child.tag === "KeepAlive") {
       hydrateKeepAliveAtIndex(context, child, parentVar, domIndexVar, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "AsyncBoundary") {
+      hydrateAsyncBoundaryAtIndex(context, child, parentVar, domIndexVar, indent);
       return;
     }
 
@@ -519,6 +529,74 @@ function hydrateKeepAliveElement(context: HydrationContext, node: ElementNode, e
   emit(context, indent, `if (${componentTypeVar}) {`);
   hydrateDynamicComponent(context, child, elementVar, componentTypeVar, indent + 1);
   emit(context, indent, "}");
+}
+
+function hydrateAsyncBoundaryAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
+  validateAsyncBoundaryAttributes(node);
+  hydrateFragmentChildrenAtIndex(context, getAsyncBoundaryChildren(node), parentVar, domIndex, indent);
+}
+
+function hydrateAsyncBoundaryElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  validateAsyncBoundaryAttributes(node);
+  const parentVar = nextName(context, "asyncBoundaryParent");
+  const indexVar = nextName(context, "asyncBoundaryIndex");
+  emit(context, indent, `const ${parentVar} = ${elementVar}.parentNode;`);
+  emit(context, indent, `let ${indexVar} = ${parentVar} ? Array.prototype.indexOf.call(${parentVar}.childNodes, ${elementVar}) : 0;`);
+  emit(context, indent, `if (${parentVar}) {`);
+  hydrateFragmentChildrenAtIndex(context, getAsyncBoundaryChildren(node), parentVar, indexVar, indent + 1);
+  emit(context, indent, "}");
+}
+
+function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: TemplateNode[], parentVar: string, domIndex: string, indent: number): void {
+  const children = rawChildren.filter(isHydratableNode);
+  children.forEach((child) => {
+    if (child.type === "element" && child.tag === "Teleport") {
+      hydrateTeleportAtIndex(context, child, parentVar, domIndex, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "component") {
+      hydrateDynamicComponentAtIndex(context, child, parentVar, domIndex, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "KeepAlive") {
+      hydrateKeepAliveAtIndex(context, child, parentVar, domIndex, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "AsyncBoundary") {
+      hydrateAsyncBoundaryAtIndex(context, child, parentVar, domIndex, indent);
+      return;
+    }
+
+    if (child.type === "element" && getAttr(child, "v-if") && !getAttr(child, "v-pre")) {
+      hydrateIf(context, child, parentVar, domIndex, indent);
+      emit(context, indent, `${domIndex} += 1;`);
+      return;
+    }
+
+    if (child.type === "element" && getAttr(child, "v-for") && !getAttr(child, "v-pre")) {
+      hydrateFor(context, child, parentVar, domIndex, indent, domIndex);
+      return;
+    }
+
+    const childVar = nextName(context, "node");
+    emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
+    if (child.type === "element") {
+      const elementCheck = isComponentTag(child.tag)
+        ? `!${childVar} || ${childVar}.nodeType !== 1`
+        : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
+      emit(context, indent, `if (${elementCheck}) { __mikuru_warn(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}) + "."); } else {`);
+      hydrateNode(context, child, childVar, indent + 1);
+      emit(context, indent, "}");
+    } else {
+      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_warn("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar}) + "."); } else {`);
+      hydrateNode(context, child, childVar, indent + 1);
+      emit(context, indent, "}");
+    }
+    emit(context, indent, `${domIndex} += 1;`);
+  });
 }
 
 function hydrateComponentProps(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
@@ -923,6 +1001,27 @@ function validateKeepAliveAttributes(node: ElementNode): void {
 
     throw new Error(`Unsupported attribute "${attr.name}" on <KeepAlive>. Supported attributes: include, exclude, and max.`);
   }
+}
+
+function validateAsyncBoundaryAttributes(node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (name === "loading" || name === "fallback" || name === "delay" || name === "timeout") {
+      continue;
+    }
+
+    throw new Error(`Unsupported attribute "${attr.name}" on <AsyncBoundary>. Supported attributes: loading, fallback, delay, and timeout.`);
+  }
+}
+
+function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length === 0) {
+    throw new Error("<AsyncBoundary> requires at least one child");
+  }
+
+  return node.children;
 }
 
 function getSingleElementChild(node: ElementNode, label: string): ElementNode {
