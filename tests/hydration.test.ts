@@ -1685,6 +1685,77 @@ function increment() {
     expect(button?.textContent).toBe("2");
   });
 
+  it("hydrates Teleport content nested in AsyncBoundary without shifting app or target siblings", async () => {
+    const source = `<template>
+  <section>
+    <h1>{{ title }}</h1>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="1" :timeout="1000">
+      <Teleport to="#modal-root">
+        <AsyncPanel message="modal async" />
+        <button @click="increment">{{ count }}</button>
+      </Teleport>
+    </AsyncBoundary>
+    <p>after</p>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent, ref } from "mikuru";
+const title = "Teleport Async";
+const count = ref(1);
+const Loading = { renderToString() { return "<span>loading</span>"; }, mount() {} };
+const ErrorView = { renderToString(props) { return "<span>" + props.errorInfo.phase + "</span>"; }, mount() {} };
+const AsyncPanel = defineAsyncComponent(async () => ({
+  renderToString(props) {
+    return '<article data-async="' + props.message + '">' + props.message + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.message);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  },
+  mount(target, props) {
+    const el = document.createElement("article");
+    el.textContent = "mounted " + props.message;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+}));
+function increment() {
+  count.value += 1;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const window = new Window();
+    const app = window.document.createElement("div");
+    const modalRoot = window.document.createElement("div");
+    modalRoot.id = "modal-root";
+    window.document.body.append(app, modalRoot);
+    const teleports: Record<string, string> = {};
+    const module = loadHydrationModule(compileHydration(source).code, window.document as unknown as Document);
+
+    app.innerHTML = await renderToString({ __mikuru_teleports: teleports });
+    modalRoot.innerHTML = teleports["#modal-root"];
+
+    expect(app.innerHTML).toBe("<section><h1>Teleport Async</h1><!--teleport:t0--><!--/teleport:t0--><p>after</p></section>");
+    expect(modalRoot.innerHTML).toBe('<!--teleport content:t0--><article data-async="modal async">modal async</article><button>1</button><!--/teleport content:t0-->');
+    const article = modalRoot.querySelector("article");
+    const instance = module.hydrate(app as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(modalRoot.querySelector("article")).toBe(article);
+    expect(modalRoot.querySelector("article")?.getAttribute("data-hydrated")).toBe("modal async");
+    const button = modalRoot.querySelector("button");
+    button?.dispatchEvent(new window.Event("click"));
+
+    expect(button?.textContent).toBe("2");
+    expect(app.querySelector("p")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(modalRoot.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+    button?.dispatchEvent(new window.Event("click"));
+    expect(button?.textContent).toBe("2");
+  });
+
   it("hydrates disabled SSR Teleport content inline", async () => {
     const source = `<template>
   <section>
