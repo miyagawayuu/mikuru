@@ -668,7 +668,9 @@ function hydrateContentDirective(context: HydrationContext, node: ElementNode, e
 
   const expression = compileHydrationExpression(context, String(attr.value), attr.name);
   const property = attr.name === "v-html" ? "innerHTML" : "textContent";
-  emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_content = String(unwrap(${expression}) ?? ""); if (${elementVar}.${property} !== __mikuru_content) ${elementVar}.${property} = __mikuru_content; }));`);
+  const warnedVar = nextName(context, "contentMismatchWarned");
+  emit(context, indent, `let ${warnedVar} = false;`);
+  emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_content = String(unwrap(${expression}) ?? ""); if (${elementVar}.${property} !== __mikuru_content) { if (!${warnedVar}) { __mikuru_warn(${quote(`${attr.name} content mismatch: expected `)} + JSON.stringify(__mikuru_content) + ", got " + JSON.stringify(${elementVar}.${property} ?? "") + "."); ${warnedVar} = true; } ${elementVar}.${property} = __mikuru_content; } }));`);
 }
 
 function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string, indent: number): void {

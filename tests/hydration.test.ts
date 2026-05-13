@@ -214,6 +214,35 @@ const message = "Expected";
     }
   });
 
+  it("warns with expected and actual content directive values", () => {
+    const source = `<template>
+  <section>
+    <article v-html="html"></article>
+    <p v-text="text"></p>
+  </section>
+</template>
+<script>
+const html = "<strong>Expected</strong>";
+const text = "Expected text";
+</script>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = "<section><article><em>Actual</em></article><p>Actual text</p></section>";
+      module.hydrate(root as unknown as Element);
+
+      expect(root.querySelector("article")?.innerHTML).toBe("<strong>Expected</strong>");
+      expect(root.querySelector("p")?.textContent).toBe("Expected text");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('v-html content mismatch: expected "<strong>Expected</strong>", got "<em>Actual</em>".'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('v-text content mismatch: expected "Expected text", got "Actual text".'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("hydrates initial v-if and v-for DOM", async () => {
     const source = `<template>
   <section>
