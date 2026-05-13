@@ -1,0 +1,10 @@
+<template>
+  <section class="route-page">
+    <h2>Settings</h2>
+    <RouterView />
+  </section>
+</template>
+
+<script>
+import { RouterView } from "mikuru/router";
+</script>

@@ -8,6 +8,8 @@ export type RouteQueryValue = string | string[] | undefined;
 export type RouteQuery = Record<string, RouteQueryValue>;
 export type RouteComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
+  hydrate?: (target: Element, props?: Record<string, unknown>) => { element: Element | Comment; unmount(): void } | Promise<{ element: Element | Comment; unmount(): void }>;
+  renderToString?: (props?: Record<string, unknown>) => string | Promise<string>;
 };
 export type LazyRouteComponent = () => Promise<RouteComponent | { default: RouteComponent }>;
 export type RoutePropsOption =
@@ -664,6 +666,34 @@ export function createMemoryHistory(initial = "/"): RouterHistory {
 }
 
 export const RouterView: RouteComponent = {
+  async renderToString(props = {}) {
+    const child = typeof props.children === "function"
+      ? await (props.children as (slotProps?: Record<string, unknown>) => string | Promise<string>)({ __mikuru_context: props.__mikuru_context })
+      : "";
+    return String(child ?? "");
+  },
+  hydrate(target, props = {}) {
+    const cleanup: Array<() => void> = [];
+    const childTarget = target.matches("[data-mikuru-router-view]")
+      ? target.firstElementChild
+      : target;
+
+    if (childTarget && typeof props.children === "function") {
+      void Promise.resolve((props.children as (target: Element, slotProps?: Record<string, unknown>) => unknown)(childTarget, { __mikuru_context: props.__mikuru_context }))
+        .then((result) => {
+          if (result && typeof result === "object" && typeof (result as { unmount?: unknown }).unmount === "function") {
+            cleanup.push(() => (result as { unmount(): void }).unmount());
+          }
+        });
+    }
+
+    return {
+      element: target,
+      unmount() {
+        for (const fn of cleanup.splice(0).reverse()) fn();
+      }
+    };
+  },
   mount(target, props = {}) {
     const anchor = document.createComment("mikuru-router-view");
     const cleanup: Array<() => void> = [];
@@ -735,6 +765,79 @@ export const RouterView: RouteComponent = {
 };
 
 export const RouterLink: RouteComponent = {
+  async renderToString(props = {}) {
+    const router = getRouterProp(props);
+    const to = readToProp(props);
+    const targetRoute = router.resolve(to);
+    const activeClass = String(unwrap(props.activeClass) ?? "router-link-active");
+    const exactActiveClass = String(unwrap(props.exactActiveClass) ?? "router-link-exact-active");
+    const isExactActive = router.currentRoute.value.fullPath === targetRoute.fullPath;
+    const isActive = isExactActive || isPathActive(router.currentRoute.value.path, targetRoute.path);
+    const classes = [isActive ? activeClass : "", isExactActive ? exactActiveClass : ""].filter(Boolean).join(" ");
+    const ariaCurrent = isExactActive ? " aria-current=\"page\"" : "";
+    const classAttr = classes ? ` class="${escapeRouterHtml(classes)}"` : "";
+    const label = typeof props.children === "function"
+      ? String(await (props.children as (slotProps?: Record<string, unknown>) => string | Promise<string>)({ __mikuru_context: props.__mikuru_context }) ?? "")
+      : escapeRouterHtml(readRouterLinkText(props));
+
+    return `<a href="${escapeRouterHtml(router.createHref(to))}"${classAttr}${ariaCurrent}>${label}</a>`;
+  },
+  hydrate(target, props = {}) {
+    const anchor = target as HTMLAnchorElement;
+    const cleanup: Array<() => void> = [];
+    const hasChildren = typeof props.children === "function";
+    const navigate = (event: Event) => {
+      const router = getRouterProp(props);
+      event.preventDefault();
+      void (unwrap(props.replace) ? router.replace(readToProp(props)) : router.push(readToProp(props)));
+    };
+    const preload = () => {
+      if (!unwrap(props.preload)) return;
+      const router = getRouterProp(props);
+      void router.preload(readToProp(props)).catch(() => undefined);
+    };
+
+    anchor.addEventListener("click", navigate);
+    anchor.addEventListener("mouseenter", preload);
+    anchor.addEventListener("focus", preload);
+    cleanup.push(() => anchor.removeEventListener("click", navigate));
+    cleanup.push(() => anchor.removeEventListener("mouseenter", preload));
+    cleanup.push(() => anchor.removeEventListener("focus", preload));
+
+    if (hasChildren) {
+      const cleanupResult = (props.children as (target: Element, props?: Record<string, unknown>) => void | (() => void))(anchor, {});
+      if (cleanupResult) cleanup.push(cleanupResult);
+    }
+
+    const stop = effect(() => {
+      const router = getRouterProp(props);
+      const to = readToProp(props);
+      const targetRoute = router.resolve(to);
+      const activeClass = String(unwrap(props.activeClass) ?? "router-link-active");
+      const exactActiveClass = String(unwrap(props.exactActiveClass) ?? "router-link-exact-active");
+      const isExactActive = router.currentRoute.value.fullPath === targetRoute.fullPath;
+      const isActive = isExactActive || isPathActive(router.currentRoute.value.path, targetRoute.path);
+      anchor.href = router.createHref(to);
+      if (!hasChildren) anchor.textContent = readRouterLinkText(props);
+      anchor.classList.toggle(activeClass, isActive);
+      anchor.classList.toggle(exactActiveClass, isExactActive);
+
+      if (isExactActive) {
+        anchor.setAttribute("aria-current", "page");
+      } else {
+        anchor.removeAttribute("aria-current");
+      }
+    });
+
+    cleanup.push(stop);
+
+    return {
+      element: anchor,
+      unmount() {
+        for (const fn of cleanup.splice(0).reverse()) fn();
+      }
+    };
+  },
   mount(target, props = {}) {
     const anchor = document.createElement("a");
     const cleanup: Array<() => void> = [];
@@ -802,6 +905,25 @@ export const RouterLink: RouteComponent = {
     };
   }
 };
+
+function readRouterLinkText(props: Record<string, unknown>): string {
+  const label = unwrap(props.label) ?? unwrap(props.childrenText);
+  if (label !== undefined) return String(label);
+
+  const to = readToProp(props);
+  if (typeof to === "string") return to;
+  if ("name" in to) return to.name;
+  return to.path;
+}
+
+function escapeRouterHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
 
 function getRouterProp(props: Record<string, unknown>): Router {
   const router = unwrap(props.router);

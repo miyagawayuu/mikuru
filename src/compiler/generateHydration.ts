@@ -487,6 +487,7 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   emit(context, indent, `const ${propsVar} = {};`);
   hydrateComponentProps(context, node, propsVar, indent);
   emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  emitRouterViewRouteSlot(context, node, propsVar, indent);
   emit(context, indent, `if (${node.tag} && typeof ${node.tag}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${node.tag}.hydrate(${elementVar}, ${propsVar});`);
   emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
@@ -506,6 +507,11 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   emit(context, indent, "} else {");
   emit(context, indent + 1, `__mikuru_recover(${quote(`Component mismatch at <${node.tag}>`)});`);
   emit(context, indent, "}");
+}
+
+function emitRouterViewRouteSlot(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
+  if (node.tag !== "RouterView") return;
+  emit(context, indent, `if (typeof props.children === "function") { ${propsVar}.children = props.children; ${propsVar}.slots = { ...(${propsVar}.slots ?? {}), default: props.children }; }`);
 }
 
 function hydrateDynamicComponentAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
@@ -533,6 +539,7 @@ function hydrateDynamicComponent(context: HydrationContext, node: ElementNode, e
   emit(context, indent, `const ${propsVar} = {};`);
   hydrateComponentProps(context, dynamicNode, propsVar, indent);
   emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
+  emitRouterViewRouteSlot(context, dynamicNode, propsVar, indent);
   emit(context, indent, `if (${componentType} && typeof ${componentType}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${componentType}.hydrate(${elementVar}, ${propsVar});`);
   emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);

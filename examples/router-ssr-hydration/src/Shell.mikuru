@@ -1,0 +1,66 @@
+<template>
+  <main class="router-shell" data-testid="router-shell" :data-route="route.fullPath">
+    <header>
+      <h1>Router SSR Hydration</h1>
+      <p>Current route: {{ route.fullPath }}</p>
+      <nav aria-label="Router SSR routes">
+        <RouterLink to="/" label="Home" />
+        <RouterLink :to="userRoute" label="User" />
+        <RouterLink to="/legacy-user" label="Redirect" />
+        <RouterLink :to="{ name: 'settings-profile' }" label="Settings" />
+        <RouterLink :to="{ name: 'lazy' }" label="Lazy" />
+        <RouterLink :to="{ name: 'admin' }" label="Admin" />
+        <RouterLink to="/missing" label="Missing" />
+      </nav>
+    </header>
+
+    <section class="route-outlet" data-testid="route-outlet">
+      <RouterView />
+    </section>
+  </main>
+</template>
+
+<script>
+import { RouterLink, RouterView } from "mikuru/router";
+
+const route = props.route;
+const userRoute = { name: "user", params: { id: "42" }, query: { tab: "profile" } };
+</script>
+
+<style scoped>
+.router-shell {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+  color: #182033;
+  background: #ffffff;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+header {
+  display: grid;
+  gap: 12px;
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+a {
+  color: #2454c6;
+  font-weight: 700;
+}
+
+.route-outlet {
+  min-height: 140px;
+}
+</style>
