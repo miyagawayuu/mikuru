@@ -1,4 +1,4 @@
-import { emitDebugEvent } from "./devtools.js";
+import { createDebugDiagnostic, emitDebugEvent } from "./devtools.js";
 
 export type MikuruComponentInstance = {
   element: Element | Comment;
@@ -124,6 +124,14 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         }
         return component.renderToString(props);
       } catch (error) {
+        const phase = error instanceof Error && error.message === "Async component timed out" ? "async-timeout" : "async-loader";
+        const diagnostic = createDebugDiagnostic("runtime", "error", error instanceof Error ? error.message : String(error), {
+          component: context?.component,
+          filename: context?.filename,
+          phase,
+          error
+        });
+
         if (options.errorComponent?.renderToString) {
           return options.errorComponent.renderToString({
             ...props,
@@ -131,8 +139,9 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
             errorInfo: {
               component: context?.component,
               filename: context?.filename,
-              phase: error instanceof Error && error.message === "Async component timed out" ? "async-timeout" : "async-loader"
+              phase
             },
+            diagnostic,
             retry: () => {}
           });
         }
@@ -354,7 +363,13 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
                 componentId: context?.debugId,
                 hasBoundary: Boolean(boundaryEntry),
                 error,
-                errorInfo: { component: context?.component, filename: context?.filename, phase: "async-timeout" }
+                errorInfo: { component: context?.component, filename: context?.filename, phase: "async-timeout" },
+                diagnostic: createDebugDiagnostic("runtime", "error", error.message, {
+                  component: context?.component,
+                  filename: context?.filename,
+                  phase: "async-timeout",
+                  error
+                })
               });
               if (!options.errorComponent) {
                 boundaryEntry?.reject(error, { component: context?.component, filename: context?.filename, phase: "async-timeout" });
@@ -397,7 +412,13 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
               componentId: context?.debugId,
               hasBoundary: Boolean(boundaryEntry),
               error,
-              errorInfo: { component: context?.component, filename: context?.filename, phase: "async-loader" }
+              errorInfo: { component: context?.component, filename: context?.filename, phase: "async-loader" },
+              diagnostic: createDebugDiagnostic("runtime", "error", error instanceof Error ? error.message : String(error), {
+                component: context?.component,
+                filename: context?.filename,
+                phase: "async-loader",
+                error
+              })
             });
 
             if (!options.errorComponent) {

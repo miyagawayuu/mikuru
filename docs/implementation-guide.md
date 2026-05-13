@@ -593,7 +593,7 @@ Unsupported directive "v-modle". Did you mean v-model?
 Unsupported event modifier .prevet. Did you mean .prevent?
 ```
 
-For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, hydration warning events, and router navigation/preload/error events when those modules run with a devtools hook present. Hydration warnings include `phase: "hydration"`, component, filename, warning message, `kind`, recovery `action`, inferred `expected` / `actual` values when available, and `domPath` in `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
+For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, hydration warning events, router navigation/preload/error events, compiler diagnostics, and SSR diagnostics when those modules run with a devtools hook present. Warning/error payloads share a nested `diagnostic` object with `source`, `level`, `message`, optional `phase`, and available component, filename, route, error, or hydration details. Hydration warnings include `phase: "hydration"`, component, filename, warning message, `kind`, recovery `action`, inferred `expected` / `actual` values when available, and `domPath` in `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
 
 Hydration warning payloads are meant to be scanned by humans first:
 
@@ -608,6 +608,8 @@ actual: "<em>"
 `action` is one of `mount-fallback`, `remount`, `warn-only`, or `sync-dom`. The SSR hydration example renders the collected warnings so you can see how recovery and warning-only hydration differ.
 
 `createDebugInspector()` provides a small unstable reader for experiments: `getComponents()`, `getEvents()`, `clearEvents()`, and `subscribe(listener)`.
+
+`createDebugDiagnostic(source, level, message, details)` normalizes warning/error payloads, and `emitDebugDiagnostic(source, level, message, details)` emits `${source}:${level}` events with `{ diagnostic }` payloads for custom tooling experiments.
 
 The dogfood example enables `mikuru({ debug: true })` and includes an in-app Debug Panel that uses the inspector to display mounted components, selected props/attrs, event category filters, selected event payload details, and recent debug events. Its Router lab emits navigation events so router debugging can be exercised without leaving the example.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added shared Debug Inspector diagnostic payloads for compiler, runtime, router, SSR, and hydration warning/error events.
+
 ## 1.0.23 - 2026-05-13
 
 - Added structured hydration diagnostic payloads with warning kind, recovery action, inferred expected/actual values, and DOM path context.

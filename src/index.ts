@@ -4,9 +4,11 @@ export { compileSsr } from "./compiler/index.js";
 export type { CompileOptions, CompileResult, SsrCompileResult } from "./compiler/index.js";
 export {
   computed,
+  createDebugDiagnostic,
   createDebugInspector,
   defineAsyncComponent,
   effect,
+  emitDebugDiagnostic,
   flushJobs,
   inject,
   isProxy,
@@ -33,6 +35,9 @@ export {
   watchEffect
 } from "./runtime/index.js";
 export type {
+  MikuruDebugDiagnostic,
+  MikuruDebugDiagnosticLevel,
+  MikuruDebugDiagnosticSource,
   MikuruDebugComponentMetadata,
   MikuruDebugEvent,
   MikuruDebugInspector,

@@ -69,6 +69,46 @@ describe("router debug events", () => {
       }
     }
   });
+
+  it("emits structured diagnostics for navigation errors", async () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    const events: Array<{ type: string; payload?: { diagnostic?: { source?: string; level?: string; phase?: string; message?: string } } }> = [];
+    (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = {
+      components: new Map(),
+      events,
+      nextId: 1
+    };
+
+    try {
+      const router = createRouter({
+        history: createMemoryHistory("/"),
+        routes: [{ path: "/" }, { path: "/broken" }]
+      });
+      router.beforeEach((to) => {
+        if (to.path === "/broken") throw new Error("guard exploded");
+        return undefined;
+      });
+
+      await expect(router.push("/broken")).rejects.toThrow("guard exploded");
+
+      expect(events.find((event) => event.type === "route:error")).toMatchObject({
+        payload: {
+          diagnostic: {
+            source: "router",
+            level: "error",
+            phase: "navigate",
+            message: "guard exploded"
+          }
+        }
+      });
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
 });
 
 function propTextComponent(propName: string): RouteComponent {

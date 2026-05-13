@@ -167,6 +167,10 @@ function snapshot() {
 
 function summarizeEvent(event) {
   const payload = event.payload ?? {};
+  if (payload.diagnostic?.message) {
+    return `${payload.diagnostic.phase ?? payload.diagnostic.source ?? event.type}: ${payload.diagnostic.message}`;
+  }
+
   if (event.type === "hydration:warning") {
     return `${payload.kind ?? "hydration"}: ${payload.domPath ?? payload.message ?? "warning"}`;
   }

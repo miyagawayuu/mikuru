@@ -4,6 +4,23 @@ export type MikuruDebugEvent = {
   payload?: Record<string, unknown>;
 };
 
+export type MikuruDebugDiagnosticLevel = "info" | "warning" | "error";
+
+export type MikuruDebugDiagnosticSource = "compiler" | "runtime" | "router" | "ssr" | "hydration" | string;
+
+export type MikuruDebugDiagnostic = {
+  source: MikuruDebugDiagnosticSource;
+  level: MikuruDebugDiagnosticLevel;
+  message: string;
+  phase?: string;
+  filename?: string;
+  component?: unknown;
+  error?: unknown;
+  errorName?: string;
+  errorMessage?: string;
+  [key: string]: unknown;
+};
+
 export type MikuruDebugListener = (event: MikuruDebugEvent) => void;
 
 export type MikuruDebugComponentMetadata = {
@@ -120,6 +137,40 @@ export function emitDebugEvent(type: string, payload?: Record<string, unknown>):
   };
 
   dispatchDebugEvent(hook, event);
+}
+
+export function createDebugDiagnostic(
+  source: MikuruDebugDiagnosticSource,
+  level: MikuruDebugDiagnosticLevel,
+  message: string,
+  details: Omit<MikuruDebugDiagnostic, "source" | "level" | "message"> = {}
+): MikuruDebugDiagnostic {
+  const diagnostic: MikuruDebugDiagnostic = {
+    ...details,
+    source,
+    level,
+    message
+  };
+
+  if (details.error instanceof Error) {
+    diagnostic.errorName = details.error.name;
+    diagnostic.errorMessage = details.error.message;
+  } else if (details.error !== undefined) {
+    diagnostic.errorMessage = String(details.error);
+  }
+
+  return diagnostic;
+}
+
+export function emitDebugDiagnostic(
+  source: MikuruDebugDiagnosticSource,
+  level: MikuruDebugDiagnosticLevel,
+  message: string,
+  details: Omit<MikuruDebugDiagnostic, "source" | "level" | "message"> = {}
+): MikuruDebugDiagnostic {
+  const diagnostic = createDebugDiagnostic(source, level, message, details);
+  emitDebugEvent(`${source}:${level}`, { diagnostic });
+  return diagnostic;
 }
 
 export function createDebugInspector(hook = getOrCreateDevtoolsHook()): MikuruDebugInspector {

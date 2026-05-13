@@ -139,7 +139,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
     runtimeBaseImports.push("queueJob");
   }
   if (context.debug) {
-    runtimeBaseImports.push("emitDebugEvent", "registerDebugComponent");
+    runtimeBaseImports.push("createDebugDiagnostic", "emitDebugEvent", "registerDebugComponent");
   }
   const runtimeImports = mergeRuntimeImports(runtimeBaseImports, script.runtimeImports);
   emit(context, 0, `import { ${runtimeImports.join(", ")} } from "mikuru/runtime";`);
@@ -160,7 +160,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 1, "const __mikuru_errorInfo = (phase) => ({ ...__mikuru_componentInfo, phase });");
   emit(context, 1, "const __mikuru_reportError = (error, errorHandler = __mikuru_context.errorHandler, phase = \"runtime\") => {");
   if (context.debug) {
-    emit(context, 2, "emitDebugEvent(\"component:error\", { component: __mikuru_componentInfo, error, errorInfo: __mikuru_errorInfo(phase), componentId: __mikuru_debug.id });");
+    emit(context, 2, "emitDebugEvent(\"component:error\", { component: __mikuru_componentInfo, error, errorInfo: __mikuru_errorInfo(phase), componentId: __mikuru_debug.id, diagnostic: createDebugDiagnostic(\"runtime\", \"error\", error instanceof Error ? error.message : String(error), { ...__mikuru_errorInfo(phase), error }) });");
   }
   emit(context, 2, "if (typeof errorHandler === \"function\") { Promise.resolve().then(() => errorHandler(error, __mikuru_errorInfo(phase))); return; }");
   emit(context, 2, "setTimeout(() => { throw error; });");
@@ -619,7 +619,7 @@ function generateErrorBoundary(
   emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
   emit(context, indent + 1, `const ${normalizedErrorInfoVar} = ${errorInfoVar} && typeof ${errorInfoVar} === "object" ? ${errorInfoVar} : {};`);
   if (context.debug) {
-    emit(context, indent + 1, `emitDebugEvent("component:error", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo } });`);
+    emit(context, indent + 1, `emitDebugEvent("component:error", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, diagnostic: createDebugDiagnostic("runtime", "error", ${errorVar} instanceof Error ? ${errorVar}.message : String(${errorVar}), { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo, error: ${errorVar} }) });`);
   }
   emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
   emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, retry: ${renderVar}, reset: ${renderVar}, __mikuru_context });`);
@@ -753,7 +753,7 @@ function generateAsyncBoundary(
   emit(context, indent + 1, `if (!${fallbackVar} || typeof ${fallbackVar}.mount !== "function") { throw ${errorVar}; }`);
   emit(context, indent + 1, `const ${normalizedErrorInfoVar} = ${errorInfoVar} && typeof ${errorInfoVar} === "object" ? ${errorInfoVar} : {};`);
   if (context.debug) {
-    emit(context, indent + 1, `emitDebugEvent("async:rejected", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, error: ${errorVar}, errors: [...${errorsVar}], pending: ${pendingVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo } });`);
+    emit(context, indent + 1, `emitDebugEvent("async:rejected", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, error: ${errorVar}, errors: [...${errorsVar}], pending: ${pendingVar}, errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, diagnostic: createDebugDiagnostic("runtime", "error", ${errorVar} instanceof Error ? ${errorVar}.message : String(${errorVar}), { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo, error: ${errorVar} }) });`);
   }
   emit(context, indent + 1, `const ${fallbackFragmentVar} = document.createDocumentFragment();`);
   emit(context, indent + 1, `const ${fallbackInstanceVar} = ${fallbackVar}.mount(${fallbackFragmentVar}, { error: ${errorVar}, errors: [...${errorsVar}], errorInfo: { ...${normalizedErrorInfoVar}, boundary: __mikuru_componentInfo }, pending: ${pendingVar}, retry: ${lastRetryVar}, reset: ${lastRetryVar}, __mikuru_context });`);

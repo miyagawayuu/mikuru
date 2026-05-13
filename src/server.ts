@@ -1,5 +1,6 @@
 import type { NavigationFailure, RouteLocation, RouteLocationRaw, RouteRecord, Router } from "./router/index.js";
 import { normalizeClass, normalizeStyle } from "./runtime/dom.js";
+import { emitDebugDiagnostic } from "./runtime/devtools.js";
 
 export type MikuruSsrComponent = {
   renderToString: (props?: Record<string, unknown>) => string | Promise<string>;
@@ -142,7 +143,7 @@ export function renderToString(component: MikuruSsrComponent | ((props?: Record<
     return component.renderToString(props);
   }
 
-  throw new TypeError("renderToString() expects a component with renderToString(props) or a render function.");
+  return throwSsrDiagnostic("renderToString() expects a component with renderToString(props) or a render function.", "render");
 }
 
 export async function renderRouteToString(router: Router, toOrOptions: RouteLocationRaw | MikuruRouteSsrOptions = router.currentRoute.value.fullPath, options: MikuruRouteSsrOptions = {}): Promise<MikuruSsrRouteRenderResult> {
@@ -155,7 +156,7 @@ export async function renderRouteToString(router: Router, toOrOptions: RouteLoca
   if (router.currentRoute.value.fullPath !== target.fullPath) {
     const navigation = await router.replace(to);
     if (isNavigationFailureLike(navigation)) {
-      throw new Error(navigation.message);
+      return throwSsrDiagnostic(navigation.message, "route-render", { route: target, failure: navigation });
     }
     route = navigation;
   }
@@ -181,7 +182,7 @@ export async function hydrateRoute(router: Router, target: Element, toOrOptions:
   if (router.currentRoute.value.fullPath !== targetRoute.fullPath) {
     const navigation = await router.replace(to);
     if (isNavigationFailureLike(navigation)) {
-      throw new Error(navigation.message);
+      return throwSsrDiagnostic(navigation.message, "route-hydrate", { route: targetRoute, failure: navigation });
     }
     route = navigation;
   }
@@ -258,7 +259,7 @@ async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: 
     parent?.insertBefore(fragment, anchor);
     anchor.remove();
   } else {
-    throw new TypeError(`Route ${record.path} does not have hydrate() or mount().`);
+    throwSsrDiagnostic(`Route ${record.path} does not have hydrate() or mount().`, "route-hydrate", { routeRecord: record });
   }
 
   return {
@@ -329,7 +330,7 @@ async function resolveSsrRouteComponent(record: RouteRecord): Promise<MikuruSsrC
     }
   }
 
-  throw new TypeError(`Route ${record.path} does not have an SSR renderToString component.`);
+  throwSsrDiagnostic(`Route ${record.path} does not have an SSR renderToString component.`, "route-render", { routeRecord: record });
 }
 
 async function resolveHydrationRouteComponent(record: RouteRecord): Promise<MikuruHydrationComponent> {
@@ -357,7 +358,17 @@ async function resolveHydrationRouteComponent(record: RouteRecord): Promise<Miku
     }
   }
 
-  throw new TypeError(`Route ${record.path} does not have a hydration component.`);
+  throwSsrDiagnostic(`Route ${record.path} does not have a hydration component.`, "route-hydrate", { routeRecord: record });
+}
+
+function throwSsrDiagnostic(message: string, phase: string, details: Record<string, unknown> = {}): never {
+  const error = new TypeError(message);
+  emitDebugDiagnostic("ssr", "error", message, {
+    ...details,
+    phase,
+    error
+  });
+  throw error;
 }
 
 function resolveSsrRouteProps(record: RouteRecord, route: RouteLocation): Record<string, unknown> {
