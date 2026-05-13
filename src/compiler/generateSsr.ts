@@ -198,6 +198,11 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
 
+  if (node.tag === "ErrorBoundary") {
+    emitErrorBoundary(context, node, indent);
+    return;
+  }
+
   if (node.tag === "Teleport") {
     emitTeleport(context, node, indent);
     return;
@@ -331,6 +336,12 @@ function emitKeepAlive(context: SsrGenerateContext, node: ElementNode, indent: n
 function emitAsyncBoundary(context: SsrGenerateContext, node: ElementNode, indent: number): void {
   validateAsyncBoundaryAttributes(node);
   emitChildren(context, getAsyncBoundaryChildren(node), indent);
+}
+
+function emitErrorBoundary(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  validateErrorBoundaryAttributes(node);
+  getErrorBoundaryFallbackAttr(node);
+  emitElement(context, getSingleElementChild(node, "<ErrorBoundary>"), indent);
 }
 
 function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -790,6 +801,26 @@ function validateAsyncBoundaryAttributes(node: ElementNode): void {
 
     throw createCompileError(`Unsupported attribute "${attr.name}" on <AsyncBoundary>. Supported attributes: loading, fallback, delay, and timeout.`, contextSource(node), attr.loc?.offset ?? node.loc?.offset ?? 0);
   }
+}
+
+function validateErrorBoundaryAttributes(node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (name === "fallback" || name === "reset-key") {
+      continue;
+    }
+
+    throw createCompileError(`Unsupported attribute "${attr.name}" on <ErrorBoundary>. Supported attributes: fallback and reset-key.`, contextSource(node), attr.loc?.offset ?? node.loc?.offset ?? 0);
+  }
+}
+
+function getErrorBoundaryFallbackAttr(node: ElementNode): TemplateAttribute {
+  const attr = node.attrs.find((candidate) => parseBindDirective(candidate.name)?.name === "fallback");
+  if (!attr) {
+    throw createCompileError("<ErrorBoundary> requires :fallback to resolve to a component object", contextSource(node), node.loc?.offset ?? 0);
+  }
+
+  return attr;
 }
 
 function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {

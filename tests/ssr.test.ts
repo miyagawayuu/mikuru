@@ -294,6 +294,32 @@ const Child = {
     expect(() => compileSsr(`<template><AsyncBoundary>   </AsyncBoundary></template>`)).toThrow(/<AsyncBoundary> requires at least one child/);
   });
 
+  it("renders ErrorBoundary children during SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <ErrorBoundary :fallback="ErrorView" :reset-key="version">
+      <Child message="ok" />
+    </ErrorBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const version = 1;
+const ErrorView = { renderToString() { return "<span>error</span>"; } };
+const Child = {
+  renderToString(props) {
+    return '<article>' + props.message + '</article>';
+  }
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<section><article>ok</article><footer>after</footer></section>");
+    expect(() => compileSsr(`<template><ErrorBoundary :fallbak="ErrorView"><p>bad</p></ErrorBoundary></template>`)).toThrow(/Unsupported attribute ":fallbak" on <ErrorBoundary>/);
+    expect(() => compileSsr(`<template><ErrorBoundary><p>bad</p></ErrorBoundary></template>`)).toThrow(/<ErrorBoundary> requires :fallback/);
+  });
+
   it("passes SSR component context to children and runtime inject", async () => {
     const result = compileSsr(`<template>
   <section>

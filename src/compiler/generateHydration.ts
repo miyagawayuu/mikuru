@@ -132,6 +132,11 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
     return;
   }
 
+  if (node.tag === "ErrorBoundary") {
+    hydrateErrorBoundaryElement(context, node, elementVar, indent);
+    return;
+  }
+
   if (isComponentTag(node.tag)) {
     hydrateComponent(context, node, elementVar, indent);
     return;
@@ -174,6 +179,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
 
     if (child.type === "element" && child.tag === "AsyncBoundary") {
       hydrateAsyncBoundaryAtIndex(context, child, parentVar, domIndexVar, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "ErrorBoundary") {
+      hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndexVar, indent);
       return;
     }
 
@@ -547,6 +557,24 @@ function hydrateAsyncBoundaryElement(context: HydrationContext, node: ElementNod
   emit(context, indent, "}");
 }
 
+function hydrateErrorBoundaryAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
+  validateErrorBoundaryAttributes(node);
+  getErrorBoundaryFallbackAttr(node);
+  hydrateFragmentChildrenAtIndex(context, [getSingleElementChild(node, "<ErrorBoundary>")], parentVar, domIndex, indent);
+}
+
+function hydrateErrorBoundaryElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  validateErrorBoundaryAttributes(node);
+  getErrorBoundaryFallbackAttr(node);
+  const parentVar = nextName(context, "errorBoundaryParent");
+  const indexVar = nextName(context, "errorBoundaryIndex");
+  emit(context, indent, `const ${parentVar} = ${elementVar}.parentNode;`);
+  emit(context, indent, `let ${indexVar} = ${parentVar} ? Array.prototype.indexOf.call(${parentVar}.childNodes, ${elementVar}) : 0;`);
+  emit(context, indent, `if (${parentVar}) {`);
+  hydrateFragmentChildrenAtIndex(context, [getSingleElementChild(node, "<ErrorBoundary>")], parentVar, indexVar, indent + 1);
+  emit(context, indent, "}");
+}
+
 function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: TemplateNode[], parentVar: string, domIndex: string, indent: number): void {
   const children = rawChildren.filter(isHydratableNode);
   children.forEach((child) => {
@@ -567,6 +595,11 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
 
     if (child.type === "element" && child.tag === "AsyncBoundary") {
       hydrateAsyncBoundaryAtIndex(context, child, parentVar, domIndex, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "ErrorBoundary") {
+      hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndex, indent);
       return;
     }
 
@@ -1012,6 +1045,26 @@ function validateAsyncBoundaryAttributes(node: ElementNode): void {
 
     throw new Error(`Unsupported attribute "${attr.name}" on <AsyncBoundary>. Supported attributes: loading, fallback, delay, and timeout.`);
   }
+}
+
+function validateErrorBoundaryAttributes(node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (name === "fallback" || name === "reset-key") {
+      continue;
+    }
+
+    throw new Error(`Unsupported attribute "${attr.name}" on <ErrorBoundary>. Supported attributes: fallback and reset-key.`);
+  }
+}
+
+function getErrorBoundaryFallbackAttr(node: ElementNode): TemplateAttribute {
+  const attr = node.attrs.find((candidate) => parseBindDirective(candidate.name)?.name === "fallback");
+  if (!attr) {
+    throw new Error("<ErrorBoundary> requires :fallback to resolve to a component object");
+  }
+
+  return attr;
 }
 
 function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {
