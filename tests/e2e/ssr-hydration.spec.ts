@@ -22,6 +22,11 @@ test("SSR hydration example reuses DOM, streams output, and recovers drift", asy
   await expect(drift.getByRole("button", { name: "count: 5" })).toBeVisible();
   expect(warnings.some((warning) => warning.includes("remounting"))).toBe(true);
 
+  const driftOff = page.locator("#drift-off");
+  await expect(driftOff.getByText("Drifted server node")).toBeVisible();
+  await expect(driftOff.getByText("Recovery was disabled.")).toHaveCount(0);
+  expect(warnings.some((warning) => warning.includes("Element mismatch: expected <h1>, got <em>."))).toBe(true);
+
   await expect(page.locator("#stream-output")).toContainText("<section");
   await expect(page.locator("#stream-output")).toContainText("Server HTML is reused.");
 });

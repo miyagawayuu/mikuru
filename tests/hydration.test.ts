@@ -1023,6 +1023,54 @@ const HydratableRow = {
     expect(Array.from(root.querySelectorAll("li")).map((node) => node.hasAttribute("data-hydrated"))).toEqual([false, false]);
   });
 
+  it("hydrates nested built-in wrappers without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="AsyncError">
+      <ErrorBoundary :fallback="ErrorView">
+        <Transition name="fade">
+          <TransitionGroup tag="ul" name="rows">
+            <HydratableRow v-for="item in items" :key="item.id" :label="item.label" />
+          </TransitionGroup>
+        </Transition>
+      </ErrorBoundary>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const items = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+];
+const Loading = { renderToString() { return "<span>loading</span>"; } };
+const AsyncError = { renderToString() { return "<span>async error</span>"; } };
+const ErrorView = { renderToString() { return "<span>error</span>"; } };
+const HydratableRow = {
+  renderToString(props) {
+    return '<li data-row="' + props.label + '">' + props.label + '</li>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(Array.from(root.querySelectorAll("li")).map((node) => node.getAttribute("data-hydrated"))).toEqual(["Alpha", "Beta"]);
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(Array.from(root.querySelectorAll("li")).map((node) => node.hasAttribute("data-hydrated"))).toEqual([false, false]);
+  });
+
   it("scopes provide/inject and lifecycle callbacks during hydration", () => {
     const source = `<template>
   <section>

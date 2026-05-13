@@ -444,6 +444,42 @@ const items = [
     expect(() => compileSsr(`<template><TransitionGroup><p v-for="item in items">{{ item }}</p></TransitionGroup></template>`)).toThrow(/<TransitionGroup> requires a single keyed v-for child in v1/);
   });
 
+  it("renders nested built-in wrappers during SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="AsyncError">
+      <ErrorBoundary :fallback="ErrorView">
+        <Transition name="fade">
+          <TransitionGroup tag="ul" name="rows">
+            <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+          </TransitionGroup>
+        </Transition>
+      </ErrorBoundary>
+    </AsyncBoundary>
+    <Teleport to="#modal-root">
+      <p>{{ modal }}</p>
+    </Teleport>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const items = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+];
+const modal = "Nested Modal";
+const Loading = { renderToString() { return "<span>loading</span>"; } };
+const AsyncError = { renderToString() { return "<span>async error</span>"; } };
+const ErrorView = { renderToString() { return "<span>error</span>"; } };
+</script>`);
+
+    const render = loadSsrRender(result.code);
+    const teleports: Record<string, string> = {};
+
+    await expect(render({ __mikuru_teleports: teleports })).resolves.toBe("<section><ul><li>Alpha</li><li>Beta</li></ul><!--teleport:t0--><!--/teleport:t0--><footer>after</footer></section>");
+    expect(teleports["#modal-root"]).toBe("<!--teleport content:t0--><p>Nested Modal</p><!--/teleport content:t0-->");
+  });
+
   it("passes SSR component context to children and runtime inject", async () => {
     const result = compileSsr(`<template>
   <section>

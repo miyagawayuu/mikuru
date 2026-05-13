@@ -9,6 +9,7 @@
 - Added `renderToStream()` for async iterable SSR output.
 - Added SSR loader resolution and error fallback rendering for `defineAsyncComponent()`.
 - Added Vite `.mikuru?ssr` and `.mikuru?hydrate` imports plus an SSR/hydration example and recovery E2E coverage.
+- Added recovery-disabled E2E coverage plus nested built-in wrapper SSR/hydration tests.
 
 ## 1.0.20 - 2026-05-13
 
