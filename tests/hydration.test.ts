@@ -1259,6 +1259,172 @@ const AsyncPanel = defineAsyncComponent({
     expect(root.querySelector("article")).toBeNull();
   });
 
+  it("hydrates nested AsyncBoundary loader errors and retries inner fallback without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <AsyncBoundary :loading="OuterLoading" :fallback="OuterError">
+      <HydratableChild label="outer stable" />
+      <AsyncBoundary :loading="InnerLoading" :fallback="InnerBoundaryError">
+        <AsyncPanel message="inner recovered" />
+      </AsyncBoundary>
+      <p>between</p>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+let attempts = 0;
+const OuterLoading = { renderToString() { return "<span>outer loading</span>"; }, mount() {} };
+const OuterError = { renderToString(props) { return "<span>outer " + props.errorInfo.phase + "</span>"; }, mount() {} };
+const InnerLoading = { renderToString() { return "<span>inner loading</span>"; }, mount() {} };
+const InnerBoundaryError = { renderToString(props) { return "<span>inner " + props.errorInfo.phase + "</span>"; }, mount() {} };
+const HydratableChild = {
+  renderToString(props) {
+    return '<article data-child="' + props.label + '">' + props.label + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+const ErrorView = {
+  renderToString(props) {
+    return '<button data-phase="' + props.errorInfo.phase + '">' + props.error.message + '</button>';
+  },
+  mount(target, props) {
+    const el = document.createElement("button");
+    el.setAttribute("data-phase", props.errorInfo.phase);
+    el.textContent = props.error.message;
+    el.addEventListener("click", () => props.retry());
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+const AsyncPanel = defineAsyncComponent({
+  loader: async () => {
+    attempts += 1;
+    if (attempts < 2) {
+      throw new Error("inner failed");
+    }
+    return {
+      renderToString(props) {
+        return '<aside data-panel="' + props.message + '">' + props.message + '</aside>';
+      },
+      mount(target, props) {
+        const el = document.createElement("aside");
+        el.setAttribute("data-panel", props.message);
+        el.textContent = props.message;
+        target.appendChild(el);
+        return { element: el, unmount() { el.remove(); } };
+      }
+    };
+  },
+  errorComponent: ErrorView
+});
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const hydrationModule = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    expect(root.querySelector("button")?.getAttribute("data-phase")).toBe("async-loader");
+    expect(root.querySelector("p")?.textContent).toBe("between");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+    const instance = hydrationModule.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const retry = root.querySelector("button");
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("outer stable");
+    expect(retry?.getAttribute("data-phase")).toBe("async-loader");
+    expect(retry?.textContent).toBe("inner failed");
+    expect(root.querySelector("p")?.textContent).toBe("between");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    retry?.dispatchEvent(new window.Event("click"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(root.querySelector("aside")?.getAttribute("data-panel")).toBe("inner recovered");
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("outer stable");
+    expect(root.querySelector("p")?.textContent).toBe("between");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("aside")).toBeNull();
+    expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
+  it("hydrates nested AsyncBoundary timeouts with inner fallback without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <AsyncBoundary :loading="OuterLoading" :fallback="OuterError">
+      <HydratableChild label="outer stable" />
+      <AsyncBoundary :loading="InnerLoading" :fallback="InnerBoundaryError">
+        <AsyncPanel message="inner slow" />
+      </AsyncBoundary>
+      <p>between</p>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const OuterLoading = { renderToString() { return "<span>outer loading</span>"; }, mount() {} };
+const OuterError = { renderToString(props) { return "<span>outer " + props.errorInfo.phase + "</span>"; }, mount() {} };
+const InnerLoading = { renderToString() { return "<span>inner loading</span>"; }, mount() {} };
+const InnerBoundaryError = { renderToString(props) { return "<span>inner " + props.errorInfo.phase + "</span>"; }, mount() {} };
+const HydratableChild = {
+  renderToString(props) {
+    return '<article data-child="' + props.label + '">' + props.label + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+const ErrorView = {
+  renderToString(props) {
+    return '<aside data-phase="' + props.errorInfo.phase + '">' + props.error.message + '</aside>';
+  },
+  mount(target, props) {
+    const el = document.createElement("aside");
+    el.setAttribute("data-phase", props.errorInfo.phase);
+    el.textContent = props.error.message;
+    target.appendChild(el);
+    return { element: el, unmount() { el.remove(); } };
+  }
+};
+const AsyncPanel = defineAsyncComponent({
+  loader: () => new Promise(() => {}),
+  timeout: 1,
+  errorComponent: ErrorView
+});
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const hydrationModule = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    expect(root.querySelector("aside")?.getAttribute("data-phase")).toBe("async-timeout");
+    expect(root.querySelector("p")?.textContent).toBe("between");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+    const instance = hydrationModule.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("outer stable");
+    expect(root.querySelector("aside")?.getAttribute("data-phase")).toBe("async-timeout");
+    expect(root.querySelector("aside")?.textContent).toBe("Async component timed out");
+    expect(root.querySelector("p")?.textContent).toBe("between");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("aside")).toBeNull();
+    expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
   it("hydrates ErrorBoundary children without shifting siblings", async () => {
     const source = `<template>
   <section>
