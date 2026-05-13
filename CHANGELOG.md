@@ -4,6 +4,7 @@
 
 - Added SSR and hydration support for initial `<ErrorBoundary>` children.
 - Added SSR and hydration support for initial `<Transition>` children and v-if chains.
+- Added SSR and hydration support for initial `<TransitionGroup>` keyed lists.
 
 ## 1.0.20 - 2026-05-13
 

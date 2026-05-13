@@ -137,6 +137,11 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
     return;
   }
 
+  if (node.tag === "TransitionGroup") {
+    hydrateTransitionGroupElement(context, node, elementVar, indent);
+    return;
+  }
+
   if (node.tag === "Transition") {
     hydrateTransitionElement(context, node, elementVar, indent);
     return;
@@ -189,6 +194,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
 
     if (child.type === "element" && child.tag === "ErrorBoundary") {
       hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndexVar, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "TransitionGroup") {
+      hydrateTransitionGroupAtIndex(context, child, parentVar, domIndexVar, indent);
       return;
     }
 
@@ -623,6 +633,36 @@ function hydrateTransitionIfChainAtIndex(context: HydrationContext, children: El
   });
 }
 
+function hydrateTransitionGroupAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
+  validateTransitionGroupAttributes(node);
+  const child = getTransitionGroupChild(node);
+  const groupVar = nextName(context, "transitionGroup");
+  const expectedTagVar = nextName(context, "transitionGroupTag");
+  const groupIndexVar = nextName(context, "transitionGroupIndex");
+  emit(context, indent, `const ${groupVar} = ${parentVar}.childNodes[${domIndex}];`);
+  emit(context, indent, `const ${expectedTagVar} = String(unwrap(${getTransitionGroupTagExpression(context, node)}) ?? "span").toLowerCase();`);
+  emit(context, indent, `if (!${groupVar} || ${groupVar}.nodeType !== 1 || ${groupVar}.tagName?.toLowerCase() !== ${expectedTagVar}) {`);
+  emit(context, indent + 1, `__mikuru_warn("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${groupVar}) + ".");`);
+  emit(context, indent, "} else {");
+  emit(context, indent + 1, `let ${groupIndexVar} = 0;`);
+  hydrateFor(context, withoutAttrs(child, [":key", "v-bind:key"]), groupVar, groupIndexVar, indent + 1, groupIndexVar);
+  emit(context, indent + 1, `if (${groupVar}.childNodes.length > ${groupIndexVar}) { __mikuru_warn("Extra DOM nodes after TransitionGroup hydration: " + Array.from(${groupVar}.childNodes).slice(${groupIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
+  emit(context, indent, "}");
+  emit(context, indent, `${domIndex} += 1;`);
+}
+
+function hydrateTransitionGroupElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  validateTransitionGroupAttributes(node);
+  const child = getTransitionGroupChild(node);
+  const expectedTagVar = nextName(context, "transitionGroupTag");
+  const groupIndexVar = nextName(context, "transitionGroupIndex");
+  emit(context, indent, `const ${expectedTagVar} = String(unwrap(${getTransitionGroupTagExpression(context, node)}) ?? "span").toLowerCase();`);
+  emit(context, indent, `if (${elementVar}.tagName?.toLowerCase() !== ${expectedTagVar}) { __mikuru_warn("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${elementVar}) + "."); }`);
+  emit(context, indent, `let ${groupIndexVar} = 0;`);
+  hydrateFor(context, withoutAttrs(child, [":key", "v-bind:key"]), elementVar, groupIndexVar, indent, groupIndexVar);
+  emit(context, indent, `if (${elementVar}.childNodes.length > ${groupIndexVar}) { __mikuru_warn("Extra DOM nodes after TransitionGroup hydration: " + Array.from(${elementVar}.childNodes).slice(${groupIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
+}
+
 function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: TemplateNode[], parentVar: string, domIndex: string, indent: number): void {
   const children = rawChildren.filter(isHydratableNode);
   children.forEach((child) => {
@@ -648,6 +688,11 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
 
     if (child.type === "element" && child.tag === "ErrorBoundary") {
       hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndex, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "TransitionGroup") {
+      hydrateTransitionGroupAtIndex(context, child, parentVar, domIndex, indent);
       return;
     }
 
@@ -1134,6 +1179,29 @@ function validateTransitionAttributes(node: ElementNode): void {
   }
 }
 
+function validateTransitionGroupAttributes(node: ElementNode): void {
+  const supported = new Set([
+    "name",
+    "tag",
+    "enter-from-class",
+    "enter-active-class",
+    "enter-to-class",
+    "leave-from-class",
+    "leave-active-class",
+    "leave-to-class",
+    "move-class"
+  ]);
+
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (supported.has(name)) {
+      continue;
+    }
+
+    throw new Error(`Unsupported attribute "${attr.name}" on <TransitionGroup>. Supported attributes: name, tag, and CSS class override attributes.`);
+  }
+}
+
 function getErrorBoundaryFallbackAttr(node: ElementNode): TemplateAttribute {
   const attr = node.attrs.find((candidate) => parseBindDirective(candidate.name)?.name === "fallback");
   if (!attr) {
@@ -1177,6 +1245,29 @@ function getTransitionChildren(node: ElementNode): ElementNode[] {
   }
 
   return children;
+}
+
+function getTransitionGroupChild(node: ElementNode): ElementNode {
+  const child = getSingleElementChild(node, "<TransitionGroup>");
+
+  if (!getAttr(child, "v-for") || !getKeyExpression(child)) {
+    throw new Error("<TransitionGroup> requires a single keyed v-for child in v1");
+  }
+
+  return child;
+}
+
+function getTransitionGroupTagExpression(context: HydrationContext, node: ElementNode): string {
+  const dynamicTag = node.attrs.find((attr) => parseBindDirective(attr.name)?.name === "tag");
+  if (dynamicTag) {
+    return compileHydrationExpression(context, requireAttrValue(dynamicTag), dynamicTag.name);
+  }
+
+  return quote(getStaticAttrValue(node, "tag") ?? "span");
+}
+
+function getKeyExpression(node: ElementNode): string | undefined {
+  return getStaticAttrValue(node, ":key") ?? getStaticAttrValue(node, "v-bind:key");
 }
 
 function getSingleElementChild(node: ElementNode, label: string): ElementNode {

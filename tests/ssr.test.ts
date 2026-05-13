@@ -349,6 +349,33 @@ const Child = {
     expect(() => compileSsr(`<template><Transition>text</Transition></template>`)).toThrow(/<Transition> requires exactly one element\/component child or one v-if chain/);
   });
 
+  it("renders TransitionGroup keyed lists during SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <TransitionGroup tag="ul" name="rows" move-class="move">
+      <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+    </TransitionGroup>
+    <TransitionGroup :tag="groupTag">
+      <span v-for="item in items" :key="item.id">{{ item.id }}</span>
+    </TransitionGroup>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const groupTag = "div";
+const items = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+];
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<section><ul><li>Alpha</li><li>Beta</li></ul><div><span>a</span><span>b</span></div><footer>after</footer></section>");
+    expect(() => compileSsr(`<template><TransitionGroup unknown="x"><p v-for="item in items" :key="item.id">{{ item }}</p></TransitionGroup></template>`)).toThrow(/Unsupported attribute "unknown" on <TransitionGroup>/);
+    expect(() => compileSsr(`<template><TransitionGroup><p v-for="item in items">{{ item }}</p></TransitionGroup></template>`)).toThrow(/<TransitionGroup> requires a single keyed v-for child in v1/);
+  });
+
   it("passes SSR component context to children and runtime inject", async () => {
     const result = compileSsr(`<template>
   <section>
