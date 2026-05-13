@@ -20,6 +20,7 @@ export type MikuruHydrationComponent = {
 export type MikuruSsrRouteRenderResult = {
   html: string;
   route: RouteLocation;
+  teleports: Record<string, string>;
 };
 
 export type MikuruRouteHydrationResult = {
@@ -30,6 +31,10 @@ export type MikuruRouteHydrationResult = {
 
 export type MikuruRouteHydrationOptions = {
   listen?: boolean;
+};
+
+export type MikuruRouteSsrOptions = {
+  teleports?: Record<string, string>;
 };
 
 type MikuruComponentContext = {
@@ -140,7 +145,10 @@ export function renderToString(component: MikuruSsrComponent | ((props?: Record<
   throw new TypeError("renderToString() expects a component with renderToString(props) or a render function.");
 }
 
-export async function renderRouteToString(router: Router, to: RouteLocationRaw = router.currentRoute.value.fullPath): Promise<MikuruSsrRouteRenderResult> {
+export async function renderRouteToString(router: Router, toOrOptions: RouteLocationRaw | MikuruRouteSsrOptions = router.currentRoute.value.fullPath, options: MikuruRouteSsrOptions = {}): Promise<MikuruSsrRouteRenderResult> {
+  const to = isRouteSsrOptions(toOrOptions) ? router.currentRoute.value.fullPath : toOrOptions;
+  const ssrOptions = isRouteSsrOptions(toOrOptions) ? toOrOptions : options;
+  const teleports = ssrOptions.teleports ?? {};
   const target = router.resolve(to);
   let route = target;
 
@@ -158,8 +166,9 @@ export async function renderRouteToString(router: Router, to: RouteLocationRaw =
   const context = createRouteComponentContext(router);
 
   return {
-    html: await renderMatchedRoute(route, router, 0, context),
-    route
+    html: await renderMatchedRoute(route, router, 0, context, teleports),
+    route,
+    teleports
   };
 }
 
@@ -191,7 +200,7 @@ export async function hydrateRoute(router: Router, target: Element, toOrOptions:
   };
 }
 
-async function renderMatchedRoute(route: RouteLocation, router: Router, depth: number, context: MikuruComponentContext): Promise<string> {
+async function renderMatchedRoute(route: RouteLocation, router: Router, depth: number, context: MikuruComponentContext, teleports: Record<string, string>): Promise<string> {
   const record = route.matchedRecords[depth];
   if (!record) {
     return "";
@@ -203,9 +212,10 @@ async function renderMatchedRoute(route: RouteLocation, router: Router, depth: n
     route,
     router,
     __mikuru_context: context,
-    children: (slotProps?: Record<string, unknown>) => renderMatchedRoute(route, router, depth + 1, readRouteSlotContext(slotProps, context)),
+    __mikuru_teleports: teleports,
+    children: (slotProps?: Record<string, unknown>) => renderMatchedRoute(route, router, depth + 1, readRouteSlotContext(slotProps, context), teleports),
     slots: {
-      default: (slotProps?: Record<string, unknown>) => renderMatchedRoute(route, router, depth + 1, readRouteSlotContext(slotProps, context))
+      default: (slotProps?: Record<string, unknown>) => renderMatchedRoute(route, router, depth + 1, readRouteSlotContext(slotProps, context), teleports)
     }
   };
 
@@ -286,6 +296,14 @@ function isRouteHydrationOptions(value: unknown): value is MikuruRouteHydrationO
   return !!value
     && typeof value === "object"
     && "listen" in value
+    && !("path" in value)
+    && !("name" in value);
+}
+
+function isRouteSsrOptions(value: unknown): value is MikuruRouteSsrOptions {
+  return !!value
+    && typeof value === "object"
+    && "teleports" in value
     && !("path" in value)
     && !("name" in value);
 }
