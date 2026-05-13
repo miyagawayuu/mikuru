@@ -142,10 +142,10 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
 - Built-in `<AsyncBoundary :loading :fallback :delay :timeout>` for grouped async loading, delayed loading UI, boundary timeouts, and retryable async failures with aggregated fallback errors
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery
-- Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff
+- Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff and SSR loader resolution
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, `RouterView`, and `RouterLink`
-- SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `v-pre`, `v-cloak`, `v-if` chains, `v-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, and router route rendering with context propagation
-- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, hydrating component context/lifecycle hooks, `v-show`, DOM and component `v-model`, `v-pre`, `v-cloak`, initial `v-if` / `v-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
+- SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `v-pre`, `v-cloak`, `v-if` chains, `v-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, string and async iterable stream rendering, and router route rendering with context propagation
+- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with a remount fallback, hydrating component context/lifecycle hooks, `v-show`, DOM and component `v-model`, `v-pre`, `v-cloak`, initial `v-if` / `v-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
 
@@ -180,7 +180,7 @@ Compiler, runtime, and server entries are public for lower-level integrations:
 ```ts
 import { compile, compileHydration, compileSsr } from "mikuru/compiler";
 import { effect, isRef, nextTick, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch } from "mikuru/runtime";
-import { hydrateRoute, renderComponentToString, renderRouteToString, renderToString } from "mikuru/server";
+import { hydrateRoute, renderComponentToString, renderRouteToString, renderToStream, renderToString } from "mikuru/server";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
 

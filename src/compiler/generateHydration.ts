@@ -66,6 +66,19 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_warn = (message) => { if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message}`); };");
   emit(context, 1, "const __mikuru_describeNode = (node) => { if (!node) return \"missing\"; if (node.nodeType === 1) return `<${node.tagName?.toLowerCase?.() ?? \"element\"}>`; if (node.nodeType === 3) return `text(${JSON.stringify(node.nodeValue ?? \"\")})`; if (node.nodeType === 8) return `comment(${JSON.stringify(node.nodeValue ?? \"\")})`; return `nodeType(${node.nodeType})`; };");
+  emit(context, 1, "const __mikuru_restoreRegistrar = () => { if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; } };");
+  emit(context, 1, "const __mikuru_recovery = {};");
+  emit(context, 1, "let __mikuru_recovered;");
+  emit(context, 1, "const __mikuru_recover = (message) => {");
+  emit(context, 2, "if (props.__mikuru_hydration?.recover === false) { __mikuru_warn(message + \".\"); return; }");
+  emit(context, 2, "__mikuru_warn(message + \"; remounting.\");");
+  emit(context, 2, "for (const cleanup of __mikuru_cleanup.splice(0).reverse()) __mikuru_try(cleanup);");
+  emit(context, 2, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) __mikuru_try(cb);");
+  emit(context, 2, "__mikuru_restoreRegistrar();");
+  emit(context, 2, "if (target.nodeType === 1) { target.innerHTML = \"\"; }");
+  emit(context, 2, "__mikuru_recovered = mount(target, props);");
+  emit(context, 2, "throw __mikuru_recovery;");
+  emit(context, 1, "};");
   emit(context, 1, "const __mikuru_findComment = (parent, value) => Array.from(parent.childNodes ?? []).find((node) => node.nodeType === 8 && node.nodeValue === value);");
   emit(context, 1, "const __mikuru_findNextComment = (node, value) => { for (let cursor = node.nextSibling; cursor; cursor = cursor.nextSibling) { if (cursor.nodeType === 8 && cursor.nodeValue === value) return cursor; } return undefined; };");
   emit(context, 1, "const __mikuru_setRef = (target, value, multiple = false) => {");
@@ -90,10 +103,15 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode):
     emit(context, 1, "");
   }
   emit(context, 1, "const __mikuru_root = target.nodeType === 1 && target.tagName?.toLowerCase() === " + quote(root.tag.toLowerCase()) + " ? target : target.firstElementChild;");
-  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch: expected <${root.tag.toLowerCase()}>, got " + __mikuru_describeNode(__mikuru_root) + "; falling back to mount()."); if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; } return mount(target, props); }`);
-  hydrateElement(context, root, "__mikuru_root", 1);
+  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch: expected <${root.tag.toLowerCase()}>, got " + __mikuru_describeNode(__mikuru_root) + "; falling back to mount()."); __mikuru_restoreRegistrar(); return mount(target, props); }`);
+  emit(context, 1, "try {");
+  hydrateElement(context, root, "__mikuru_root", 2);
+  emit(context, 1, "} catch (error) {");
+  emit(context, 2, "if (error === __mikuru_recovery) { return __mikuru_recovered; }");
+  emit(context, 2, "throw error;");
+  emit(context, 1, "}");
   emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb); }");
-  emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
+  emit(context, 1, "__mikuru_restoreRegistrar();");
   emit(context, 1, "return {");
   emit(context, 2, "element: __mikuru_root,");
   emit(context, 2, "unmount() { for (const cleanup of __mikuru_cleanup.splice(0).reverse()) __mikuru_try(cleanup); for (const cb of __mikuru_afterUnmount.splice(0).reverse()) __mikuru_try(cb); }");
@@ -224,11 +242,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       const elementCheck = isComponentTag(child.tag)
         ? `!${childVar} || ${childVar}.nodeType !== 1`
         : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
-      emit(context, indent, `if (${elementCheck}) { __mikuru_warn(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}) + "."); } else {`);
+      emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar})); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     } else {
-      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_warn("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar}) + "."); } else {`);
+      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_recover("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar})); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }
@@ -255,14 +273,14 @@ function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, pa
   emit(context, indent, `const ${startVar} = ${parentVar}.childNodes[${domIndex}];`);
   emit(context, indent, `const ${endVar} = ${startVar} ? __mikuru_findNextComment(${startVar}, ${quote(`/teleport:${id}`)}) : undefined;`);
   emit(context, indent, `if (!${startVar} || ${startVar}.nodeType !== 8 || ${startVar}.nodeValue !== ${quote(`teleport:${id}`)} || !${endVar}) {`);
-  emit(context, indent + 1, "__mikuru_warn(\"Teleport marker mismatch.\");");
+  emit(context, indent + 1, "__mikuru_recover(\"Teleport marker mismatch\");");
   emit(context, indent, "} else {");
   emit(context, indent + 1, `const ${disabledVar} = Boolean(unwrap(${disabledExpression}));`);
   emit(context, indent + 1, `const ${targetVar} = ${disabledVar} ? undefined : (typeof unwrap(${toExpression}) === "string" ? document.querySelector(unwrap(${toExpression})) : unwrap(${toExpression}));`);
   emit(context, indent + 1, `if (!${disabledVar} && !${targetVar}) { __mikuru_warn("Teleport target was not found."); } else {`);
   emit(context, indent + 2, `const ${contentStartVar} = ${disabledVar} ? ${startVar} : __mikuru_findComment(${targetVar}, ${quote(`teleport content:${id}`)});`);
   emit(context, indent + 2, `const ${contentEndVar} = ${disabledVar} ? ${endVar} : __mikuru_findComment(${targetVar}, ${quote(`/teleport content:${id}`)});`);
-  emit(context, indent + 2, `if (!${contentStartVar} || !${contentEndVar}) { __mikuru_warn("Teleport content marker mismatch."); } else {`);
+  emit(context, indent + 2, `if (!${contentStartVar} || !${contentEndVar}) { __mikuru_recover("Teleport content marker mismatch"); } else {`);
   emit(context, indent + 3, `const ${nodesVar} = [];`);
   emit(context, indent + 3, `let ${cursorVar} = ${contentStartVar}.nextSibling;`);
   emit(context, indent + 3, `while (${cursorVar} && ${cursorVar} !== ${contentEndVar}) { ${nodesVar}.push(${cursorVar}); ${cursorVar} = ${cursorVar}.nextSibling; }`);
@@ -289,11 +307,11 @@ function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: stri
     : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}`;
   emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
   emit(context, indent, `if (unwrap(${compileHydrationExpression(context, condition, "v-if")})) {`);
-  emit(context, indent + 1, `if (${elementCheck}) { __mikuru_warn("Branch mismatch; dynamic v-if hydration will remount in a future phase."); } else {`);
+  emit(context, indent + 1, `if (${elementCheck}) { __mikuru_recover("Branch mismatch: dynamic v-if expected " + __mikuru_describeNode(${childVar})); } else {`);
   hydrateElement(context, withoutAttrs(node, ["v-if"]), childVar, indent + 2);
   emit(context, indent + 1, "}");
   emit(context, indent, `} else if (${childVar}) {`);
-  emit(context, indent + 1, "__mikuru_warn(\"Branch mismatch; expected no v-if DOM for initial state.\");");
+  emit(context, indent + 1, "__mikuru_recover(\"Branch mismatch: expected no v-if DOM for initial state\");");
   emit(context, indent, "}");
 }
 
@@ -317,7 +335,7 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
     emit(context, indent + 1, `const ${forExpression.index} = __mikuru_index;`);
   }
   emit(context, indent + 1, `const ${childVar} = ${parentVar}.childNodes[${domIndex} + __mikuru_index];`);
-  emit(context, indent + 1, `if (${elementCheck}) { __mikuru_warn("List mismatch; dynamic v-for hydration will remount in a future phase."); } else {`);
+  emit(context, indent + 1, `if (${elementCheck}) { __mikuru_recover("List mismatch: dynamic v-for expected row, got " + __mikuru_describeNode(${childVar})); } else {`);
   withTemplateRefMode(context, "array", () => {
     hydrateElement(context, withoutAttrs(node, ["v-for"]), childVar, indent + 2);
   });
@@ -480,7 +498,7 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
   emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
   hydrateTemplateRef(context, node, "__mikuru_child", indent + 1);
   emit(context, indent, "} else {");
-  emit(context, indent + 1, `__mikuru_warn(${quote(`Component mismatch at <${node.tag}>.`)});`);
+  emit(context, indent + 1, `__mikuru_recover(${quote(`Component mismatch at <${node.tag}>`)});`);
   emit(context, indent, "}");
 }
 
@@ -496,7 +514,7 @@ function hydrateDynamicComponentAtIndex(context: HydrationContext, node: Element
   emit(context, indent, `const ${componentTypeVar} = unwrap(${compileHydrationExpression(context, requireAttrValue(isAttr), isAttr.name)});`);
   emit(context, indent, `if (${componentTypeVar}) {`);
   emit(context, indent + 1, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
-  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1) { __mikuru_warn("Element mismatch: expected dynamic component root, got " + __mikuru_describeNode(${childVar}) + "."); } else {`);
+  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1) { __mikuru_recover("Element mismatch: expected dynamic component root, got " + __mikuru_describeNode(${childVar})); } else {`);
   hydrateDynamicComponent(context, node, childVar, componentTypeVar, indent + 2);
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `${domIndex} += 1;`);
@@ -526,7 +544,7 @@ function hydrateDynamicComponent(context: HydrationContext, node: ElementNode, e
   emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
   hydrateTemplateRef(context, dynamicNode, "__mikuru_child", indent + 1);
   emit(context, indent, "} else {");
-  emit(context, indent + 1, "__mikuru_warn(\"Dynamic component mismatch; :is did not resolve to hydrate() or mount().\");");
+  emit(context, indent + 1, "__mikuru_recover(\"Dynamic component mismatch: :is did not resolve to hydrate() or mount()\");");
   emit(context, indent, "}");
 }
 
@@ -642,7 +660,7 @@ function hydrateTransitionGroupAtIndex(context: HydrationContext, node: ElementN
   emit(context, indent, `const ${groupVar} = ${parentVar}.childNodes[${domIndex}];`);
   emit(context, indent, `const ${expectedTagVar} = String(unwrap(${getTransitionGroupTagExpression(context, node)}) ?? "span").toLowerCase();`);
   emit(context, indent, `if (!${groupVar} || ${groupVar}.nodeType !== 1 || ${groupVar}.tagName?.toLowerCase() !== ${expectedTagVar}) {`);
-  emit(context, indent + 1, `__mikuru_warn("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${groupVar}) + ".");`);
+  emit(context, indent + 1, `__mikuru_recover("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${groupVar}));`);
   emit(context, indent, "} else {");
   emit(context, indent + 1, `let ${groupIndexVar} = 0;`);
   hydrateFor(context, withoutAttrs(child, [":key", "v-bind:key"]), groupVar, groupIndexVar, indent + 1, groupIndexVar);
@@ -657,7 +675,7 @@ function hydrateTransitionGroupElement(context: HydrationContext, node: ElementN
   const expectedTagVar = nextName(context, "transitionGroupTag");
   const groupIndexVar = nextName(context, "transitionGroupIndex");
   emit(context, indent, `const ${expectedTagVar} = String(unwrap(${getTransitionGroupTagExpression(context, node)}) ?? "span").toLowerCase();`);
-  emit(context, indent, `if (${elementVar}.tagName?.toLowerCase() !== ${expectedTagVar}) { __mikuru_warn("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${elementVar}) + "."); }`);
+  emit(context, indent, `if (${elementVar}.tagName?.toLowerCase() !== ${expectedTagVar}) { __mikuru_recover("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${elementVar})); }`);
   emit(context, indent, `let ${groupIndexVar} = 0;`);
   hydrateFor(context, withoutAttrs(child, [":key", "v-bind:key"]), elementVar, groupIndexVar, indent, groupIndexVar);
   emit(context, indent, `if (${elementVar}.childNodes.length > ${groupIndexVar}) { __mikuru_warn("Extra DOM nodes after TransitionGroup hydration: " + Array.from(${elementVar}.childNodes).slice(${groupIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
@@ -718,11 +736,11 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
       const elementCheck = isComponentTag(child.tag)
         ? `!${childVar} || ${childVar}.nodeType !== 1`
         : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
-      emit(context, indent, `if (${elementCheck}) { __mikuru_warn(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}) + "."); } else {`);
+      emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar})); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     } else {
-      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_warn("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar}) + "."); } else {`);
+      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_recover("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar})); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }

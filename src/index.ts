@@ -47,6 +47,7 @@ export type {
   EffectOptions,
   EffectRunner,
   EffectScheduler,
+  MikuruAsyncComponent,
   MikuruAsyncBoundaryFallbackProps,
   MikuruComponent,
   MikuruComponentInstance,

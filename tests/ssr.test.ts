@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter } from "../src/router/index.js";
-import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToString } from "../src/server.js";
-import { inject, provide, unwrap } from "../src/runtime/index.js";
+import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToStream, renderToString } from "../src/server.js";
+import { defineAsyncComponent, inject, provide, unwrap } from "../src/runtime/index.js";
 
 describe("server rendering", () => {
   it("escapes text and attributes", () => {
@@ -23,6 +23,48 @@ describe("server rendering", () => {
     expect(renderToString({ renderToString: () => "<p>ok</p>" })).toBe("<p>ok</p>");
     await expect(renderToString(async () => "<p>async</p>")).resolves.toBe("<p>async</p>");
     await expect(renderComponentToString({ renderToString: (props) => `<p>${props?.message}</p>` }, { message: "component" })).resolves.toBe("<p>component</p>");
+  });
+
+  it("streams SSR output as an async iterable", async () => {
+    const chunks: string[] = [];
+
+    for await (const chunk of renderToStream({ renderToString: async () => "<main>streamed</main>" })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(["<main>streamed</main>"]);
+  });
+
+  it("waits for defineAsyncComponent loaders during SSR", async () => {
+    const AsyncPanel = defineAsyncComponent(async () => ({
+      renderToString(props) {
+        return `<article>${props?.message}</article>`;
+      },
+      mount() {
+        throw new Error("mount should not run during SSR");
+      }
+    }));
+
+    await expect(renderComponentToString(AsyncPanel, { message: "loaded" })).resolves.toBe("<article>loaded</article>");
+  });
+
+  it("renders async component SSR error fallbacks", async () => {
+    const AsyncPanel = defineAsyncComponent({
+      loader: async () => {
+        throw new Error("load failed");
+      },
+      errorComponent: {
+        renderToString(props) {
+          const errorInfo = props?.errorInfo as { phase?: string } | undefined;
+          return `<aside>${props?.error instanceof Error ? props.error.message : "error"}:${errorInfo?.phase}</aside>`;
+        },
+        mount() {
+          throw new Error("mount should not run during SSR");
+        }
+      }
+    });
+
+    await expect(renderComponentToString(AsyncPanel)).resolves.toBe("<aside>load failed:async-loader</aside>");
   });
 
   it("compiles static SSR output with expressions, attrs, branches, and loops", async () => {
@@ -292,6 +334,32 @@ const Child = {
     await expect(render()).resolves.toBe("<section><article>ready</article><p>inside</p><footer>after</footer></section>");
     expect(() => compileSsr(`<template><AsyncBoundary :loadng="Loading"><p>bad</p></AsyncBoundary></template>`)).toThrow(/Unsupported attribute ":loadng" on <AsyncBoundary>/);
     expect(() => compileSsr(`<template><AsyncBoundary>   </AsyncBoundary></template>`)).toThrow(/<AsyncBoundary> requires at least one child/);
+  });
+
+  it("waits for async components inside AsyncBoundary during SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :timeout="1000">
+      <AsyncPanel message="ready" />
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const Loading = { renderToString() { return "<span>loading</span>"; } };
+const ErrorView = { renderToString(props) { return "<span>" + props.errorInfo.phase + "</span>"; } };
+const AsyncPanel = defineAsyncComponent(async () => ({
+  renderToString(props) {
+    return "<article>" + props.message + "</article>";
+  },
+  mount() {}
+}));
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<section><article>ready</article><footer>after</footer></section>");
   });
 
   it("renders ErrorBoundary children during SSR", async () => {
@@ -602,9 +670,10 @@ function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promi
     renderAttr: typeof renderAttr;
     renderAttrs: typeof renderAttrs;
     renderComponentToString: typeof renderComponentToString;
+    defineAsyncComponent: typeof defineAsyncComponent;
     inject: typeof inject;
     provide: typeof provide;
     unwrap: typeof unwrap;
   }) => (props?: Record<string, unknown>) => Promise<string>;
-  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, inject, provide, unwrap });
+  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, defineAsyncComponent, inject, provide, unwrap });
 }

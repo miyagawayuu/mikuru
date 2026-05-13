@@ -9,7 +9,12 @@ export type MikuruComponentInstance = {
 
 export type MikuruComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): MikuruComponentInstance;
+  renderToString?: (props?: Record<string, unknown>) => string | Promise<string>;
   inheritAttrs?: boolean;
+};
+
+export type MikuruAsyncComponent = MikuruComponent & {
+  renderToString: (props?: Record<string, unknown>) => string | Promise<string>;
 };
 
 export type AsyncComponentLoader = () => Promise<MikuruComponent | { default: MikuruComponent }>;
@@ -78,7 +83,7 @@ type MikuruComponentContext = {
   asyncBoundary?: MikuruAsyncBoundary;
 };
 
-export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | AsyncComponentOptions): MikuruComponent {
+export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | AsyncComponentOptions): MikuruAsyncComponent {
   const options = typeof loaderOrOptions === "function" ? { loader: loaderOrOptions } : loaderOrOptions;
   let pending: Promise<MikuruComponent> | undefined;
   let resolved: MikuruComponent | undefined;
@@ -103,6 +108,38 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
   };
 
   return {
+    async renderToString(props = {}) {
+      const context = props.__mikuru_context as MikuruComponentContext | undefined;
+      const timeout = options.timeout && options.timeout > 0
+        ? new Promise<MikuruComponent>((_, reject) => {
+          setTimeout(() => reject(new Error("Async component timed out")), options.timeout);
+        })
+        : undefined;
+
+      try {
+        const component = await (timeout ? Promise.race([load(), timeout]) : load());
+        if (typeof component.renderToString !== "function") {
+          throw new TypeError("Async component resolved component does not expose renderToString()");
+        }
+        return component.renderToString(props);
+      } catch (error) {
+        if (options.errorComponent?.renderToString) {
+          return options.errorComponent.renderToString({
+            ...props,
+            error,
+            errorInfo: {
+              component: context?.component,
+              filename: context?.filename,
+              phase: error instanceof Error && error.message === "Async component timed out" ? "async-timeout" : "async-loader"
+            },
+            retry: () => {}
+          });
+        }
+
+        throw error;
+      }
+    },
+
     mount(target, props = {}) {
       const context = props.__mikuru_context as MikuruComponentContext | undefined;
       const ownerDocument = target.ownerDocument ?? globalThis.document;

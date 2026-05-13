@@ -5,6 +5,9 @@
 - Added SSR and hydration support for initial `<ErrorBoundary>` children.
 - Added SSR and hydration support for initial `<Transition>` children and v-if chains.
 - Added SSR and hydration support for initial `<TransitionGroup>` keyed lists.
+- Added hydration structural mismatch recovery with a remount fallback.
+- Added `renderToStream()` for async iterable SSR output.
+- Added SSR loader resolution and error fallback rendering for `defineAsyncComponent()`.
 
 ## 1.0.20 - 2026-05-13
 

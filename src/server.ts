@@ -5,6 +5,8 @@ export type MikuruSsrComponent = {
   renderToString: (props?: Record<string, unknown>) => string | Promise<string>;
 };
 
+export type MikuruSsrStream = AsyncIterable<string>;
+
 export type MikuruHydrationInstance = {
   element: Element | Comment;
   unmount(): void;
@@ -120,6 +122,10 @@ export function renderAttrs(attrs: Record<string, unknown> | null | undefined): 
 
 export async function renderComponentToString(component: MikuruSsrComponent | ((props?: Record<string, unknown>) => string | Promise<string>), props: Record<string, unknown> = {}): Promise<string> {
   return String(await renderToString(component, props));
+}
+
+export async function* renderToStream(component: MikuruSsrComponent | ((props?: Record<string, unknown>) => string | Promise<string>), props: Record<string, unknown> = {}): MikuruSsrStream {
+  yield String(await renderToString(component, props));
 }
 
 export function renderToString(component: MikuruSsrComponent | ((props?: Record<string, unknown>) => string | Promise<string>), props: Record<string, unknown> = {}): string | Promise<string> {
