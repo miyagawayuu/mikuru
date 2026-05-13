@@ -1,0 +1,6 @@
+<template>
+  <section class="route-page">
+    <h2>Lazy SSR Route</h2>
+    <p>This route component was loaded lazily for both SSR rendering and hydration.</p>
+  </section>
+</template>

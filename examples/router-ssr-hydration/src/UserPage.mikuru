@@ -1,0 +1,11 @@
+<template>
+  <section class="route-page">
+    <h2>User {{ id }}</h2>
+    <p>Tab: {{ tab }}</p>
+  </section>
+</template>
+
+<script>
+const id = props.id;
+const tab = props.tab;
+</script>

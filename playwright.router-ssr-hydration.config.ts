@@ -2,14 +2,14 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: ["**/basic-example.spec.ts", "**/dogfood.spec.ts", "**/router.spec.ts", "**/router-ssr-hydration.spec.ts", "**/ssr-hydration.spec.ts"],
+  testMatch: "router-ssr-hydration.spec.ts",
   webServer: {
-    command: "npm run dev:realworld -- --host 127.0.0.1",
-    url: "http://127.0.0.1:5173",
+    command: "npm run dev:router-ssr-hydration -- --host 127.0.0.1 --port 5179",
+    url: "http://127.0.0.1:5179",
     reuseExistingServer: !process.env.CI
   },
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:5179",
     trace: "on-first-retry"
   },
   projects: [

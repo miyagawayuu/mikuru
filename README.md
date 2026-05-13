@@ -246,6 +246,7 @@ npm run test:create
 npm run test:package
 npm run test:pack
 npm run test:e2e
+npm run test:e2e:router-ssr-hydration
 npm run test:e2e:ssr-hydration
 ```
 
@@ -255,6 +256,7 @@ Examples can be run from the repository root:
 npm run dev:basic
 npm run dev:realworld
 npm run dev:dogfood
+npm run dev:router-ssr-hydration
 npm run dev:ssr-hydration
 npm run dev:mikuru-sample
 npm run dev:mikuru-vue-like
