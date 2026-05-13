@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.22 - 2026-05-13
 
 - Generalized component slot hydration to pass default, named, dynamic, and scoped slots through `props.children` and `props.slots`.
 - Improved SSR component slots so dynamic slot names support scoped props and explicit default slot templates are exposed through `props.children`.
