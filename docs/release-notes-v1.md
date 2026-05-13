@@ -11,6 +11,9 @@ Mikuru v1 is the first stable validation release of the compile-first Vue-like S
 - Component composition with props, events, component `v-model`, `defineProps`, `defineEmits`, default slots, named slots, and slot props.
 - CSS class transitions with built-in `<Transition name="fade">`.
 - Keyed `v-for` record reuse with cleanup for removed DOM and component records.
+- Built-in routing, Teleport, ErrorBoundary, AsyncBoundary, KeepAlive, Transition, and TransitionGroup helpers.
+- SSR and hydration through `compileSsr()`, `compileHydration()`, `mikuru/server`, `.mikuru?ssr`, `.mikuru?hydrate`, `renderToStream()`, `renderRouteToString()`, and `hydrateRoute()`.
+- Debug diagnostics with compile frames, debug `sourceURL`, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context.
 - Style injection and basic `<style scoped>` selector rewriting.
 - Compile errors with filename, line, column, and code frames.
 - Coarse v3 source maps with `sourcesContent` plus optional debug `sourceURL` output.
@@ -59,8 +62,10 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 - `examples/basic`: minimal counter and component composition.
 - `examples/realworld`: app-like task board with filters and keyed lists.
-- `examples/dogfood`: notes app written with Mikuru SFCs.
-- `examples/ssr-hydration`: SSR-to-hydration example using `.mikuru?ssr`, `.mikuru?hydrate`, stream output, and mismatch recovery.
+- `examples/dogfood`: notes app written with Mikuru SFCs, including Router, AsyncBoundary, ErrorBoundary, KeepAlive, TransitionGroup, `v-model`, and the debug inspector panel.
+- `examples/router`: client-side RouterView/RouterLink, aliases, redirects, guards, nested routes, dynamic routes, lazy routes, and preloading.
+- `examples/router-ssr-hydration`: route SSR and route hydration with RouterView/RouterLink, redirects, guards, nested routes, lazy route components, and Teleport.
+- `examples/ssr-hydration`: SSR-to-hydration example using `.mikuru?ssr`, `.mikuru?hydrate`, stream output, mismatch recovery, recovery-disabled warnings, AsyncBoundary, Teleport, and nested hydration patterns.
 - `examples/mikuru-sample` and `examples/mikuru-vue-like`: additional hand-written DOM/runtime samples kept for comparison.
 
 ## Stability Boundary
@@ -69,20 +74,18 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 
 ## Not Included In v1
 
-- SSR and hydration.
-- Devtools.
-- Dynamic components.
-- `v-html`.
+- Stable devtools API.
 - Full Vue compatibility.
 - Precise source-map segment mapping.
+- Dynamic branch/list reconciliation after the initial hydration state.
 
 ## Next Patch Draft
 
-The next patch release is expected to focus on the `mikuru create` experience, runtime watcher ergonomics, and clearer guidance for unsupported template syntax.
+The next patch release is expected to focus on release polish, documentation completeness, generated app smoke checks, and hydration/router diagnostics.
 
 - Template discovery: `mikuru --list-templates`, template descriptions, and `-t` shorthand.
 - Safer creation: interactive project/template prompts, `--yes` defaults, typo suggestions, and `--dry-run` previews.
 - Generated app checks: starter/basic templates include `npm run typecheck`, `tsconfig.json`, and CSS import declarations.
 - Runtime watchers: `watch(..., { immediate: true })` and cleanup callbacks for work that must be canceled before the next watcher run or stop.
-- Compiler guidance: unsupported `v-html`, dynamic components, and misplaced `v-slot` errors include actionable alternatives.
+- Compiler guidance: unsupported syntax, directive typos, built-in attribute typos, and misplaced `v-slot` errors include actionable alternatives.
 - Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.
