@@ -902,6 +902,44 @@ const HydratableChild = {
     expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("hydrates ErrorBoundary children without shifting siblings", async () => {
+    const source = `<template>
+  <section>
+    <ErrorBoundary :fallback="ErrorView" :reset-key="version">
+      <HydratableChild :label="label" />
+    </ErrorBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const version = 1;
+const label = "error-ready";
+const ErrorView = { renderToString() { return "<span>error</span>"; } };
+const HydratableChild = {
+  renderToString(props) {
+    return '<article data-child="' + props.label + '">' + props.label + '</article>';
+  },
+  hydrate(target, props) {
+    target.setAttribute("data-hydrated", props.label);
+    return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+  }
+};
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("error-ready");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
   it("scopes provide/inject and lifecycle callbacks during hydration", () => {
     const source = `<template>
   <section>
