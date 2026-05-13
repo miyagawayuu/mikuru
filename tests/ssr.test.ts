@@ -362,6 +362,40 @@ const AsyncPanel = defineAsyncComponent(async () => ({
     await expect(render()).resolves.toBe("<section><article>ready</article><footer>after</footer></section>");
   });
 
+  it("streams AsyncBoundary SSR after async child components resolve", async () => {
+    const result = compileSsr(`<template>
+  <main>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="1" :timeout="1000">
+      <AsyncPanel message="streamed" />
+      <p>inside boundary</p>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </main>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const Loading = { renderToString() { return "<span>loading</span>"; } };
+const ErrorView = { renderToString(props) { return "<span>" + props.errorInfo.phase + "</span>"; } };
+const AsyncPanel = defineAsyncComponent(async () => {
+  await Promise.resolve();
+  return {
+    renderToString(props) {
+      return "<article>" + props.message + "</article>";
+    },
+    mount() {}
+  };
+});
+</script>`);
+    const render = loadSsrRender(result.code);
+    const chunks: string[] = [];
+
+    for await (const chunk of renderToStream({ renderToString: render })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(["<main><article>streamed</article><p>inside boundary</p><footer>after</footer></main>"]);
+  });
+
   it("renders ErrorBoundary children during SSR", async () => {
     const result = compileSsr(`<template>
   <section>

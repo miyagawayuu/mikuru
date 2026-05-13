@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { compileHydration, compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter, RouterLink, RouterView } from "../src/router/index.js";
 import type { RouterHistory } from "../src/router/index.js";
-import { effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap } from "../src/runtime/index.js";
-import { escapeHtml, hydrateRoute, renderAttr, renderAttrs, renderComponentToString, renderRouteToString } from "../src/server.js";
+import { defineAsyncComponent, effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap } from "../src/runtime/index.js";
+import { escapeHtml, hydrateRoute, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToStream } from "../src/server.js";
 
 describe("hydration compiler", () => {
   it("reuses SSR DOM, attaches events, and syncs text and attributes", async () => {
@@ -960,6 +960,66 @@ const HydratableChild = {
     expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
   });
 
+  it("streams and hydrates AsyncBoundary async component children", async () => {
+    const source = `<template>
+  <main>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="1" :timeout="1000">
+      <AsyncPanel message="stream hydrate" />
+      <p>{{ label }}</p>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </main>
+</template>
+<script>
+import { defineAsyncComponent } from "mikuru";
+const label = "inside async boundary";
+const Loading = { renderToString() { return "<span>loading</span>"; }, mount() {} };
+const ErrorView = { renderToString(props) { return "<span>" + props.errorInfo.phase + "</span>"; }, mount() {} };
+const AsyncPanel = defineAsyncComponent(async () => {
+  await Promise.resolve();
+  return {
+    renderToString(props) {
+      return '<article data-async="' + props.message + '">' + props.message + '</article>';
+    },
+    hydrate(target, props) {
+      target.setAttribute("data-hydrated", props.message);
+      return { element: target, unmount() { target.removeAttribute("data-hydrated"); } };
+    },
+    mount(target, props) {
+      const el = document.createElement("article");
+      el.textContent = "mounted " + props.message;
+      target.appendChild(el);
+      return { element: el, unmount() { el.remove(); } };
+    }
+  };
+});
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const hydrationModule = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const streamed: string[] = [];
+
+    for await (const chunk of renderToStream({ renderToString })) {
+      streamed.push(chunk);
+    }
+
+    root.innerHTML = await renderToString();
+    expect(streamed).toEqual([root.innerHTML]);
+    const article = root.querySelector("article");
+    const instance = hydrationModule.hydrate(root as unknown as Element);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(root.querySelector("article")).toBe(article);
+    expect(root.querySelector("article")?.getAttribute("data-hydrated")).toBe("stream hydrate");
+    expect(root.querySelector("p")?.textContent).toBe("inside async boundary");
+    expect(root.querySelector("footer")?.textContent).toBe("after");
+
+    instance.unmount();
+    expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
   it("hydrates ErrorBoundary children without shifting siblings", async () => {
     const source = `<template>
   <section>
@@ -1804,8 +1864,8 @@ function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promi
     .replace("import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";", "const __mikuru_escape = helpers.escapeHtml; const __mikuru_renderAttr = helpers.renderAttr; const __mikuru_renderAttrs = helpers.renderAttrs; const __mikuru_renderComponent = helpers.renderComponentToString;")
     .replace("import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";", "const __mikuru_unwrap = helpers.unwrap;")
     .replace("export async function renderToString", "async function renderToString");
-  const factory = new Function("helpers", `const { onMounted, onUnmounted, ref } = helpers;\n${executable}\nreturn renderToString;`) as (helpers: Record<string, unknown>) => (props?: Record<string, unknown>) => Promise<string>;
-  return factory({ escapeHtml, renderAttr, renderAttrs, renderComponentToString, onMounted: () => {}, onUnmounted: () => {}, ref, unwrap, RouterLink, RouterView });
+  const factory = new Function("helpers", `const { defineAsyncComponent, onMounted, onUnmounted, ref } = helpers;\n${executable}\nreturn renderToString;`) as (helpers: Record<string, unknown>) => (props?: Record<string, unknown>) => Promise<string>;
+  return factory({ defineAsyncComponent, escapeHtml, renderAttr, renderAttrs, renderComponentToString, onMounted: () => {}, onUnmounted: () => {}, ref, unwrap, RouterLink, RouterView });
 }
 
 function loadHydrationModule(code: string, documentOverride?: Document): { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any } {
@@ -1814,7 +1874,8 @@ function loadHydrationModule(code: string, documentOverride?: Document): { mount
     .replace("export function mount", "function mount")
     .replace("export function hydrate", "function hydrate")
     .replace(/\n(?:export \{ hydrate \};\n)?const __mikuru_hydrationComponent = \{ \.\.\.__mikuru_component, hydrate \};\nexport default __mikuru_hydrationComponent;\n?$/, "\n");
-  const factory = new Function("effect", "inject", "onMounted", "onUnmounted", "provide", "ref", "setAttribute", "unwrap", "document", "RouterLink", "RouterView", `${executable}\nreturn { mount, hydrate };`) as (
+  const factory = new Function("defineAsyncComponent", "effect", "inject", "onMounted", "onUnmounted", "provide", "ref", "setAttribute", "unwrap", "document", "RouterLink", "RouterView", `${executable}\nreturn { mount, hydrate };`) as (
+    defineAsyncComponentArg: typeof defineAsyncComponent,
     effectArg: typeof effect,
     injectArg: typeof inject,
     onMountedArg: typeof onMounted,
@@ -1828,5 +1889,5 @@ function loadHydrationModule(code: string, documentOverride?: Document): { mount
     routerViewArg: typeof RouterView
   ) => { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any };
   const window = documentOverride ? undefined : new Window();
-  return factory(effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document, RouterLink, RouterView);
+  return factory(defineAsyncComponent, effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document, RouterLink, RouterView);
 }

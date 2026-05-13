@@ -9,6 +9,7 @@ export type MikuruComponentInstance = {
 
 export type MikuruComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): MikuruComponentInstance;
+  hydrate?: (target: Element, props?: Record<string, unknown>) => MikuruComponentInstance | Promise<MikuruComponentInstance>;
   renderToString?: (props?: Record<string, unknown>) => string | Promise<string>;
   inheritAttrs?: boolean;
 };
@@ -138,6 +139,119 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
         throw error;
       }
+    },
+
+    hydrate(target, props = {}) {
+      const context = props.__mikuru_context as MikuruComponentContext | undefined;
+      let child: MikuruComponentInstance | undefined;
+      let cancelled = false;
+      let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+      let token = 0;
+
+      const clearTimer = () => {
+        if (timeoutTimer) {
+          clearTimeout(timeoutTimer);
+          timeoutTimer = undefined;
+        }
+      };
+
+      const reportHydrationError = (error: unknown, phase: MikuruErrorPhase) => {
+        if (typeof context?.errorHandler === "function") {
+          context.errorHandler(error, { component: context.component, filename: context.filename, phase });
+          return;
+        }
+
+        setTimeout(() => { throw error; });
+      };
+
+      const replaceWithMount = (component: MikuruComponent, nextProps: Record<string, unknown>) => {
+        const parent = target.parentNode;
+        if (!parent) {
+          return;
+        }
+
+        const anchor = (target.ownerDocument ?? globalThis.document).createComment("async-hydrate-component");
+        const fragment = (target.ownerDocument ?? globalThis.document).createDocumentFragment();
+        parent.insertBefore(anchor, target);
+        target.remove();
+        child = component.mount(fragment, nextProps);
+        parent.insertBefore(fragment, anchor);
+        anchor.remove();
+      };
+
+      const applyResolved = (component: MikuruComponent, currentToken: number) => {
+        if (cancelled || currentToken !== token) {
+          return;
+        }
+
+        clearTimer();
+
+        if (typeof component.hydrate === "function") {
+          Promise.resolve(component.hydrate(target, props)).then(
+            (instance) => {
+              if (cancelled || currentToken !== token) {
+                instance.unmount();
+                return;
+              }
+              child = instance;
+            },
+            (error) => reportHydrationError(error, "async-loader")
+          );
+          return;
+        }
+
+        replaceWithMount(component, props);
+      };
+
+      const renderError = (error: unknown, phase: MikuruErrorPhase) => {
+        if (cancelled) {
+          return;
+        }
+
+        clearTimer();
+
+        const errorInfo = { component: context?.component, filename: context?.filename, phase };
+        if (options.errorComponent) {
+          replaceWithMount(options.errorComponent, { ...props, error, errorInfo, retry: () => startHydration() });
+          return;
+        }
+
+        reportHydrationError(error, phase);
+      };
+
+      const startHydration = () => {
+        const currentToken = ++token;
+        clearTimer();
+
+        if (options.timeout && options.timeout > 0) {
+          timeoutTimer = setTimeout(() => {
+            if (cancelled || currentToken !== token) {
+              return;
+            }
+
+            pending = undefined;
+            token += 1;
+            renderError(new Error("Async component timed out"), "async-timeout");
+          }, options.timeout);
+        }
+
+        load().then(
+          (component) => applyResolved(component, currentToken),
+          (error) => renderError(error, "async-loader")
+        );
+      };
+
+      startHydration();
+
+      return {
+        element: target,
+        unmount() {
+          cancelled = true;
+          token += 1;
+          clearTimer();
+          child?.unmount();
+        }
+      };
     },
 
     mount(target, props = {}) {
