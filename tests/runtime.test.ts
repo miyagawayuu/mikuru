@@ -3,8 +3,10 @@ import { Window } from "happy-dom";
 
 import {
   computed,
+  createDebugDiagnostic,
   createDebugInspector,
   effect,
+  emitDebugDiagnostic,
   emitDebugEvent,
   flushJobs,
   inject,
@@ -58,6 +60,50 @@ describe("runtime debug inspector", () => {
       unsubscribe();
       emitDebugEvent("test:after-unsubscribe");
       expect(received).toEqual(["test:event"]);
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("normalizes diagnostic debug events", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+      const error = new TypeError("diagnostic failed");
+      const diagnostic = createDebugDiagnostic("runtime", "error", "diagnostic failed", {
+        phase: "event",
+        filename: "Debug.mikuru",
+        error
+      });
+
+      expect(diagnostic).toMatchObject({
+        source: "runtime",
+        level: "error",
+        message: "diagnostic failed",
+        phase: "event",
+        filename: "Debug.mikuru",
+        errorName: "TypeError",
+        errorMessage: "diagnostic failed"
+      });
+
+      emitDebugDiagnostic("router", "warning", "navigation warning", { phase: "navigate" });
+      expect(inspector.getEvents()[0]).toMatchObject({
+        type: "router:warning",
+        payload: {
+          diagnostic: {
+            source: "router",
+            level: "warning",
+            message: "navigation warning",
+            phase: "navigate"
+          }
+        }
+      });
     } finally {
       if (previousHook === undefined) {
         delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;

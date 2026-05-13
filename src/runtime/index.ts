@@ -1,7 +1,10 @@
 export { normalizeClass, normalizeStyle, setAttribute } from "./dom.js";
 export type { ClassValue, StyleValue } from "./dom.js";
-export { createDebugInspector, emitDebugEvent, registerDebugComponent } from "./devtools.js";
+export { createDebugDiagnostic, createDebugInspector, emitDebugDiagnostic, emitDebugEvent, registerDebugComponent } from "./devtools.js";
 export type {
+  MikuruDebugDiagnostic,
+  MikuruDebugDiagnosticLevel,
+  MikuruDebugDiagnosticSource,
   MikuruDebugComponentMetadata,
   MikuruDebugEvent,
   MikuruDebugInspector,

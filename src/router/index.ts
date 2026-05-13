@@ -1,5 +1,5 @@
 import { effect, inject, provide, ref, unwrap } from "../runtime/index.js";
-import { emitDebugEvent } from "../runtime/devtools.js";
+import { createDebugDiagnostic, emitDebugEvent } from "../runtime/devtools.js";
 import type { Ref } from "../runtime/index.js";
 
 export type RouteParams = Record<string, string | string[]>;
@@ -351,7 +351,19 @@ export function createRouter(options: RouterOptions): Router {
 
       return target;
     } catch (error) {
-      emitDebugEvent("route:error", { error, to: target, from, replace });
+      emitDebugEvent("route:error", {
+        error,
+        to: target,
+        from,
+        replace,
+        diagnostic: createDebugDiagnostic("router", "error", error instanceof Error ? error.message : String(error), {
+          phase: "navigate",
+          error,
+          to: target,
+          from,
+          replace
+        })
+      });
       notifyRouterError(error, target, from);
       throw error;
     }
@@ -370,7 +382,19 @@ export function createRouter(options: RouterOptions): Router {
       emitDebugEvent("route:preload", { status: "success", to: target, from });
       return target;
     } catch (error) {
-      emitDebugEvent("route:error", { error, to: target, from, preload: true });
+      emitDebugEvent("route:error", {
+        error,
+        to: target,
+        from,
+        preload: true,
+        diagnostic: createDebugDiagnostic("router", "error", error instanceof Error ? error.message : String(error), {
+          phase: "preload",
+          error,
+          to: target,
+          from,
+          preload: true
+        })
+      });
       notifyRouterError(error, target, from);
       throw error;
     }

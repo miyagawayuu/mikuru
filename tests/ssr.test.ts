@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter, RouterLink, RouterView } from "../src/router/index.js";
 import { escapeHtml, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToStream, renderToString } from "../src/server.js";
-import { defineAsyncComponent, inject, provide, unwrap } from "../src/runtime/index.js";
+import { createDebugInspector, defineAsyncComponent, inject, provide, unwrap } from "../src/runtime/index.js";
 
 describe("server rendering", () => {
   it("escapes text and attributes", () => {
@@ -33,6 +33,34 @@ describe("server rendering", () => {
     }
 
     expect(chunks).toEqual(["<main>streamed</main>"]);
+  });
+
+  it("emits structured SSR diagnostics to the debug inspector", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+
+      expect(() => renderToString({} as never)).toThrow(/renderToString\(\) expects/);
+      expect(inspector.getEvents()[0]).toMatchObject({
+        type: "ssr:error",
+        payload: {
+          diagnostic: {
+            source: "ssr",
+            level: "error",
+            phase: "render",
+            message: expect.stringMatching(/renderToString\(\) expects/)
+          }
+        }
+      });
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
   });
 
   it("waits for defineAsyncComponent loaders during SSR", async () => {

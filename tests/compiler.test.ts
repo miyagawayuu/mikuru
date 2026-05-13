@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { analyzeTemplate, compile, compileHydration, MikuruCompileError, parseSfc, parseTemplate } from "../src/compiler/index.js";
+import { createDebugInspector } from "../src/runtime/index.js";
 import { mikuru } from "../src/vite.js";
 
 const counterSource = `<template>
@@ -1073,6 +1074,38 @@ const count = 0;
     });
     expect(forwarded?.message).toMatch(/Directive :class requires a value/);
     expect(forwarded?.frame).toContain("<template>");
+  });
+
+  it("emits compiler diagnostics to the debug inspector", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+
+      expect(() =>
+        compile(`<template><p v-if>Missing condition</p></template>`, { filename: "Broken.mikuru" })
+      ).toThrow(/Directive v-if requires a value/);
+
+      expect(inspector.getEvents()[0]).toMatchObject({
+        type: "compiler:error",
+        payload: {
+          diagnostic: {
+            source: "compiler",
+            level: "error",
+            phase: "compile",
+            filename: "Broken.mikuru",
+            message: expect.stringMatching(/Directive v-if requires a value/)
+          }
+        }
+      });
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
   });
 });
 

@@ -5,6 +5,7 @@ import { compile } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter, provideRouter, RouterLink, RouterView, useRoute, useRouter } from "../src/router/index.js";
 import {
   computed,
+  createDebugDiagnostic,
   defineAsyncComponent,
   emitDebugEvent,
   effect,
@@ -130,11 +131,17 @@ const ErrorView = {
       );
 
       fixture.module.mount(fixture.root, {});
-      const hook = (globalThis as { __MIKURU_DEVTOOLS__?: { events?: Array<{ type: string; payload?: { errorInfo?: { phase?: string } } }> } }).__MIKURU_DEVTOOLS__;
+      const hook = (globalThis as { __MIKURU_DEVTOOLS__?: { events?: Array<{ type: string; payload?: { errorInfo?: { phase?: string }; diagnostic?: { source?: string; level?: string; phase?: string; message?: string } } }> } }).__MIKURU_DEVTOOLS__;
       const errorEvent = hook?.events?.find((event) => event.type === "component:error");
 
       expect(fixture.root.textContent).toBe("mount:debug boom");
       expect(errorEvent?.payload?.errorInfo?.phase).toBe("mount");
+      expect(errorEvent?.payload?.diagnostic).toMatchObject({
+        source: "runtime",
+        level: "error",
+        phase: "mount",
+        message: "debug boom"
+      });
     } finally {
       if (previousHook === undefined) {
         delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
@@ -5071,6 +5078,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     .replace(/\nexport default __mikuru_component;\n?$/, "\n");
   const factory = new Function(
     "computed",
+    "createDebugDiagnostic",
     "createMemoryHistory",
     "createRouter",
     "defineAsyncComponent",
@@ -5104,6 +5112,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
     `${executableCode}\nreturn { mount };`
   ) as (
     computedArg: typeof computed,
+    createDebugDiagnosticArg: typeof createDebugDiagnostic,
     createMemoryHistoryArg: typeof createMemoryHistory,
     createRouterArg: typeof createRouter,
     defineAsyncComponentArg: typeof defineAsyncComponent,
@@ -5138,6 +5147,7 @@ function loadCompiledModule(code: string, document: Document): CompiledModule {
 
   return factory(
     computed,
+    createDebugDiagnostic,
     createMemoryHistory,
     createRouter,
     defineAsyncComponent,
