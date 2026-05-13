@@ -1559,12 +1559,14 @@ function generateElement(
           : modelMode === "radio"
             ? `Object.is(${modelElementValueExpression(`${elementVar}`, modelDirective.modifiers)}, unwrap(${expression}))`
             : modelMode === "select-multiple"
-              ? `Array.from(${elementVar}.options).forEach((option) => { option.selected = (unwrap(${expression}) ?? []).map(String).includes(option.getAttribute("value") ?? option.textContent ?? ""); })`
+              ? `Array.from(${elementVar}.options).forEach((option) => { const optionValue = ${modelElementValueExpression("option", modelDirective.modifiers)}; option.selected = (unwrap(${expression}) ?? []).some((item) => Object.is(item, optionValue)); })`
+              : modelMode === "select"
+                ? `Array.from(${elementVar}.options).forEach((option) => { option.selected = Object.is(${modelElementValueExpression("option", modelDirective.modifiers)}, unwrap(${expression})); })`
               : `String(unwrap(${expression}) ?? "")`;
       const assignedValue = modelAssignedValue(modelMode, modelDirective.modifiers, expression);
 
       emit(context, indent, `const ${stopVar} = effect(() => {`);
-      if (modelMode === "select-multiple") {
+      if (modelMode === "select-multiple" || modelMode === "select") {
         emit(context, indent + 1, renderedValue);
       } else {
         emit(context, indent + 1, `if (${elementVar}.${propertyName} !== ${renderedValue}) {`);
@@ -4501,8 +4503,10 @@ function validateModelModifiers(model: { argument?: string; modifiers: string[] 
   }
 }
 
+const modelValueProperty = "__mikuruModelValue";
+
 function modelElementValueExpression(targetExpression: string, modifiers: string[]): string {
-  const valueExpression = `(${targetExpression}.getAttribute("value") ?? "on")`;
+  const valueExpression = `(${quote(modelValueProperty)} in ${targetExpression} ? ${targetExpression}[${quote(modelValueProperty)}] : ${targetExpression}.getAttribute("value") ?? (${targetExpression}.tagName === "OPTION" ? (${targetExpression}.textContent ?? "") : "on"))`;
   return modifiers.includes("number") ? `Number(${valueExpression})` : valueExpression;
 }
 
@@ -4517,8 +4521,13 @@ function modelAssignedValue(modelMode: string, modifiers: string[], expression: 
   }
 
   if (modelMode === "select-multiple") {
-    const valueExpression = `Array.from($event.target.options).filter((option) => option.selected).map((option) => option.getAttribute("value") ?? option.textContent ?? "")`;
-    return modifiers.includes("number") ? `${valueExpression}.map((value) => Number(value))` : valueExpression;
+    const valueExpression = `Array.from($event.target.options).filter((option) => option.selected).map((option) => ${modelElementValueExpression("option", modifiers)})`;
+    return valueExpression;
+  }
+
+  if (modelMode === "select") {
+    const valueExpression = `(() => { const option = $event.target.selectedOptions[0]; return option ? ${modelElementValueExpression("option", modifiers)} : ""; })()`;
+    return valueExpression;
   }
 
   let valueExpression = "$event.target.value";

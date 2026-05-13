@@ -1218,6 +1218,58 @@ const selected = ref([1, 3]);
     expect(paragraph?.textContent).toBe("1:trimmed:42:2,3");
   });
 
+  it("preserves object option values for select v-model", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <select v-model="selected">
+      <option v-for="option in options" :value="option">{{ option.label }}</option>
+    </select>
+    <select multiple v-model="picked">
+      <option v-for="option in options" :value="option">{{ option.label }}</option>
+    </select>
+    <p>{{ selected.id }}:{{ pickedIds() }}</p>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const options = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" },
+  { id: "c", label: "Gamma" }
+];
+const selected = ref(options[1]);
+const picked = ref([options[0], options[2]]);
+
+function pickedIds() {
+  return picked.value.map((option) => option.id).join(",");
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const selects = fixture.root.querySelectorAll("select");
+    const single = selects[0];
+    const multiple = selects[1];
+    const paragraph = fixture.root.querySelector("p");
+
+    expect(single?.selectedIndex).toBe(1);
+    expect(Array.from(multiple?.options ?? []).map((option) => option.selected)).toEqual([true, false, true]);
+    expect(paragraph?.textContent).toBe("b:a,c");
+
+    if (single && multiple) {
+      single.selectedIndex = 0;
+      single.dispatchEvent(createEvent(fixture.window, "change"));
+
+      multiple.options[0]!.selected = false;
+      multiple.options[1]!.selected = true;
+      multiple.options[2]!.selected = false;
+      multiple.dispatchEvent(createEvent(fixture.window, "change"));
+    }
+
+    expect(paragraph?.textContent).toBe("a:b");
+  });
+
   it("syncs checkbox arrays with v-model", () => {
     const fixture = compileForDom(`<template>
   <section>

@@ -129,10 +129,15 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
 
   hydrateAttrs(context, node, elementVar, indent);
   hydrateEvents(context, node, elementVar, indent);
+  const contentDirective = getContentDirectiveAttr(node);
+  const hydrateChildrenBeforeModel = node.tag === "select" && !contentDirective;
+  if (hydrateChildrenBeforeModel) {
+    hydrateChildren(context, node.children, elementVar, indent);
+  }
   hydrateModelAndShow(context, node, elementVar, indent);
   hydrateContentDirective(context, node, elementVar, indent);
   hydrateTemplateRef(context, node, elementVar, indent);
-  if (!getContentDirectiveAttr(node)) {
+  if (!contentDirective && !hydrateChildrenBeforeModel) {
     hydrateChildren(context, node.children, elementVar, indent);
   }
 }
@@ -634,7 +639,9 @@ function hydrateModelAndShow(context: HydrationContext, node: ElementNode, eleme
           : modelMode === "radio"
             ? `Object.is(${modelElementValueExpression(`${elementVar}`, modelDirective.modifiers)}, unwrap(${expression}))`
             : modelMode === "select-multiple"
-              ? `Array.from(${elementVar}.options).forEach((option) => { option.selected = (unwrap(${expression}) ?? []).map(String).includes(option.getAttribute("value") ?? option.textContent ?? ""); })`
+              ? `Array.from(${elementVar}.options).forEach((option) => { const optionValue = ${modelElementValueExpression("option", modelDirective.modifiers)}; option.selected = (unwrap(${expression}) ?? []).some((item) => Object.is(item, optionValue)); })`
+              : modelMode === "select"
+                ? `Array.from(${elementVar}.options).forEach((option) => { option.selected = Object.is(${modelElementValueExpression("option", modelDirective.modifiers)}, unwrap(${expression})); })`
               : `String(unwrap(${expression}) ?? "")`;
       const assignedValue = modelAssignedValue(modelMode, modelDirective.modifiers, expression);
 
@@ -645,12 +652,17 @@ function hydrateModelAndShow(context: HydrationContext, node: ElementNode, eleme
         const expectedValuesVar = nextName(context, "expectedValues");
         const actualValuesVar = nextName(context, "actualValues");
         const optionValueVar = nextName(context, "optionValue");
-        emit(context, indent + 1, `const ${expectedValuesVar} = (unwrap(${expression}) ?? []).map(String);`);
-        emit(context, indent + 1, `const ${actualValuesVar} = Array.from(${elementVar}.selectedOptions).map((option) => option.getAttribute("value") ?? option.textContent ?? "");`);
-        emit(context, indent + 1, `if (${actualValuesVar}.length !== ${expectedValuesVar}.length || ${expectedValuesVar}.some((${optionValueVar}) => !${actualValuesVar}.includes(${optionValueVar})) || ${actualValuesVar}.some((${optionValueVar}) => !${expectedValuesVar}.includes(${optionValueVar}))) {`);
+        emit(context, indent + 1, `const ${expectedValuesVar} = unwrap(${expression}) ?? [];`);
+        emit(context, indent + 1, `const ${actualValuesVar} = Array.from(${elementVar}.selectedOptions).map((option) => ${modelElementValueExpression("option", modelDirective.modifiers)});`);
+        emit(context, indent + 1, `if (${actualValuesVar}.length !== ${expectedValuesVar}.length || ${expectedValuesVar}.some((${optionValueVar}) => !${actualValuesVar}.some((actualValue) => Object.is(actualValue, ${optionValueVar}))) || ${actualValuesVar}.some((${optionValueVar}) => !${expectedValuesVar}.some((expectedValue) => Object.is(expectedValue, ${optionValueVar})))) {`);
         emit(context, indent + 2, `if (!${warnedVar}) { __mikuru_warn("v-model selected mismatch: expected " + JSON.stringify(${expectedValuesVar}) + ", got " + JSON.stringify(${actualValuesVar}) + "."); ${warnedVar} = true; }`);
         emit(context, indent + 1, "}");
         emit(context, indent + 1, renderedValue);
+      } else if (modelMode === "select") {
+        emit(context, indent + 1, `if (${elementVar}.selectedOptions.length === 0 || !Object.is(${modelElementValueExpression(`${elementVar}.selectedOptions[0]`, modelDirective.modifiers)}, unwrap(${expression}))) {`);
+        emit(context, indent + 2, `if (!${warnedVar}) { __mikuru_warn("v-model selected mismatch: expected " + JSON.stringify(unwrap(${expression})) + ", got " + JSON.stringify(${elementVar}.selectedOptions.length === 0 ? "" : ${modelElementValueExpression(`${elementVar}.selectedOptions[0]`, modelDirective.modifiers)}) + "."); ${warnedVar} = true; }`);
+        emit(context, indent + 2, renderedValue);
+        emit(context, indent + 1, "}");
       } else {
         emit(context, indent + 1, `if (${elementVar}.${propertyName} !== ${renderedValue}) {`);
         emit(context, indent + 2, `if (!${warnedVar}) { __mikuru_warn(${quote(`v-model ${propertyName} mismatch: expected `)} + JSON.stringify(${renderedValue}) + ", got " + JSON.stringify(${elementVar}.${propertyName}) + "."); ${warnedVar} = true; }`);
@@ -1130,8 +1142,10 @@ function hasStaticBooleanAttr(node: ElementNode, name: string): boolean {
   return !!attr && (attr.value === true || attr.value === "");
 }
 
+const modelValueProperty = "__mikuruModelValue";
+
 function modelElementValueExpression(targetExpression: string, modifiers: string[]): string {
-  const raw = `(${targetExpression}.getAttribute("value") ?? ${targetExpression}.value ?? "")`;
+  const raw = `(${quote(modelValueProperty)} in ${targetExpression} ? ${targetExpression}[${quote(modelValueProperty)}] : ${targetExpression}.getAttribute("value") ?? (${targetExpression}.tagName === "OPTION" ? (${targetExpression}.textContent ?? "") : ${targetExpression}.value ?? ""))`;
   const trimmed = modifiers.includes("trim") ? `String(${raw}).trim()` : raw;
   return modifiers.includes("number") ? `Number(${trimmed})` : trimmed;
 }
@@ -1145,8 +1159,10 @@ function modelAssignedValue(modelMode: string, modifiers: string[], expression: 
     return modelElementValueExpression("$event.target", modifiers);
   }
   if (modelMode === "select-multiple") {
-    const raw = `Array.from($event.target.selectedOptions).map((option) => option.getAttribute("value") ?? option.textContent ?? "")`;
-    return modifiers.includes("number") ? `${raw}.map(Number)` : raw;
+    return `Array.from($event.target.selectedOptions).map((option) => ${modelElementValueExpression("option", modifiers)})`;
+  }
+  if (modelMode === "select") {
+    return `(() => { const option = $event.target.selectedOptions[0]; return option ? ${modelElementValueExpression("option", modifiers)} : ""; })()`;
   }
   const raw = "$event.target.value";
   const trimmed = modifiers.includes("trim") ? `${raw}.trim()` : raw;
