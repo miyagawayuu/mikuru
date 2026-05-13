@@ -148,6 +148,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `v-show`, DOM and component `v-model`, `v-pre`, `v-cloak`, initial `v-if` / `v-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
+- Debug diagnostics with optional generated `sourceURL`, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context
 
 ## Package Exports
 
@@ -268,4 +269,5 @@ npm run dev:mikuru-vue-like
 - `docs/npm-usage.md` shows a manual Vite setup for package consumers.
 - `docs/app-architecture.md` describes how to keep larger Mikuru apps split across components, API modules, stores, forms, auth, and tests.
 - `docs/router.md` documents the runtime router.
+- `docs/production-readiness.md` summarizes debugging, parser, package, SSR, and hydration caveats.
 - `docs/v1-api-contract.md` describes the v1 compatibility boundary used by this repository.

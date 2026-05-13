@@ -113,7 +113,7 @@ Unsupported in v1:
 ## SSR Contract
 
 - `compileSsr(source)` returns generated module code with `renderToString(props?)`.
-- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection through `props.__mikuru_teleports`.
+- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, content directives, `v-pre`, `v-cloak`, SSR-rendered `v-model` form control state, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection through `props.__mikuru_teleports`.
 - `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output. `renderToStream` exposes rendered output as an async iterable for stream-shaped integrations.
 - `renderRouteToString(router, location, { teleports })` resolves redirects, lazy route components, route props, route component context, nested route components using default slots, and route-level Teleport collection.
 - `hydrateRoute(router, target, location?, options?)` resolves redirects, lazy route components, route props, route component context, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback. Generated route components can use `<RouterView>` and `<RouterLink>` during SSR/hydration. `{ listen: true }` starts router history listening after hydration and stops it on unmount; `examples/router-ssr-hydration` keeps route SSR and route hydration wired together for browser E2E coverage.
@@ -121,8 +121,8 @@ Unsupported in v1:
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
-- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, reuses Teleport target content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
-- Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`. With recovery disabled, structural mismatches remain warnings and hydration continues best-effort without replacing the mismatched DOM.
+- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+- Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`. With recovery disabled, structural mismatches remain warnings and hydration continues best-effort without replacing the mismatched DOM. Hydration warnings include phase, component, and filename context and emit unstable `hydration:warning` devtools events when a hook is present.
 - Dynamic branch/list reconciliation after the initial state is future work.
 
 ## Macro Contract

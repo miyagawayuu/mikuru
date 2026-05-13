@@ -36,14 +36,17 @@ Confirm these exports work from the packed package:
 
 - `mikuru`
 - `mikuru/compiler`
+- `mikuru/env`
+- `mikuru/router`
 - `mikuru/runtime`
+- `mikuru/server`
 - `mikuru/vite`
 
 ## Known v1 Limits
 
-- No SSR, hydration, or stable devtools API. Debug builds expose only an unstable internal devtools metadata/event hook.
+- SSR and hydration are supported, but dynamic branch/list reconciliation after the initial state is still future work.
+- No stable devtools API. Debug builds expose only an unstable internal devtools metadata/event hook.
 - No Vue compatibility guarantee.
-- `v-html` remains unsupported.
 - Source maps include original SFC content and line-oriented mappings for common template/script generated lines.
 - Scoped CSS is a basic selector rewrite, not a full CSS compiler.
 - `provide` / `inject` are scoped to the current component tree when called during Mikuru component mounting.

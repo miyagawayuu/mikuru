@@ -16,6 +16,7 @@
 - Added nested AsyncBoundary error and timeout hydration coverage for inner fallback retry, sibling stability, and cleanup.
 - Added SSR `v-model` form-control state rendering for input, textarea, checkbox, radio, select, and multiple select hydration parity.
 - Improved hydration diagnostics with phase/component/file context and `hydration:warning` devtools events.
+- Updated README and docs to reflect current SSR/hydration, router, diagnostics, examples, and release checklist coverage.
 
 ## 1.0.21 - 2026-05-13
 
