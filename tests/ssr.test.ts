@@ -151,6 +151,40 @@ const camelAttrs = { "data-user-id": "42" };
     await expect(render()).resolves.toBe('<section><input type="checkbox"><p aria-hidden="false" dataUserId="42">profile</p></section>');
   });
 
+  it("renders v-model form control state for SSR", async () => {
+    const result = compileSsr(`<template>
+  <form>
+    <input v-model="name" />
+    <textarea v-model="body"></textarea>
+    <input type="checkbox" v-model="enabled" />
+    <input type="checkbox" value="2" v-model.number="selected" />
+    <input type="radio" value="draft" v-model="status" />
+    <input type="radio" value="published" v-model="status" />
+    <select v-model="flavor">
+      <option value="mint">Mint</option>
+      <option value="berry">Berry</option>
+    </select>
+    <select multiple v-model.number="selected">
+      <option value="1">One</option>
+      <option value="2">Two</option>
+      <option value="3">Three</option>
+    </select>
+  </form>
+</template>
+<script>
+const name = "Ada & Grace";
+const body = "<hello>";
+const enabled = true;
+const selected = [1, 3];
+const status = "published";
+const flavor = "berry";
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<form><input value="Ada &amp; Grace"><textarea>&lt;hello&gt;</textarea><input type="checkbox" checked><input type="checkbox" value="2"><input type="radio" value="draft"><input type="radio" value="published" checked><select><option value="mint">Mint</option><option value="berry" selected>Berry</option></select><select multiple><option value="1" selected>One</option><option value="2">Two</option><option value="3" selected>Three</option></select></form>');
+  });
+
   it("renders v-html as raw HTML and v-text as escaped text", async () => {
     const result = compileSsr(`<template>
   <section>

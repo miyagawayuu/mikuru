@@ -203,6 +203,7 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
   hydrateAttrs(context, node, elementVar, indent);
   hydrateEvents(context, node, elementVar, indent);
   const contentDirective = getContentDirectiveAttr(node);
+  const textareaModel = node.tag === "textarea" && hasElementModel(node);
   const hydrateChildrenBeforeModel = node.tag === "select" && !contentDirective;
   if (hydrateChildrenBeforeModel) {
     hydrateChildren(context, node.children, elementVar, indent);
@@ -210,7 +211,10 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
   hydrateModelAndShow(context, node, elementVar, indent);
   hydrateContentDirective(context, node, elementVar, indent);
   hydrateTemplateRef(context, node, elementVar, indent);
-  if (!contentDirective && !hydrateChildrenBeforeModel) {
+  if (textareaModel) {
+    emit(context, indent, `if (${elementVar}.childNodes.length > 0) { const __mikuru_textarea_value = ${elementVar}.value; ${elementVar}.textContent = ""; ${elementVar}.value = __mikuru_textarea_value; }`);
+  }
+  if (!contentDirective && !hydrateChildrenBeforeModel && !textareaModel) {
     hydrateChildren(context, node.children, elementVar, indent);
   }
 }
@@ -1953,6 +1957,10 @@ function parseModelDirective(name: string): { argument?: string; modifiers: stri
   if (!name.startsWith("v-model:")) return undefined;
   const [argument = "", ...modifiers] = name.slice("v-model:".length).split(".");
   return { argument, modifiers: modifiers.filter(Boolean) };
+}
+
+function hasElementModel(node: ElementNode): boolean {
+  return node.attrs.some((attr) => Boolean(parseModelDirective(attr.name)));
 }
 
 function toComponentEventProp(eventName: string): string {

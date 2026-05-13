@@ -6,9 +6,16 @@ type SsrGenerateContext = {
   lines: string[];
   index: number;
   teleportIndex: number;
+  selectModels: SsrSelectModel[];
   source?: string;
   filename?: string;
   scopeAttr?: string;
+};
+
+type SsrSelectModel = {
+  expression: string;
+  modifiers: string[];
+  multiple: boolean;
 };
 
 const voidElements = new Set([
@@ -57,6 +64,7 @@ export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): strin
     lines: [],
     index: 0,
     teleportIndex: 0,
+    selectModels: [],
     source: descriptor.source,
     filename: descriptor.filename,
     scopeAttr: descriptor.styleScoped ? createScopeAttr(descriptor) : undefined
@@ -237,11 +245,20 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
   emit(context, indent, "__mikuru_html += \">\";");
+  const selectModel = createSsrSelectModel(context, node);
   const contentDirective = getContentDirectiveAttr(node);
   if (contentDirective) {
     emitContentDirective(context, contentDirective, indent);
+  } else if (node.tag === "textarea" && hasElementModel(node)) {
+    emitTextareaModelContent(context, node, indent);
   } else {
+    if (selectModel) {
+      context.selectModels.push(selectModel);
+    }
     emitChildren(context, node.children, indent);
+    if (selectModel) {
+      context.selectModels.pop();
+    }
   }
   emit(context, indent, `__mikuru_html += ${quote(`</${node.tag}>`)};`);
 }
@@ -590,7 +607,7 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
       continue;
     }
 
-    if (shouldSkipAttr(attr)) {
+    if (shouldSkipAttr(attr) || shouldSkipModelOwnedAttr(context, node, attr)) {
       continue;
     }
 
@@ -652,9 +669,48 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
     emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
   }
 
+  emitModelAttrs(context, node, indent);
+
   if (context.scopeAttr) {
     emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(context.scopeAttr)}, true);`);
   }
+}
+
+function emitModelAttrs(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  const model = getElementModel(context, node);
+  if (model && node.tag === "input") {
+    const inputType = getStaticAttrValue(node, "type")?.toLowerCase();
+    if (inputType === "checkbox") {
+      const modelValue = `__mikuru_unwrap(${model.expression})`;
+      const checkboxValue = ssrInputValueExpression(context, node, model.modifiers);
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr("checked", Array.isArray(${modelValue}) ? ${modelValue}.some((item) => Object.is(item, ${checkboxValue})) : Boolean(${modelValue}));`);
+      return;
+    }
+    if (inputType === "radio") {
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr("checked", Object.is(${ssrInputValueExpression(context, node, model.modifiers)}, __mikuru_unwrap(${model.expression})));`);
+      return;
+    }
+    emit(context, indent, `__mikuru_html += __mikuru_renderAttr("value", String(__mikuru_unwrap(${model.expression}) ?? ""));`);
+    return;
+  }
+
+  const selectModel = context.selectModels.at(-1);
+  if (selectModel && node.tag === "option") {
+    const optionValue = ssrOptionValueExpression(context, node, selectModel.modifiers);
+    if (selectModel.multiple) {
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr("selected", (__mikuru_unwrap(${selectModel.expression}) ?? []).some((item) => Object.is(item, ${optionValue})));`);
+    } else {
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr("selected", Object.is(${optionValue}, __mikuru_unwrap(${selectModel.expression})));`);
+    }
+  }
+}
+
+function emitTextareaModelContent(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  const model = getElementModel(context, node);
+  if (!model) {
+    return;
+  }
+  emit(context, indent, `__mikuru_html += __mikuru_escape(__mikuru_unwrap(${model.expression}) ?? "");`);
 }
 
 function emitText(context: SsrGenerateContext, node: TextNode, indent: number): void {
@@ -679,12 +735,84 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "v-pre"
     || attr.name === "v-cloak"
     || attr.name === "v-model"
+    || attr.name.startsWith("v-model.")
+    || attr.name.startsWith("v-model:")
     || attr.name === "ref"
     || attr.name === "key"
     || attr.name.startsWith("@")
     || attr.name.startsWith("v-on:")
     || attr.name.startsWith("#")
     || attr.name.startsWith("v-slot");
+}
+
+function shouldSkipModelOwnedAttr(context: SsrGenerateContext, node: ElementNode, attr: TemplateAttribute): boolean {
+  const dynamicName = getDynamicAttrName(attr.name);
+  const attrName = dynamicName ?? attr.name;
+  const model = getElementModel(context, node);
+
+  if (model) {
+    const inputType = getStaticAttrValue(node, "type")?.toLowerCase();
+    if (node.tag === "input" && (inputType === "checkbox" || inputType === "radio")) {
+      return attrName === "checked";
+    }
+    if (node.tag === "input") {
+      return attrName === "value";
+    }
+    if (node.tag === "textarea") {
+      return attrName === "value";
+    }
+  }
+
+  return node.tag === "option" && context.selectModels.length > 0 && attrName === "selected";
+}
+
+function parseModelDirective(name: string): { argument?: string; modifiers: string[] } | undefined {
+  if (name === "v-model") return { modifiers: [] };
+  if (name.startsWith("v-model.")) return { modifiers: name.slice("v-model.".length).split(".").filter(Boolean) };
+  if (!name.startsWith("v-model:")) return undefined;
+  const [argument = "", ...modifiers] = name.slice("v-model:".length).split(".");
+  return { argument, modifiers };
+}
+
+function ssrInputValueExpression(context: SsrGenerateContext, node: ElementNode, modifiers: string[]): string {
+  return applyModelValueModifiers(ssrElementValueExpression(context, node, "on"), modifiers);
+}
+
+function ssrOptionValueExpression(context: SsrGenerateContext, node: ElementNode, modifiers: string[]): string {
+  return applyModelValueModifiers(ssrElementValueExpression(context, node, staticOptionText(node) ?? ""), modifiers);
+}
+
+function ssrElementValueExpression(context: SsrGenerateContext, node: ElementNode, fallback: string): string {
+  const boundValue = getBoundAttr(node, "value");
+  if (boundValue && boundValue.value !== true) {
+    return `__mikuru_unwrap(${compileSsrExpression(context, boundValue.value, boundValue.name)})`;
+  }
+
+  return quote(getStaticAttrValue(node, "value") ?? fallback);
+}
+
+function applyModelValueModifiers(expression: string, modifiers: string[]): string {
+  return modifiers.includes("number") ? `Number(${expression})` : expression;
+}
+
+function getBoundAttr(node: ElementNode, name: string): TemplateAttribute | undefined {
+  return node.attrs.find((attr) => getDynamicAttrName(attr.name) === name);
+}
+
+function staticOptionText(node: ElementNode): string | undefined {
+  let value = "";
+  for (const child of node.children) {
+    if (child.type !== "text") {
+      return undefined;
+    }
+    for (const part of child.parts) {
+      if (part.type !== "static") {
+        return undefined;
+      }
+      value += part.value;
+    }
+  }
+  return value;
 }
 
 function getDynamicAttrName(name: string): string | undefined {
@@ -1086,9 +1214,46 @@ function getAttrValue(node: ElementNode, name: string): string {
   return attr.value;
 }
 
+function hasElementModel(node: ElementNode): boolean {
+  return node.attrs.some((attr) => Boolean(parseModelDirective(attr.name)));
+}
+
+function getElementModel(context: SsrGenerateContext, node: ElementNode): { expression: string; modifiers: string[] } | undefined {
+  const attr = node.attrs.find((candidate) => Boolean(parseModelDirective(candidate.name)));
+  const model = attr ? parseModelDirective(attr.name) : undefined;
+  if (!attr || !model || model.argument || attr.value === true) {
+    return undefined;
+  }
+
+  return {
+    expression: compileSsrExpression(context, attr.value, attr.name),
+    modifiers: model.modifiers
+  };
+}
+
+function createSsrSelectModel(context: SsrGenerateContext, node: ElementNode): SsrSelectModel | undefined {
+  if (node.tag !== "select") {
+    return undefined;
+  }
+
+  const model = getElementModel(context, node);
+  if (!model) {
+    return undefined;
+  }
+
+  return {
+    ...model,
+    multiple: hasStaticBooleanAttr(node, "multiple")
+  };
+}
+
 function getStaticAttrValue(node: ElementNode, name: string): string | undefined {
   const attr = getAttr(node, name);
   return attr && attr.value !== true ? String(attr.value) : undefined;
+}
+
+function hasStaticBooleanAttr(node: ElementNode, name: string): boolean {
+  return node.attrs.some((attr) => attr.name === name && attr.value === true);
 }
 
 function getContentDirectiveAttr(node: ElementNode): TemplateAttribute | undefined {
