@@ -13,8 +13,20 @@ export type AttributeBindingOptions = {
   property?: boolean;
 };
 
+const modelValueKey = "__mikuruModelValue";
+
 export function setAttribute(element: Element, name: string, value: unknown, options: AttributeBindingOptions = {}): void {
   const normalizedName = name.toLowerCase();
+
+  if (normalizedName === "value" && !options.attribute) {
+    const target = element as Element & Record<string, unknown>;
+
+    if (value === null || value === undefined) {
+      delete target[modelValueKey];
+    } else {
+      target[modelValueKey] = value;
+    }
+  }
 
   if (options.property) {
     setDomProperty(element, normalizedName, value, true, name);

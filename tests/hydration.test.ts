@@ -305,6 +305,48 @@ const selected = ref(["b", "c"]);
     }
   });
 
+  it("hydrates object-valued select options before v-model sync", () => {
+    const source = `<template>
+  <section>
+    <select v-model="selected">
+      <option v-for="option in options" :value="option">{{ option.label }}</option>
+    </select>
+    <select multiple v-model="picked">
+      <option v-for="option in options" :value="option">{{ option.label }}</option>
+    </select>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const options = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" },
+  { id: "c", label: "Gamma" }
+];
+const selected = ref(options[1]);
+const picked = ref([options[0], options[2]]);
+</script>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = '<section><select><option value="[object Object]">Alpha</option><option value="[object Object]">Beta</option><option value="[object Object]">Gamma</option></select><select multiple><option value="[object Object]" selected>Alpha</option><option value="[object Object]" selected>Beta</option><option value="[object Object]">Gamma</option></select></section>';
+      module.hydrate(root as unknown as Element);
+      const selects = root.querySelectorAll("select");
+      const single = selects[0] as unknown as HTMLSelectElement | undefined;
+      const multiple = selects[1] as unknown as HTMLSelectElement | undefined;
+
+      expect(single?.selectedIndex).toBe(1);
+      expect(Array.from(multiple?.options ?? []).map((option) => option.selected)).toEqual([true, false, true]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('v-model selected mismatch: expected {"id":"b","label":"Beta"}, got {"id":"a","label":"Alpha"}.'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('v-model selected mismatch: expected [{"id":"a","label":"Alpha"},{"id":"c","label":"Gamma"}], got [{"id":"a","label":"Alpha"},{"id":"b","label":"Beta"}].'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("hydrates initial v-if and v-for DOM", async () => {
     const source = `<template>
   <section>
