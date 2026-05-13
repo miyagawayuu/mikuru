@@ -166,6 +166,29 @@ const label = "Label";
     }
   });
 
+  it("warns with expected and actual static attribute values", () => {
+    const source = `<template>
+  <section id="expected" data-state="ready" hidden>
+    <p>Ready</p>
+  </section>
+</template>`;
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      root.innerHTML = '<section id="actual"><p>Ready</p></section>';
+      module.hydrate(root as unknown as Element);
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Attribute mismatch on id: expected expected, got "actual".'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Attribute mismatch on data-state: expected ready, got null.'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Attribute mismatch on hidden: expected , got null.'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("hydrates initial v-if and v-for DOM", async () => {
     const source = `<template>
   <section>
