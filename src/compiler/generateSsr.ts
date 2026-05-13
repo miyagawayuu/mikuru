@@ -193,6 +193,11 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
 
+  if (node.tag === "AsyncBoundary") {
+    emitAsyncBoundary(context, node, indent);
+    return;
+  }
+
   if (node.tag === "Teleport") {
     emitTeleport(context, node, indent);
     return;
@@ -321,6 +326,11 @@ function emitKeepAlive(context: SsrGenerateContext, node: ElementNode, indent: n
   }
 
   emitDynamicComponent(context, child, indent);
+}
+
+function emitAsyncBoundary(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  validateAsyncBoundaryAttributes(node);
+  emitChildren(context, getAsyncBoundaryChildren(node), indent);
 }
 
 function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -769,6 +779,27 @@ function validateKeepAliveAttributes(node: ElementNode): void {
 
     throw createCompileError(`Unsupported attribute "${attr.name}" on <KeepAlive>. Supported attributes: include, exclude, and max.`, contextSource(node), attr.loc?.offset ?? node.loc?.offset ?? 0);
   }
+}
+
+function validateAsyncBoundaryAttributes(node: ElementNode): void {
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (name === "loading" || name === "fallback" || name === "delay" || name === "timeout") {
+      continue;
+    }
+
+    throw createCompileError(`Unsupported attribute "${attr.name}" on <AsyncBoundary>. Supported attributes: loading, fallback, delay, and timeout.`, contextSource(node), attr.loc?.offset ?? node.loc?.offset ?? 0);
+  }
+}
+
+function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length === 0) {
+    throw createCompileError("<AsyncBoundary> requires at least one child", contextSource(node), node.loc?.offset ?? 0);
+  }
+
+  return node.children;
 }
 
 function getSingleElementChild(node: ElementNode, label: string): ElementNode {

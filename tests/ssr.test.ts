@@ -266,6 +266,34 @@ const current = Panel;
     expect(() => compileSsr(`<template><KeepAlive keep="Panel"><component :is="Panel" /></KeepAlive></template>`)).toThrow(/Unsupported attribute "keep" on <KeepAlive>/);
   });
 
+  it("renders AsyncBoundary children during SSR", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <AsyncBoundary :loading="Loading" :fallback="ErrorView" :delay="10" :timeout="1000">
+      <Child message="ready" />
+      <p>{{ label }}</p>
+    </AsyncBoundary>
+    <footer>after</footer>
+  </section>
+</template>
+<script>
+const label = "inside";
+const Loading = { renderToString() { return "<span>loading</span>"; } };
+const ErrorView = { renderToString() { return "<span>error</span>"; } };
+const Child = {
+  renderToString(props) {
+    return '<article>' + props.message + '</article>';
+  }
+};
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<section><article>ready</article><p>inside</p><footer>after</footer></section>");
+    expect(() => compileSsr(`<template><AsyncBoundary :loadng="Loading"><p>bad</p></AsyncBoundary></template>`)).toThrow(/Unsupported attribute ":loadng" on <AsyncBoundary>/);
+    expect(() => compileSsr(`<template><AsyncBoundary>   </AsyncBoundary></template>`)).toThrow(/<AsyncBoundary> requires at least one child/);
+  });
+
   it("passes SSR component context to children and runtime inject", async () => {
     const result = compileSsr(`<template>
   <section>
