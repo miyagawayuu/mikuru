@@ -11,6 +11,7 @@
 - Added Teleport + ErrorBoundary hydration coverage for target-side DOM reuse and cleanup.
 - Added Transition and TransitionGroup async-child hydration coverage for DOM reuse, keyed order, and cleanup.
 - Added nested AsyncBoundary streaming SSR hydration coverage for parent/child async DOM reuse and cleanup.
+- Added nested lazy RouterView SSR hydration coverage with route-level Teleport reuse.
 
 ## 1.0.21 - 2026-05-13
 

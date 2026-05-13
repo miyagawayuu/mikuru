@@ -2382,6 +2382,129 @@ function increment() {
     button?.dispatchEvent(new window.Event("click"));
     expect(button?.textContent).toBe("Route 7:2");
   });
+
+  it("hydrates Teleport content from nested lazy RouterView routes", async () => {
+    const window = new Window();
+    const app = window.document.createElement("div");
+    const modalRoot = window.document.createElement("div");
+    modalRoot.id = "modal-root";
+    window.document.body.append(app, modalRoot);
+    const shellSource = `<template>
+  <main>
+    <h1>Shell</h1>
+    <RouterView />
+    <p>after shell</p>
+  </main>
+</template>
+<script>
+import { RouterView } from "mikuru/router";
+</script>`;
+    const settingsSource = `<template>
+  <section>
+    <h2>Settings</h2>
+    <RouterView />
+    <p>after settings</p>
+  </section>
+</template>
+<script>
+import { RouterView } from "mikuru/router";
+</script>`;
+    const userSource = `<template>
+  <article>
+    <h3>User {{ id }}</h3>
+    <Teleport to="#modal-root">
+      <button @click="increment">Lazy {{ id }}:{{ count }}</button>
+    </Teleport>
+    <p>leaf route</p>
+  </article>
+</template>
+<script>
+import { ref } from "mikuru";
+const id = props.id;
+const count = ref(1);
+function increment() {
+  count.value += 1;
+}
+</script>`;
+    const shellRender = loadSsrRender(compileSsr(shellSource).code);
+    const settingsRender = loadSsrRender(compileSsr(settingsSource).code);
+    const userRender = loadSsrRender(compileSsr(userSource).code);
+    const shellHydrate = loadHydrationModule(compileHydration(shellSource).code, window.document as unknown as Document);
+    const settingsHydrate = loadHydrationModule(compileHydration(settingsSource).code, window.document as unknown as Document);
+    const userHydrate = loadHydrationModule(compileHydration(userSource).code, window.document as unknown as Document);
+    const ssrLoads: string[] = [];
+    const hydrateLoads: string[] = [];
+    const createRouteTree = (mode: "ssr" | "hydrate") => {
+      const loads = mode === "ssr" ? ssrLoads : hydrateLoads;
+      const settingsComponent = mode === "ssr"
+        ? { renderToString: settingsRender } as any
+        : { hydrate: settingsHydrate.hydrate } as any;
+      const userComponent = mode === "ssr"
+        ? { renderToString: userRender } as any
+        : { hydrate: userHydrate.hydrate } as any;
+
+      return [
+        {
+          path: "/",
+          component: mode === "ssr" ? { renderToString: shellRender } as any : { hydrate: shellHydrate.hydrate } as any,
+          children: [
+            {
+              path: "settings",
+              component: async () => {
+                loads.push("settings");
+                await Promise.resolve();
+                return { default: settingsComponent };
+              },
+              children: [
+                {
+                  path: "users/:id",
+                  component: async () => {
+                    loads.push("user");
+                    await Promise.resolve();
+                    return { default: userComponent };
+                  },
+                  props: true
+                }
+              ]
+            }
+          ]
+        }
+      ];
+    };
+    const ssrRouter = createRouter({
+      history: createMemoryHistory("/settings/users/7"),
+      routes: createRouteTree("ssr")
+    });
+    const hydrateRouter = createRouter({
+      history: createMemoryHistory("/settings/users/7"),
+      routes: createRouteTree("hydrate")
+    });
+    const teleports: Record<string, string> = {};
+
+    const result = await renderRouteToString(ssrRouter, "/settings/users/7", { teleports });
+    app.innerHTML = result.html;
+    modalRoot.innerHTML = result.teleports["#modal-root"];
+
+    expect(ssrLoads).toEqual(["settings", "user"]);
+    expect(app.innerHTML).toBe("<main><h1>Shell</h1><section><h2>Settings</h2><article><h3>User 7</h3><!--teleport:t0--><!--/teleport:t0--><p>leaf route</p></article><p>after settings</p></section><p>after shell</p></main>");
+    expect(modalRoot.innerHTML).toBe("<!--teleport content:t0--><button>Lazy 7:1</button><!--/teleport content:t0-->");
+
+    const button = modalRoot.querySelector("button");
+    const instance = await hydrateRoute(hydrateRouter, app.firstElementChild as unknown as Element, "/settings/users/7");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    button?.dispatchEvent(new window.Event("click"));
+
+    expect(hydrateLoads).toEqual(["settings", "user"]);
+    expect(button?.textContent).toBe("Lazy 7:2");
+    expect(app.querySelector("article p")?.textContent).toBe("leaf route");
+    expect(app.querySelector("section > p")?.textContent).toBe("after settings");
+    expect(app.querySelector("main > p")?.textContent).toBe("after shell");
+
+    instance.unmount();
+    button?.dispatchEvent(new window.Event("click"));
+    expect(button?.textContent).toBe("Lazy 7:2");
+  });
 });
 
 function loadSsrRender(code: string): (props?: Record<string, unknown>) => Promise<string> {
