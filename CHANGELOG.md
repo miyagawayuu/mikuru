@@ -12,6 +12,7 @@
 - Added hydration text content mismatch diagnostics before text nodes are synchronized.
 - Added hydration `v-html` / `v-text` content mismatch diagnostics before content directives are synchronized.
 - Added hydration `v-model` DOM property mismatch diagnostics before form controls are synchronized.
+- Added hydration multiple-select `v-model` mismatch diagnostics before option selections are synchronized.
 - Added hydration support for initial `v-if` / `v-for` DOM reuse and child component `hydrate()` delegation with mount fallback.
 - Added `hydrateRoute()` for router hydration with redirects, lazy route components, route props, nested route slots, and mount fallback.
 - Added SSR Teleport collection and Teleport hydration for target-side DOM reuse.
