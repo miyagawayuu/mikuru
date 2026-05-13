@@ -44,6 +44,66 @@ function increment() {
     expect(root.innerHTML).toBe('<section class="card" data-count="2"><button>Count: 2</button></section>');
   });
 
+  it("hydrates DOM event modifiers and object-form listener options", async () => {
+    const source = `<template>
+  <form @submit.prevent="submit">
+    <button type="submit">Submit</button>
+    <button type="button" v-on.once="onceListeners">Once</button>
+    <div v-on.capture="captureListeners">
+      <button type="button" @click.stop="inner">Capture</button>
+    </div>
+    <p>{{ submitted }}:{{ onceCount }}:{{ order }}</p>
+  </form>
+</template>
+<script>
+import { ref } from "mikuru";
+const submitted = ref(false);
+const onceCount = ref(0);
+const order = ref("");
+const onceListeners = {
+  click() {
+    onceCount.value += 1;
+  }
+};
+const captureListeners = {
+  click() {
+    order.value += "outer";
+  }
+};
+function submit() {
+  submitted.value = true;
+}
+function inner() {
+  order.value += "-inner";
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const form = root.querySelector("form") as HTMLFormElement | null;
+    const buttons = root.querySelectorAll("button");
+    const submitEvent = new window.Event("submit", { cancelable: true });
+
+    form?.dispatchEvent(submitEvent as unknown as Event);
+    expect(submitEvent.defaultPrevented).toBe(true);
+    expect(root.querySelector("p")?.textContent).toBe("true:0:");
+
+    buttons[1]?.dispatchEvent(new window.Event("click"));
+    buttons[1]?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("p")?.textContent).toBe("true:1:");
+
+    buttons[2]?.dispatchEvent(new window.Event("click", { bubbles: true }));
+    expect(root.querySelector("p")?.textContent).toBe("true:1:outer-inner");
+
+    instance.unmount();
+    buttons[1]?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("p")?.textContent).toBe("true:1:outer-inner");
+  });
+
   it("falls back to mount when the root does not match", () => {
     const source = `<template><p>{{ message }}</p></template><script>const message = "mounted";</script>`;
     const module = loadHydrationModule(compileHydration(source).code);

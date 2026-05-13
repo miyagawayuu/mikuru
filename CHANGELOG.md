@@ -16,6 +16,7 @@
 - Added router SSR and route hydration context propagation, including provided router access for route components.
 - Added `hydrateRoute(..., { listen: true })` to start browser/router history listening after route hydration and stop it on unmount.
 - Added hydration support for `v-show` and DOM `v-model` controls, including checkbox arrays and multiple selects.
+- Improved hydration event handling so DOM event modifiers and object-form `v-on` option modifiers are applied during listener attachment.
 - Added hydration support for child component `v-model` props, update handlers, named models, and modifiers.
 - Added hydration support for DOM and component template refs, including `v-for` array refs and unmount cleanup.
 - Improved hydration attribute reconciliation so static classes survive dynamic `:class` updates and object `v-bind` removes stale attrs.

@@ -21,6 +21,12 @@ type BindDirective = {
   modifiers: string[];
 };
 
+type EventDirective = {
+  name?: string;
+  nameExpression?: string;
+  modifiers: string[];
+};
+
 export function generateHydration(descriptor: SfcDescriptor, root: ElementNode): string {
   const context: HydrationContext = {
     lines: [],
@@ -426,12 +432,42 @@ function hydrateComponentProps(context: HydrationContext, node: ElementNode, pro
       continue;
     }
 
+    const objectEvent = parseObjectOnDirective(attr.name);
+    if (objectEvent && attr.value !== true) {
+      validateObjectOnModifiers(objectEvent, attr, "component");
+      const listenersVar = nextName(context, "listeners");
+      const eventNameVar = nextName(context, "eventName");
+      const handlerVar = nextName(context, "handler");
+      const propNameVar = nextName(context, "propName");
+      emit(context, indent, `{`);
+      emit(context, indent + 1, `const ${listenersVar} = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)}) ?? {};`);
+      emit(context, indent + 1, `if (${listenersVar} && typeof ${listenersVar} === "object") {`);
+      emit(context, indent + 2, `for (const [${eventNameVar}, ${handlerVar}] of Object.entries(${listenersVar})) {`);
+      emit(context, indent + 3, `const ${propNameVar} = ${componentEventPropRuntimeExpression(`String(${eventNameVar})`)};`);
+      emit(context, indent + 3, `if (typeof ${handlerVar} === "function") { ${propsVar}[${propNameVar}] = ${handlerVar}; }`);
+      emit(context, indent + 2, "}");
+      emit(context, indent + 1, "}");
+      emit(context, indent, `}`);
+      continue;
+    }
+
+    const event = parseEventDirective(attr.name);
+    if (event && attr.value !== true) {
+      validateComponentEventModifiers(event, attr);
+      const handlerExpression = `($value) => ${String(attr.value).trim()}($value)`;
+      const propName = event.nameExpression
+        ? componentEventPropRuntimeExpression(`String(unwrap(${compileHydrationExpression(context, event.nameExpression, attr.name)}) ?? "")`)
+        : quote(toComponentEventProp(event.name ?? ""));
+      emit(context, indent, `${propsVar}[${propName}] = ${componentEventHandlerExpression(event, handlerExpression, context)};`);
+      continue;
+    }
+
     if (shouldSkipAttr(attr)) {
       continue;
     }
 
-    if (attr.name === "v-bind" && attr.value !== true) {
-      emit(context, indent, `Object.assign(${propsVar}, unwrap(${compileHydrationExpression(context, String(attr.value), "v-bind")}) ?? {});`);
+    if (parseObjectBindDirective(attr.name) && attr.value !== true) {
+      emit(context, indent, `Object.assign(${propsVar}, unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)}) ?? {});`);
       continue;
     }
 
@@ -453,35 +489,103 @@ function hydrateComponentProps(context: HydrationContext, node: ElementNode, pro
 
 function hydrateEvents(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
   for (const attr of node.attrs) {
-    const dynamicEvent = getDynamicEventArgument(attr.name);
+    const objectEvent = parseObjectOnDirective(attr.name);
+    if (objectEvent && attr.value !== true) {
+      validateObjectOnModifiers(objectEvent, attr, "element");
+      const eventOptions = eventListenerOptions(objectEvent);
+      const expression = compileHydrationExpression(context, String(attr.value), attr.name);
+      const listenersVar = nextName(context, "listeners");
+      const stopVar = nextName(context, "stop");
+      const sourceVar = nextName(context, "listeners");
+      const eventVar = nextName(context, "event");
+      const handlerVar = nextName(context, "handler");
+      const wrappedHandlerVar = nextName(context, "handler");
+      emit(context, indent, `const ${listenersVar} = new Map();`);
+      emit(context, indent, `const ${stopVar} = effect(() => {`);
+      emit(context, indent + 1, `for (const [${eventVar}, ${handlerVar}] of ${listenersVar}) {`);
+      emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
+      emit(context, indent + 1, "}");
+      emit(context, indent + 1, `${listenersVar}.clear();`);
+      emit(context, indent + 1, `const ${sourceVar} = unwrap(${expression}) ?? {};`);
+      emit(context, indent + 1, `if (${sourceVar} && typeof ${sourceVar} === "object") {`);
+      emit(context, indent + 2, `for (const [${eventVar}, ${handlerVar}] of Object.entries(${sourceVar})) {`);
+      emit(context, indent + 3, `if (typeof ${handlerVar} === "function") {`);
+      emit(context, indent + 4, `const ${wrappedHandlerVar} = ($event) => ${handlerVar}($event);`);
+      emit(context, indent + 4, `${elementVar}.addEventListener(${eventVar}, ${wrappedHandlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
+      emit(context, indent + 4, `${listenersVar}.set(${eventVar}, ${wrappedHandlerVar});`);
+      emit(context, indent + 3, "}");
+      emit(context, indent + 2, "}");
+      emit(context, indent + 1, "}");
+      emit(context, indent, "});");
+      emit(context, indent, `__mikuru_cleanup.push(() => {`);
+      emit(context, indent + 1, `${stopVar}();`);
+      emit(context, indent + 1, `for (const [${eventVar}, ${handlerVar}] of ${listenersVar}) {`);
+      emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
+      emit(context, indent + 1, "}");
+      emit(context, indent + 1, `${listenersVar}.clear();`);
+      emit(context, indent, "});");
+      continue;
+    }
+
+    const event = parseEventDirective(attr.name);
+    const dynamicEvent = event?.nameExpression ? event : undefined;
     if (dynamicEvent && attr.value !== true) {
-      const expression = compileHydrationExpression(context, dynamicEvent.expression, attr.name);
+      validateEventModifiers(dynamicEvent, attr);
+      const expression = compileHydrationExpression(context, dynamicEvent.nameExpression ?? "", attr.name);
+      const eventOptions = eventListenerOptions(dynamicEvent);
       const handlerVar = nextName(context, "handler");
       const currentEventVar = nextName(context, "eventName");
       const nextEventVar = nextName(context, "eventName");
-      emit(context, indent, `const ${handlerVar} = ($event) => ${String(attr.value).trim()}($event);`);
+      emitHydrationEventHandler(context, indent, elementVar, handlerVar, String(attr.value).trim(), dynamicEvent);
       emit(context, indent, `let ${currentEventVar};`);
       emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
       emit(context, indent + 1, `const ${nextEventVar} = String(unwrap(${expression}) ?? "");`);
       emit(context, indent + 1, `if (${nextEventVar} === ${currentEventVar}) return;`);
-      emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar});`);
+      emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
       emit(context, indent + 1, `${currentEventVar} = ${nextEventVar};`);
-      emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.addEventListener(${currentEventVar}, ${handlerVar});`);
+      emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.addEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
       emit(context, indent, "}));");
-      emit(context, indent, `__mikuru_cleanup.push(() => { if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}); });`);
+      emit(context, indent, `__mikuru_cleanup.push(() => { if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}); });`);
       continue;
     }
 
-    const eventName = getEventName(attr.name);
-    if (!eventName || attr.value === true) {
+    if (!event?.name || attr.value === true) {
       continue;
     }
 
+    validateEventModifiers(event, attr);
+    const eventOptions = eventListenerOptions(event);
     const handlerVar = nextName(context, "handler");
-    emit(context, indent, `const ${handlerVar} = ($event) => ${String(attr.value).trim()}($event);`);
-    emit(context, indent, `${elementVar}.addEventListener(${quote(eventName)}, ${handlerVar});`);
-    emit(context, indent, `__mikuru_cleanup.push(() => ${elementVar}.removeEventListener(${quote(eventName)}, ${handlerVar}));`);
+    emitHydrationEventHandler(context, indent, elementVar, handlerVar, String(attr.value).trim(), event);
+    emit(context, indent, `${elementVar}.addEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
+    emit(context, indent, `__mikuru_cleanup.push(() => ${elementVar}.removeEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}));`);
   }
+}
+
+function emitHydrationEventHandler(context: HydrationContext, indent: number, elementVar: string, handlerVar: string, handlerExpression: string, event: EventDirective): void {
+  const guard = eventModifierGuardExpression(event);
+  const hasControl = event.modifiers.includes("prevent") || event.modifiers.includes("stop") || event.modifiers.includes("self") || guard;
+
+  if (!hasControl) {
+    emit(context, indent, `const ${handlerVar} = ($event) => ${handlerExpression}($event);`);
+    return;
+  }
+
+  emit(context, indent, `const ${handlerVar} = ($event) => {`);
+  if (event.modifiers.includes("self")) {
+    emit(context, indent + 1, `if ($event.target !== ${elementVar}) { return; }`);
+  }
+  if (guard) {
+    emit(context, indent + 1, `if (${guard}) { return; }`);
+  }
+  if (event.modifiers.includes("prevent")) {
+    emit(context, indent + 1, "$event.preventDefault();");
+  }
+  if (event.modifiers.includes("stop")) {
+    emit(context, indent + 1, "$event.stopPropagation();");
+  }
+  emit(context, indent + 1, `return ${handlerExpression}($event);`);
+  emit(context, indent, "};");
 }
 
 function hydrateModelAndShow(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -620,6 +724,7 @@ function shouldSkipAttr(attr: TemplateAttribute): boolean {
     || attr.name === "ref"
     || getDynamicAttrName(attr.name) === "ref"
     || attr.name === "key"
+    || Boolean(parseObjectOnDirective(attr.name))
     || attr.name.startsWith("@")
     || attr.name.startsWith("v-on:");
 }
@@ -654,6 +759,26 @@ function getEventName(name: string): string | undefined {
   if (name.startsWith("@")) return name.slice(1).split(".")[0];
   if (name.startsWith("v-on:")) return name.slice("v-on:".length).split(".")[0];
   return undefined;
+}
+
+function parseEventDirective(name: string): EventDirective | undefined {
+  const dynamic = getDynamicEventArgument(name);
+  if (dynamic) {
+    return { nameExpression: dynamic.expression, modifiers: dynamic.modifiers };
+  }
+
+  const rawName = name.startsWith("@")
+    ? name.slice(1)
+    : name.startsWith("v-on:")
+      ? name.slice("v-on:".length)
+      : undefined;
+
+  if (!rawName || rawName.startsWith("[")) {
+    return undefined;
+  }
+
+  const [eventName, ...modifiers] = rawName.split(".");
+  return { name: eventName, modifiers };
 }
 
 function getDynamicAttrArgument(name: string): { expression: string } | undefined {
@@ -739,6 +864,146 @@ function parseObjectBindDirective(name: string): BindDirective | undefined {
   }
 
   return { modifiers: name.slice("v-bind.".length).split(".").filter(Boolean) };
+}
+
+function parseObjectOnDirective(name: string): EventDirective | undefined {
+  if (name === "v-on") {
+    return { modifiers: [] };
+  }
+
+  if (!name.startsWith("v-on.")) {
+    return undefined;
+  }
+
+  return { modifiers: name.slice("v-on.".length).split(".").filter(Boolean) };
+}
+
+function validateEventModifiers(event: EventDirective, attr: TemplateAttribute): void {
+  const supportedModifiers = [...eventControlModifiers, ...eventOptionModifiers, ...eventSystemModifiers, ...eventMouseModifiers, ...eventKeyModifiers, "exact"];
+
+  for (const modifier of event.modifiers) {
+    if (!supportedModifiers.includes(modifier)) {
+      throw new Error(`Unsupported event modifier .${modifier} on ${attr.name}.`);
+    }
+  }
+
+  if (event.modifiers.includes("passive") && event.modifiers.includes("prevent")) {
+    throw new Error(`Event modifiers .passive and .prevent cannot be combined on ${attr.name}`);
+  }
+}
+
+function validateObjectOnModifiers(event: EventDirective, attr: TemplateAttribute, target: "element" | "component"): void {
+  if (target === "component" && event.modifiers.length > 0) {
+    throw new Error(`Object v-on modifiers are only supported on native elements: ${attr.name}`);
+  }
+
+  for (const modifier of event.modifiers) {
+    if (!eventOptionModifiers.includes(modifier)) {
+      throw new Error(`Object v-on modifier .${modifier} is not supported on ${attr.name}. Use .once, .capture, or .passive.`);
+    }
+  }
+}
+
+function validateComponentEventModifiers(event: EventDirective, attr: TemplateAttribute): void {
+  for (const modifier of event.modifiers) {
+    if (modifier !== "once") {
+      throw new Error(`Event modifier .${modifier} is only supported on DOM events: ${attr.name}`);
+    }
+  }
+}
+
+function eventListenerOptions(event: EventDirective): string | undefined {
+  const options = [
+    event.modifiers.includes("capture") ? "capture: true" : undefined,
+    event.modifiers.includes("once") ? "once: true" : undefined,
+    event.modifiers.includes("passive") ? "passive: true" : undefined
+  ].filter(Boolean);
+
+  return options.length ? `{ ${options.join(", ")} }` : undefined;
+}
+
+const eventControlModifiers = ["prevent", "stop", "self"];
+const eventOptionModifiers = ["once", "capture", "passive"];
+const eventSystemModifiers = ["ctrl", "shift", "alt", "meta"];
+const eventMouseModifiers = ["left", "right", "middle"];
+const eventKeyModifiers = ["enter", "escape", "esc", "space", "tab", "delete", "backspace", "up", "down", "left", "right"];
+
+function eventModifierGuardExpression(event: EventDirective): string | undefined {
+  const checks: string[] = [];
+  const mouseEvent = isMouseEventName(event.name);
+
+  for (const modifier of event.modifiers) {
+    if (eventSystemModifiers.includes(modifier)) {
+      checks.push(`!$event.${modifier}Key`);
+      continue;
+    }
+
+    const mouseExpression = mouseEvent ? eventMouseButtonExpression(modifier) : undefined;
+    if (mouseExpression) {
+      checks.push(`$event.button !== ${mouseExpression}`);
+      continue;
+    }
+
+    const keyExpression = eventKeyExpression(modifier);
+    if (keyExpression) {
+      checks.push(`!${keyExpression}.includes($event.key)`);
+    }
+  }
+
+  if (event.modifiers.includes("exact")) {
+    for (const modifier of eventSystemModifiers) {
+      if (!event.modifiers.includes(modifier)) {
+        checks.push(`$event.${modifier}Key`);
+      }
+    }
+  }
+
+  return checks.length ? checks.join(" || ") : undefined;
+}
+
+function isMouseEventName(name: string | undefined): boolean {
+  return !!name && /^(?:click|dblclick|auxclick|contextmenu|mousedown|mouseup|mousemove|mouseover|mouseout|mouseenter|mouseleave|pointerdown|pointerup|pointermove|pointerover|pointerout|pointerenter|pointerleave)$/.test(name);
+}
+
+function eventMouseButtonExpression(modifier: string): string | undefined {
+  const mouseButtons: Record<string, string> = {
+    left: "0",
+    middle: "1",
+    right: "2"
+  };
+  return mouseButtons[modifier];
+}
+
+function eventKeyExpression(modifier: string): string | undefined {
+  const keyAliases: Record<string, string[]> = {
+    enter: ["Enter"],
+    escape: ["Escape"],
+    esc: ["Escape"],
+    space: [" ", "Spacebar"],
+    tab: ["Tab"],
+    delete: ["Delete"],
+    backspace: ["Backspace"],
+    up: ["ArrowUp", "Up"],
+    down: ["ArrowDown", "Down"],
+    left: ["ArrowLeft", "Left"],
+    right: ["ArrowRight", "Right"]
+  };
+  const keys = keyAliases[modifier];
+  return keys ? JSON.stringify(keys) : undefined;
+}
+
+function componentEventHandlerExpression(event: EventDirective, handlerExpression: string, context: HydrationContext): string {
+  if (!event.modifiers.includes("once")) {
+    return handlerExpression;
+  }
+
+  const calledVar = nextName(context, "called");
+  const handlerVar = nextName(context, "handler");
+  return `(() => { let ${calledVar} = false; const ${handlerVar} = ${handlerExpression}; return (...$args) => { if (${calledVar}) { return; } ${calledVar} = true; return ${handlerVar}(...$args); }; })()`;
+}
+
+function componentEventPropRuntimeExpression(eventNameExpression: string): string {
+  return `"on" + ${eventNameExpression}.split(/[-:]/).filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join("")`;
 }
 
 function getDynamicEventArgument(name: string): { expression: string; modifiers: string[] } | undefined {
