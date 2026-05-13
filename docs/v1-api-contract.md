@@ -8,8 +8,8 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 - `mikuru/compiler`: exposes `compile`, `compileSsr`, `compileHydration`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
 - `mikuru/runtime`: exposes `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
-- `mikuru/server`: exposes `renderToString`, `renderComponentToString`, `renderRouteToString`, `hydrateRoute`, `escapeHtml`, `renderAttr`, and `renderAttrs` for SSR and hydration integrations.
-- `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export. Plugin options include `debug`, `include`, and `batchedUpdates`.
+- `mikuru/server`: exposes `renderToString`, `renderToStream`, `renderComponentToString`, `renderRouteToString`, `hydrateRoute`, `escapeHtml`, `renderAttr`, and `renderAttrs` for SSR and hydration integrations.
+- `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export. Plugin options include `debug`, `include`, and `batchedUpdates`; `.mikuru?hydrate` and `.mikuru?ssr` imports expose hydration and SSR generated modules.
 
 The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook and `createDebugInspector()` helper are unstable internal infrastructure and are not part of the stable v1 API.
 
@@ -68,7 +68,7 @@ Unsupported in v1:
 - Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present. Named models such as `v-model:title` pass `title`, `onUpdateTitle`, and `titleModifiers` when modifiers are present.
 - Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `v-show`.
 - `<KeepAlive>` caches dynamic component instances across type switches, supports `include`/`exclude` string, array, and `RegExp` name filters, prunes least recently used records with `max`, runs `onActivated`/`onDeactivated` for cached generated components, and disposes the cache when the parent component unmounts.
-- `defineAsyncComponent()` creates component objects from async loaders and supports loading, error, retry, and timeout fallback behavior.
+- `defineAsyncComponent()` creates component objects from async loaders and supports loading, error, retry, timeout fallback behavior, and SSR loader resolution through `renderToString()`.
 - Child component instances must return `{ element, unmount }` from `mount`.
 
 ## Router Contract
@@ -114,16 +114,15 @@ Unsupported in v1:
 
 - `compileSsr(source)` returns generated module code with `renderToString(props?)`.
 - SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection through `props.__mikuru_teleports`.
-- `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output.
+- `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output. `renderToStream` exposes rendered output as an async iterable for stream-shaped integrations.
 - `renderRouteToString(router, location)` resolves redirects, lazy route components, route props, route component context, and nested route components using default slots.
 - `hydrateRoute(router, target, location?, options?)` resolves redirects, lazy route components, route props, route component context, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback. `{ listen: true }` starts router history listening after hydration and stops it on unmount.
-- Hydration is future work.
 
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
 - Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, reuses Teleport target content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
-- Root mismatches warn and fall back to normal `mount`.
+- Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`.
 - Dynamic branch/list reconciliation after the initial state is future work.
 
 ## Macro Contract

@@ -15,8 +15,8 @@ export function compileHydration(source: string, options: CompileOptions = {}): 
   });
   const bindings = analyzeTemplate(ast, { source, filename: options.filename });
   const mountCode = generate(descriptor, ast, { debug: options.debug === true, batchedUpdates: options.batchedUpdates === true });
-  const hydrationCode = generateHydration(descriptor, ast);
-  const code = mountCode.replace("export default __mikuru_component;", `${hydrationCode}\nexport { hydrate };\nconst __mikuru_hydrationComponent = { ...__mikuru_component, hydrate };\nexport default __mikuru_hydrationComponent;`);
+  const hydrationCode = generateHydration(descriptor, ast, { includeImports: false });
+  const code = mountCode.replace("export default __mikuru_component;", `${hydrationCode}\nconst __mikuru_hydrationComponent = { ...__mikuru_component, hydrate };\nexport default __mikuru_hydrationComponent;`);
   const map = createSourceMap(code, descriptor, ast);
 
   return {

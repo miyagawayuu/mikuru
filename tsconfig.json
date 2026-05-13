@@ -21,6 +21,6 @@
     "ignoreDeprecations": "6.0",
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "vite.config.ts", "playwright.config.ts", "playwright.basic.config.ts", "playwright.dogfood.config.ts", "playwright.router.config.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "vite.config.ts", "playwright.config.ts", "playwright.basic.config.ts", "playwright.dogfood.config.ts", "playwright.router.config.ts", "playwright.ssr-hydration.config.ts"],
   "exclude": ["dist", "node_modules"]
 }

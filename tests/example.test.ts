@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { compile } from "../src/compiler/index.js";
+import { compile, compileHydration, compileSsr } from "../src/compiler/index.js";
 
 describe("basic example", () => {
   it("compiles App.mikuru into a mountable module", () => {
@@ -63,5 +63,15 @@ describe("realworld example", () => {
     expect(result.code).toContain('import TaskCard from "../features/tasks/TaskCard.mikuru";');
     expect(result.code).toContain('addEventListener("input", handler');
     expect(result.code).toContain("new Map()");
+  });
+});
+
+describe("SSR hydration example", () => {
+  it("compiles mount, hydration, and SSR modules", () => {
+    const source = readFileSync(resolve("examples/ssr-hydration/src/App.mikuru"), "utf8");
+
+    expect(compile(source, { filename: "examples/ssr-hydration/src/App.mikuru" }).code).toContain("export function mount(target, props = {})");
+    expect(compileHydration(source, { filename: "examples/ssr-hydration/src/App.mikuru" }).code).toContain("export function hydrate(target, props = {})");
+    expect(compileSsr(source, { filename: "examples/ssr-hydration/src/App.mikuru" }).code).toContain("export async function renderToString(props = {})");
   });
 });
