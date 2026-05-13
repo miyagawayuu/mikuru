@@ -203,6 +203,11 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
     return;
   }
 
+  if (node.tag === "Transition") {
+    emitTransition(context, node, indent);
+    return;
+  }
+
   if (node.tag === "Teleport") {
     emitTeleport(context, node, indent);
     return;
@@ -342,6 +347,18 @@ function emitErrorBoundary(context: SsrGenerateContext, node: ElementNode, inden
   validateErrorBoundaryAttributes(node);
   getErrorBoundaryFallbackAttr(node);
   emitElement(context, getSingleElementChild(node, "<ErrorBoundary>"), indent);
+}
+
+function emitTransition(context: SsrGenerateContext, node: ElementNode, indent: number): void {
+  validateTransitionAttributes(node);
+  const children = getTransitionChildren(node);
+
+  if (getAttr(children[0], "v-if")) {
+    emitIfBranches(context, getTransitionBranches(children), indent);
+    return;
+  }
+
+  emitElement(context, children[0], indent);
 }
 
 function emitTeleport(context: SsrGenerateContext, node: ElementNode, indent: number): void {
@@ -823,6 +840,29 @@ function getErrorBoundaryFallbackAttr(node: ElementNode): TemplateAttribute {
   return attr;
 }
 
+function validateTransitionAttributes(node: ElementNode): void {
+  const supported = new Set([
+    "name",
+    "appear",
+    "mode",
+    "enter-from-class",
+    "enter-active-class",
+    "enter-to-class",
+    "leave-from-class",
+    "leave-active-class",
+    "leave-to-class"
+  ]);
+
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (supported.has(name)) {
+      continue;
+    }
+
+    throw createCompileError(`Unsupported attribute "${attr.name}" on <Transition>. Supported attributes: name, appear, mode, and CSS class override attributes.`, contextSource(node), attr.loc?.offset ?? node.loc?.offset ?? 0);
+  }
+}
+
 function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {
   const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
 
@@ -831,6 +871,46 @@ function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {
   }
 
   return node.children;
+}
+
+function getTransitionChildren(node: ElementNode): ElementNode[] {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length === 0 || meaningful.some((child) => child.type !== "element")) {
+    throw createCompileError("<Transition> requires exactly one element/component child or one v-if chain", contextSource(node), node.loc?.offset ?? 0);
+  }
+
+  const children = meaningful as ElementNode[];
+
+  if (children.length === 1) {
+    return children;
+  }
+
+  if (!getAttr(children[0], "v-if")) {
+    throw createCompileError("<Transition> requires exactly one element/component child or one v-if chain", contextSource(node), node.loc?.offset ?? 0);
+  }
+
+  for (const child of children.slice(1)) {
+    if (!getAttr(child, "v-else-if") && !getAttr(child, "v-else")) {
+      throw createCompileError("<Transition> only accepts multiple children when they form a v-if chain", contextSource(child), child.loc?.offset ?? node.loc?.offset ?? 0);
+    }
+  }
+
+  return children;
+}
+
+function getTransitionBranches(children: ElementNode[]): IfBranch[] {
+  return children.map((child, index) => {
+    if (index === 0) {
+      return { node: child, condition: getAttrValue(child, "v-if"), directive: "v-if" };
+    }
+
+    if (getAttr(child, "v-else-if")) {
+      return { node: child, condition: getAttrValue(child, "v-else-if"), directive: "v-else-if" };
+    }
+
+    return { node: child, directive: "v-else" };
+  });
 }
 
 function getSingleElementChild(node: ElementNode, label: string): ElementNode {

@@ -137,6 +137,11 @@ function hydrateElement(context: HydrationContext, node: ElementNode, elementVar
     return;
   }
 
+  if (node.tag === "Transition") {
+    hydrateTransitionElement(context, node, elementVar, indent);
+    return;
+  }
+
   if (isComponentTag(node.tag)) {
     hydrateComponent(context, node, elementVar, indent);
     return;
@@ -184,6 +189,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
 
     if (child.type === "element" && child.tag === "ErrorBoundary") {
       hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndexVar, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "Transition") {
+      hydrateTransitionAtIndex(context, child, parentVar, domIndexVar, indent);
       return;
     }
 
@@ -575,6 +585,44 @@ function hydrateErrorBoundaryElement(context: HydrationContext, node: ElementNod
   emit(context, indent, "}");
 }
 
+function hydrateTransitionAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
+  validateTransitionAttributes(node);
+  const children = getTransitionChildren(node);
+
+  if (getAttr(children[0], "v-if")) {
+    hydrateTransitionIfChainAtIndex(context, children, parentVar, domIndex, indent);
+    return;
+  }
+
+  hydrateFragmentChildrenAtIndex(context, [children[0]], parentVar, domIndex, indent);
+}
+
+function hydrateTransitionElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
+  validateTransitionAttributes(node);
+  const parentVar = nextName(context, "transitionParent");
+  const indexVar = nextName(context, "transitionIndex");
+  emit(context, indent, `const ${parentVar} = ${elementVar}.parentNode;`);
+  emit(context, indent, `let ${indexVar} = ${parentVar} ? Array.prototype.indexOf.call(${parentVar}.childNodes, ${elementVar}) : 0;`);
+  emit(context, indent, `if (${parentVar}) {`);
+  hydrateTransitionAtIndex(context, node, parentVar, indexVar, indent + 1);
+  emit(context, indent, "}");
+}
+
+function hydrateTransitionIfChainAtIndex(context: HydrationContext, children: ElementNode[], parentVar: string, domIndex: string, indent: number): void {
+  children.forEach((child, index) => {
+    if (index === 0) {
+      emit(context, indent, `if (unwrap(${compileHydrationExpression(context, getAttrValue(child, "v-if"), "v-if")})) {`);
+    } else if (getAttr(child, "v-else-if")) {
+      emit(context, indent, `else if (unwrap(${compileHydrationExpression(context, getAttrValue(child, "v-else-if"), "v-else-if")})) {`);
+    } else {
+      emit(context, indent, "else {");
+    }
+
+    hydrateFragmentChildrenAtIndex(context, [withoutAttrs(child, ["v-if", "v-else-if", "v-else"])], parentVar, domIndex, indent + 1);
+    emit(context, indent, "}");
+  });
+}
+
 function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: TemplateNode[], parentVar: string, domIndex: string, indent: number): void {
   const children = rawChildren.filter(isHydratableNode);
   children.forEach((child) => {
@@ -600,6 +648,11 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
 
     if (child.type === "element" && child.tag === "ErrorBoundary") {
       hydrateErrorBoundaryAtIndex(context, child, parentVar, domIndex, indent);
+      return;
+    }
+
+    if (child.type === "element" && child.tag === "Transition") {
+      hydrateTransitionAtIndex(context, child, parentVar, domIndex, indent);
       return;
     }
 
@@ -1058,6 +1111,29 @@ function validateErrorBoundaryAttributes(node: ElementNode): void {
   }
 }
 
+function validateTransitionAttributes(node: ElementNode): void {
+  const supported = new Set([
+    "name",
+    "appear",
+    "mode",
+    "enter-from-class",
+    "enter-active-class",
+    "enter-to-class",
+    "leave-from-class",
+    "leave-active-class",
+    "leave-to-class"
+  ]);
+
+  for (const attr of node.attrs) {
+    const name = parseBindDirective(attr.name)?.name ?? attr.name;
+    if (supported.has(name)) {
+      continue;
+    }
+
+    throw new Error(`Unsupported attribute "${attr.name}" on <Transition>. Supported attributes: name, appear, mode, and CSS class override attributes.`);
+  }
+}
+
 function getErrorBoundaryFallbackAttr(node: ElementNode): TemplateAttribute {
   const attr = node.attrs.find((candidate) => parseBindDirective(candidate.name)?.name === "fallback");
   if (!attr) {
@@ -1075,6 +1151,32 @@ function getAsyncBoundaryChildren(node: ElementNode): TemplateNode[] {
   }
 
   return node.children;
+}
+
+function getTransitionChildren(node: ElementNode): ElementNode[] {
+  const meaningful = node.children.filter((child) => child.type === "element" || child.parts.some((part) => part.value.trim()));
+
+  if (meaningful.length === 0 || meaningful.some((child) => child.type !== "element")) {
+    throw new Error("<Transition> requires exactly one element/component child or one v-if chain");
+  }
+
+  const children = meaningful as ElementNode[];
+
+  if (children.length === 1) {
+    return children;
+  }
+
+  if (!getAttr(children[0], "v-if")) {
+    throw new Error("<Transition> requires exactly one element/component child or one v-if chain");
+  }
+
+  for (const child of children.slice(1)) {
+    if (!getAttr(child, "v-else-if") && !getAttr(child, "v-else")) {
+      throw new Error("<Transition> only accepts multiple children when they form a v-if chain");
+    }
+  }
+
+  return children;
 }
 
 function getSingleElementChild(node: ElementNode, label: string): ElementNode {
