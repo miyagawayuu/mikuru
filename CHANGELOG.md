@@ -6,6 +6,7 @@
 - Improved SSR component slots so dynamic slot names support scoped props and explicit default slot templates are exposed through `props.children`.
 - Added async component hydration delegation so SSR-rendered async children inside `<AsyncBoundary>` can be reused after streaming SSR.
 - Improved async component hydration fallback handling for loader errors, timeouts, and retry recovery.
+- Added Teleport + AsyncBoundary hydration coverage for SSR target reuse, async child hydration, and sibling stability.
 
 ## 1.0.21 - 2026-05-13
 
