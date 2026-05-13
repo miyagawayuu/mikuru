@@ -118,6 +118,7 @@ const filterOptions = computed(() => [
   { id: "all", label: "All", count: allEvents.value.length },
   { id: "component", label: "Component", count: countEvents("component") },
   { id: "async", label: "Async", count: countEvents("async") },
+  { id: "hydration", label: "Hydration", count: countEvents("hydration") },
   { id: "router", label: "Router", count: countEvents("router") },
   { id: "error", label: "Error", count: countEvents("error") }
 ]);
@@ -166,6 +167,10 @@ function snapshot() {
 
 function summarizeEvent(event) {
   const payload = event.payload ?? {};
+  if (event.type === "hydration:warning") {
+    return `${payload.kind ?? "hydration"}: ${payload.domPath ?? payload.message ?? "warning"}`;
+  }
+
   if (payload.to?.path || payload.from?.path) {
     return `${payload.from?.path ?? "-"} -> ${payload.to?.path ?? "-"}${payload.status ? ` (${payload.status})` : ""}`;
   }
@@ -202,6 +207,10 @@ function categorizeEvent(event) {
     return "async";
   }
 
+  if (event.type.startsWith("hydration:")) {
+    return "hydration";
+  }
+
   if (event.type.startsWith("component:")) {
     return "component";
   }
@@ -210,7 +219,7 @@ function categorizeEvent(event) {
 }
 
 function isErrorEvent(event) {
-  return event.type.includes("error") || event.type.endsWith(":rejected");
+  return event.type.includes("error") || event.type.endsWith(":rejected") || event.type === "hydration:warning";
 }
 
 function countEvents(category) {

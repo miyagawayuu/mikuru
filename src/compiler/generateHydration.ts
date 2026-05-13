@@ -95,15 +95,17 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
   emit(context, 2, "registerEffect: (fn) => Promise.resolve().then(fn)");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_emitDebug = (type, payload) => { const hook = globalThis.__MIKURU_DEVTOOLS__; if (!hook) return; const event = { type, timestamp: Date.now(), payload }; hook.events ??= []; hook.events.push(event); if (typeof hook.emit === \"function\") hook.emit(event); for (const listener of hook.listeners ?? []) { try { listener(event); } catch (error) { setTimeout(() => { throw error; }); } } };");
-  emit(context, 1, "const __mikuru_hydrationDiagnostic = (message, details = {}) => ({ ...__mikuru_componentInfo, phase: \"hydration\", message, ...details });");
+  emit(context, 1, "const __mikuru_domPath = (node) => { if (!node) return \"missing\"; const parts = []; for (let cursor = node.nodeType === 1 ? node : node.parentElement; cursor && cursor.nodeType === 1; cursor = cursor.parentElement) { const tag = cursor.tagName.toLowerCase(); const siblings = cursor.parentElement ? Array.from(cursor.parentElement.children).filter((child) => child.tagName === cursor.tagName) : []; const index = siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(cursor) + 1})` : \"\"; parts.unshift(`${tag}${index}`); } return parts.join(\" > \") || __mikuru_describeNode(node); };");
+  emit(context, 1, "const __mikuru_inferDiagnostic = (message) => { const action = message.includes(\"falling back to mount\") ? \"mount-fallback\" : message.includes(\"remounting\") ? \"remount\" : message.includes(\"Recovery was disabled\") || message.endsWith(\".\") ? \"warn-only\" : \"sync-dom\"; const kind = message.startsWith(\"Root mismatch\") ? \"root\" : message.startsWith(\"Element mismatch\") ? \"element\" : message.startsWith(\"Text mismatch\") || message.startsWith(\"Text content mismatch\") ? \"text\" : message.startsWith(\"Attribute mismatch\") ? \"attribute\" : message.startsWith(\"v-model\") ? \"model\" : message.startsWith(\"Extra DOM nodes\") ? \"extra-node\" : message.startsWith(\"Teleport\") ? \"teleport\" : message.startsWith(\"Component\") || message.startsWith(\"Dynamic component\") ? \"component\" : message.startsWith(\"Branch\") ? \"branch\" : message.startsWith(\"List\") ? \"list\" : \"hydration\"; const match = message.match(/expected\\s+(.+?),\\s+got\\s+(.+?)(?:[.;]|$)/); return { action, kind, expected: match?.[1], actual: match?.[2] }; };");
+  emit(context, 1, "const __mikuru_hydrationDiagnostic = (message, details = {}) => { const inferred = __mikuru_inferDiagnostic(message); const node = details.node; const diagnostic = { ...__mikuru_componentInfo, phase: \"hydration\", message, ...inferred, ...details }; delete diagnostic.node; if (!diagnostic.domPath && node) diagnostic.domPath = __mikuru_domPath(node); return diagnostic; };");
   emit(context, 1, "const __mikuru_warn = (message, details = {}) => { const diagnostic = __mikuru_hydrationDiagnostic(message, details); __mikuru_emitDebug(\"hydration:warning\", diagnostic); if (typeof console !== \"undefined\" && console.warn) console.warn(`[Mikuru hydration] ${message} (phase: ${diagnostic.phase}, component: ${diagnostic.component}, file: ${diagnostic.filename})`); };");
   emit(context, 1, "const __mikuru_describeNode = (node) => { if (!node) return \"missing\"; if (node.nodeType === 1) return `<${node.tagName?.toLowerCase?.() ?? \"element\"}>`; if (node.nodeType === 3) return `text(${JSON.stringify(node.nodeValue ?? \"\")})`; if (node.nodeType === 8) return `comment(${JSON.stringify(node.nodeValue ?? \"\")})`; return `nodeType(${node.nodeType})`; };");
   emit(context, 1, "const __mikuru_restoreRegistrar = () => { if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; } };");
   emit(context, 1, "const __mikuru_recovery = {};");
   emit(context, 1, "let __mikuru_recovered;");
-  emit(context, 1, "const __mikuru_recover = (message) => {");
-  emit(context, 2, "if (props.__mikuru_hydration?.recover === false) { __mikuru_warn(message + \".\"); return; }");
-  emit(context, 2, "__mikuru_warn(message + \"; remounting.\");");
+  emit(context, 1, "const __mikuru_recover = (message, details = {}) => {");
+  emit(context, 2, "if (props.__mikuru_hydration?.recover === false) { __mikuru_warn(message + \".\", { action: \"warn-only\", ...details }); return; }");
+  emit(context, 2, "__mikuru_warn(message + \"; remounting.\", { action: \"remount\", ...details });");
   emit(context, 2, "for (const cleanup of __mikuru_cleanup.splice(0).reverse()) __mikuru_try(cleanup);");
   emit(context, 2, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) __mikuru_try(cb);");
   emit(context, 2, "__mikuru_restoreRegistrar();");
@@ -135,7 +137,7 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
     emit(context, 1, "");
   }
   emit(context, 1, "const __mikuru_root = target.nodeType === 1 && target.tagName?.toLowerCase() === " + quote(root.tag.toLowerCase()) + " ? target : target.firstElementChild;");
-  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch: expected <${root.tag.toLowerCase()}>, got " + __mikuru_describeNode(__mikuru_root) + "; falling back to mount()."); __mikuru_restoreRegistrar(); return mount(target, props); }`);
+  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch: expected <${root.tag.toLowerCase()}>, got " + __mikuru_describeNode(__mikuru_root) + "; falling back to mount().", { kind: "root", expected: "<${root.tag.toLowerCase()}>", actual: __mikuru_describeNode(__mikuru_root), action: "mount-fallback", node: __mikuru_root }); __mikuru_restoreRegistrar(); return mount(target, props); }`);
   emit(context, 1, "try {");
   hydrateElement(context, root, "__mikuru_root", 2);
   emit(context, 1, "} catch (error) {");
@@ -278,11 +280,11 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       const elementCheck = isComponentTag(child.tag)
         ? `!${childVar} || ${childVar}.nodeType !== 1`
         : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
-      emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar})); } else {`);
+      emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}), { kind: "element", expected: "<${child.tag.toLowerCase()}>", actual: __mikuru_describeNode(${childVar}), node: ${childVar} }); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     } else {
-      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_recover("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar})); } else {`);
+      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_recover("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar}), { kind: "text", expected: "text", actual: __mikuru_describeNode(${childVar}), node: ${childVar} }); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }
@@ -1098,11 +1100,11 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
       const elementCheck = isComponentTag(child.tag)
         ? `!${childVar} || ${childVar}.nodeType !== 1`
         : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
-      emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar})); } else {`);
+      emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}), { kind: "element", expected: "<${child.tag.toLowerCase()}>", actual: __mikuru_describeNode(${childVar}), node: ${childVar} }); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     } else {
-      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_recover("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar})); } else {`);
+      emit(context, indent, `if (!${childVar} || ${childVar}.nodeType !== 3) { __mikuru_recover("Text mismatch: expected text, got " + __mikuru_describeNode(${childVar}), { kind: "text", expected: "text", actual: __mikuru_describeNode(${childVar}), node: ${childVar} }); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }

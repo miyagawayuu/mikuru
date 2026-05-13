@@ -145,6 +145,11 @@ function inner() {
             component: "DiagnosticHydration.mikuru",
             filename: "DiagnosticHydration.mikuru",
             phase: "hydration",
+            kind: "root",
+            expected: "<p>",
+            actual: "<span>",
+            action: "mount-fallback",
+            domPath: "div > span",
             message: expect.stringContaining("Root mismatch")
           })
         })
