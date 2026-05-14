@@ -268,6 +268,15 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(diagnostic).toContainText("Could not scope a CSS rule because its block is missing a closing brace.");
   await expect(diagnostic.locator("pre")).toContainText("& .title {");
   await expect(diagnostic.locator("pre")).toContainText("^");
+  await panel.getByRole("button", { name: "Show snapshot" }).click();
+  await expect(panel.locator(".debug-snapshot pre")).toContainText('"eventFilter": "error"');
+  await expect(panel.locator(".debug-snapshot pre")).toContainText('"diagnosticLocation": "DogfoodDiagnostics.mikuru:3:12"');
+  await expect(panel.locator(".debug-snapshot pre")).toContainText('"diagnosticFrame"');
+  await expect(panel.locator(".debug-snapshot pre")).toContainText("& .title {");
+  await panel.getByRole("button", { name: "Copy snapshot" }).click();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dogfood-debug-snapshot"))).toContain("DogfoodDiagnostics.mikuru:3:12");
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dogfood-debug-snapshot"))).toContain("& .title {");
+  await panel.getByRole("button", { name: "Hide snapshot" }).click();
   await panel.getByRole("button", { name: "Clear search" }).click();
 
   await page.getByRole("button", { name: "Trigger boundary error" }).click();

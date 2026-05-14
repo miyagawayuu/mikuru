@@ -50,7 +50,7 @@ Confirm these exports work from the packed package:
 - The dogfood Debug Panel and `examples/dogfood/debugPanelHelpers.ts` are example-only debugging aids and must not be documented or packaged as public exports.
 - No Vue compatibility guarantee.
 - Source maps include original SFC content and line-oriented mappings for common template/script generated lines.
-- Scoped CSS is a basic selector rewrite, not a full CSS compiler.
+- Scoped CSS supports common selector rewriting, native CSS nesting, and diagnostic reporting, but it is not a full CSS compiler.
 - `provide` / `inject` are scoped to the current component tree when called during Mikuru component mounting.
 
 ## Release Steps
@@ -59,7 +59,7 @@ Confirm these exports work from the packed package:
 2. Confirm `repository`, `bugs`, and `homepage` metadata point to `https://github.com/miyagawayuu/mikuru`.
 3. Confirm `CHANGELOG.md` and `docs/release-notes-v1.md` describe the release.
 4. Run all required verification commands.
-5. Confirm the dogfood Debug Panel still covers component tree display, event filtering/search, event-to-component navigation, snapshot display/copy, and helper unit tests.
+5. Confirm the dogfood Debug Panel still covers component tree display, event filtering/search, event-to-component navigation, diagnostic detail display, diagnostic snapshot/copy fields, snapshot display/copy, and helper unit tests.
 6. Run `npm publish --dry-run`.
 7. Publish with `npm publish`.
 8. Push `master` to `origin/master`.
