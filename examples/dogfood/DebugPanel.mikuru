@@ -70,7 +70,7 @@
       </section>
 
       <section class="debug-section debug-events">
-        <h3>Events</h3>
+        <h3>Events {{ filteredEvents.length }} / {{ componentFilteredEvents.length }}</h3>
         <p m-if="componentEventFilterLabel" class="debug-filter-note">{{ componentEventFilterLabel }}</p>
         <ol m-if="filteredEvents.length > 0" class="debug-event-list">
           <li m-for="event in filteredEvents" :key="event.id">
@@ -95,6 +95,8 @@
           <dl>
             <dt>category</dt>
             <dd>{{ selectedEvent.category }}</dd>
+            <dt>component</dt>
+            <dd>{{ selectedEvent.componentLabel || "none" }}</dd>
             <dt>time</dt>
             <dd>{{ selectedEvent.time }}</dd>
           </dl>
@@ -122,12 +124,12 @@ const selected = computed(() =>
   components.value.find((component) => component.id === selectedId.value) ?? components.value[0]
 );
 
+const componentFilteredEvents = computed(() =>
+  allEvents.value.filter((event) => componentEventFilterId.value === undefined || event.componentId === componentEventFilterId.value)
+);
+
 const filteredEvents = computed(() =>
-  allEvents.value.filter((event) => {
-    const matchesCategory = eventFilter.value === "all" || event.category === eventFilter.value;
-    const matchesComponent = componentEventFilterId.value === undefined || event.componentId === componentEventFilterId.value;
-    return matchesCategory && matchesComponent;
-  })
+  componentFilteredEvents.value.filter((event) => eventFilter.value === "all" || event.category === eventFilter.value)
 );
 
 const selectedEvent = computed(() =>
@@ -144,7 +146,7 @@ const componentEventFilterLabel = computed(() => {
 });
 
 const filterOptions = computed(() => [
-  { id: "all", label: "All", count: allEvents.value.length },
+  { id: "all", label: "All", count: componentFilteredEvents.value.length },
   { id: "component", label: "Component", count: countEvents("component") },
   { id: "style", label: "Style", count: countEvents("style") },
   { id: "async", label: "Async", count: countEvents("async") },
@@ -174,6 +176,7 @@ function snapshot() {
       type: event.type,
       category: categorizeEvent(event),
       componentId: event.payload?.componentId,
+      componentLabel: formatComponentLabel(event.payload?.componentId, event.payload?.component),
       level: isErrorEvent(event) ? "warning" : "info",
       time: new Date(event.timestamp).toLocaleTimeString(),
       summary: summarizeEvent(event),
@@ -348,7 +351,7 @@ function isForegroundEvent(event) {
 }
 
 function countEvents(category) {
-  return allEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
+  return componentFilteredEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
 }
 
 function formatError(error) {
@@ -365,6 +368,14 @@ function formatFilename(filename) {
   }
 
   return String(filename).split(/[\\/]/).pop() ?? String(filename);
+}
+
+function formatComponentLabel(componentId, component) {
+  if (componentId === undefined) {
+    return "";
+  }
+
+  return `#${componentId} ${formatFilename(component?.filename ?? component?.component)}`;
 }
 
 function stringifyPayload(payload) {
