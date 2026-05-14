@@ -231,6 +231,45 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText("Snapshot copied.")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dogfood-debug-snapshot"))).toContain('"eventFilter": "router"');
 
+  await page.evaluate(() => {
+    const hook = window.__MIKURU_DEVTOOLS__;
+    const event = {
+      type: "compiler:warning",
+      timestamp: Date.now(),
+      payload: {
+        diagnostic: {
+          source: "compiler",
+          level: "warning",
+          phase: "style",
+          filename: "DogfoodDiagnostics.mikuru",
+          offset: 33,
+          line: 3,
+          column: 12,
+          frame: "   3 |   & .title {\n     |            ^",
+          message: "Could not scope a CSS rule because its block is missing a closing brace."
+        }
+      }
+    };
+    hook?.events?.push(event);
+    for (const listener of hook?.listeners ?? []) {
+      listener(event);
+    }
+  });
+
+  await panel.locator(".debug-filters").getByRole("button", { name: /Error/ }).click();
+  await panel.getByLabel("Event search").fill("DogfoodDiagnostics");
+  await expect(panel.getByText("compiler:warning").first()).toBeVisible();
+  await expect(panel.getByText("DogfoodDiagnostics.mikuru:3:12").first()).toBeVisible();
+  await panel.getByText("compiler:warning").first().click();
+  const diagnostic = panel.locator(".debug-diagnostic");
+  await expect(diagnostic).toBeVisible();
+  await expect(diagnostic).toContainText("style");
+  await expect(diagnostic).toContainText("DogfoodDiagnostics.mikuru:3:12");
+  await expect(diagnostic).toContainText("Could not scope a CSS rule because its block is missing a closing brace.");
+  await expect(diagnostic.locator("pre")).toContainText("& .title {");
+  await expect(diagnostic.locator("pre")).toContainText("^");
+  await panel.getByRole("button", { name: "Clear search" }).click();
+
   await page.getByRole("button", { name: "Trigger boundary error" }).click();
   await panel.locator(".debug-filters").getByRole("button", { name: /Error/ }).click();
   await expect(panel.getByText("component:error").first()).toBeVisible();

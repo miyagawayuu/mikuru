@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Improved scoped CSS rewriting with native CSS nesting, `@starting-style`, additional raw descriptor at-rules, and stronger `:deep(...)` / `:global(...)` parsing around attributes and functional pseudo-class arguments.
+- Added scoped CSS malformed-block diagnostics with offset, line, column, and one-line code frames, including nested CSS block locations.
+- Expanded the dogfood Debug Panel to show compiler/style diagnostic message, phase, location, and code frame details, with browser E2E coverage for that diagnostic UI.
+
 ## 1.0.25 - 2026-05-15
 
 - Added Mikuru-native `m-*` directive syntax across DOM rendering, SSR, and hydration while keeping `v-*` as compatibility aliases.

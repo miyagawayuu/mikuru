@@ -10,6 +10,7 @@ import {
   formatDiagnosticLocation,
   formatRootLabel,
   formatRootPath,
+  isErrorEvent,
   matchesEventSearch,
   summarizeEvent,
   stringifyPayload,
@@ -153,6 +154,10 @@ describe("dogfood debug panel helpers", () => {
     expect(matchesEventSearch(event, "4:13")).toBe(true);
     expect(matchesEventSearch(event, "app.mikuru")).toBe(true);
     expect(matchesEventSearch(event, "^")).toBe(true);
+  });
+
+  it("groups compiler warnings with warning events", () => {
+    expect(isErrorEvent({ type: "compiler:warning" })).toBe(true);
   });
 
   it("keeps snapshot event payloads compact", () => {

@@ -328,7 +328,7 @@ export function categorizeEvent(event: Pick<DebugEventLike, "type">): string {
 }
 
 export function isErrorEvent(event: Pick<DebugEventLike, "type">): boolean {
-  return event.type.includes("error") || event.type.endsWith(":rejected") || event.type === "hydration:warning";
+  return event.type.includes("error") || event.type.endsWith(":rejected") || event.type === "compiler:warning" || event.type === "hydration:warning";
 }
 
 export function isForegroundEvent(event: Pick<DebugEventLike, "type">): boolean {

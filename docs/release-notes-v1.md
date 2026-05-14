@@ -81,12 +81,13 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 
 ## Next Patch Draft
 
-The next patch release is expected to focus on release polish, documentation completeness, generated app smoke checks, and hydration/router diagnostics.
+The next patch release is expected to focus on scoped CSS compiler hardening, diagnostic visibility, release polish, and generated app smoke checks.
 
 - Template discovery: `mikuru --list-templates`, template descriptions, and `-t` shorthand.
 - Safer creation: interactive project/template prompts, `--yes` defaults, typo suggestions, and `--dry-run` previews.
 - Generated app checks: starter/basic templates include `npm run typecheck`, `tsconfig.json`, and CSS import declarations.
 - Runtime watchers: `watch(..., { immediate: true })` and cleanup callbacks for work that must be canceled before the next watcher run or stop.
 - Compiler guidance: unsupported syntax, directive typos, `v-*` compatibility aliases, built-in attribute typos, and misplaced `m-slot` errors include actionable alternatives.
+- Scoped CSS compiler hardening: native CSS nesting, `@starting-style`, additional raw descriptor at-rules, robust `:deep(...)` / `:global(...)` parsing, and malformed block diagnostics with offset, line, column, and one-line code frames.
 - Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.
-- Debug tooling polish: dogfood-only Debug Panel helper coverage, clearer experimental devtools boundaries, and release checks for debug panel E2E behavior.
+- Debug tooling polish: dogfood-only Debug Panel helper coverage, compiler/style diagnostic detail blocks with code frames, clearer experimental devtools boundaries, and release checks for debug panel E2E behavior.
