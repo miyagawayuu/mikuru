@@ -32,6 +32,7 @@
             >
               <strong>{{ component.branch }} #{{ component.id }} {{ component.name }}</strong>
               <span>{{ component.filename }}</span>
+              <span>{{ component.childCount }} children, {{ component.styleCount }} styles</span>
             </button>
           </li>
         </ul>
@@ -50,6 +51,10 @@
             <dd>{{ selected.attrKeys || "none" }}</dd>
             <dt>children</dt>
             <dd>{{ selected.childIds || "none" }}</dd>
+            <dt>styles</dt>
+            <dd>{{ selected.styleIds || "none" }}</dd>
+            <dt>scopes</dt>
+            <dd>{{ selected.scopeAttrs || "none" }}</dd>
           </dl>
           <pre>{{ selected.propsText }}</pre>
         </div>
@@ -126,9 +131,10 @@ const filterOptions = computed(() => [
 ]);
 
 function snapshot() {
-  components.value = flattenComponentTree(inspector.getComponentTree());
-
   const events = inspector.getEvents();
+  const stylesByComponent = collectStyleEvents(events);
+  components.value = flattenComponentTree(inspector.getComponentTree(), stylesByComponent);
+
   if (hideBackgroundEventsAfterClear.value && events.some(isForegroundEvent)) {
     hideBackgroundEventsAfterClear.value = false;
   }
@@ -159,9 +165,33 @@ function snapshot() {
   }
 }
 
-function flattenComponentTree(tree, depth = 0, rows = []) {
+function collectStyleEvents(events) {
+  const stylesByComponent = new Map();
+  for (const event of events) {
+    if (event.type !== "style:inject" || event.payload?.componentId === undefined) {
+      continue;
+    }
+
+    const componentId = event.payload.componentId;
+    const style = event.payload.style ?? {};
+    const styles = stylesByComponent.get(componentId) ?? [];
+    if (!styles.some((item) => item.id === style.id)) {
+      styles.push({
+        id: style.id ?? "style",
+        scopeAttr: style.scopeAttr ?? "",
+        scoped: style.scoped === true
+      });
+    }
+    stylesByComponent.set(componentId, styles);
+  }
+
+  return stylesByComponent;
+}
+
+function flattenComponentTree(tree, stylesByComponent, depth = 0, rows = []) {
   for (const component of tree) {
     const childIds = component.childrenTree.map((child) => child.id);
+    const styles = stylesByComponent.get(component.id) ?? [];
     rows.push({
       id: component.id,
       name: component.name ?? "anonymous",
@@ -169,12 +199,16 @@ function flattenComponentTree(tree, depth = 0, rows = []) {
       branch: depth === 0 ? "root" : "child",
       indent: `${10 + depth * 18}px`,
       depth,
+      childCount: childIds.length,
+      styleCount: styles.length,
+      styleIds: styles.map((style) => style.id).join(", "),
+      scopeAttrs: styles.map((style) => style.scopeAttr).filter(Boolean).join(", "),
       propKeys: (component.propKeys ?? []).join(", "),
       attrKeys: (component.attrKeys ?? []).join(", "),
       childIds: childIds.join(", "),
       propsText: JSON.stringify(component.props ?? {}, null, 2)
     });
-    flattenComponentTree(component.childrenTree, depth + 1, rows);
+    flattenComponentTree(component.childrenTree, stylesByComponent, depth + 1, rows);
   }
 
   return rows;
