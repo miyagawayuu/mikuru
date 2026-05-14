@@ -26,6 +26,18 @@ type ScopedCssFixture = {
   notContains?: string[];
 };
 
+type ScopedCssDiagnosticFixture = {
+  name: string;
+  source: string;
+  scopeAttr: string;
+  diagnostic: {
+    offset: number;
+    line: number;
+    column: number;
+    frame: string;
+  };
+};
+
 const scopedCssFixtures: ScopedCssFixture[] = [
   {
     name: "complex nested CSS without rewriting keyframe steps",
@@ -268,6 +280,31 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
       "@counter-style thumbs {\n  system: cyclic;\n  symbols: \"\\1F44D\";\n  suffix: \" \";\n}"
     ],
     notContains: ["data-mikuru-scope-raw-at"]
+  }
+];
+
+const scopedCssDiagnosticFixtures: ScopedCssDiagnosticFixture[] = [
+  {
+    name: "top-level block missing a closing brace",
+    source: `.card { color: red;\n.note { color: blue; }`,
+    scopeAttr: "data-mikuru-scope-broken",
+    diagnostic: {
+      offset: 6,
+      line: 1,
+      column: 7,
+      frame: "   1 | .card { color: red;\n     |       ^"
+    }
+  },
+  {
+    name: "native nested block missing a closing brace",
+    source: `.card {\n  color: red;\n  & .title {\n    color: blue;`,
+    scopeAttr: "data-mikuru-scope-broken-nested",
+    diagnostic: {
+      offset: 33,
+      line: 3,
+      column: 12,
+      frame: "   3 |   & .title {\n     |            ^"
+    }
   }
 ];
 
@@ -531,36 +568,15 @@ p { color: red; }
     }
   });
 
-  it("reports a diagnostic and preserves CSS when a scoped block is missing a closing brace", () => {
-    const source = `.card { color: red;\n.note { color: blue; }`;
-    const result = compileStyle(source, { scoped: true, scopeAttr: "data-mikuru-scope-broken" });
+  it.each(scopedCssDiagnosticFixtures)("reports scoped CSS diagnostic fixture: $name", ({ source, scopeAttr, diagnostic }) => {
+    const result = compileStyle(source, { scoped: true, scopeAttr });
 
     expect(result.code).toBe(source);
     expect(result.diagnostics).toEqual([
       {
         level: "warning",
         message: "Could not scope a CSS rule because its block is missing a closing brace.",
-        offset: 6,
-        line: 1,
-        column: 7,
-        frame: "   1 | .card { color: red;\n     |       ^"
-      }
-    ]);
-  });
-
-  it("reports the nested CSS block location when native nesting is missing a closing brace", () => {
-    const source = `.card {\n  color: red;\n  & .title {\n    color: blue;`;
-    const result = compileStyle(source, { scoped: true, scopeAttr: "data-mikuru-scope-broken-nested" });
-
-    expect(result.code).toBe(source);
-    expect(result.diagnostics).toEqual([
-      {
-        level: "warning",
-        message: "Could not scope a CSS rule because its block is missing a closing brace.",
-        offset: 33,
-        line: 3,
-        column: 12,
-        frame: "   3 |   & .title {\n     |            ^"
+        ...diagnostic
       }
     ]);
   });

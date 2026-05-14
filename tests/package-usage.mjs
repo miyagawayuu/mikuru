@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const { compile, compileHydration, compileSsr } = await import("mikuru/compiler");
+const { compile, compileHydration, compileSsr, compileStyle } = await import("mikuru/compiler");
 const env = await import("mikuru/env");
 const { createMemoryHistory, createRouter } = await import("mikuru/router");
 const { escapeHtml, hydrateRoute, renderAttr, renderComponentToString, renderRouteToString, renderToStream, renderToString } = await import("mikuru/server");
@@ -45,6 +45,26 @@ assert.match(result.code, /export function mount/);
 assert.match(result.code, /addEventListener\("click"/);
 assert.equal(result.map.sources[0], "PackageSmoke.mikuru");
 assert.match(result.map.sourcesContent[0], /const count = ref\(0\)/);
+
+const styleResult = compileStyle(".card { & .title { color: red; } }", {
+  scoped: true,
+  scopeAttr: "data-mikuru-scope-package"
+});
+assert.equal(styleResult.scoped, true);
+assert.equal(styleResult.scopeAttr, "data-mikuru-scope-package");
+assert.equal(styleResult.diagnostics.length, 0);
+assert.match(styleResult.code, /\.card\[data-mikuru-scope-package\]/);
+assert.match(styleResult.code, /& \.title\[data-mikuru-scope-package\]/);
+
+const brokenStyleResult = compileStyle(".card {\n  & .title { color: red;", {
+  scoped: true,
+  scopeAttr: "data-mikuru-scope-package-broken"
+});
+assert.equal(brokenStyleResult.code, ".card {\n  & .title { color: red;");
+assert.equal(brokenStyleResult.diagnostics.length, 1);
+assert.equal(brokenStyleResult.diagnostics[0].line, 2);
+assert.equal(brokenStyleResult.diagnostics[0].column, 12);
+assert.match(brokenStyleResult.diagnostics[0].frame, /& \.title \{/);
 
 const ssrResult = compileSsr(
   `<template><main :data-count="count">{{ message }}</main></template>
