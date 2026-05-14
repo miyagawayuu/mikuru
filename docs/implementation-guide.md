@@ -561,7 +561,7 @@ Slot scope bindings support an identifier such as `slotProps` or object destruct
 
 Plain `<style>` is injected once per compiled component.
 
-Use `<style scoped>` for basic selector scoping.
+Use `<style scoped>` for component-local selector scoping.
 
 ```mikuru
 <style scoped>
@@ -571,7 +571,7 @@ Use `<style scoped>` for basic selector scoping.
 </style>
 ```
 
-Scoped CSS supports common selectors, but it is not a full CSS compiler. Avoid relying on deep selectors, `:global()`, CSS Modules, or preprocessors in v1.
+Scoped CSS handles common selector lists, pseudo-classes, `@media`, `@supports`, `@container`, `@layer`, `:global(...)`, and `:deep(...)`. Keyframe step selectors and other raw at-rule bodies such as `@font-face` are preserved instead of scoped. CSS Modules and preprocessors are still outside the v1 compiler.
 
 ## Debugging
 
@@ -595,7 +595,7 @@ Unsupported directive "v-modle". Did you mean m-model?
 Unsupported event modifier .prevet. Did you mean .prevent?
 ```
 
-For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, hydration warning events, router navigation/preload/error events, compiler diagnostics, `v-*` compatibility warnings, and SSR diagnostics when those modules run with a devtools hook present. Warning/error payloads share a nested `diagnostic` object with `source`, `level`, `message`, optional `phase`, and available component, filename, route, error, or hydration details. Hydration warnings include `phase: "hydration"`, component, filename, warning message, `kind`, recovery `action`, inferred `expected` / `actual` values when available, and `domPath` in `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
+For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, style injection events, async pending/resolved/rejected events, hydration warning events, router navigation/preload/error events, compiler diagnostics, `v-*` compatibility warnings, and SSR diagnostics when those modules run with a devtools hook present. Warning/error payloads share a nested `diagnostic` object with `source`, `level`, `message`, optional `phase`, and available component, filename, route, error, or hydration details. Hydration warnings include `phase: "hydration"`, component, filename, warning message, `kind`, recovery `action`, inferred `expected` / `actual` values when available, and `domPath` in `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
 
 Hydration warning payloads are meant to be scanned by humans first:
 
@@ -609,7 +609,7 @@ actual: "<em>"
 
 `action` is one of `mount-fallback`, `remount`, `warn-only`, or `sync-dom`. The SSR hydration example renders the collected warnings so you can see how recovery and warning-only hydration differ.
 
-`createDebugInspector()` provides a small unstable reader for experiments: `getComponents()`, `getEvents()`, `clearEvents()`, and `subscribe(listener)`.
+`createDebugInspector()` provides a small unstable reader for experiments: `getComponents()`, `getComponentTree()`, `getEvents()`, `getEventsByType(type)`, `clearEvents()`, and `subscribe(listener)`.
 
 `createDebugDiagnostic(source, level, message, details)` normalizes warning/error payloads, and `emitDebugDiagnostic(source, level, message, details)` emits `${source}:${level}` events with `{ diagnostic }` payloads for custom tooling experiments.
 

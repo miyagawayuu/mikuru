@@ -57,9 +57,15 @@ export type MikuruDevtoolsHook = {
 export type MikuruDebugInspector = {
   hook: MikuruDevtoolsHook;
   getComponents(): MikuruDebugComponentMetadata[];
+  getComponentTree(): MikuruDebugComponentTreeNode[];
   getEvents(): MikuruDebugEvent[];
+  getEventsByType(type: string): MikuruDebugEvent[];
   clearEvents(): void;
   subscribe(listener: MikuruDebugListener): () => void;
+};
+
+export type MikuruDebugComponentTreeNode = MikuruDebugComponentMetadata & {
+  childrenTree: MikuruDebugComponentTreeNode[];
 };
 
 declare global {
@@ -181,8 +187,24 @@ export function createDebugInspector(hook = getOrCreateDevtoolsHook()): MikuruDe
     getComponents() {
       return Array.from(hook.components?.values() ?? []);
     },
+    getComponentTree() {
+      const components = Array.from(hook.components?.values() ?? []);
+      const byId = new Map(components.map((component) => [component.id, component]));
+      const toNode = (component: MikuruDebugComponentMetadata): MikuruDebugComponentTreeNode => ({
+        ...component,
+        childrenTree: Array.from(component.children ?? [])
+          .map((childId) => byId.get(childId))
+          .filter((child): child is MikuruDebugComponentMetadata => !!child)
+          .map(toNode)
+      });
+
+      return components.filter((component) => component.parentId === undefined || !byId.has(component.parentId)).map(toNode);
+    },
     getEvents() {
       return [...(hook.events ?? [])];
+    },
+    getEventsByType(type) {
+      return (hook.events ?? []).filter((event) => event.type === type);
     },
     clearEvents() {
       if (hook.events) {

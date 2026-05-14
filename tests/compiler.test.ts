@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeTemplate, compile, compileHydration, MikuruCompileError, parseSfc, parseTemplate } from "../src/compiler/index.js";
+import { analyzeTemplate, compile, compileHydration, compileStyle, MikuruCompileError, parseSfc, parseTemplate } from "../src/compiler/index.js";
 import { createDebugInspector } from "../src/runtime/index.js";
 import { mikuru } from "../src/vite.js";
 
@@ -264,6 +264,45 @@ p { color: red; }
     expect(result.code).toContain("data-mikuru-scope-");
     expect(result.code).toMatch(/section\[data-mikuru-scope-[^\]]+\], p\[data-mikuru-scope-[^\]]+\]:hover/);
     expect(result.code).toContain(".setAttribute(\"data-mikuru-scope-");
+  });
+
+  it("scopes complex nested CSS without rewriting keyframe steps", () => {
+    const result = compileStyle(
+      `
+@media (hover: hover) {
+  section, p:is(.active, [data-kind=","]) { color: red; }
+}
+@supports selector(:has(*)) {
+.card:has(> img) { display: grid; }
+}
+@keyframes pulse {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+:global(.theme-dark) { color: white; }
+.panel :global(.toolbar) { color: green; }
+.shell :deep(.item:hover) { color: blue; }
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-test" }
+    );
+
+    expect(result.code).toContain("@media (hover: hover) {\n  section[data-mikuru-scope-test], p[data-mikuru-scope-test]:is(.active, [data-kind=\",\"]) { color: red; }\n}");
+    expect(result.code).toContain(".card[data-mikuru-scope-test]:has(> img) { display: grid; }");
+    expect(result.code).toContain("@keyframes pulse {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}");
+    expect(result.code).toContain(".theme-dark { color: white; }");
+    expect(result.code).toContain(".panel[data-mikuru-scope-test] .toolbar { color: green; }");
+    expect(result.code).toContain(".shell[data-mikuru-scope-test] .item:hover { color: blue; }");
+  });
+
+  it("emits style injection metadata for devtools in debug builds", () => {
+    const result = compile(`<template><section>Hello</section></template><style scoped>section { color: red; }</style>`, {
+      debug: true,
+      filename: "StyleDevtools.mikuru"
+    });
+
+    expect(result.code).toContain("emitDebugEvent(\"style:inject\"");
+    expect(result.code).toContain("data-mikuru-scope");
+    expect(result.code).toContain("scoped: true");
   });
 
   it("moves component imports to module scope and emits default export", () => {

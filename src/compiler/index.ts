@@ -1,5 +1,6 @@
 export { analyzeTemplate } from "./analyzeTemplate.js";
 export { compile } from "./compile.js";
+export { compileDescriptorStyle, compileStyle } from "./css.js";
 export { compileHydration } from "./compileHydration.js";
 export { compileSsr } from "./compileSsr.js";
 export { createCodeFrame, createCompileError, getSourceLocation, MikuruCompileError } from "./errors.js";
@@ -20,3 +21,4 @@ export type {
   TextNode,
   TextPart
 } from "./types.js";
+export type { CssCompileDiagnostic, CssCompileOptions, CssCompileResult } from "./css.js";

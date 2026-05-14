@@ -117,6 +117,7 @@ const selectedEvent = computed(() =>
 const filterOptions = computed(() => [
   { id: "all", label: "All", count: allEvents.value.length },
   { id: "component", label: "Component", count: countEvents("component") },
+  { id: "style", label: "Style", count: countEvents("style") },
   { id: "async", label: "Async", count: countEvents("async") },
   { id: "hydration", label: "Hydration", count: countEvents("hydration") },
   { id: "router", label: "Router", count: countEvents("router") },
@@ -171,6 +172,13 @@ function summarizeEvent(event) {
     return `${payload.diagnostic.phase ?? payload.diagnostic.source ?? event.type}: ${payload.diagnostic.message}`;
   }
 
+  if (event.type === "style:inject") {
+    const style = payload.style ?? {};
+    const scoped = style.scoped ? "scoped" : "global";
+    const size = typeof style.length === "number" ? `${style.length} chars` : "unknown size";
+    return `${style.id ?? "style"} (${scoped}, ${size})`;
+  }
+
   if (event.type === "hydration:warning") {
     return `${payload.kind ?? "hydration"}: ${payload.domPath ?? payload.message ?? "warning"}`;
   }
@@ -217,6 +225,10 @@ function categorizeEvent(event) {
 
   if (event.type.startsWith("component:")) {
     return "component";
+  }
+
+  if (event.type.startsWith("style:")) {
+    return "style";
   }
 
   return "component";
@@ -316,7 +328,7 @@ snapshot();
 }
 
 .debug-filters {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .debug-header h2,

@@ -1,6 +1,7 @@
 import { parse, parseExpressionAt } from "acorn";
 
 import { createCompileError } from "./errors.js";
+import { compileDescriptorStyle } from "./css.js";
 import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode, TextPart } from "./types.js";
 import type { SourceLocation } from "./errors.js";
 import type { ExpressionLocationContext } from "./parseExpression.js";
@@ -329,15 +330,18 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
 
 function emitStyleInjection(context: GenerateContext, descriptor: SfcDescriptor, indent: number): void {
   const styleId = `mikuru-${hash(`${descriptor.filename ?? ""}\n${descriptor.style ?? ""}`)}`;
-  const styleContent =
-    descriptor.styleScoped && context.scopeAttr
-      ? scopeCssSelectors(descriptor.style?.trim() ?? "", context.scopeAttr)
-      : descriptor.style?.trim() ?? "";
+  const styleResult = compileDescriptorStyle(descriptor, context.scopeAttr);
   emit(context, indent, `if (!document.querySelector(${quote(`style[data-mikuru-style="${styleId}"]`)})) {`);
   emit(context, indent + 1, "const style = document.createElement(\"style\");");
   emit(context, indent + 1, `style.setAttribute("data-mikuru-style", ${quote(styleId)});`);
-  emit(context, indent + 1, `style.textContent = ${quote(styleContent)};`);
+  if (styleResult.scopeAttr) {
+    emit(context, indent + 1, `style.setAttribute("data-mikuru-scope", ${quote(styleResult.scopeAttr)});`);
+  }
+  emit(context, indent + 1, `style.textContent = ${quote(styleResult.code)};`);
   emit(context, indent + 1, "document.head.appendChild(style);");
+  if (context.debug) {
+    emit(context, indent + 1, `emitDebugEvent("style:inject", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, style: { id: ${quote(styleId)}, scoped: ${styleResult.scoped ? "true" : "false"}, scopeAttr: ${quote(styleResult.scopeAttr)}, length: ${styleResult.code.length} } });`);
+  }
   emit(context, indent, "}");
 }
 
@@ -5062,35 +5066,6 @@ function quotePropertyName(value: string): string {
 
 export function createScopeAttr(descriptor: SfcDescriptor): string {
   return `data-mikuru-scope-${hash(`${descriptor.filename ?? ""}\n${descriptor.style ?? ""}`)}`;
-}
-
-function scopeCssSelectors(css: string, scopeAttr: string): string {
-  return css.replace(/([^{}]+)\{/g, (match, selectorSource: string) => {
-    const selector = selectorSource.trim();
-
-    if (!selector || selector.startsWith("@")) {
-      return match;
-    }
-
-    return `${selector
-      .split(",")
-      .map((part) => scopeSingleSelector(part.trim(), scopeAttr))
-      .join(", ")} {`;
-  });
-}
-
-function scopeSingleSelector(selector: string, scopeAttr: string): string {
-  if (!selector || selector.includes(`[${scopeAttr}]`)) {
-    return selector;
-  }
-
-  const pseudoIndex = selector.search(/:{1,2}[A-Za-z-]/);
-
-  if (pseudoIndex === -1) {
-    return `${selector}[${scopeAttr}]`;
-  }
-
-  return `${selector.slice(0, pseudoIndex)}[${scopeAttr}]${selector.slice(pseudoIndex)}`;
 }
 
 function hash(value: string): string {

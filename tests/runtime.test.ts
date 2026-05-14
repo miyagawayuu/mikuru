@@ -49,17 +49,44 @@ describe("runtime debug inspector", () => {
       const unsubscribe = inspector.subscribe((event) => received.push(event.type));
 
       emitDebugEvent("test:event", { ok: true });
+      emitDebugEvent("style:inject", { style: { id: "mikuru-test" } });
 
-      expect(inspector.getEvents()).toHaveLength(1);
+      expect(inspector.getEvents()).toHaveLength(2);
       expect(inspector.getEvents()[0]).toMatchObject({ type: "test:event", payload: { ok: true } });
-      expect(received).toEqual(["test:event"]);
+      expect(inspector.getEventsByType("style:inject")).toHaveLength(1);
+      expect(received).toEqual(["test:event", "style:inject"]);
 
       inspector.clearEvents();
       expect(inspector.getEvents()).toEqual([]);
 
       unsubscribe();
       emitDebugEvent("test:after-unsubscribe");
-      expect(received).toEqual(["test:event"]);
+      expect(received).toEqual(["test:event", "style:inject"]);
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("returns debug components as a tree", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+      const parent = registerDebugComponent({ name: "Parent" });
+      const child = registerDebugComponent({ name: "Child", parentId: parent.id });
+
+      expect(inspector.getComponentTree()).toMatchObject([
+        {
+          id: parent.id,
+          name: "Parent",
+          childrenTree: [{ id: child.id, name: "Child", childrenTree: [] }]
+        }
+      ]);
     } finally {
       if (previousHook === undefined) {
         delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;

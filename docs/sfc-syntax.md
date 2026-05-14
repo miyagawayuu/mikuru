@@ -70,8 +70,9 @@ button {
 
 制約:
 
-- scoped CSSは通常セレクタの書き換えを対象にする。
-- `@media` などのネストしたCSS規則、`:global()`、深いセレクタは後続課題にする。
+- scoped CSSはセレクタリスト、疑似クラス、`@media`、`@supports`、`@container`、`@layer` の中のルールを書き換える。
+- `:global(...)` はスコープ外セレクタとして扱い、`:deep(...)` は親側だけにscope属性を付ける。
+- `@keyframes` の `from` / `to` / `%` や `@font-face` などの生CSSブロックは書き換えない。
 - CSS Modulesやプリプロセッサはv1対象外にする。
 - 同じコンポーネントを複数mountしても、同一CSSは重複注入しない。
 
