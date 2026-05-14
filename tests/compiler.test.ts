@@ -338,6 +338,32 @@ p { color: red; }
     expect(result.code).toContain(".content > p[data-mikuru-scope-at-scope] { margin: 0; }");
   });
 
+  it("scopes native CSS nesting selectors inside regular rules", () => {
+    const result = compileStyle(
+      `
+.card {
+  color: red;
+  & .title,
+  &:hover {
+    color: blue;
+  }
+  @media (min-width: 48rem) {
+    & > .content:is(.wide, [data-kind=","]) {
+      display: grid;
+    }
+  }
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-nesting" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain(".card[data-mikuru-scope-nesting] {");
+    expect(result.code).toContain("& .title[data-mikuru-scope-nesting],\n  &[data-mikuru-scope-nesting]:hover {");
+    expect(result.code).toContain("& > .content[data-mikuru-scope-nesting]:is(.wide, [data-kind=\",\"]) {");
+    expect(result.code).toContain("display: grid;");
+  });
+
   it("does not split selector lists inside :is, :where, and :not arguments", () => {
     const result = compileStyle(
       `
@@ -454,7 +480,9 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
       {
         level: "warning",
         message: "Could not scope a CSS rule because its block is missing a closing brace.",
-        offset: 6
+        offset: 6,
+        line: 1,
+        column: 7
       }
     ]);
   });

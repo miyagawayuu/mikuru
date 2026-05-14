@@ -4,6 +4,8 @@ export type CssCompileDiagnostic = {
   level: "warning";
   message: string;
   offset?: number;
+  line?: number;
+  column?: number;
 };
 
 export type CssCompileOptions = {
@@ -36,7 +38,7 @@ export function compileStyle(css: string, options: CssCompileOptions = {}): CssC
   }
 
   return {
-    code: scopeCss(trimmed, options.scopeAttr!, diagnostics),
+    code: scopeCss(trimmed, options.scopeAttr!, diagnostics, trimmed),
     scoped: true,
     scopeAttr: options.scopeAttr,
     diagnostics
@@ -51,7 +53,13 @@ export function compileDescriptorStyle(descriptor: SfcDescriptor, scopeAttr?: st
   });
 }
 
-function scopeCss(css: string, scopeAttr: string, diagnostics: CssCompileDiagnostic[], offset = 0): string {
+function scopeCss(
+  css: string,
+  scopeAttr: string,
+  diagnostics: CssCompileDiagnostic[],
+  rootCss: string,
+  offset = 0
+): string {
   let result = "";
   let index = 0;
 
@@ -64,10 +72,14 @@ function scopeCss(css: string, scopeAttr: string, diagnostics: CssCompileDiagnos
 
     const closeIndex = findMatchingBrace(css, openIndex);
     if (closeIndex === -1) {
+      const diagnosticOffset = offset + openIndex;
+      const location = getOffsetLocation(rootCss, diagnosticOffset);
       diagnostics.push({
         level: "warning",
         message: "Could not scope a CSS rule because its block is missing a closing brace.",
-        offset: offset + openIndex
+        offset: diagnosticOffset,
+        line: location.line,
+        column: location.column
       });
       result += css.slice(index);
       break;
@@ -77,7 +89,7 @@ function scopeCss(css: string, scopeAttr: string, diagnostics: CssCompileDiagnos
     const beforePrelude = css.slice(index, preludeStart);
     const prelude = css.slice(preludeStart, openIndex);
     const body = css.slice(openIndex + 1, closeIndex);
-    const scopedRule = scopeRule(prelude, body, scopeAttr, diagnostics, offset + openIndex + 1);
+    const scopedRule = scopeRule(prelude, body, scopeAttr, diagnostics, rootCss, offset + openIndex + 1);
 
     result += beforePrelude + scopedRule;
     index = closeIndex + 1;
@@ -91,6 +103,7 @@ function scopeRule(
   body: string,
   scopeAttr: string,
   diagnostics: CssCompileDiagnostic[],
+  rootCss: string,
   bodyOffset: number
 ): string {
   const trimmedPrelude = prelude.trim();
@@ -102,17 +115,18 @@ function scopeRule(
   if (trimmedPrelude.startsWith("@")) {
     const atRuleName = readAtRuleName(trimmedPrelude);
     if (nestedRuleAtRules.has(atRuleName)) {
-      return `${prelude}{${scopeCss(body, scopeAttr, diagnostics, bodyOffset)}}`;
+      return `${prelude}{${scopeCss(body, scopeAttr, diagnostics, rootCss, bodyOffset)}}`;
     }
 
     if (rawBlockAtRules.has(atRuleName)) {
       return `${prelude}{${body}}`;
     }
 
-    return bodyContainsRules(body) ? `${prelude}{${scopeCss(body, scopeAttr, diagnostics, bodyOffset)}}` : `${prelude}{${body}}`;
+    return bodyContainsRules(body) ? `${prelude}{${scopeCss(body, scopeAttr, diagnostics, rootCss, bodyOffset)}}` : `${prelude}{${body}}`;
   }
 
-  return `${scopeSelectorList(prelude, scopeAttr)}{${body}}`;
+  const scopedBody = bodyContainsRules(body) ? scopeCss(body, scopeAttr, diagnostics, rootCss, bodyOffset) : body;
+  return `${scopeSelectorList(prelude, scopeAttr)}{${scopedBody}}`;
 }
 
 function scopeSelectorList(selectorSource: string, scopeAttr: string): string {
@@ -424,7 +438,7 @@ function findPreludeStart(css: string, searchStart: number, openIndex: number): 
       continue;
     }
 
-    if (char === "}" && parenDepth === 0 && bracketDepth === 0) {
+    if ((char === "}" || char === ";") && parenDepth === 0 && bracketDepth === 0) {
       boundary = index + 1;
     }
   }
@@ -594,6 +608,22 @@ function readAtRuleName(prelude: string): string {
 
 function bodyContainsRules(body: string): boolean {
   return findNextTopLevelChar(body, "{", 0) !== -1;
+}
+
+function getOffsetLocation(source: string, offset: number): { line: number; column: number } {
+  let line = 1;
+  let column = 1;
+
+  for (let index = 0; index < source.length && index < offset; index += 1) {
+    if (source[index] === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+
+  return { line, column };
 }
 
 function isCombinator(char: string): boolean {
