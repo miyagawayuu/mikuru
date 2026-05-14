@@ -64,6 +64,14 @@ export function parseSfc(source: string, filename?: string): SfcDescriptor {
 
     if (name === "style") {
       descriptor.styleScoped = hasBooleanAttr(attrs, "scoped");
+      const lang = getAttrValue(attrs, "lang");
+      const moduleName = getAttrValue(attrs, "module");
+      if (typeof lang === "string" && lang.trim()) {
+        descriptor.styleLang = lang.trim().toLowerCase();
+      }
+      if (moduleName !== undefined) {
+        descriptor.styleModule = moduleName === true || !moduleName.trim() ? true : moduleName.trim();
+      }
     }
 
     cursor = blockEnd.closeEnd;
@@ -77,8 +85,20 @@ export function parseSfc(source: string, filename?: string): SfcDescriptor {
 }
 
 function hasBooleanAttr(source: string, name: string): boolean {
-  const pattern = new RegExp(`(?:^|\\s)${name}(?:\\s|=|$)`);
-  return pattern.test(source);
+  return getAttrValue(source, name) !== undefined;
+}
+
+function getAttrValue(source: string, name: string): string | true | undefined {
+  const pattern = new RegExp(`(?:^|\\s)${escapeRegExp(name)}(?:\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>` + "`" + `]+)))?(?=\\s|$)`);
+  const match = pattern.exec(source);
+  if (!match) {
+    return undefined;
+  }
+  return match[1] ?? match[2] ?? match[3] ?? true;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function findTagEnd(source: string, tagStart: number): number {

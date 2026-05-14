@@ -76,7 +76,7 @@ button {
 - コメント、文字列、属性値、`url(...)` の中の `{` / `}` / `,` はCSS構文として扱わない。
 - `@keyframes` の `from` / `to` / `%`、`@font-face`、`@font-feature-values`、`@counter-style`、`@page`、`@property` などのdescriptor系/生CSSブロックは書き換えない。
 - 閉じ括弧が足りないCSSブロックは元のCSSを保持し、offset / line / column / code frame付きでdebug時はstyle diagnosticの対象になる。
-- CSS Modulesやプリプロセッサはv1対象外にする。
+- `mikuru/vite` 経由では `<style module>` をCSS Modulesとして読み込み、`<style lang="scss">` などのプリプロセッサやPostCSS等のプロジェクトCSS変換はViteのCSS pipelineに渡す。通常の `compile()` は単体利用向けに従来通りinline styleを生成する。
 - 同じコンポーネントを複数mountしても、同一CSSは重複注入しない。
 
 ## テンプレート構文

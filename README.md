@@ -149,6 +149,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `m-pre`, `m-cloak`, `m-if` chains, `m-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, string and async iterable stream rendering, and router route rendering with context propagation
 - Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `m-show`, DOM and component `m-model`, `m-pre`, `m-cloak`, initial `m-if` / `m-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and `<style scoped>` selector rewriting for common selectors, native CSS nesting, `:global(...)`, `:deep(...)`, nested at-rules, and malformed CSS diagnostics
+- Vite-routed component CSS for CSS Modules with `<style module>`, preprocessor languages such as `<style lang="scss">`, and project-level CSS transforms such as PostCSS when using `mikuru/vite`
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
 - Debug diagnostics with optional generated `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, compiler/style diagnostic locations and frames, and hydration warnings that include phase, component, and filename context
 
@@ -232,7 +233,6 @@ const open = ref(false);
 - Stable devtools API.
 - Full template type checking.
 - Precise source-map segment mapping.
-- Full CSS compiler features such as CSS Modules, preprocessors, and project-level CSS transforms.
 
 ## Repository Development
 

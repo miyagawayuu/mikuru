@@ -23,6 +23,7 @@ export type GenerateContext = {
 type GenerateOptions = {
   debug?: boolean;
   batchedUpdates?: boolean;
+  externalStyles?: boolean;
 };
 
 type ScriptParts = {
@@ -266,8 +267,14 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 1, "");
 
   if (descriptor.style?.trim()) {
-    emitStyleInjection(context, descriptor, 1);
-    emit(context, 1, "");
+    if (options.externalStyles === true) {
+      emitExternalStyleDebugEvent(context, descriptor, 1);
+    } else {
+      emitStyleInjection(context, descriptor, 1);
+    }
+    if (options.externalStyles !== true || context.debug) {
+      emit(context, 1, "");
+    }
   }
 
   if (script.body.trim()) {
@@ -343,6 +350,16 @@ function emitStyleInjection(context: GenerateContext, descriptor: SfcDescriptor,
     emit(context, indent + 1, `emitDebugEvent("style:inject", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, style: { id: ${quote(styleId)}, scoped: ${styleResult.scoped ? "true" : "false"}, scopeAttr: ${quote(styleResult.scopeAttr)}, length: ${styleResult.code.length} } });`);
   }
   emit(context, indent, "}");
+}
+
+function emitExternalStyleDebugEvent(context: GenerateContext, descriptor: SfcDescriptor, indent: number): void {
+  if (!context.debug) {
+    return;
+  }
+
+  const styleId = `mikuru-${hash(`${descriptor.filename ?? ""}\n${descriptor.style ?? ""}`)}`;
+  const styleResult = compileDescriptorStyle(descriptor, context.scopeAttr);
+  emit(context, indent, `emitDebugEvent("style:inject", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, style: { id: ${quote(styleId)}, scoped: ${styleResult.scoped ? "true" : "false"}, scopeAttr: ${quote(styleResult.scopeAttr)}, length: ${styleResult.code.length}, external: true } });`);
 }
 
 function emitDevtoolsRegistration(context: GenerateContext, indent: number): void {

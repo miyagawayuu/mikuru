@@ -78,7 +78,6 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 - Full Vue compatibility.
 - Full template type checking.
 - Precise source-map segment mapping.
-- Full CSS compiler features such as CSS Modules, preprocessors, and project-level CSS transforms.
 - Dynamic branch/list reconciliation after the initial hydration state.
 
 ## Next Patch Draft

@@ -1,6 +1,16 @@
 import type { Plugin } from "vite";
 
-import { compile, compileHydration, compileSsr, createCodeFrame, getSourceLocation, MikuruCompileError } from "./compiler/index.js";
+import {
+  compile,
+  compileDescriptorStyle,
+  compileHydration,
+  compileSsr,
+  createCodeFrame,
+  getSourceLocation,
+  MikuruCompileError
+} from "./compiler/index.js";
+import { createScopeAttr } from "./compiler/generate.js";
+import type { SfcDescriptor } from "./compiler/index.js";
 
 export type MikuruPluginOptions = {
   debug?: boolean;
@@ -10,9 +20,22 @@ export type MikuruPluginOptions = {
 
 export function mikuru(options: MikuruPluginOptions = {}): Plugin {
   const include = options.include ?? /\.mikuru$/;
+  const styleModules = new Map<string, string>();
 
   return {
     name: "mikuru",
+    resolveId(id) {
+      if (isMikuruStyleRequest(id)) {
+        return normalizeStyleRequest(id);
+      }
+      return null;
+    },
+    load(id) {
+      if (!isMikuruStyleRequest(id)) {
+        return null;
+      }
+      return styleModules.get(normalizeStyleRequest(id)) ?? null;
+    },
     transform(source, id) {
       const [filename, query = ""] = id.split("?", 2);
       if (!include.test(filename)) {
@@ -25,7 +48,8 @@ export function mikuru(options: MikuruPluginOptions = {}): Plugin {
         const compileOptions = {
           filename,
           debug: options.debug === true,
-          batchedUpdates: options.batchedUpdates === true
+          batchedUpdates: options.batchedUpdates === true,
+          externalStyles: query !== "ssr"
         };
         result = query === "hydrate"
           ? compileHydration(source, compileOptions)
@@ -37,7 +61,9 @@ export function mikuru(options: MikuruPluginOptions = {}): Plugin {
         throw error;
       }
 
-      const code = options.debug ? `${result.code}\n//# sourceURL=${toGeneratedSourceUrl(id)}\n` : result.code;
+      const styleImport = createStyleImport(result.descriptor, filename, styleModules);
+      const codeWithoutSourceUrl = `${styleImport}${result.code}`;
+      const code = options.debug ? `${codeWithoutSourceUrl}\n//# sourceURL=${toGeneratedSourceUrl(id)}\n` : codeWithoutSourceUrl;
       return "map" in result ? { code, map: result.map as any } : { code };
     }
   };
@@ -82,4 +108,49 @@ function formatViteTransformError(error: unknown, source: string, id: string): V
 
 function toGeneratedSourceUrl(id: string): string {
   return `${id.replace(/\\/g, "/")}?mikuru-generated`;
+}
+
+function createStyleImport(descriptor: SfcDescriptor, filename: string, styleModules: Map<string, string>): string {
+  if (!descriptor.style?.trim()) {
+    return "";
+  }
+
+  const request = createStyleRequest(filename, descriptor);
+  const scopeAttr = descriptor.styleScoped ? createScopeAttr(descriptor) : undefined;
+  const styleResult = compileDescriptorStyle(descriptor, scopeAttr);
+  styleModules.set(request, styleResult.code);
+
+  if (descriptor.styleModule) {
+    const localName = descriptor.styleModule === true ? "$style" : descriptor.styleModule;
+    if (!isIdentifier(localName)) {
+      throw new Error(`<style module> name must be a valid JavaScript identifier, got ${JSON.stringify(localName)}.`);
+    }
+    return `import ${localName} from ${JSON.stringify(request)};\n`;
+  }
+
+  return `import ${JSON.stringify(request)};\n`;
+}
+
+function createStyleRequest(filename: string, descriptor: SfcDescriptor): string {
+  const lang = normalizeStyleLang(descriptor.styleLang);
+  const moduleSuffix = descriptor.styleModule ? ".module" : "";
+  const normalizedFilename = filename.replace(/\\/g, "/");
+  return normalizeStyleRequest(`/@mikuru-style/${normalizedFilename}${moduleSuffix}.${lang}?mikuru-style`);
+}
+
+function normalizeStyleLang(lang: string | undefined): string {
+  const normalized = (lang ?? "css").replace(/^\./, "").toLowerCase();
+  return /^[a-z][\w-]*$/.test(normalized) ? normalized : "css";
+}
+
+function normalizeStyleRequest(id: string): string {
+  return id.replace(/\\/g, "/");
+}
+
+function isMikuruStyleRequest(id: string): boolean {
+  return normalizeStyleRequest(id).includes("?mikuru-style");
+}
+
+function isIdentifier(value: string): boolean {
+  return /^[$A-Z_a-z][$\w]*$/.test(value);
 }

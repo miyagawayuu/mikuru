@@ -10,6 +10,8 @@ export type SfcDescriptor = {
   style?: string;
   styleOffset?: number;
   styleScoped?: boolean;
+  styleLang?: string;
+  styleModule?: boolean | string;
 };
 
 export type TemplateNode = ElementNode | TextNode;
@@ -55,6 +57,7 @@ export type CompileOptions = {
   filename?: string;
   debug?: boolean;
   batchedUpdates?: boolean;
+  externalStyles?: boolean;
 };
 
 export type CompileResult = {

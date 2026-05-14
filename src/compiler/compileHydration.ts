@@ -18,7 +18,11 @@ export function compileHydration(source: string, options: CompileOptions = {}): 
     });
     emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile-hydration" });
     const bindings = analyzeTemplate(ast, { source, filename: options.filename });
-    const mountCode = generate(descriptor, ast, { debug: options.debug === true, batchedUpdates: options.batchedUpdates === true });
+    const mountCode = generate(descriptor, ast, {
+      debug: options.debug === true,
+      batchedUpdates: options.batchedUpdates === true,
+      externalStyles: options.externalStyles === true
+    });
     const hydrationCode = generateHydration(descriptor, ast, { includeImports: false });
     const code = mountCode.replace("export default __mikuru_component;", `${hydrationCode}\nconst __mikuru_hydrationComponent = { ...__mikuru_component, hydrate };\nexport default __mikuru_hydrationComponent;`);
     const map = createSourceMap(code, descriptor, ast);

@@ -323,6 +323,16 @@ describe("compiler", () => {
     expect(descriptor.style).toBe("p { color: red; }");
   });
 
+  it("parses CSS module and preprocessor style attrs", () => {
+    const descriptor = parseSfc(
+      `<template><p :class="$style.card">Hello</p></template><style module lang="scss">.card { color: $brand; }</style>`
+    );
+
+    expect(descriptor.styleModule).toBe(true);
+    expect(descriptor.styleLang).toBe("scss");
+    expect(descriptor.style).toBe(".card { color: $brand; }");
+  });
+
   it("parses template roots", () => {
     const ast = parseTemplate(`<button @click="increment">count: {{ count }}</button>`);
 
@@ -1312,6 +1322,45 @@ const count = 0;
 
     expect(result.code).toContain("queueJob");
     expect(result.code).toContain("__mikuru_effect");
+  });
+
+  it("routes component styles through Vite CSS requests", async () => {
+    const plugin = mikuru();
+    const transform = plugin.transform as unknown as Function;
+    const load = plugin.load as unknown as Function;
+    const result = await transform.call(
+      {
+        error(error: string | Error) {
+          throw error instanceof Error ? error : new Error(error);
+        }
+      },
+      `<template><p class="card">Hello</p></template><style scoped>.card { color: red; }</style>`,
+      "src/Styled.mikuru"
+    );
+
+    const request = "/@mikuru-style/src/Styled.mikuru.css?mikuru-style";
+    expect(result.code).toContain(`import "${request}";`);
+    expect(result.code).not.toContain("document.createElement(\"style\")");
+    expect(await load.call({}, request)).toContain(".card[data-mikuru-scope-");
+  });
+
+  it("routes CSS Modules and preprocessors through Vite CSS requests", async () => {
+    const plugin = mikuru();
+    const transform = plugin.transform as unknown as Function;
+    const load = plugin.load as unknown as Function;
+    const result = await transform.call(
+      {
+        error(error: string | Error) {
+          throw error instanceof Error ? error : new Error(error);
+        }
+      },
+      `<template><p :class="$style.card">Hello</p></template><style module lang="scss">.card { color: $brand; }</style>`,
+      "src/ModuleStyle.mikuru"
+    );
+
+    const request = "/@mikuru-style/src/ModuleStyle.mikuru.module.scss?mikuru-style";
+    expect(result.code).toContain(`import $style from "${request}";`);
+    expect(await load.call({}, request)).toBe(".card { color: $brand; }");
   });
 
   it("normalizes Windows paths in Vite debug source URLs", async () => {
