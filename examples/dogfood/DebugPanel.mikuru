@@ -494,6 +494,7 @@ snapshot();
 .debug-section {
   display: grid;
   gap: 10px;
+  align-content: start;
   min-width: 0;
 }
 
@@ -509,15 +510,19 @@ snapshot();
 .debug-event-list {
   display: grid;
   gap: 8px;
+  max-height: 320px;
+  overflow: auto;
   padding: 0;
   margin: 0;
   list-style: none;
+  scrollbar-gutter: stable;
 }
 
 .debug-component-row {
   display: grid;
   gap: 4px;
   width: 100%;
+  min-height: 72px;
   padding: 10px;
   text-align: left;
   border: 1px solid #c7d2fe;
@@ -533,6 +538,12 @@ snapshot();
   box-shadow: inset 3px 0 0 #4f46e5;
 }
 
+.debug-component-row.selected,
+.debug-event-row.selected {
+  color: #1e1b4b;
+  background: #e0e7ff;
+}
+
 .debug-component-row span,
 .debug-event-list span,
 .debug-detail span,
@@ -543,7 +554,9 @@ snapshot();
 .debug-detail {
   display: grid;
   gap: 8px;
+  align-content: start;
   min-width: 0;
+  min-height: 280px;
   padding: 10px;
   border: 1px solid #c7d2fe;
   border-radius: 8px;
@@ -579,9 +592,11 @@ snapshot();
 
 .debug-event-row {
   display: flex;
+  align-items: start;
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+  min-height: 48px;
   padding: 8px 10px;
   text-align: left;
   border: 1px solid #c7d2fe;
@@ -599,8 +614,18 @@ snapshot();
 @media (max-width: 720px) {
   .debug-header,
   .debug-filters,
+  .debug-actions,
   .debug-grid {
     grid-template-columns: 1fr;
+  }
+
+  .debug-list,
+  .debug-event-list {
+    max-height: 260px;
+  }
+
+  .debug-event-row {
+    display: grid;
   }
 }
 </style>
