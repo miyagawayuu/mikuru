@@ -135,14 +135,15 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - DOM events with `@click`, `m-on:click`, inline handlers, object-form option modifiers, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, `.passive`, key, mouse button, system, and `.exact` modifiers
 - Component events with `@select` and `.once`
 - Attribute bindings with normalized `:class` and `:style`, boolean/form property sync, direct/object `m-bind` modifiers like `.prop`, `.attr`, and `.camel`, plus dynamic arguments like `:[name]` and `@[event]`
-- `m-if`, `m-else-if`, `m-else`, `m-show`, `m-for`, `m-html`, `m-text`, `m-pre`, and `m-cloak`
+- `m-if`, `m-else-if`, `m-else`, `m-show`, `m-for`, `m-html`, `m-text`, `m-pre`, `m-cloak`, `m-once`, and `m-memo`
 - `m-model` for common form controls, checkbox arrays, radio groups, multiple selects, modifiers, and named child component models
 - `v-*` directive spellings remain available as compatibility aliases for existing components and Vue-oriented migrations
-- Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
+- Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, dynamic `<component :is>`, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
 - CSS class transitions with built-in `<Transition name="fade">`, `m-if` chains, dynamic components, class overrides, `appear`, `mode="out-in"`, and `<TransitionGroup>` for keyed lists
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
 - Built-in `<AsyncBoundary :loading :fallback :delay :timeout>` for grouped async loading, delayed loading UI, boundary timeouts, and retryable async failures with aggregated fallback errors
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery
+- Built-in `<KeepAlive>` for caching one dynamic child component with `include`, `exclude`, and `max` controls
 - Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff and SSR loader resolution
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, and `RouterView` / `RouterLink` across mount, SSR, and hydration
 - SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `m-pre`, `m-cloak`, `m-if` chains, `m-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, string and async iterable stream rendering, and router route rendering with context propagation
