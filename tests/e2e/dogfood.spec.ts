@@ -159,6 +159,11 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText("component:register").first()).toBeVisible();
 
   await panel.getByText(/child #\d+ .*DebugPanel\.mikuru/).first().click();
+  await expect(panel.getByText("root").first()).toBeVisible();
+  await expect(panel.getByText(/<section\.debug-panel>/).first()).toBeVisible();
+  await expect(panel.getByText(/section\.debug-panel/).first()).toBeVisible();
+  await panel.getByRole("button", { name: "Reveal root" }).click();
+  await expect(panel).toHaveAttribute("data-mikuru-debug-highlight", "true");
   await expect(panel.getByText("scopes").first()).toBeVisible();
   await expect(panel.getByText(/data-mikuru-scope-/).first()).toBeVisible();
   await expect(panel.getByText("event types").first()).toBeVisible();

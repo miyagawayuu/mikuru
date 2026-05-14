@@ -46,9 +46,18 @@
           <span>{{ selected.filename }}</span>
           <div class="debug-actions">
             <button @click="showSelectedComponentEvents">Show component events</button>
+            <button :disabled="!selected.hasRoot" @click="revealSelectedRoot">Reveal root</button>
             <button m-if="componentEventFilterId" @click="clearComponentEventFilter">Clear component filter</button>
           </div>
           <dl>
+            <dt>status</dt>
+            <dd>{{ selected.status }}</dd>
+            <dt>root</dt>
+            <dd>{{ selected.rootLabel }}</dd>
+            <dt>path</dt>
+            <dd>{{ selected.rootPath || "none" }}</dd>
+            <dt>mounted</dt>
+            <dd>{{ selected.mountedLabel }}</dd>
             <dt>props</dt>
             <dd>{{ selected.propKeys || "none" }}</dd>
             <dt>attrs</dt>
@@ -256,6 +265,12 @@ function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth 
       eventBreakdown: formatEventBreakdown(eventCounts),
       styleIds: styles.map((style) => style.id).join(", "),
       scopeAttrs: styles.map((style) => style.scopeAttr).filter(Boolean).join(", "),
+      hasRoot: isElement(component.root),
+      root: component.root,
+      rootLabel: formatRootLabel(component.root),
+      rootPath: formatRootPath(component.root),
+      status: component.unmountedAt ? "unmounted" : "mounted",
+      mountedLabel: formatMountedLabel(component.mountedAt, component.unmountedAt),
       propKeys: (component.propKeys ?? []).join(", "),
       attrKeys: (component.attrKeys ?? []).join(", "),
       childIds: childIds.join(", "),
@@ -378,6 +393,69 @@ function formatComponentLabel(componentId, component) {
   return `#${componentId} ${formatFilename(component?.filename ?? component?.component)}`;
 }
 
+function isElement(value) {
+  return value instanceof Element;
+}
+
+function formatRootLabel(root) {
+  if (root instanceof Element) {
+    const id = root.id ? `#${root.id}` : "";
+    const classes = Array.from(root.classList).slice(0, 3).map((name) => `.${name}`).join("");
+    return `<${root.tagName.toLowerCase()}${id}${classes}>`;
+  }
+
+  if (root instanceof Comment) {
+    return "<!--comment-->";
+  }
+
+  return "none";
+}
+
+function formatRootPath(root) {
+  if (!(root instanceof Element)) {
+    return "";
+  }
+
+  const parts = [];
+  let current = root;
+  while (current && current.nodeType === Node.ELEMENT_NODE && parts.length < 5) {
+    let label = current.tagName.toLowerCase();
+    if (current.id) {
+      label += `#${current.id}`;
+      parts.unshift(label);
+      break;
+    }
+
+    const className = Array.from(current.classList).find((name) => !name.startsWith("mikuru-") && !name.startsWith("debug-root-highlight"));
+    if (className) {
+      label += `.${className}`;
+    }
+
+    const parent = current.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
+      if (siblings.length > 1) {
+        label += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+      }
+    }
+
+    parts.unshift(label);
+    current = parent;
+  }
+
+  return parts.join(" > ");
+}
+
+function formatMountedLabel(mountedAt, unmountedAt) {
+  if (!mountedAt) {
+    return "unknown";
+  }
+
+  const end = unmountedAt ?? Date.now();
+  const seconds = Math.max(0, Math.round((end - mountedAt) / 1000));
+  return unmountedAt ? `${seconds}s before unmount` : `${seconds}s ago`;
+}
+
 function stringifyPayload(payload) {
   return JSON.stringify(payload, (_key, value) => {
     if (value instanceof Error) {
@@ -433,6 +511,25 @@ function showSelectedComponentEvents() {
 function clearComponentEventFilter() {
   componentEventFilterId.value = undefined;
   selectedEventId.value = undefined;
+}
+
+function revealSelectedRoot() {
+  const root = selected.value?.root;
+  if (!(root instanceof Element)) {
+    return;
+  }
+
+  root.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  root.dataset.mikuruDebugHighlight = "true";
+  root.classList.add("debug-root-highlight");
+  root.style.outline = "3px solid #e11d48";
+  root.style.outlineOffset = "3px";
+  window.setTimeout(() => {
+    root.classList.remove("debug-root-highlight");
+    delete root.dataset.mikuruDebugHighlight;
+    root.style.outline = "";
+    root.style.outlineOffset = "";
+  }, 1200);
 }
 
 function clearEvents() {
