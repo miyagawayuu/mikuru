@@ -5,6 +5,7 @@ import { generateHydration } from "./generateHydration.js";
 import { parseSfc } from "./parseSfc.js";
 import { parseTemplate } from "./parseTemplate.js";
 import { createSourceMap } from "./sourceMap.js";
+import { assertTemplateTypeCheck } from "./templateTypeCheck.js";
 import type { CompileOptions, CompileResult } from "./types.js";
 import { emitDebugDiagnostic } from "../runtime/devtools.js";
 
@@ -17,6 +18,7 @@ export function compileHydration(source: string, options: CompileOptions = {}): 
       offset: descriptor.templateOffset
     });
     emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile-hydration" });
+    const templateTypeCheck = options.templateTypeCheck === true ? assertTemplateTypeCheck(descriptor, ast) : undefined;
     const bindings = analyzeTemplate(ast, { source, filename: options.filename });
     const mountCode = generate(descriptor, ast, {
       debug: options.debug === true,
@@ -32,7 +34,8 @@ export function compileHydration(source: string, options: CompileOptions = {}): 
       map,
       descriptor,
       ast,
-      bindings
+      bindings,
+      templateTypeCheck
     };
   } catch (error) {
     emitDebugDiagnostic("compiler", "error", error instanceof Error ? error.message : String(error), {

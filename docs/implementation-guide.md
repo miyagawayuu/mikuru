@@ -621,6 +621,12 @@ The Debug Panel implementation and `examples/dogfood/debugPanelHelpers.ts` are d
 
 The Vite plugin forwards transform failures with `id`, `loc`, and `frame`, including fallback metadata for non-standard compile-time errors. The compiler returns a v3 source map with `sourcesContent`, and generated template element, interpolation, bound attribute, event handler, and script lines map back to their original SFC lines. Generated code inspection can still help for complex compiler issues.
 
+## Template Type Checking
+
+Use `typeCheckTemplate(source, { filename })` from `mikuru/compiler` for standalone checks, `compile(source, { templateTypeCheck: true })` when a failed check should stop compilation, or `mikuru({ templateTypeCheck: true })` in Vite to fail transforms on template type diagnostics.
+
+The checker builds a virtual TypeScript module from the component script and template expressions. It checks script bindings used by interpolations, bindings, models, dynamic arguments, and event handlers; unwraps `ref`-like values the same way templates do; infers simple `defineProps({ title: String, active: Boolean })` constructor declarations; and creates typed `m-for` item/index scopes from arrays, iterables, and record values.
+
 ## Testing Applications
 
 For app-level confidence, test both generated behavior and Vite integration.

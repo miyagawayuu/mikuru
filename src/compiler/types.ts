@@ -1,4 +1,5 @@
 import type { SourceLocation } from "./errors.js";
+import type { TemplateTypeCheckResult } from "./templateTypeCheck.js";
 
 export type SfcDescriptor = {
   filename?: string;
@@ -58,6 +59,7 @@ export type CompileOptions = {
   debug?: boolean;
   batchedUpdates?: boolean;
   externalStyles?: boolean;
+  templateTypeCheck?: boolean;
 };
 
 export type CompileResult = {
@@ -66,6 +68,7 @@ export type CompileResult = {
   descriptor: SfcDescriptor;
   ast: ElementNode;
   bindings: Binding[];
+  templateTypeCheck?: TemplateTypeCheckResult;
 };
 
 export type SsrCompileResult = {
@@ -73,6 +76,7 @@ export type SsrCompileResult = {
   descriptor: SfcDescriptor;
   ast: ElementNode;
   bindings: Binding[];
+  templateTypeCheck?: TemplateTypeCheckResult;
 };
 
 export type SourceMap = {

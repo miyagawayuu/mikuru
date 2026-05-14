@@ -9,6 +9,7 @@ export { generate } from "./generate.js";
 export { compileTemplateExpression, parseForExpression, validateAssignableExpression, validateTemplateExpression } from "./parseExpression.js";
 export { parseSfc } from "./parseSfc.js";
 export { parseTemplate } from "./parseTemplate.js";
+export { assertTemplateTypeCheck, typeCheckTemplate, typeCheckTemplateDescriptor } from "./templateTypeCheck.js";
 export type {
   Binding,
   CompileOptions,
@@ -22,3 +23,4 @@ export type {
   TextPart
 } from "./types.js";
 export type { CssCompileDiagnostic, CssCompileOptions, CssCompileResult } from "./css.js";
+export type { TemplateTypeCheckDiagnostic, TemplateTypeCheckResult } from "./templateTypeCheck.js";

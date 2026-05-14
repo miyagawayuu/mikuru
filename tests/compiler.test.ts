@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeTemplate, compile, compileHydration, compileStyle, MikuruCompileError, parseSfc, parseTemplate } from "../src/compiler/index.js";
+import { analyzeTemplate, compile, compileHydration, compileStyle, MikuruCompileError, parseSfc, parseTemplate, typeCheckTemplate } from "../src/compiler/index.js";
 import { createDebugInspector } from "../src/runtime/index.js";
 import { mikuru } from "../src/vite.js";
 
@@ -580,6 +580,70 @@ p { color: red; }
       originalLine: 3,
       originalColumn: templateSourceLine.indexOf("message") + 1
     });
+  });
+
+  it("type checks template expressions against script bindings", () => {
+    const result = typeCheckTemplate(
+      `<template>
+  <section>
+    <p>{{ title.toUpperCase() }}</p>
+    <p v-for="item in items">{{ item.label.toUpperCase() }}</p>
+  </section>
+</template>
+
+<script>
+const { title } = defineProps({ title: String });
+const items = [{ label: "one" }];
+</script>`,
+      { filename: "TypedTemplate.mikuru" }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("__mikuru_template_type_check");
+  });
+
+  it("reports template type errors with SFC locations", () => {
+    const result = typeCheckTemplate(
+      `<template>
+  <section>
+    <p>{{ count.toUpperCase() }}</p>
+    <p v-for="item in items">{{ item.missing }}</p>
+  </section>
+</template>
+
+<script>
+const count = 1;
+const items = [{ label: "one" }];
+</script>`,
+      { filename: "BrokenTemplateTypes.mikuru" }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          filename: "BrokenTemplateTypes.mikuru",
+          line: 3,
+          message: expect.stringContaining("toUpperCase")
+        }),
+        expect.objectContaining({
+          filename: "BrokenTemplateTypes.mikuru",
+          line: 4,
+          message: expect.stringContaining("missing")
+        })
+      ])
+    );
+  });
+
+  it("can fail compilation on template type errors", () => {
+    expect(() =>
+      compile(
+        `<template><p>{{ count.toUpperCase() }}</p></template>
+<script>const count = 1;</script>`,
+        { filename: "CompileTemplateTypes.mikuru", templateTypeCheck: true }
+      )
+    ).toThrow(/Template type check failed: .*toUpperCase/);
   });
 
   it("scopes style selectors and generated elements", () => {

@@ -9,6 +9,7 @@ Mikuru v1 is the first stable validation release of the compile-first Vue-like S
 - Ref-based runtime with `ref`, `computed`, `effect`, `watch`, `nextTick`, lifecycle callbacks, `provide`, and `inject`.
 - Mikuru-native template syntax for interpolation, DOM events, attribute bindings, `m-if`, `m-else-if`, `m-else`, `m-show`, `m-for`, and `m-model`; older `v-*` spellings remain available as compatibility aliases.
 - Component composition with props, events, component `m-model`, `defineProps`, `defineEmits`, default slots, named slots, and slot props.
+- Optional TypeScript template type checking through the compiler and Vite plugin, with script binding, prop, ref unwrap, and `m-for` scope checks.
 - CSS class transitions with built-in `<Transition name="fade">`.
 - Keyed `m-for` record reuse with cleanup for removed DOM and component records.
 - Built-in routing, Teleport, ErrorBoundary, AsyncBoundary, KeepAlive, Transition, and TransitionGroup helpers.
@@ -76,7 +77,6 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 
 - Stable devtools API.
 - Full Vue compatibility.
-- Full template type checking.
 - Dynamic branch/list reconciliation after the initial hydration state.
 
 ## Next Patch Draft

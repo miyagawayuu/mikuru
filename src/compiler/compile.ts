@@ -5,6 +5,7 @@ import { generate } from "./generate.js";
 import { parseSfc } from "./parseSfc.js";
 import { parseTemplate } from "./parseTemplate.js";
 import { createSourceMap } from "./sourceMap.js";
+import { assertTemplateTypeCheck } from "./templateTypeCheck.js";
 import type { CompileOptions, CompileResult } from "./types.js";
 import { emitDebugDiagnostic } from "../runtime/devtools.js";
 
@@ -17,6 +18,7 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
       offset: descriptor.templateOffset
     });
     emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile" });
+    const templateTypeCheck = options.templateTypeCheck === true ? assertTemplateTypeCheck(descriptor, ast) : undefined;
     if (options.debug === true && descriptor.style?.trim()) {
       const styleResult = compileDescriptorStyle(descriptor, descriptor.styleScoped ? `data-mikuru-scope-preview` : undefined);
       for (const diagnostic of styleResult.diagnostics) {
@@ -43,7 +45,8 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
       map,
       descriptor,
       ast,
-      bindings
+      bindings,
+      templateTypeCheck
     };
   } catch (error) {
     emitDebugDiagnostic("compiler", "error", error instanceof Error ? error.message : String(error), {

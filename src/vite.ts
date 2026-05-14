@@ -15,6 +15,7 @@ import type { SfcDescriptor } from "./compiler/index.js";
 export type MikuruPluginOptions = {
   debug?: boolean;
   batchedUpdates?: boolean;
+  templateTypeCheck?: boolean;
   include?: RegExp;
 };
 
@@ -49,7 +50,8 @@ export function mikuru(options: MikuruPluginOptions = {}): Plugin {
           filename,
           debug: options.debug === true,
           batchedUpdates: options.batchedUpdates === true,
-          externalStyles: query !== "ssr"
+          externalStyles: query !== "ssr",
+          templateTypeCheck: options.templateTypeCheck === true
         };
         result = query === "hydrate"
           ? compileHydration(source, compileOptions)
