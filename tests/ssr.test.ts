@@ -146,6 +146,28 @@ const mode = "list";
     await expect(render()).resolves.toBe('<section><p>Items</p><button>Load more</button><span data-sentinel="list">sentinel</span></section>');
   });
 
+  it("renders template v-for rows as SSR fragments", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <template v-for="(item, index) in items" :key="item.id">
+      <p :data-row="item.id">{{ index }}:{{ item.label }}</p>
+      <button>Select {{ item.id }}</button>
+      <span :data-sentinel="item.id">sentinel {{ item.id }}</span>
+    </template>
+  </section>
+</template>
+<script>
+const items = [
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+];
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><p data-row="a">0:Alpha</p><button>Select a</button><span data-sentinel="a">sentinel a</span><p data-row="b">1:Beta</p><button>Select b</button><span data-sentinel="b">sentinel b</span></section>');
+  });
+
   it("normalizes SSR class and style bindings with static values", async () => {
     const result = compileSsr(`<template>
   <section>

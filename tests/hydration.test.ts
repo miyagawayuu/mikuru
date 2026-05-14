@@ -459,6 +459,45 @@ function loadMore() {
     expect(root.innerHTML).toBe('<section><p>Items</p><button>Load more 2</button><span data-sentinel="list">sentinel</span></section>');
   });
 
+  it("hydrates template v-for rows as fragments", async () => {
+    const source = `<template>
+  <section>
+    <template v-for="(item, index) in items" :key="item.id">
+      <p :data-row="item.id">{{ index }}:{{ item.label }}</p>
+      <button @click="select(item.id)">Select {{ item.id }}</button>
+      <span :data-sentinel="item.id">sentinel {{ item.id }}</span>
+    </template>
+    <output>{{ selected }}</output>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+const selected = ref("none");
+function select(id) {
+  selected.value = id;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const section = root.firstElementChild;
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(instance.element).toBe(section);
+    expect(root.querySelector("template")).toBeNull();
+    expect(root.innerHTML).toBe('<section><p data-row="a">0:Alpha</p><button>Select a</button><span data-sentinel="a">sentinel a</span><p data-row="b">1:Beta</p><button>Select b</button><span data-sentinel="b">sentinel b</span><output>none</output></section>');
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(root.querySelector("output")?.textContent).toBe("a");
+  });
+
   it("hydrates class and style bindings with object v-bind attr cleanup", async () => {
     const source = `<template>
   <section>
