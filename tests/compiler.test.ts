@@ -319,6 +319,42 @@ p { color: red; }
     expect(result.code).toContain('.panel[data-mikuru-scope-edge]::after { content: "closing } brace, comma"; }');
   });
 
+  it("scopes rules nested inside CSS @scope blocks", () => {
+    const result = compileStyle(
+      `
+@scope (.dialog) to (.dialog-footer) {
+  .title, button:hover { color: red; }
+  @media (min-width: 48rem) {
+    .content > p { margin: 0; }
+  }
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-at-scope" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("@scope (.dialog) to (.dialog-footer) {");
+    expect(result.code).toContain(".title[data-mikuru-scope-at-scope], button[data-mikuru-scope-at-scope]:hover { color: red; }");
+    expect(result.code).toContain(".content > p[data-mikuru-scope-at-scope] { margin: 0; }");
+  });
+
+  it("does not split selector lists inside :is, :where, and :not arguments", () => {
+    const result = compileStyle(
+      `
+.card:is(.active, [data-state="ready,steady"]):not(.disabled, :where(.ghost, .hidden)),
+.panel:where(:not(.quiet, .muted), .loud)::before {
+  color: red;
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-pseudo" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain('.card[data-mikuru-scope-pseudo]:is(.active, [data-state="ready,steady"]):not(.disabled, :where(.ghost, .hidden))');
+    expect(result.code).toContain(".panel[data-mikuru-scope-pseudo]:where(:not(.quiet, .muted), .loud)::before");
+    expect(result.code).toContain("color: red;");
+  });
+
   it("reports a diagnostic and preserves CSS when a scoped block is missing a closing brace", () => {
     const source = `.card { color: red;\n.note { color: blue; }`;
     const result = compileStyle(source, { scoped: true, scopeAttr: "data-mikuru-scope-broken" });
