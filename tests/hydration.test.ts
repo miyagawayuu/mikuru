@@ -498,6 +498,62 @@ function select(id) {
     expect(root.querySelector("output")?.textContent).toBe("a");
   });
 
+  it("updates hydrated element v-for rows after append and remove", async () => {
+    const source = `<template>
+  <section>
+    <p v-for="(item, index) in items" :data-row="item.id">
+      {{ index }}:{{ item.label }}
+      <button @click="select(item.id)">Select</button>
+    </p>
+    <button data-action="append" @click="append">Append</button>
+    <button data-action="remove" @click="removeFirst">Remove first</button>
+    <output>{{ selected }}</output>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+const selected = ref("none");
+function select(id) {
+  selected.value = id;
+}
+function append() {
+  items.value = [...items.value, { id: "c", label: "Gamma" }];
+}
+function removeFirst() {
+  items.value = items.value.slice(1);
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    module.hydrate(root as unknown as Element);
+
+    expect(Array.from(root.querySelectorAll("p")).map((node) => node.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      "0:Alpha Select",
+      "1:Beta Select"
+    ]);
+    root.querySelector("[data-action='append']")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(Array.from(root.querySelectorAll("p")).map((node) => node.textContent?.replace(/\s+/g, " ").trim())).toEqual([
+      "0:Alpha Select",
+      "1:Beta Select",
+      "2:Gamma Select"
+    ]);
+    root.querySelector("[data-row='c'] button")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(root.querySelector("output")?.textContent).toBe("c");
+    root.querySelector("[data-action='remove']")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(Array.from(root.querySelectorAll("p")).map((node) => node.getAttribute("data-row"))).toEqual(["b", "c"]);
+  });
+
   it("hydrates unkeyed nested template v-for fragments with conditional branches", async () => {
     const source = `<template>
   <section>
@@ -514,6 +570,7 @@ function select(id) {
         <em>empty {{ group.name }}</em>
       </template>
     </template>
+    <button data-action="swap" @click="swap">Swap</button>
     <output>{{ selected }}</output>
   </section>
 </template>
@@ -524,6 +581,12 @@ const groups = ref([
   { name: "B", items: [] }
 ]);
 const selected = ref("none");
+function swap() {
+  groups.value = [
+    { name: "A", items: [] },
+    { name: "B", items: ["three"] }
+  ];
+}
 function select(value) {
   selected.value = value;
 }
@@ -539,10 +602,31 @@ function select(value) {
 
     expect(instance.element).toBe(section);
     expect(root.querySelector("template")).toBeNull();
-    expect(root.innerHTML).toBe('<section><h2>A</h2><p data-row="A-one">A:one</p><button>Select one</button><p data-row="A-two">A:two</p><button>Select two</button><span data-sentinel="A">sentinel A</span><h2>B</h2><em>empty B</em><output>none</output></section>');
-    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(Array.from(root.querySelectorAll("h2, p, span, em, output")).map((node) => node.textContent)).toEqual([
+      "A",
+      "A:one",
+      "A:two",
+      "sentinel A",
+      "B",
+      "empty B",
+      "none"
+    ]);
+    root.querySelector("button:not([data-action])")?.dispatchEvent(new window.Event("click"));
     await Promise.resolve();
     expect(root.querySelector("output")?.textContent).toBe("A-one");
+    root.querySelector("[data-action='swap']")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(Array.from(root.querySelectorAll("h2, p, span, em, output")).map((node) => node.textContent)).toEqual([
+      "A",
+      "empty A",
+      "B",
+      "B:three",
+      "sentinel B",
+      "A-one"
+    ]);
+    root.querySelector("button:not([data-action])")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(root.querySelector("output")?.textContent).toBe("B-three");
   });
 
   it("hydrates class and style bindings with object v-bind attr cleanup", async () => {
