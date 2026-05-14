@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.24 - 2026-05-14
 
 - Added Mikuru-native `m-*` directive syntax across DOM rendering, SSR, and hydration while keeping `v-*` as compatibility aliases.
 - Added debug compiler warnings for `v-*` compatibility aliases, pointing users to the matching `m-*` directive spelling.
