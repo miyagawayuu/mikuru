@@ -144,6 +144,16 @@ test("dogfood app syncs practical m-model forms", async ({ page }) => {
 });
 
 test("dogfood app exposes debug inspector panel", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        async writeText(value: string) {
+          window.localStorage.setItem("dogfood-debug-snapshot", value);
+        }
+      }
+    });
+  });
   await page.goto("/");
 
   const panel = page.getByRole("region", { name: "Debug panel" });
@@ -208,6 +218,12 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await panel.locator(".debug-filters").getByRole("button", { name: /Router/ }).click();
   await expect(panel.getByText("route:navigate").first()).toBeVisible();
   await expect(panel.getByText("/ -> /settings").first()).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "Snapshot" })).toBeVisible();
+  await expect(panel.locator(".debug-snapshot pre")).toContainText('"eventFilter": "router"');
+  await expect(panel.locator(".debug-snapshot pre")).toContainText('"filteredEvents"');
+  await panel.getByRole("button", { name: "Copy snapshot" }).click();
+  await expect(panel.getByText("Snapshot copied.")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dogfood-debug-snapshot"))).toContain('"eventFilter": "router"');
 
   await page.getByRole("button", { name: "Trigger boundary error" }).click();
   await panel.locator(".debug-filters").getByRole("button", { name: /Error/ }).click();

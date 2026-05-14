@@ -148,6 +148,17 @@
         </div>
         <p m-else class="debug-empty">Select an event.</p>
       </section>
+
+      <section class="debug-section debug-snapshot">
+        <div class="debug-section-title">
+          <h3>Snapshot</h3>
+          <div class="debug-actions">
+            <button @click="copySnapshot">Copy snapshot</button>
+          </div>
+        </div>
+        <p m-if="copyStatus" class="debug-filter-note">{{ copyStatus }}</p>
+        <pre>{{ snapshotText }}</pre>
+      </section>
     </div>
   </section>
 </template>
@@ -167,6 +178,7 @@ const hideBackgroundEventsAfterClear = ref(false);
 const collapsedIds = ref(new Set());
 const componentSearch = ref("");
 const eventSearch = ref("");
+const copyStatus = ref("");
 
 const selected = computed(() =>
   allComponents.value.find((component) => component.id === selectedId.value) ?? components.value[0]
@@ -187,6 +199,8 @@ const filteredEvents = computed(() =>
 const selectedEvent = computed(() =>
   filteredEvents.value.find((event) => event.id === selectedEventId.value) ?? filteredEvents.value[0]
 );
+
+const snapshotText = computed(() => JSON.stringify(createPanelSnapshot(), null, 2));
 
 const componentEventFilterLabel = computed(() => {
   if (componentEventFilterId.value === undefined) {
@@ -633,6 +647,97 @@ function clearEventSearch() {
   selectedEventId.value = undefined;
 }
 
+function createPanelSnapshot() {
+  return {
+    capturedAt: new Date().toISOString(),
+    filters: {
+      componentSearch: componentSearch.value,
+      eventSearch: eventSearch.value,
+      eventFilter: eventFilter.value,
+      componentEventFilterId: componentEventFilterId.value
+    },
+    counts: {
+      allComponents: allComponents.value.length,
+      visibleComponents: components.value.length,
+      allEvents: allEvents.value.length,
+      searchedEvents: searchedEvents.value.length,
+      filteredEvents: filteredEvents.value.length
+    },
+    selectedComponent: selected.value ? serializeComponent(selected.value) : undefined,
+    selectedEvent: selectedEvent.value ? serializeEvent(selectedEvent.value) : undefined,
+    visibleComponents: components.value.slice(0, 50).map(serializeComponent),
+    filteredEvents: filteredEvents.value.slice(0, 50).map(serializeEvent)
+  };
+}
+
+function serializeComponent(component) {
+  return {
+    id: component.id,
+    name: component.name,
+    filename: component.filename,
+    depth: component.depth,
+    parentId: component.parentId,
+    status: component.status,
+    root: component.rootLabel,
+    path: component.rootPath,
+    props: component.propKeys,
+    attrs: component.attrKeys,
+    children: component.childIds,
+    styles: component.styleIds,
+    scopes: component.scopeAttrs,
+    events: component.eventCount,
+    eventTypes: component.eventBreakdown
+  };
+}
+
+function serializeEvent(event) {
+  return {
+    type: event.type,
+    category: event.category,
+    componentId: event.componentId,
+    component: event.componentLabel,
+    level: event.level,
+    time: event.time,
+    summary: event.summary,
+    payload: compactEventPayload(event)
+  };
+}
+
+function compactEventPayload(event) {
+  const payload = parsePayloadText(event.payloadText);
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  return {
+    componentId: event.componentId,
+    component: event.componentLabel || undefined,
+    diagnostic: payload.diagnostic,
+    style: payload.style,
+    route: payload.to || payload.from ? { from: payload.from, to: payload.to, status: payload.status } : undefined,
+    errorInfo: payload.errorInfo,
+    error: payload.error
+  };
+}
+
+function parsePayloadText(payloadText) {
+  try {
+    return JSON.parse(payloadText);
+  } catch (_error) {
+    return payloadText;
+  }
+}
+
+async function copySnapshot() {
+  copyStatus.value = "";
+  try {
+    await navigator.clipboard.writeText(snapshotText.value);
+    copyStatus.value = "Snapshot copied.";
+  } catch (_error) {
+    copyStatus.value = "Copy failed.";
+  }
+}
+
 function toggleComponent(id) {
   const next = new Set(collapsedIds.value);
   if (next.has(id)) {
@@ -799,6 +904,10 @@ snapshot();
   grid-column: 1 / -1;
 }
 
+.debug-snapshot {
+  grid-column: 1 / -1;
+}
+
 .debug-list,
 .debug-event-list {
   display: grid;
@@ -902,6 +1011,17 @@ snapshot();
   border-radius: 6px;
   color: #0f172a;
   background: #f8fafc;
+}
+
+.debug-snapshot pre {
+  overflow: auto;
+  max-height: 260px;
+  padding: 10px;
+  margin: 0;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  color: #0f172a;
+  background: #ffffff;
 }
 
 .debug-event-row {
