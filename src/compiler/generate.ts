@@ -2191,6 +2191,10 @@ function generateFor(
   const keyExpression = getKeyExpression(node);
 
   if (keyExpression) {
+    if (node.tag === "template") {
+      return generateKeyedTemplateFor(context, node, parentVar, cleanupVar, indent, itemName, indexName, sourceExpression, keyExpression, beforeVar);
+    }
+
     return generateKeyedFor(context, node, parentVar, cleanupVar, indent, itemName, indexName, sourceExpression, keyExpression, beforeVar);
   }
 
@@ -2228,6 +2232,130 @@ function generateFor(
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `${stopVar}();`);
   emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  emit(context, indent, "});");
+  return startVar;
+}
+
+function generateKeyedTemplateFor(
+  context: GenerateContext,
+  node: ElementNode,
+  parentVar: string,
+  cleanupVar: string,
+  indent: number,
+  itemName: string,
+  indexName: string | undefined,
+  sourceExpression: string,
+  keyExpression: string,
+  beforeVar?: string
+): string {
+  validatePlainTemplate(context, node);
+  const startVar = nextVar(context, "forStart");
+  const endVar = nextVar(context, "forEnd");
+  const recordsVar = nextVar(context, "forRecords");
+  const stopVar = nextVar(context, "stop");
+  const compiledSource = compileTemplateExpression(sourceExpression, "v-for source", toExpressionContext(context, getStringAttrLocation(node, "v-for")));
+  const compiledKey = compileTemplateExpression(keyExpression, "v-for key", toExpressionContext(context, getKeyAttrLocation(node)));
+  const compiledMemo = getMemoExpression(context, node) ?? getOnceMemoExpression(context, node);
+  emit(context, indent, `const ${recordsVar} = new Map();`);
+  emit(context, indent, `const ${startVar} = document.createComment("for");`);
+  emit(context, indent, `const ${endVar} = document.createComment("/for");`);
+  appendNode(context, parentVar, startVar, indent, beforeVar);
+  appendNode(context, parentVar, endVar, indent, beforeVar);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  const sourceVar = nextVar(context, "forSource");
+  const nextRecordsVar = nextVar(context, "nextRecords");
+  const indexVar = nextVar(context, "forIndex");
+  const rawItemVar = nextVar(context, "forItem");
+  const rawIndexVar = nextVar(context, "forIndexValue");
+  const keyVar = nextVar(context, "forKey");
+  const recordVar = nextVar(context, "forRecord");
+  const recordCleanupVar = nextVar(context, "forRecordCleanup");
+  const itemRefVar = nextVar(context, "forItemRef");
+  const indexRefVar = nextVar(context, "forIndexRef");
+  const recordStartVar = nextVar(context, "forRecordStart");
+  const recordEndVar = nextVar(context, "forRecordEnd");
+  const memoVar = compiledMemo ? nextVar(context, "forMemo") : undefined;
+  const memoChangedVar = compiledMemo ? nextVar(context, "forMemoChanged") : undefined;
+  emit(context, indent + 1, `const ${sourceVar} = unwrap(${compiledSource}) ?? [];`);
+  emit(context, indent + 1, `const ${nextRecordsVar} = new Map();`);
+  emit(context, indent + 1, `for (let ${indexVar} = 0; ${indexVar} < ${sourceVar}.length; ${indexVar} += 1) {`);
+  emit(context, indent + 2, `const ${rawItemVar} = ${sourceVar}[${indexVar}];`);
+  emit(context, indent + 2, `const ${rawIndexVar} = ${indexVar};`);
+  emit(context, indent + 2, `const ${itemName} = ${rawItemVar};`);
+
+  if (indexName) {
+    emit(context, indent + 2, `const ${indexName} = ${rawIndexVar};`);
+  }
+
+  emit(context, indent + 2, `const ${keyVar} = unwrap(${compiledKey});`);
+  if (compiledMemo && memoVar) {
+    emit(context, indent + 2, `const ${memoVar} = ${compiledMemo};`);
+  }
+  emit(context, indent + 2, `let ${recordVar} = ${recordsVar}.get(${keyVar});`);
+  emit(context, indent + 2, `if (!${recordVar}) {`);
+  emit(context, indent + 3, `const ${recordCleanupVar} = [];`);
+  emit(context, indent + 3, `const ${itemRefVar} = ref(${rawItemVar});`);
+
+  if (indexName) {
+    emit(context, indent + 3, `const ${indexRefVar} = ref(${rawIndexVar});`);
+  }
+
+  emit(context, indent + 3, `const ${recordStartVar} = document.createComment("for item");`);
+  emit(context, indent + 3, `const ${recordEndVar} = document.createComment("/for item");`);
+  emit(context, indent + 3, `${parentVar}.insertBefore(${recordStartVar}, ${endVar});`);
+  emit(context, indent + 3, `${parentVar}.insertBefore(${recordEndVar}, ${endVar});`);
+  emit(context, indent + 3, `{`);
+  emit(context, indent + 4, `const ${itemName} = ${itemRefVar};`);
+
+  if (indexName) {
+    emit(context, indent + 4, `const ${indexName} = ${indexRefVar};`);
+  }
+
+  withTemplateRefMode(context, "array", () => {
+    generateChildren(context, node.children, parentVar, recordCleanupVar, indent + 4, recordEndVar);
+  });
+  emit(context, indent + 4, `${recordVar} = { start: ${recordStartVar}, end: ${recordEndVar}, cleanups: ${recordCleanupVar}, item: ${itemRefVar}${indexName ? `, index: ${indexRefVar}` : ""}${compiledMemo && memoVar ? `, memo: ${memoVar}` : ""} };`);
+  emit(context, indent + 3, `}`);
+  emit(context, indent + 2, `} else {`);
+  if (compiledMemo && memoVar && memoChangedVar) {
+    emit(context, indent + 3, `const ${memoChangedVar} = !__mikuru_memoEqual(${recordVar}.memo, ${memoVar});`);
+    emit(context, indent + 3, `if (${memoChangedVar}) {`);
+    emit(context, indent + 4, `${recordVar}.memo = ${memoVar};`);
+    emit(context, indent + 4, `${recordVar}.item.value = ${rawItemVar};`);
+
+    if (indexName) {
+      emit(context, indent + 4, `${recordVar}.index.value = ${rawIndexVar};`);
+    }
+
+    emit(context, indent + 3, "}");
+  } else {
+    emit(context, indent + 3, `${recordVar}.item.value = ${rawItemVar};`);
+
+    if (indexName) {
+      emit(context, indent + 3, `${recordVar}.index.value = ${rawIndexVar};`);
+    }
+  }
+  emitMoveRangeBefore(context, indent + 3, `${recordVar}.start`, `${recordVar}.end`, parentVar, endVar);
+  emit(context, indent + 2, `}`);
+  emit(context, indent + 2, `${nextRecordsVar}.set(${keyVar}, ${recordVar});`);
+  emit(context, indent + 1, `}`);
+  emit(context, indent + 1, `for (const [${keyVar}, ${recordVar}] of ${recordsVar}) {`);
+  emit(context, indent + 2, `if (!${nextRecordsVar}.has(${keyVar})) {`);
+  emit(context, indent + 3, `__mikuru_runCleanup(${recordVar}.cleanups);`);
+  emitRemoveRange(context, indent + 3, `${recordVar}.start`, `${recordVar}.end`);
+  emit(context, indent + 2, `}`);
+  emit(context, indent + 1, `}`);
+  emit(context, indent + 1, `${recordsVar}.clear();`);
+  emit(context, indent + 1, `for (const [${keyVar}, ${recordVar}] of ${nextRecordsVar}) {`);
+  emit(context, indent + 2, `${recordsVar}.set(${keyVar}, ${recordVar});`);
+  emit(context, indent + 1, `}`);
+  emit(context, indent, "});");
+  emit(context, indent, `${cleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${stopVar}();`);
+  emit(context, indent + 1, `for (const ${recordVar} of ${recordsVar}.values()) {`);
+  emit(context, indent + 2, `__mikuru_runCleanup(${recordVar}.cleanups);`);
+  emit(context, indent + 1, `}`);
+  emit(context, indent + 1, `${recordsVar}.clear();`);
   emit(context, indent, "});");
   return startVar;
 }
@@ -2366,6 +2494,40 @@ function emitRemoveBetween(context: GenerateContext, indent: number, startVar: s
   emit(context, indent + 1, `__mikuru_removeNode(${currentVar});`);
   emit(context, indent + 1, `${currentVar} = ${nextVarName};`);
   emit(context, indent, "}");
+}
+
+function emitRemoveRange(context: GenerateContext, indent: number, startExpression: string, endExpression: string): void {
+  const currentVar = nextVar(context, "current");
+  const nextVarName = nextVar(context, "next");
+  emit(context, indent, `let ${currentVar} = ${startExpression};`);
+  emit(context, indent, `while (${currentVar}) {`);
+  emit(context, indent + 1, `const ${nextVarName} = ${currentVar}.nextSibling;`);
+  emit(context, indent + 1, `__mikuru_removeNode(${currentVar});`);
+  emit(context, indent + 1, `if (${currentVar} === ${endExpression}) { break; }`);
+  emit(context, indent + 1, `${currentVar} = ${nextVarName};`);
+  emit(context, indent, "}");
+}
+
+function emitMoveRangeBefore(
+  context: GenerateContext,
+  indent: number,
+  startExpression: string,
+  endExpression: string,
+  parentVar: string,
+  beforeExpression: string
+): void {
+  const fragmentVar = nextVar(context, "fragment");
+  const currentVar = nextVar(context, "current");
+  const nextVarName = nextVar(context, "next");
+  emit(context, indent, `const ${fragmentVar} = document.createDocumentFragment();`);
+  emit(context, indent, `let ${currentVar} = ${startExpression};`);
+  emit(context, indent, `while (${currentVar}) {`);
+  emit(context, indent + 1, `const ${nextVarName} = ${currentVar}.nextSibling;`);
+  emit(context, indent + 1, `${fragmentVar}.appendChild(${currentVar});`);
+  emit(context, indent + 1, `if (${currentVar} === ${endExpression}) { break; }`);
+  emit(context, indent + 1, `${currentVar} = ${nextVarName};`);
+  emit(context, indent, "}");
+  emit(context, indent, `${parentVar}.insertBefore(${fragmentVar}, ${beforeExpression});`);
 }
 
 function emitTransitionRegistration(context: GenerateContext, nodeVar: string, transitionVar: string, indent: number): void {

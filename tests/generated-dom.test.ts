@@ -1562,6 +1562,70 @@ function showError() {
     expect(Array.from(fixture.root.querySelectorAll("p, button:not([data-mode]), span")).map((node) => node.textContent)).toEqual(["Failed", "Retry"]);
   });
 
+  it("renders template v-for rows as keyed fragments", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <template v-for="(item, index) in items" :key="item.id">
+      <p :data-row="item.id">{{ index }}:{{ item.label }}</p>
+      <button @click="select(item.id)">Select {{ item.id }}</button>
+      <span :data-sentinel="item.id">sentinel {{ item.id }}</span>
+    </template>
+    <button data-action="reverse" @click="reverse">Reverse</button>
+    <button data-action="remove" @click="removeFirst">Remove first</button>
+    <output>{{ selected }}</output>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const items = ref([
+  { id: "a", label: "Alpha" },
+  { id: "b", label: "Beta" }
+]);
+const selected = ref("none");
+
+function select(id) {
+  selected.value = id;
+}
+
+function reverse() {
+  items.value = [...items.value].reverse();
+}
+
+function removeFirst() {
+  items.value = items.value.slice(1);
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("template")).toBeNull();
+    expect(Array.from(fixture.root.querySelectorAll("p, span")).map((node) => node.textContent)).toEqual([
+      "0:Alpha",
+      "sentinel a",
+      "1:Beta",
+      "sentinel b"
+    ]);
+
+    fixture.root.querySelector("button:not([data-action])")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(fixture.root.querySelector("output")?.textContent).toBe("a");
+
+    fixture.root.querySelector("[data-action='reverse']")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(Array.from(fixture.root.querySelectorAll("p, span")).map((node) => node.textContent)).toEqual([
+      "0:Beta",
+      "sentinel b",
+      "1:Alpha",
+      "sentinel a"
+    ]);
+
+    fixture.root.querySelector("[data-action='remove']")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(Array.from(fixture.root.querySelectorAll("p, span")).map((node) => node.textContent)).toEqual([
+      "0:Alpha",
+      "sentinel a"
+    ]);
+  });
+
   it("auto-unwraps refs inside template expressions", () => {
     const fixture = compileForDom(`<template>
   <section>

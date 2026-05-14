@@ -434,6 +434,20 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
   const forExpression = parseForExpression(String(attr.value));
   const listVar = nextName(context, "list");
   const itemVar = nextName(context, "item");
+  if (node.tag === "template") {
+    emit(context, indent, `const ${listVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
+    emit(context, indent, `for (const [__mikuru_index, ${itemVar}] of ${listVar}.entries()) {`);
+    emit(context, indent + 1, `const ${forExpression.item} = ${itemVar};`);
+    if (forExpression.index) {
+      emit(context, indent + 1, `const ${forExpression.index} = __mikuru_index;`);
+    }
+    withTemplateRefMode(context, "array", () => {
+      hydrateFragmentChildrenAtIndex(context, node.children, parentVar, domIndex, indent + 1);
+    });
+    emit(context, indent, "}");
+    return;
+  }
+
   const childVar = nextName(context, "row");
   const elementCheck = isComponentTag(node.tag)
     ? `!${childVar} || ${childVar}.nodeType !== 1`
