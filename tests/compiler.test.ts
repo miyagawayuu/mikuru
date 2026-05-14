@@ -355,6 +355,41 @@ p { color: red; }
     expect(result.code).toContain("color: red;");
   });
 
+  it("scopes escaped selectors used by utility-style class names", () => {
+    const result = compileStyle(
+      `
+.icon\\:active:hover,
+.w-\\[10px\\]::before,
+#foo\\,bar .grid\\{dense\\} {
+  color: red;
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-escaped" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain(".icon\\:active[data-mikuru-scope-escaped]:hover");
+    expect(result.code).toContain(".w-\\[10px\\][data-mikuru-scope-escaped]::before");
+    expect(result.code).toContain("#foo\\,bar .grid\\{dense\\}[data-mikuru-scope-escaped]");
+  });
+
+  it("keeps attribute selector punctuation intact while scoping", () => {
+    const result = compileStyle(
+      `
+a[href^="https://"][data-value="a,b { c }"]:focus,
+[data-query='button[data-kind="primary"], .link']::after {
+  content: attr(data-value);
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-attrs" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain('a[href^="https://"][data-value="a,b { c }"][data-mikuru-scope-attrs]:focus');
+    expect(result.code).toContain('[data-query=\'button[data-kind="primary"], .link\'][data-mikuru-scope-attrs]::after');
+    expect(result.code).toContain("content: attr(data-value);");
+  });
+
   it("reports a diagnostic and preserves CSS when a scoped block is missing a closing brace", () => {
     const source = `.card { color: red;\n.note { color: blue; }`;
     const result = compileStyle(source, { scoped: true, scopeAttr: "data-mikuru-scope-broken" });

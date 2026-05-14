@@ -175,6 +175,11 @@ function findScopeInsertIndex(selector: string): number {
     const char = selector[index];
     const previous = selector[index - 1];
 
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
     if (quote) {
       if (char === quote && previous !== "\\") {
         quote = undefined;
@@ -224,6 +229,11 @@ function splitSelectorList(selectorSource: string): string[] {
   for (let index = 0; index < selectorSource.length; index += 1) {
     const char = selectorSource[index];
     const previous = selectorSource[index - 1];
+
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
 
     if (quote) {
       if (char === quote && previous !== "\\") {
@@ -302,6 +312,11 @@ function findPreludeStart(css: string, searchStart: number, openIndex: number): 
     const char = css[index];
     const next = css[index + 1];
     const previous = css[index - 1];
+
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
 
     if (inComment) {
       if (char === "*" && next === "/") {
@@ -391,6 +406,11 @@ function findNextTopLevelChar(source: string, target: string, start: number): nu
     const next = source[index + 1];
     const previous = source[index - 1];
 
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
     if (inComment) {
       if (char === "*" && next === "/") {
         inComment = false;
@@ -462,6 +482,11 @@ function findMatchingPair(source: string, openIndex: number, openChar: string, c
     const char = source[index];
     const next = source[index + 1];
     const previous = source[index - 1];
+
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
 
     if (inComment) {
       if (char === "*" && next === "/") {
