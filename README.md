@@ -228,9 +228,11 @@ const open = ref(false);
 
 ## Not Included in v1
 
-Mikuru does not claim Vue compatibility. The v1 package does not include stable devtools or full template type checking.
-
-Scoped CSS is supported for common selector rewriting, native CSS nesting, `:global(...)`, `:deep(...)`, nested at-rules such as `@media`, `@scope`, and `@starting-style`, and malformed block diagnostics. What is not included in v1 is a full CSS compiler: CSS Modules, preprocessors, and project-level CSS transforms stay outside the package.
+- Full Vue compatibility.
+- Stable devtools API.
+- Full template type checking.
+- Precise source-map segment mapping.
+- Full CSS compiler features such as CSS Modules, preprocessors, and project-level CSS transforms.
 
 ## Repository Development
 
