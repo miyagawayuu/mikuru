@@ -18,7 +18,7 @@ The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook an
 - `.mikuru` files use one required `<template>` block and optional `<script>` / `<style>` blocks.
 - Duplicate SFC blocks and unknown SFC blocks are compile errors.
 - Templates must have exactly one root element.
-- `<style scoped>` supports selector rewriting for common selectors, nested conditional at-rules, `:global(...)`, and `:deep(...)`; raw blocks such as `@keyframes` are preserved.
+- `<style scoped>` supports selector rewriting for common selectors, escaped selectors, attribute selectors, functional pseudo-classes, nested at-rules including `@scope`, unknown at-rules with nested rules, `:global(...)`, and `:deep(...)`; raw blocks such as `@keyframes`, `@font-face`, and `@property` are preserved.
 
 ## Template Contract
 
