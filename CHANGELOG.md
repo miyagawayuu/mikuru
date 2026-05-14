@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.26 - 2026-05-15
 
 - Improved scoped CSS rewriting with native CSS nesting, `@starting-style`, additional raw descriptor at-rules, and stronger `:deep(...)` / `:global(...)` parsing around attributes and functional pseudo-class arguments.
 - Added scoped CSS malformed-block diagnostics with offset, line, column, and one-line code frames, including nested CSS block locations and debug `compiler:warning` style payloads.
