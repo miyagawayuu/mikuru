@@ -32,7 +32,7 @@
             >
               <strong>{{ component.branch }} #{{ component.id }} {{ component.name }}</strong>
               <span>{{ component.filename }}</span>
-              <span>{{ component.childCount }} children, {{ component.styleCount }} styles</span>
+              <span>{{ component.childCount }} children, {{ component.styleCount }} styles, {{ component.eventCount }} events</span>
             </button>
           </li>
         </ul>
@@ -55,6 +55,10 @@
             <dd>{{ selected.styleIds || "none" }}</dd>
             <dt>scopes</dt>
             <dd>{{ selected.scopeAttrs || "none" }}</dd>
+            <dt>events</dt>
+            <dd>{{ selected.eventCount }} total</dd>
+            <dt>event types</dt>
+            <dd>{{ selected.eventBreakdown || "none" }}</dd>
           </dl>
           <pre>{{ selected.propsText }}</pre>
         </div>
@@ -133,7 +137,8 @@ const filterOptions = computed(() => [
 function snapshot() {
   const events = inspector.getEvents();
   const stylesByComponent = collectStyleEvents(events);
-  components.value = flattenComponentTree(inspector.getComponentTree(), stylesByComponent);
+  const eventsByComponent = collectComponentEvents(events);
+  components.value = flattenComponentTree(inspector.getComponentTree(), stylesByComponent, eventsByComponent);
 
   if (hideBackgroundEventsAfterClear.value && events.some(isForegroundEvent)) {
     hideBackgroundEventsAfterClear.value = false;
@@ -166,6 +171,24 @@ function snapshot() {
   }
 }
 
+function collectComponentEvents(events) {
+  const eventsByComponent = new Map();
+  for (const event of events) {
+    if (event.payload?.componentId === undefined) {
+      continue;
+    }
+
+    const componentId = event.payload.componentId;
+    const category = categorizeEvent(event);
+    const counts = eventsByComponent.get(componentId) ?? { total: 0, component: 0, style: 0, async: 0, hydration: 0, router: 0, error: 0 };
+    counts.total += 1;
+    counts[category] = (counts[category] ?? 0) + 1;
+    eventsByComponent.set(componentId, counts);
+  }
+
+  return eventsByComponent;
+}
+
 function collectStyleEvents(events) {
   const stylesByComponent = new Map();
   for (const event of events) {
@@ -189,10 +212,11 @@ function collectStyleEvents(events) {
   return stylesByComponent;
 }
 
-function flattenComponentTree(tree, stylesByComponent, depth = 0, rows = []) {
+function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth = 0, rows = []) {
   for (const component of tree) {
     const childIds = component.childrenTree.map((child) => child.id);
     const styles = stylesByComponent.get(component.id) ?? [];
+    const eventCounts = eventsByComponent.get(component.id) ?? { total: 0 };
     rows.push({
       id: component.id,
       name: component.name ?? "anonymous",
@@ -202,6 +226,8 @@ function flattenComponentTree(tree, stylesByComponent, depth = 0, rows = []) {
       depth,
       childCount: childIds.length,
       styleCount: styles.length,
+      eventCount: eventCounts.total,
+      eventBreakdown: formatEventBreakdown(eventCounts),
       styleIds: styles.map((style) => style.id).join(", "),
       scopeAttrs: styles.map((style) => style.scopeAttr).filter(Boolean).join(", "),
       propKeys: (component.propKeys ?? []).join(", "),
@@ -209,10 +235,17 @@ function flattenComponentTree(tree, stylesByComponent, depth = 0, rows = []) {
       childIds: childIds.join(", "),
       propsText: JSON.stringify(component.props ?? {}, null, 2)
     });
-    flattenComponentTree(component.childrenTree, stylesByComponent, depth + 1, rows);
+    flattenComponentTree(component.childrenTree, stylesByComponent, eventsByComponent, depth + 1, rows);
   }
 
   return rows;
+}
+
+function formatEventBreakdown(counts) {
+  return ["component", "style", "async", "hydration", "router", "error"]
+    .filter((category) => counts[category] > 0)
+    .map((category) => `${category}: ${counts[category]}`)
+    .join(", ");
 }
 
 function summarizeEvent(event) {
