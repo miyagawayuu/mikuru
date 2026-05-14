@@ -498,6 +498,53 @@ function select(id) {
     expect(root.querySelector("output")?.textContent).toBe("a");
   });
 
+  it("hydrates unkeyed nested template v-for fragments with conditional branches", async () => {
+    const source = `<template>
+  <section>
+    <template v-for="group in groups">
+      <h2>{{ group.name }}</h2>
+      <template v-if="group.items.length">
+        <template v-for="item in group.items">
+          <p :data-row="group.name + '-' + item">{{ group.name }}:{{ item }}</p>
+          <button @click="select(group.name + '-' + item)">Select {{ item }}</button>
+        </template>
+        <span :data-sentinel="group.name">sentinel {{ group.name }}</span>
+      </template>
+      <template v-else>
+        <em>empty {{ group.name }}</em>
+      </template>
+    </template>
+    <output>{{ selected }}</output>
+  </section>
+</template>
+<script>
+import { ref } from "mikuru";
+const groups = ref([
+  { name: "A", items: ["one", "two"] },
+  { name: "B", items: [] }
+]);
+const selected = ref("none");
+function select(value) {
+  selected.value = value;
+}
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const section = root.firstElementChild;
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(instance.element).toBe(section);
+    expect(root.querySelector("template")).toBeNull();
+    expect(root.innerHTML).toBe('<section><h2>A</h2><p data-row="A-one">A:one</p><button>Select one</button><p data-row="A-two">A:two</p><button>Select two</button><span data-sentinel="A">sentinel A</span><h2>B</h2><em>empty B</em><output>none</output></section>');
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    await Promise.resolve();
+    expect(root.querySelector("output")?.textContent).toBe("A-one");
+  });
+
   it("hydrates class and style bindings with object v-bind attr cleanup", async () => {
     const source = `<template>
   <section>
