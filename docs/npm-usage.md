@@ -77,9 +77,9 @@ Debug mode also registers mounted components with the unstable internal `globalT
 
 Generated DOM updates are synchronous by default. To opt into queued generated DOM effects, use `mikuru({ batchedUpdates: true })`. In that mode, generated DOM effects use the runtime job queue and can be awaited with `nextTick()`.
 
-For experiments, `createDebugInspector()` can read `getComponents()`, `getComponentTree()`, `getEvents()`, and `getEventsByType(type)`, clear event history with `clearEvents()`, and subscribe to new events with `subscribe(listener)`. `createDebugDiagnostic()` and `emitDebugDiagnostic()` are exported for custom experiments that want to emit the same diagnostic shape.
+For experiments, `createDebugInspector()` can read flat component metadata with `getComponents()`, parent/child structure with `getComponentTree()`, event history with `getEvents()`, and filtered event lists with `getEventsByType(type)`. It can clear event history with `clearEvents()` and subscribe to new events with `subscribe(listener)`. Component-linked events include `componentId` where available, so tooling can connect style injection, async, runtime error, and component lifecycle events back to the mounted component tree. `createDebugDiagnostic()` and `emitDebugDiagnostic()` are exported for custom experiments that want to emit the same diagnostic shape.
 
-The dogfood example uses this helper in a small in-app Debug Panel with event filters, payload details, and a Router lab that emits navigation events. It remains an unstable debugging aid, not a production devtools API.
+The dogfood example uses this helper in a small in-app Debug Panel with a component tree, selected component props/attrs/style metadata, per-component event counts, component-scoped event filtering, event category filters, payload details, and a Router lab that emits navigation events. It remains an unstable debugging aid, not a production devtools API.
 
 ## Write a Mikuru Component
 

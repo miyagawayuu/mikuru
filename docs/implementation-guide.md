@@ -615,7 +615,7 @@ actual: "<em>"
 
 `createDebugDiagnostic(source, level, message, details)` normalizes warning/error payloads, and `emitDebugDiagnostic(source, level, message, details)` emits `${source}:${level}` events with `{ diagnostic }` payloads for custom tooling experiments.
 
-The dogfood example enables `mikuru({ debug: true })` and includes an in-app Debug Panel that uses the inspector to display mounted components, selected props/attrs, event category filters, selected event payload details, and recent debug events. Its Router lab emits navigation events so router debugging can be exercised without leaving the example.
+The dogfood example enables `mikuru({ debug: true })` and includes an in-app Debug Panel that uses the inspector to display mounted components as a tree, selected props/attrs, injected style ids and scope attributes, component event counts, component-scoped event filtering, event category filters, selected event component context, payload details, and recent debug events. Its Router lab emits navigation events so router debugging can be exercised without leaving the example.
 
 The Vite plugin forwards transform failures with `id`, `loc`, and `frame`, including fallback metadata for non-standard compile-time errors. The compiler returns a v3 source map with `sourcesContent`, and generated template element, interpolation, bound attribute, event handler, and script lines map back to their original SFC lines. Generated code inspection can still help for complex compiler issues.
 
