@@ -364,6 +364,45 @@ p { color: red; }
     expect(result.code).toContain("display: grid;");
   });
 
+  it("scopes deep and global selectors inside native CSS nesting", () => {
+    const result = compileStyle(
+      `
+.card {
+  & :deep(.remote:hover),
+  &.active {
+    color: blue;
+  }
+  & :global(.theme-dark) .label {
+    color: white;
+  }
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-nested-helpers" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("&[data-mikuru-scope-nested-helpers] .remote:hover,\n  &.active[data-mikuru-scope-nested-helpers] {");
+    expect(result.code).toContain("&[data-mikuru-scope-nested-helpers] .theme-dark .label {");
+  });
+
+  it("scopes CSS @starting-style rules", () => {
+    const result = compileStyle(
+      `
+@starting-style {
+  .panel,
+  .panel::backdrop {
+    opacity: 0;
+  }
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-starting" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("@starting-style {");
+    expect(result.code).toContain(".panel[data-mikuru-scope-starting],\n  .panel[data-mikuru-scope-starting]::backdrop {");
+  });
+
   it("does not split selector lists inside :is, :where, and :not arguments", () => {
     const result = compileStyle(
       `
@@ -469,6 +508,29 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
     expect(result.diagnostics).toEqual([]);
     expect(result.code).toContain("@property --mikuru-tone {\n  syntax: \"<color>\";\n  inherits: false;\n  initial-value: red;\n}");
     expect(result.code).not.toContain("data-mikuru-scope-property");
+  });
+
+  it("preserves descriptor-style raw at-rule blocks", () => {
+    const result = compileStyle(
+      `
+@font-feature-values MikuruSans {
+  @styleset {
+    pretty: 1;
+  }
+}
+@counter-style thumbs {
+  system: cyclic;
+  symbols: "\\1F44D";
+  suffix: " ";
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-raw-at" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("@font-feature-values MikuruSans {\n  @styleset {\n    pretty: 1;\n  }\n}");
+    expect(result.code).toContain('@counter-style thumbs {\n  system: cyclic;\n  symbols: "\\1F44D";\n  suffix: " ";\n}');
+    expect(result.code).not.toContain("data-mikuru-scope-raw-at");
   });
 
   it("reports a diagnostic and preserves CSS when a scoped block is missing a closing brace", () => {

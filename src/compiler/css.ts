@@ -21,8 +21,19 @@ export type CssCompileResult = {
   diagnostics: CssCompileDiagnostic[];
 };
 
-const nestedRuleAtRules = new Set(["media", "supports", "container", "layer", "scope"]);
-const rawBlockAtRules = new Set(["keyframes", "-webkit-keyframes", "-moz-keyframes", "-o-keyframes", "font-face", "page", "property"]);
+const nestedRuleAtRules = new Set(["media", "supports", "container", "layer", "scope", "starting-style"]);
+const rawBlockAtRules = new Set([
+  "keyframes",
+  "-webkit-keyframes",
+  "-moz-keyframes",
+  "-o-keyframes",
+  "counter-style",
+  "font-face",
+  "font-feature-values",
+  "page",
+  "property",
+  "viewport"
+]);
 
 export function compileStyle(css: string, options: CssCompileOptions = {}): CssCompileResult {
   const diagnostics: CssCompileDiagnostic[] = [];

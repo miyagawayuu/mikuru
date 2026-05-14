@@ -71,10 +71,10 @@ button {
 制約:
 
 - scoped CSSはセレクタリスト、疑似クラス、疑似要素、属性セレクタ、escapeされたセレクタ、`:is(...)` / `:where(...)` / `:not(...)` のような関数型疑似クラスを書き換える。
-- `@media`、`@supports`、`@container`、`@layer`、`@scope` の中のルールも書き換える。通常ルール内のnative CSS nestingも対象にし、未知のat-ruleでも中にCSSルールがあれば、その内側のセレクタをscope対象にする。
+- `@media`、`@supports`、`@container`、`@layer`、`@scope`、`@starting-style` の中のルールも書き換える。通常ルール内のnative CSS nestingも対象にし、未知のat-ruleでも中にCSSルールがあれば、その内側のセレクタをscope対象にする。
 - `:global(...)` はスコープ外セレクタとして扱い、`:deep(...)` は親側だけにscope属性を付ける。属性値や関数型疑似クラス引数の中にある同名文字列は通常のCSSテキストとして保持する。
 - コメント、文字列、属性値、`url(...)` の中の `{` / `}` / `,` はCSS構文として扱わない。
-- `@keyframes` の `from` / `to` / `%`、`@font-face`、`@page`、`@property` などの生CSSブロックは書き換えない。
+- `@keyframes` の `from` / `to` / `%`、`@font-face`、`@font-feature-values`、`@counter-style`、`@page`、`@property` などのdescriptor系/生CSSブロックは書き換えない。
 - 閉じ括弧が足りないCSSブロックは元のCSSを保持し、offset / line / column付きでdebug時はstyle diagnosticの対象になる。
 - CSS Modulesやプリプロセッサはv1対象外にする。
 - 同じコンポーネントを複数mountしても、同一CSSは重複注入しない。

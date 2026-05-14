@@ -571,9 +571,9 @@ Use `<style scoped>` for component-local selector scoping.
 </style>
 ```
 
-Scoped CSS handles common selector lists, pseudo-classes and pseudo-elements, attribute selectors, escaped selectors, native CSS nesting, and functional pseudo-classes such as `:is(...)`, `:where(...)`, and `:not(...)` without splitting on commas inside their arguments. It scopes rules inside `@media`, `@supports`, `@container`, `@layer`, `@scope`, and unknown at-rules that contain nested CSS rules. `:global(...)` leaves a selector outside component scoping, while `:deep(...)` scopes only the parent side of a deep selector. Matching helper-looking text inside attribute values and functional pseudo-class arguments is preserved as normal CSS text.
+Scoped CSS handles common selector lists, pseudo-classes and pseudo-elements, attribute selectors, escaped selectors, native CSS nesting, and functional pseudo-classes such as `:is(...)`, `:where(...)`, and `:not(...)` without splitting on commas inside their arguments. It scopes rules inside `@media`, `@supports`, `@container`, `@layer`, `@scope`, `@starting-style`, and unknown at-rules that contain nested CSS rules. `:global(...)` leaves a selector outside component scoping, while `:deep(...)` scopes only the parent side of a deep selector. Matching helper-looking text inside attribute values and functional pseudo-class arguments is preserved as normal CSS text.
 
-Comments, strings, attribute values, and `url(...)` values can contain `{`, `}`, and `,` without being treated as CSS rule delimiters. Keyframe step selectors and other raw at-rule bodies such as `@font-face`, `@page`, and `@property` are preserved instead of scoped. Malformed scoped CSS block diagnostics include offset, line, and column. CSS Modules and preprocessors are still outside the v1 compiler.
+Comments, strings, attribute values, and `url(...)` values can contain `{`, `}`, and `,` without being treated as CSS rule delimiters. Keyframe step selectors and other raw at-rule bodies such as `@font-face`, `@font-feature-values`, `@counter-style`, `@page`, and `@property` are preserved instead of scoped. Malformed scoped CSS block diagnostics include offset, line, and column. CSS Modules and preprocessors are still outside the v1 compiler.
 
 ## Debugging
 
