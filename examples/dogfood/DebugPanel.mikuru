@@ -177,6 +177,20 @@
 
 <script>
 import { computed, createDebugInspector, onBeforeUnmount, ref, watch } from "mikuru/runtime";
+import {
+  categorizeEvent,
+  collectComponentEvents,
+  collectStyleEvents,
+  createPanelSnapshot,
+  createSnapshotSummary,
+  filterVisibleComponents,
+  formatComponentLabel,
+  formatEventBreakdown,
+  isErrorEvent,
+  isForegroundEvent,
+  matchesEventSearch,
+  summarizeEvent
+} from "./debugPanelHelpers";
 
 const inspector = createDebugInspector();
 const allComponents = ref([]);
@@ -213,17 +227,17 @@ const selectedEvent = computed(() =>
   filteredEvents.value.find((event) => event.id === selectedEventId.value) ?? filteredEvents.value[0]
 );
 
-const snapshotText = computed(() => JSON.stringify(createPanelSnapshot(), null, 2));
+const snapshotText = computed(() => JSON.stringify(createCurrentPanelSnapshot(), null, 2));
 
-const snapshotSummary = computed(() => ({
-  components: `${components.value.length}/${allComponents.value.length}`,
-  events: `${filteredEvents.value.length}/${allEvents.value.length}`,
-  filters: [
-    componentSearch.value ? `component: ${componentSearch.value}` : "",
-    eventSearch.value ? `event: ${eventSearch.value}` : "",
-    eventFilter.value !== "all" ? `type: ${eventFilter.value}` : "",
-    componentEventFilterId.value !== undefined ? `component #${componentEventFilterId.value}` : ""
-  ].filter(Boolean).join(", ")
+const snapshotSummary = computed(() => createSnapshotSummary({
+  componentSearch: componentSearch.value,
+  eventSearch: eventSearch.value,
+  eventFilter: eventFilter.value,
+  componentEventFilterId: componentEventFilterId.value,
+  allComponents: allComponents.value,
+  components: components.value,
+  allEvents: allEvents.value,
+  filteredEvents: filteredEvents.value
 }));
 
 const componentEventFilterLabel = computed(() => {
@@ -251,7 +265,7 @@ function snapshot() {
   const eventsByComponent = collectComponentEvents(events);
   const flattenedComponents = flattenComponentTree(inspector.getComponentTree(), stylesByComponent, eventsByComponent);
   allComponents.value = flattenedComponents;
-  components.value = filterVisibleComponents(flattenedComponents);
+  components.value = filterVisibleComponents(flattenedComponents, collapsedIds.value, componentSearch.value);
 
   if (hideBackgroundEventsAfterClear.value && events.some(isForegroundEvent)) {
     hideBackgroundEventsAfterClear.value = false;
@@ -287,47 +301,6 @@ function snapshot() {
   if (selectedEventId.value && !filteredEvents.value.some((event) => event.id === selectedEventId.value)) {
     selectedEventId.value = undefined;
   }
-}
-
-function collectComponentEvents(events) {
-  const eventsByComponent = new Map();
-  for (const event of events) {
-    if (event.payload?.componentId === undefined) {
-      continue;
-    }
-
-    const componentId = event.payload.componentId;
-    const category = categorizeEvent(event);
-    const counts = eventsByComponent.get(componentId) ?? { total: 0, component: 0, style: 0, async: 0, hydration: 0, router: 0, error: 0 };
-    counts.total += 1;
-    counts[category] = (counts[category] ?? 0) + 1;
-    eventsByComponent.set(componentId, counts);
-  }
-
-  return eventsByComponent;
-}
-
-function collectStyleEvents(events) {
-  const stylesByComponent = new Map();
-  for (const event of events) {
-    if (event.type !== "style:inject" || event.payload?.componentId === undefined) {
-      continue;
-    }
-
-    const componentId = event.payload.componentId;
-    const style = event.payload.style ?? {};
-    const styles = stylesByComponent.get(componentId) ?? [];
-    if (!styles.some((item) => item.id === style.id)) {
-      styles.push({
-        id: style.id ?? "style",
-        scopeAttr: style.scopeAttr ?? "",
-        scoped: style.scoped === true
-      });
-    }
-    stylesByComponent.set(componentId, styles);
-  }
-
-  return stylesByComponent;
 }
 
 function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth = 0, rows = []) {
@@ -367,177 +340,8 @@ function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth 
   return rows;
 }
 
-function filterVisibleComponents(rows) {
-  const query = normalizeSearch(componentSearch.value);
-  if (query) {
-    const matchingIds = new Set(rows.filter((component) => matchesComponentSearch(component, query)).map((component) => component.id));
-    const visibleIds = new Set(matchingIds);
-    for (const id of matchingIds) {
-      let parentId = rows.find((component) => component.id === id)?.parentId;
-      while (parentId !== undefined) {
-        visibleIds.add(parentId);
-        parentId = rows.find((component) => component.id === parentId)?.parentId;
-      }
-    }
-
-    return rows.filter((component) => visibleIds.has(component.id));
-  }
-
-  return rows.filter((component) => {
-    let parentId = component.parentId;
-    while (parentId !== undefined) {
-      if (collapsedIds.value.has(parentId)) {
-        return false;
-      }
-
-      parentId = rows.find((item) => item.id === parentId)?.parentId;
-    }
-
-    return true;
-  });
-}
-
-function normalizeSearch(value) {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-function matchesComponentSearch(component, query) {
-  return [
-    component.name,
-    component.filename,
-    component.rootLabel,
-    component.rootPath,
-    component.propKeys,
-    component.attrKeys,
-    component.styleIds,
-    component.scopeAttrs
-  ].some((value) => String(value ?? "").toLowerCase().includes(query));
-}
-
-function matchesEventSearch(event, value) {
-  const query = normalizeSearch(value);
-  if (!query) {
-    return true;
-  }
-
-  return [
-    event.type,
-    event.summary,
-    event.category,
-    event.componentLabel,
-    event.payloadText
-  ].some((item) => String(item ?? "").toLowerCase().includes(query));
-}
-
-function formatEventBreakdown(counts) {
-  return ["component", "style", "async", "hydration", "router", "error"]
-    .filter((category) => counts[category] > 0)
-    .map((category) => `${category}: ${counts[category]}`)
-    .join(", ");
-}
-
-function summarizeEvent(event) {
-  const payload = event.payload ?? {};
-  if (payload.diagnostic?.message) {
-    return `${payload.diagnostic.phase ?? payload.diagnostic.source ?? event.type}: ${payload.diagnostic.message}`;
-  }
-
-  if (event.type === "style:inject") {
-    const style = payload.style ?? {};
-    const scoped = style.scoped ? "scoped" : "global";
-    const size = typeof style.length === "number" ? `${style.length} chars` : "unknown size";
-    return `${formatFilename(payload.component?.filename)}: ${style.id ?? "style"} (${scoped}, ${size})`;
-  }
-
-  if (event.type === "hydration:warning") {
-    return `${payload.kind ?? "hydration"}: ${payload.domPath ?? payload.message ?? "warning"}`;
-  }
-
-  if (payload.to?.path || payload.from?.path) {
-    return `${payload.from?.path ?? "-"} -> ${payload.to?.path ?? "-"}${payload.status ? ` (${payload.status})` : ""}`;
-  }
-
-  if (payload.errorInfo?.phase) {
-    return `${payload.errorInfo.phase}: ${formatError(payload.error)}`;
-  }
-
-  if (payload.error) {
-    return formatError(payload.error);
-  }
-
-  if (payload.status) {
-    return String(payload.status);
-  }
-
-  if (payload.componentId) {
-    return `component #${payload.componentId}`;
-  }
-
-  return new Date(event.timestamp).toLocaleTimeString();
-}
-
-function categorizeEvent(event) {
-  if (isErrorEvent(event)) {
-    return "error";
-  }
-
-  if (event.type.startsWith("route:")) {
-    return "router";
-  }
-
-  if (event.type.startsWith("async:")) {
-    return "async";
-  }
-
-  if (event.type.startsWith("hydration:")) {
-    return "hydration";
-  }
-
-  if (event.type.startsWith("component:")) {
-    return "component";
-  }
-
-  if (event.type.startsWith("style:")) {
-    return "style";
-  }
-
-  return "component";
-}
-
-function isErrorEvent(event) {
-  return event.type.includes("error") || event.type.endsWith(":rejected") || event.type === "hydration:warning";
-}
-
-function isForegroundEvent(event) {
-  return event.type.startsWith("route:") || event.type.startsWith("hydration:") || isErrorEvent(event);
-}
-
 function countEvents(category) {
   return searchedEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
-}
-
-function formatError(error) {
-  if (!error) {
-    return "unknown";
-  }
-
-  return error.message ?? String(error);
-}
-
-function formatFilename(filename) {
-  if (!filename) {
-    return "unknown";
-  }
-
-  return String(filename).split(/[\\/]/).pop() ?? String(filename);
-}
-
-function formatComponentLabel(componentId, component) {
-  if (componentId === undefined) {
-    return "";
-  }
-
-  return `#${componentId} ${formatFilename(component?.filename ?? component?.component)}`;
 }
 
 function isElement(value) {
@@ -663,7 +467,7 @@ function clearComponentEventFilter() {
 
 function clearComponentSearch() {
   componentSearch.value = "";
-  components.value = filterVisibleComponents(allComponents.value);
+  components.value = filterVisibleComponents(allComponents.value, collapsedIds.value, componentSearch.value);
 }
 
 function clearEventSearch() {
@@ -671,85 +475,20 @@ function clearEventSearch() {
   selectedEventId.value = undefined;
 }
 
-function createPanelSnapshot() {
-  return {
-    capturedAt: new Date().toISOString(),
-    filters: {
-      componentSearch: componentSearch.value,
-      eventSearch: eventSearch.value,
-      eventFilter: eventFilter.value,
-      componentEventFilterId: componentEventFilterId.value
-    },
-    counts: {
-      allComponents: allComponents.value.length,
-      visibleComponents: components.value.length,
-      allEvents: allEvents.value.length,
-      searchedEvents: searchedEvents.value.length,
-      filteredEvents: filteredEvents.value.length
-    },
-    selectedComponent: selected.value ? serializeComponent(selected.value) : undefined,
-    selectedEvent: selectedEvent.value ? serializeEvent(selectedEvent.value) : undefined,
-    visibleComponents: components.value.slice(0, 50).map(serializeComponent),
-    filteredEvents: filteredEvents.value.slice(0, 50).map(serializeEvent)
-  };
-}
-
-function serializeComponent(component) {
-  return {
-    id: component.id,
-    name: component.name,
-    filename: component.filename,
-    depth: component.depth,
-    parentId: component.parentId,
-    status: component.status,
-    root: component.rootLabel,
-    path: component.rootPath,
-    props: component.propKeys,
-    attrs: component.attrKeys,
-    children: component.childIds,
-    styles: component.styleIds,
-    scopes: component.scopeAttrs,
-    events: component.eventCount,
-    eventTypes: component.eventBreakdown
-  };
-}
-
-function serializeEvent(event) {
-  return {
-    type: event.type,
-    category: event.category,
-    componentId: event.componentId,
-    component: event.componentLabel,
-    level: event.level,
-    time: event.time,
-    summary: event.summary,
-    payload: compactEventPayload(event)
-  };
-}
-
-function compactEventPayload(event) {
-  const payload = parsePayloadText(event.payloadText);
-  if (!payload || typeof payload !== "object") {
-    return payload;
-  }
-
-  return {
-    componentId: event.componentId,
-    component: event.componentLabel || undefined,
-    diagnostic: payload.diagnostic,
-    style: payload.style,
-    route: payload.to || payload.from ? { from: payload.from, to: payload.to, status: payload.status } : undefined,
-    errorInfo: payload.errorInfo,
-    error: payload.error
-  };
-}
-
-function parsePayloadText(payloadText) {
-  try {
-    return JSON.parse(payloadText);
-  } catch (_error) {
-    return payloadText;
-  }
+function createCurrentPanelSnapshot() {
+  return createPanelSnapshot({
+    componentSearch: componentSearch.value,
+    eventSearch: eventSearch.value,
+    eventFilter: eventFilter.value,
+    componentEventFilterId: componentEventFilterId.value,
+    allComponents: allComponents.value,
+    components: components.value,
+    allEvents: allEvents.value,
+    searchedEvents: searchedEvents.value,
+    filteredEvents: filteredEvents.value,
+    selected: selected.value,
+    selectedEvent: selectedEvent.value
+  });
 }
 
 async function copySnapshot() {
@@ -774,12 +513,12 @@ function toggleComponent(id) {
     next.add(id);
   }
   collapsedIds.value = next;
-  components.value = filterVisibleComponents(allComponents.value);
+  components.value = filterVisibleComponents(allComponents.value, collapsedIds.value, componentSearch.value);
 }
 
 function expandAllComponents() {
   collapsedIds.value = new Set();
-  components.value = filterVisibleComponents(allComponents.value);
+  components.value = filterVisibleComponents(allComponents.value, collapsedIds.value, componentSearch.value);
 }
 
 function collapseAllComponents() {
@@ -787,7 +526,7 @@ function collapseAllComponents() {
   if (selected.value) {
     expandAncestors(selected.value.id);
   } else {
-    components.value = filterVisibleComponents(allComponents.value);
+    components.value = filterVisibleComponents(allComponents.value, collapsedIds.value, componentSearch.value);
   }
 }
 
@@ -799,7 +538,7 @@ function expandAncestors(id) {
     parentId = allComponents.value.find((component) => component.id === parentId)?.parentId;
   }
   collapsedIds.value = next;
-  components.value = filterVisibleComponents(allComponents.value);
+  components.value = filterVisibleComponents(allComponents.value, collapsedIds.value, componentSearch.value);
 }
 
 function selectEventComponent() {
@@ -844,7 +583,7 @@ function clearEvents() {
 
 const unsubscribe = inspector.subscribe(snapshot);
 const stopComponentSearch = watch(componentSearch, () => {
-  components.value = filterVisibleComponents(allComponents.value);
+  components.value = filterVisibleComponents(allComponents.value, collapsedIds.value, componentSearch.value);
 });
 onBeforeUnmount(unsubscribe);
 onBeforeUnmount(stopComponentSearch);
