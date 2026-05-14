@@ -21,15 +21,16 @@
 
     <div class="debug-grid">
       <section class="debug-section">
-        <h3>Components</h3>
+        <h3>Component Tree</h3>
         <ul m-if="components.length > 0" class="debug-list">
           <li m-for="component in components" :key="component.id">
             <button
               class="debug-component-row"
               :class="{ selected: selected?.id === component.id }"
+              :style="{ paddingLeft: component.indent }"
               @click="selectComponent(component.id)"
             >
-              <strong>#{{ component.id }} {{ component.name }}</strong>
+              <strong>{{ component.branch }} #{{ component.id }} {{ component.name }}</strong>
               <span>{{ component.filename }}</span>
             </button>
           </li>
@@ -125,15 +126,7 @@ const filterOptions = computed(() => [
 ]);
 
 function snapshot() {
-  components.value = inspector.getComponents().map((component) => ({
-    id: component.id,
-    name: component.name ?? "anonymous",
-    filename: component.filename ?? "unknown",
-    propKeys: (component.propKeys ?? []).join(", "),
-    attrKeys: (component.attrKeys ?? []).join(", "),
-    childIds: Array.from(component.children ?? []).join(", "),
-    propsText: JSON.stringify(component.props ?? {}, null, 2)
-  }));
+  components.value = flattenComponentTree(inspector.getComponentTree());
 
   const events = inspector.getEvents();
   if (hideBackgroundEventsAfterClear.value && events.some(isForegroundEvent)) {
@@ -164,6 +157,27 @@ function snapshot() {
   if (selectedEventId.value && !filteredEvents.value.some((event) => event.id === selectedEventId.value)) {
     selectedEventId.value = undefined;
   }
+}
+
+function flattenComponentTree(tree, depth = 0, rows = []) {
+  for (const component of tree) {
+    const childIds = component.childrenTree.map((child) => child.id);
+    rows.push({
+      id: component.id,
+      name: component.name ?? "anonymous",
+      filename: component.filename ?? "unknown",
+      branch: depth === 0 ? "root" : "child",
+      indent: `${10 + depth * 18}px`,
+      depth,
+      propKeys: (component.propKeys ?? []).join(", "),
+      attrKeys: (component.attrKeys ?? []).join(", "),
+      childIds: childIds.join(", "),
+      propsText: JSON.stringify(component.props ?? {}, null, 2)
+    });
+    flattenComponentTree(component.childrenTree, depth + 1, rows);
+  }
+
+  return rows;
 }
 
 function summarizeEvent(event) {

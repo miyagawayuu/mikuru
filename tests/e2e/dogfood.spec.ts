@@ -148,8 +148,11 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
 
   const panel = page.getByRole("region", { name: "Debug panel" });
   await expect(panel.getByRole("heading", { name: "Debug Panel" })).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "Component Tree" })).toBeVisible();
   await expect(panel.getByText("App.mikuru").first()).toBeVisible();
   await expect(panel.getByText("DebugPanel.mikuru").first()).toBeVisible();
+  await expect(panel.getByText(/root #\d+ .*App\.mikuru/).first()).toBeVisible();
+  await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/).first()).toBeVisible();
   await expect(panel.getByText("component:register").first()).toBeVisible();
 
   await panel.locator(".debug-filters").getByRole("button", { name: /Style/ }).click();
