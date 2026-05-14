@@ -1,7 +1,22 @@
 export type DebugEventLike = {
   type: string;
   timestamp?: number;
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
+};
+
+export type DebugComponentTreeNodeLike = {
+  id: number;
+  name?: string;
+  filename?: string;
+  root?: Element | Comment;
+  parentId?: number;
+  props?: Record<string, unknown>;
+  propKeys?: string[];
+  attrs?: Record<string, unknown>;
+  attrKeys?: string[];
+  childrenTree: DebugComponentTreeNodeLike[];
+  mountedAt?: number;
+  unmountedAt?: number;
 };
 
 export type DebugComponentRow = {
@@ -21,7 +36,14 @@ export type DebugComponentRow = {
   childIds: string;
   styleIds: string;
   scopeAttrs: string;
-  [key: string]: any;
+  branch: string;
+  indent: string;
+  collapsed: boolean;
+  hasRoot: boolean;
+  root?: Element | Comment;
+  styleCount: number;
+  mountedLabel: string;
+  propsText: string;
 };
 
 export type DebugEventRow = {
@@ -33,7 +55,6 @@ export type DebugEventRow = {
   time: string;
   summary: string;
   payloadText: string;
-  [key: string]: any;
 };
 
 export type DebugEventCounts = {
@@ -47,6 +68,12 @@ export type DebugEventCounts = {
   [key: string]: number | undefined;
 };
 
+export type DebugStyleMetadata = {
+  id: string;
+  scopeAttr: string;
+  scoped: boolean;
+};
+
 export function collectComponentEvents(events: DebugEventLike[]): Map<number, DebugEventCounts> {
   const eventsByComponent = new Map<number, DebugEventCounts>();
   for (const event of events) {
@@ -54,7 +81,10 @@ export function collectComponentEvents(events: DebugEventLike[]): Map<number, De
       continue;
     }
 
-    const componentId = event.payload.componentId;
+    const componentId = asNumber(event.payload.componentId);
+    if (componentId === undefined) {
+      continue;
+    }
     const category = categorizeEvent(event);
     const counts = eventsByComponent.get(componentId) ?? { total: 0, component: 0, style: 0, async: 0, hydration: 0, router: 0, error: 0 };
     counts.total += 1;
@@ -65,20 +95,24 @@ export function collectComponentEvents(events: DebugEventLike[]): Map<number, De
   return eventsByComponent;
 }
 
-export function collectStyleEvents(events: DebugEventLike[]): Map<number, Array<{ id: string; scopeAttr: string; scoped: boolean }>> {
-  const stylesByComponent = new Map<number, Array<{ id: string; scopeAttr: string; scoped: boolean }>>();
+export function collectStyleEvents(events: DebugEventLike[]): Map<number, DebugStyleMetadata[]> {
+  const stylesByComponent = new Map<number, DebugStyleMetadata[]>();
   for (const event of events) {
     if (event.type !== "style:inject" || event.payload?.componentId === undefined) {
       continue;
     }
 
-    const componentId = event.payload.componentId;
-    const style = event.payload.style ?? {};
+    const componentId = asNumber(event.payload.componentId);
+    if (componentId === undefined) {
+      continue;
+    }
+
+    const style = asRecord(event.payload.style);
     const styles = stylesByComponent.get(componentId) ?? [];
     if (!styles.some((item) => item.id === style.id)) {
       styles.push({
-        id: style.id ?? "style",
-        scopeAttr: style.scopeAttr ?? "",
+        id: typeof style.id === "string" ? style.id : "style",
+        scopeAttr: typeof style.scopeAttr === "string" ? style.scopeAttr : "",
         scoped: style.scoped === true
       });
     }
@@ -86,6 +120,50 @@ export function collectStyleEvents(events: DebugEventLike[]): Map<number, Array<
   }
 
   return stylesByComponent;
+}
+
+export function flattenComponentTree(
+  tree: DebugComponentTreeNodeLike[],
+  stylesByComponent: Map<number, DebugStyleMetadata[]>,
+  eventsByComponent: Map<number, DebugEventCounts>,
+  collapsedIds: Set<number>,
+  depth = 0,
+  rows: DebugComponentRow[] = []
+): DebugComponentRow[] {
+  for (const component of tree) {
+    const childIds = component.childrenTree.map((child) => child.id);
+    const styles = stylesByComponent.get(component.id) ?? [];
+    const eventCounts = eventsByComponent.get(component.id) ?? { total: 0 };
+    rows.push({
+      id: component.id,
+      name: component.name ?? "anonymous",
+      filename: component.filename ?? "unknown",
+      branch: depth === 0 ? "root" : "child",
+      indent: `${10 + depth * 18}px`,
+      depth,
+      parentId: component.parentId,
+      collapsed: collapsedIds.has(component.id),
+      childCount: childIds.length,
+      styleCount: styles.length,
+      eventCount: eventCounts.total,
+      eventBreakdown: formatEventBreakdown(eventCounts),
+      styleIds: styles.map((style) => style.id).join(", "),
+      scopeAttrs: styles.map((style) => style.scopeAttr).filter(Boolean).join(", "),
+      hasRoot: isElement(component.root),
+      root: component.root,
+      rootLabel: formatRootLabel(component.root),
+      rootPath: formatRootPath(component.root),
+      status: component.unmountedAt ? "unmounted" : "mounted",
+      mountedLabel: formatMountedLabel(component.mountedAt, component.unmountedAt),
+      propKeys: (component.propKeys ?? []).join(", "),
+      attrKeys: (component.attrKeys ?? []).join(", "),
+      childIds: childIds.join(", "),
+      propsText: JSON.stringify(component.props ?? {}, null, 2)
+    });
+    flattenComponentTree(component.childrenTree, stylesByComponent, eventsByComponent, collapsedIds, depth + 1, rows);
+  }
+
+  return rows;
 }
 
 export function filterVisibleComponents<T extends Pick<DebugComponentRow, "id" | "parentId">>(
@@ -126,7 +204,7 @@ export function normalizeSearch(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
-export function matchesComponentSearch(component: Record<string, any>, value: string): boolean {
+export function matchesComponentSearch(component: Partial<DebugComponentRow>, value: string): boolean {
   const query = normalizeSearch(value);
   if (!query) {
     return true;
@@ -168,27 +246,32 @@ export function formatEventBreakdown(counts: DebugEventCounts): string {
 
 export function summarizeEvent(event: DebugEventLike): string {
   const payload = event.payload ?? {};
-  if (payload.diagnostic?.message) {
-    return `${payload.diagnostic.phase ?? payload.diagnostic.source ?? event.type}: ${payload.diagnostic.message}`;
+  const diagnostic = asRecord(payload.diagnostic);
+  if (typeof diagnostic.message === "string") {
+    return `${diagnostic.phase ?? diagnostic.source ?? event.type}: ${diagnostic.message}`;
   }
 
   if (event.type === "style:inject") {
-    const style = payload.style ?? {};
+    const style = asRecord(payload.style);
     const scoped = style.scoped ? "scoped" : "global";
     const size = typeof style.length === "number" ? `${style.length} chars` : "unknown size";
-    return `${formatFilename(payload.component?.filename)}: ${style.id ?? "style"} (${scoped}, ${size})`;
+    const component = asRecord(payload.component);
+    return `${formatFilename(component.filename)}: ${style.id ?? "style"} (${scoped}, ${size})`;
   }
 
   if (event.type === "hydration:warning") {
     return `${payload.kind ?? "hydration"}: ${payload.domPath ?? payload.message ?? "warning"}`;
   }
 
-  if (payload.to?.path || payload.from?.path) {
-    return `${payload.from?.path ?? "-"} -> ${payload.to?.path ?? "-"}${payload.status ? ` (${payload.status})` : ""}`;
+  const to = asRecord(payload.to);
+  const from = asRecord(payload.from);
+  if (to.path || from.path) {
+    return `${from.path ?? "-"} -> ${to.path ?? "-"}${payload.status ? ` (${payload.status})` : ""}`;
   }
 
-  if (payload.errorInfo?.phase) {
-    return `${payload.errorInfo.phase}: ${formatError(payload.error)}`;
+  const errorInfo = asRecord(payload.errorInfo);
+  if (errorInfo.phase) {
+    return `${errorInfo.phase}: ${formatError(payload.error)}`;
   }
 
   if (payload.error) {
@@ -258,12 +341,103 @@ export function formatFilename(filename: unknown): string {
   return String(filename).split(/[\\/]/).pop() ?? String(filename);
 }
 
-export function formatComponentLabel(componentId: unknown, component: any): string {
+export function formatComponentLabel(componentId: unknown, component: unknown): string {
   if (componentId === undefined) {
     return "";
   }
 
-  return `#${componentId} ${formatFilename(component?.filename ?? component?.component)}`;
+  const metadata = asRecord(component);
+  return `#${componentId} ${formatFilename(metadata.filename ?? metadata.component)}`;
+}
+
+export function isElement(value: unknown): value is Element {
+  return value instanceof Element;
+}
+
+export function formatRootLabel(root: unknown): string {
+  if (root instanceof Element) {
+    const id = root.id ? `#${root.id}` : "";
+    const classes = Array.from(root.classList).slice(0, 3).map((name) => `.${name}`).join("");
+    return `<${root.tagName.toLowerCase()}${id}${classes}>`;
+  }
+
+  if (root instanceof Comment) {
+    return "<!--comment-->";
+  }
+
+  return "none";
+}
+
+export function formatRootPath(root: unknown): string {
+  if (!(root instanceof Element)) {
+    return "";
+  }
+
+  const parts: string[] = [];
+  let current: Element | null = root;
+  while (current && current.nodeType === Node.ELEMENT_NODE && parts.length < 5) {
+    let label = current.tagName.toLowerCase();
+    if (current.id) {
+      label += `#${current.id}`;
+      parts.unshift(label);
+      break;
+    }
+
+    const className = Array.from(current.classList).find((name) => !name.startsWith("mikuru-") && !name.startsWith("debug-root-highlight"));
+    if (className) {
+      label += `.${className}`;
+    }
+
+    const parent: Element | null = current.parentElement;
+    if (parent) {
+      const currentTag = current.tagName;
+      const siblings = Array.from(parent.children).filter((child): child is Element => child instanceof Element && child.tagName === currentTag);
+      if (siblings.length > 1) {
+        label += `:nth-of-type(${siblings.indexOf(current) + 1})`;
+      }
+    }
+
+    parts.unshift(label);
+    current = parent;
+  }
+
+  return parts.join(" > ");
+}
+
+export function formatMountedLabel(mountedAt?: number, unmountedAt?: number): string {
+  if (!mountedAt) {
+    return "unknown";
+  }
+
+  const end = unmountedAt ?? Date.now();
+  const seconds = Math.max(0, Math.round((end - mountedAt) / 1000));
+  return unmountedAt ? `${seconds}s before unmount` : `${seconds}s ago`;
+}
+
+export function stringifyPayload(payload: unknown): string {
+  return JSON.stringify(payload, (_key, value: unknown) => {
+    if (value instanceof Error) {
+      return { name: value.name, message: value.message };
+    }
+
+    if (value instanceof Element) {
+      return `<${value.tagName.toLowerCase()}>`;
+    }
+
+    if (value instanceof Comment) {
+      return "<!--comment-->";
+    }
+
+    if (value instanceof Set) {
+      return Array.from(value);
+    }
+
+    if (typeof value === "function") {
+      return "[Function]";
+    }
+
+    return value;
+  }, 2);
 }
 
 export function createPanelSnapshot(options: {
@@ -362,7 +536,7 @@ export function compactEventPayload(event: Pick<DebugEventRow, "payloadText" | "
     return payload;
   }
 
-  const record = payload as Record<string, any>;
+  const record = asRecord(payload);
   return {
     componentId: event.componentId,
     component: event.componentLabel || undefined,
@@ -380,4 +554,12 @@ export function parsePayloadText(payloadText: string): unknown {
   } catch (_error) {
     return payloadText;
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }

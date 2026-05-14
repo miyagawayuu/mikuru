@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { Window } from "happy-dom";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   compactEventPayload,
   createPanelSnapshot,
+  createSnapshotSummary,
   filterVisibleComponents,
+  flattenComponentTree,
+  formatRootLabel,
+  formatRootPath,
   matchesEventSearch,
+  stringifyPayload,
   type DebugComponentRow,
   type DebugEventRow
 } from "../examples/dogfood/debugPanelHelpers.js";
@@ -16,12 +22,89 @@ const componentRows: DebugComponentRow[] = [
 ];
 
 describe("dogfood debug panel helpers", () => {
+  beforeEach(() => {
+    const window = new Window();
+    Object.assign(globalThis, {
+      document: window.document,
+      Element: window.Element,
+      Comment: window.Comment,
+      Node: window.Node
+    });
+  });
+
   it("hides descendants of collapsed component rows", () => {
     expect(filterVisibleComponents(componentRows, new Set([1]), "").map((component) => component.id)).toEqual([1]);
   });
 
   it("shows matching component rows and their ancestors while searching", () => {
     expect(filterVisibleComponents(componentRows, new Set([1]), "debug-panel").map((component) => component.id)).toEqual([1, 3]);
+  });
+
+  it("formats root labels and paths without debug highlight classes", () => {
+    const root = document.createElement("section");
+    root.className = "debug-panel debug-root-highlight";
+    const child = document.createElement("button");
+    child.className = "debug-action";
+    root.append(child);
+    document.body.append(root);
+
+    try {
+      expect(formatRootLabel(root)).toBe("<section.debug-panel.debug-root-highlight>");
+      expect(formatRootPath(child)).toBe("html > body > section.debug-panel > button.debug-action");
+    } finally {
+      root.remove();
+    }
+  });
+
+  it("flattens component trees with style, event, root, and collapsed metadata", () => {
+    const root = document.createElement("main");
+    root.id = "app";
+    const child = document.createElement("section");
+    child.className = "debug-panel";
+    root.append(child);
+
+    const rows = flattenComponentTree(
+      [
+        {
+          id: 1,
+          name: "App",
+          filename: "App.mikuru",
+          root,
+          propKeys: ["title"],
+          childrenTree: [
+            {
+              id: 2,
+              name: "DebugPanel",
+              filename: "DebugPanel.mikuru",
+              root: child,
+              parentId: 1,
+              attrKeys: ["data-test"],
+              mountedAt: Date.now(),
+              childrenTree: []
+            }
+          ]
+        }
+      ],
+      new Map([[2, [{ id: "mikuru-debug", scopeAttr: "data-mikuru-scope-debug", scoped: true }]]]),
+      new Map([[2, { total: 2, style: 1, component: 1 }]]),
+      new Set([1])
+    );
+
+    expect(rows).toMatchObject([
+      { id: 1, name: "App", branch: "root", childCount: 1, collapsed: true, rootLabel: "<main#app>" },
+      {
+        id: 2,
+        name: "DebugPanel",
+        branch: "child",
+        parentId: 1,
+        styleCount: 1,
+        eventCount: 2,
+        eventBreakdown: "component: 1, style: 1",
+        styleIds: "mikuru-debug",
+        scopeAttrs: "data-mikuru-scope-debug",
+        attrKeys: "data-test"
+      }
+    ]);
   });
 
   it("matches event search across type, summary, component label, and payload", () => {
@@ -102,6 +185,28 @@ describe("dogfood debug panel helpers", () => {
       }
     });
   });
+
+  it("summarizes active snapshot filters", () => {
+    expect(createSnapshotSummary({
+      componentSearch: "debug",
+      eventSearch: "route",
+      eventFilter: "router",
+      componentEventFilterId: 3,
+      allComponents: componentRows,
+      components: [componentRows[0], componentRows[2]],
+      allEvents: [eventRow({}), eventRow({ type: "route:navigate" })],
+      filteredEvents: [eventRow({ type: "route:navigate" })]
+    })).toEqual({
+      components: "2/3",
+      events: "1/2",
+      filters: "component: debug, event: route, type: router, component #3"
+    });
+  });
+
+  it("stringifies DOM and Error payloads safely", () => {
+    const node = document.createElement("article");
+    expect(stringifyPayload({ node, error: new Error("nope"), values: new Set(["a", "b"]) })).toContain("\"node\": \"<article>\"");
+  });
 });
 
 function row(overrides: Partial<DebugComponentRow>): DebugComponentRow {
@@ -113,6 +218,13 @@ function row(overrides: Partial<DebugComponentRow>): DebugComponentRow {
     childCount: 0,
     eventCount: 0,
     eventBreakdown: "",
+    branch: "child",
+    indent: "10px",
+    collapsed: false,
+    hasRoot: true,
+    styleCount: 0,
+    mountedLabel: "0s ago",
+    propsText: "{}",
     rootLabel: "<section>",
     rootPath: "main > section",
     status: "mounted",

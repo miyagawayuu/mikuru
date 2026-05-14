@@ -184,11 +184,12 @@ import {
   createPanelSnapshot,
   createSnapshotSummary,
   filterVisibleComponents,
+  flattenComponentTree,
   formatComponentLabel,
-  formatEventBreakdown,
   isErrorEvent,
   isForegroundEvent,
   matchesEventSearch,
+  stringifyPayload,
   summarizeEvent
 } from "./debugPanelHelpers";
 
@@ -263,7 +264,7 @@ function snapshot() {
   const events = inspector.getEvents();
   const stylesByComponent = collectStyleEvents(events);
   const eventsByComponent = collectComponentEvents(events);
-  const flattenedComponents = flattenComponentTree(inspector.getComponentTree(), stylesByComponent, eventsByComponent);
+  const flattenedComponents = flattenComponentTree(inspector.getComponentTree(), stylesByComponent, eventsByComponent, collapsedIds.value);
   allComponents.value = flattenedComponents;
   components.value = filterVisibleComponents(flattenedComponents, collapsedIds.value, componentSearch.value);
 
@@ -303,134 +304,8 @@ function snapshot() {
   }
 }
 
-function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth = 0, rows = []) {
-  for (const component of tree) {
-    const childIds = component.childrenTree.map((child) => child.id);
-    const styles = stylesByComponent.get(component.id) ?? [];
-    const eventCounts = eventsByComponent.get(component.id) ?? { total: 0 };
-    rows.push({
-      id: component.id,
-      name: component.name ?? "anonymous",
-      filename: component.filename ?? "unknown",
-      branch: depth === 0 ? "root" : "child",
-      indent: `${10 + depth * 18}px`,
-      depth,
-      parentId: component.parentId,
-      collapsed: collapsedIds.value.has(component.id),
-      childCount: childIds.length,
-      styleCount: styles.length,
-      eventCount: eventCounts.total,
-      eventBreakdown: formatEventBreakdown(eventCounts),
-      styleIds: styles.map((style) => style.id).join(", "),
-      scopeAttrs: styles.map((style) => style.scopeAttr).filter(Boolean).join(", "),
-      hasRoot: isElement(component.root),
-      root: component.root,
-      rootLabel: formatRootLabel(component.root),
-      rootPath: formatRootPath(component.root),
-      status: component.unmountedAt ? "unmounted" : "mounted",
-      mountedLabel: formatMountedLabel(component.mountedAt, component.unmountedAt),
-      propKeys: (component.propKeys ?? []).join(", "),
-      attrKeys: (component.attrKeys ?? []).join(", "),
-      childIds: childIds.join(", "),
-      propsText: JSON.stringify(component.props ?? {}, null, 2)
-    });
-    flattenComponentTree(component.childrenTree, stylesByComponent, eventsByComponent, depth + 1, rows);
-  }
-
-  return rows;
-}
-
 function countEvents(category) {
   return searchedEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
-}
-
-function isElement(value) {
-  return value instanceof Element;
-}
-
-function formatRootLabel(root) {
-  if (root instanceof Element) {
-    const id = root.id ? `#${root.id}` : "";
-    const classes = Array.from(root.classList).slice(0, 3).map((name) => `.${name}`).join("");
-    return `<${root.tagName.toLowerCase()}${id}${classes}>`;
-  }
-
-  if (root instanceof Comment) {
-    return "<!--comment-->";
-  }
-
-  return "none";
-}
-
-function formatRootPath(root) {
-  if (!(root instanceof Element)) {
-    return "";
-  }
-
-  const parts = [];
-  let current = root;
-  while (current && current.nodeType === Node.ELEMENT_NODE && parts.length < 5) {
-    let label = current.tagName.toLowerCase();
-    if (current.id) {
-      label += `#${current.id}`;
-      parts.unshift(label);
-      break;
-    }
-
-    const className = Array.from(current.classList).find((name) => !name.startsWith("mikuru-") && !name.startsWith("debug-root-highlight"));
-    if (className) {
-      label += `.${className}`;
-    }
-
-    const parent = current.parentElement;
-    if (parent) {
-      const siblings = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
-      if (siblings.length > 1) {
-        label += `:nth-of-type(${siblings.indexOf(current) + 1})`;
-      }
-    }
-
-    parts.unshift(label);
-    current = parent;
-  }
-
-  return parts.join(" > ");
-}
-
-function formatMountedLabel(mountedAt, unmountedAt) {
-  if (!mountedAt) {
-    return "unknown";
-  }
-
-  const end = unmountedAt ?? Date.now();
-  const seconds = Math.max(0, Math.round((end - mountedAt) / 1000));
-  return unmountedAt ? `${seconds}s before unmount` : `${seconds}s ago`;
-}
-
-function stringifyPayload(payload) {
-  return JSON.stringify(payload, (_key, value) => {
-    if (value instanceof Error) {
-      return { name: value.name, message: value.message };
-    }
-
-    if (value instanceof Element) {
-      return `<${value.tagName.toLowerCase()}>`;
-    }
-
-    if (value instanceof Comment) {
-      return "<!--comment-->";
-    }
-
-    if (value instanceof Set) {
-      return Array.from(value);
-    }
-
-    if (typeof value === "function") {
-      return "[Function]";
-    }
-
-    return value;
-  }, 2);
 }
 
 function selectComponent(id) {
