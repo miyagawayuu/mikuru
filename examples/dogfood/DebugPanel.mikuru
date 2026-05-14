@@ -44,6 +44,10 @@
         <div m-if="selected" class="debug-detail">
           <strong>{{ selected.name }}</strong>
           <span>{{ selected.filename }}</span>
+          <div class="debug-actions">
+            <button @click="showSelectedComponentEvents">Show component events</button>
+            <button m-if="componentEventFilterId" @click="clearComponentEventFilter">Clear component filter</button>
+          </div>
           <dl>
             <dt>props</dt>
             <dd>{{ selected.propKeys || "none" }}</dd>
@@ -67,6 +71,7 @@
 
       <section class="debug-section debug-events">
         <h3>Events</h3>
+        <p m-if="componentEventFilterLabel" class="debug-filter-note">{{ componentEventFilterLabel }}</p>
         <ol m-if="filteredEvents.length > 0" class="debug-event-list">
           <li m-for="event in filteredEvents" :key="event.id">
             <button
@@ -110,6 +115,7 @@ const allEvents = ref([]);
 const selectedId = ref(undefined);
 const selectedEventId = ref(undefined);
 const eventFilter = ref("all");
+const componentEventFilterId = ref(undefined);
 const hideBackgroundEventsAfterClear = ref(false);
 
 const selected = computed(() =>
@@ -117,12 +123,25 @@ const selected = computed(() =>
 );
 
 const filteredEvents = computed(() =>
-  allEvents.value.filter((event) => eventFilter.value === "all" || event.category === eventFilter.value)
+  allEvents.value.filter((event) => {
+    const matchesCategory = eventFilter.value === "all" || event.category === eventFilter.value;
+    const matchesComponent = componentEventFilterId.value === undefined || event.componentId === componentEventFilterId.value;
+    return matchesCategory && matchesComponent;
+  })
 );
 
 const selectedEvent = computed(() =>
   filteredEvents.value.find((event) => event.id === selectedEventId.value) ?? filteredEvents.value[0]
 );
+
+const componentEventFilterLabel = computed(() => {
+  if (componentEventFilterId.value === undefined) {
+    return "";
+  }
+
+  const component = components.value.find((item) => item.id === componentEventFilterId.value);
+  return component ? `Filtered by #${component.id} ${component.name}` : `Filtered by #${componentEventFilterId.value}`;
+});
 
 const filterOptions = computed(() => [
   { id: "all", label: "All", count: allEvents.value.length },
@@ -149,7 +168,7 @@ function snapshot() {
     : events;
 
   allEvents.value = visibleEvents
-    .slice(-24)
+    .slice(-100)
     .map((event, index) => ({
       id: `${event.timestamp}-${index}-${event.type}`,
       type: event.type,
@@ -164,6 +183,10 @@ function snapshot() {
 
   if (selectedId.value && !components.value.some((component) => component.id === selectedId.value)) {
     selectedId.value = undefined;
+  }
+
+  if (componentEventFilterId.value && !components.value.some((component) => component.id === componentEventFilterId.value)) {
+    componentEventFilterId.value = undefined;
   }
 
   if (selectedEventId.value && !filteredEvents.value.some((event) => event.id === selectedEventId.value)) {
@@ -387,8 +410,23 @@ function setEventFilter(filter) {
   selectedEventId.value = undefined;
 }
 
+function showSelectedComponentEvents() {
+  if (!selected.value) {
+    return;
+  }
+
+  componentEventFilterId.value = selected.value.id;
+  selectedEventId.value = undefined;
+}
+
+function clearComponentEventFilter() {
+  componentEventFilterId.value = undefined;
+  selectedEventId.value = undefined;
+}
+
 function clearEvents() {
   inspector.clearEvents();
+  componentEventFilterId.value = undefined;
   hideBackgroundEventsAfterClear.value = true;
   snapshot();
 }
@@ -411,6 +449,7 @@ snapshot();
 
 .debug-header,
 .debug-filters,
+.debug-actions,
 .debug-grid {
   display: grid;
   gap: 12px;
@@ -425,9 +464,14 @@ snapshot();
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.debug-actions {
+  grid-template-columns: repeat(2, minmax(0, max-content));
+}
+
 .debug-header h2,
 .debug-header p,
 .debug-section h3,
+.debug-filter-note,
 .debug-empty {
   margin: 0;
 }

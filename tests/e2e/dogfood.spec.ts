@@ -161,6 +161,11 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText(/data-mikuru-scope-/).first()).toBeVisible();
   await expect(panel.getByText("event types").first()).toBeVisible();
   await expect(panel.getByText(/style: \d+/).first()).toBeVisible();
+  await panel.getByRole("button", { name: "Show component events" }).click();
+  await expect(panel.getByText(/Filtered by #\d+ .*DebugPanel\.mikuru/)).toBeVisible();
+  await expect(panel.getByText("style:inject").first()).toBeVisible();
+  await panel.getByRole("button", { name: "Clear component filter" }).click();
+  await expect(panel.getByText(/Filtered by #/)).toHaveCount(0);
 
   await panel.locator(".debug-filters").getByRole("button", { name: /Style/ }).click();
   await expect(panel.getByText("style:inject").first()).toBeVisible();
