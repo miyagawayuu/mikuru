@@ -157,6 +157,10 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/).first()).toBeVisible();
   await expect(panel.getByText(/\d+ children, \d+ styles, \d+ events/).first()).toBeVisible();
   await expect(panel.getByText("component:register").first()).toBeVisible();
+  await panel.getByRole("button", { name: "Collapse all" }).click();
+  await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/)).toHaveCount(0);
+  await panel.getByRole("button", { name: "Expand all" }).click();
+  await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/).first()).toBeVisible();
 
   await panel.getByText(/child #\d+ .*DebugPanel\.mikuru/).first().click();
   await expect(panel.getByText("root").first()).toBeVisible();
@@ -180,6 +184,9 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText("style:inject").first()).toBeVisible();
   await expect(panel.getByText(/mikuru-.*scoped/).first()).toBeVisible();
   await panel.getByText("style:inject").first().click();
+  await expect(panel.getByRole("button", { name: "Select component" })).toBeVisible();
+  await panel.getByRole("button", { name: "Select component" }).click();
+  await expect(panel.locator(".debug-component-row.selected").first()).toContainText(/\.mikuru/);
   await expect(panel.locator(".debug-detail").filter({ hasText: /data-mikuru-scope-/ }).first()).toBeVisible();
   await expect(panel.locator(".debug-detail").filter({ hasText: /#\d+ .*\.mikuru/ }).first()).toBeVisible();
 

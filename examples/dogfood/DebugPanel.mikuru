@@ -21,19 +21,34 @@
 
     <div class="debug-grid">
       <section class="debug-section">
-        <h3>Component Tree</h3>
+        <div class="debug-section-title">
+          <h3>Component Tree</h3>
+          <div class="debug-actions">
+            <button @click="expandAllComponents">Expand all</button>
+            <button @click="collapseAllComponents">Collapse all</button>
+          </div>
+        </div>
         <ul m-if="components.length > 0" class="debug-list">
           <li m-for="component in components" :key="component.id">
-            <button
-              class="debug-component-row"
-              :class="{ selected: selected?.id === component.id }"
-              :style="{ paddingLeft: component.indent }"
-              @click="selectComponent(component.id)"
-            >
-              <strong>{{ component.branch }} #{{ component.id }} {{ component.name }}</strong>
-              <span>{{ component.filename }}</span>
-              <span>{{ component.childCount }} children, {{ component.styleCount }} styles, {{ component.eventCount }} events</span>
-            </button>
+            <div class="debug-component-item" :style="{ paddingLeft: component.indent }">
+              <button
+                m-if="component.childCount > 0"
+                class="debug-tree-toggle"
+                @click="toggleComponent(component.id)"
+              >
+                {{ component.collapsed ? "+" : "-" }}
+              </button>
+              <span m-else class="debug-tree-spacer"></span>
+              <button
+                class="debug-component-row"
+                :class="{ selected: selected?.id === component.id }"
+                @click="selectComponent(component.id)"
+              >
+                <strong>{{ component.branch }} #{{ component.id }} {{ component.name }}</strong>
+                <span>{{ component.filename }}</span>
+                <span>{{ component.childCount }} children, {{ component.styleCount }} styles, {{ component.eventCount }} events</span>
+              </button>
+            </div>
           </li>
         </ul>
         <p m-else class="debug-empty">No debug components yet.</p>
@@ -101,6 +116,10 @@
         <div m-if="selectedEvent" class="debug-detail">
           <strong>{{ selectedEvent.type }}</strong>
           <span>{{ selectedEvent.summary }}</span>
+          <div class="debug-actions" m-if="selectedEvent.componentId">
+            <button @click="selectEventComponent">Select component</button>
+            <button @click="revealEventComponentRoot">Reveal component root</button>
+          </div>
           <dl>
             <dt>category</dt>
             <dd>{{ selectedEvent.category }}</dd>
@@ -121,6 +140,7 @@
 import { computed, createDebugInspector, onBeforeUnmount, ref } from "mikuru/runtime";
 
 const inspector = createDebugInspector();
+const allComponents = ref([]);
 const components = ref([]);
 const allEvents = ref([]);
 const selectedId = ref(undefined);
@@ -128,9 +148,10 @@ const selectedEventId = ref(undefined);
 const eventFilter = ref("all");
 const componentEventFilterId = ref(undefined);
 const hideBackgroundEventsAfterClear = ref(false);
+const collapsedIds = ref(new Set());
 
 const selected = computed(() =>
-  components.value.find((component) => component.id === selectedId.value) ?? components.value[0]
+  allComponents.value.find((component) => component.id === selectedId.value) ?? components.value[0]
 );
 
 const componentFilteredEvents = computed(() =>
@@ -168,7 +189,9 @@ function snapshot() {
   const events = inspector.getEvents();
   const stylesByComponent = collectStyleEvents(events);
   const eventsByComponent = collectComponentEvents(events);
-  components.value = flattenComponentTree(inspector.getComponentTree(), stylesByComponent, eventsByComponent);
+  const flattenedComponents = flattenComponentTree(inspector.getComponentTree(), stylesByComponent, eventsByComponent);
+  allComponents.value = flattenedComponents;
+  components.value = filterVisibleComponents(flattenedComponents);
 
   if (hideBackgroundEventsAfterClear.value && events.some(isForegroundEvent)) {
     hideBackgroundEventsAfterClear.value = false;
@@ -193,11 +216,11 @@ function snapshot() {
     }))
     .reverse();
 
-  if (selectedId.value && !components.value.some((component) => component.id === selectedId.value)) {
+  if (selectedId.value && !allComponents.value.some((component) => component.id === selectedId.value)) {
     selectedId.value = undefined;
   }
 
-  if (componentEventFilterId.value && !components.value.some((component) => component.id === componentEventFilterId.value)) {
+  if (componentEventFilterId.value && !allComponents.value.some((component) => component.id === componentEventFilterId.value)) {
     componentEventFilterId.value = undefined;
   }
 
@@ -259,6 +282,8 @@ function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth 
       branch: depth === 0 ? "root" : "child",
       indent: `${10 + depth * 18}px`,
       depth,
+      parentId: component.parentId,
+      collapsed: collapsedIds.value.has(component.id),
       childCount: childIds.length,
       styleCount: styles.length,
       eventCount: eventCounts.total,
@@ -280,6 +305,21 @@ function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth 
   }
 
   return rows;
+}
+
+function filterVisibleComponents(rows) {
+  return rows.filter((component) => {
+    let parentId = component.parentId;
+    while (parentId !== undefined) {
+      if (collapsedIds.value.has(parentId)) {
+        return false;
+      }
+
+      parentId = rows.find((item) => item.id === parentId)?.parentId;
+    }
+
+    return true;
+  });
 }
 
 function formatEventBreakdown(counts) {
@@ -483,14 +523,15 @@ function stringifyPayload(payload) {
 }
 
 function selectComponent(id) {
+  expandAncestors(id);
   selectedId.value = id;
 }
 
 function selectEvent(id) {
   selectedEventId.value = id;
   const event = filteredEvents.value.find((item) => item.id === id);
-  if (event?.componentId && components.value.some((component) => component.id === event.componentId)) {
-    selectedId.value = event.componentId;
+  if (event?.componentId && allComponents.value.some((component) => component.id === event.componentId)) {
+    selectComponent(event.componentId);
   }
 }
 
@@ -511,6 +552,55 @@ function showSelectedComponentEvents() {
 function clearComponentEventFilter() {
   componentEventFilterId.value = undefined;
   selectedEventId.value = undefined;
+}
+
+function toggleComponent(id) {
+  const next = new Set(collapsedIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  collapsedIds.value = next;
+  components.value = filterVisibleComponents(allComponents.value);
+}
+
+function expandAllComponents() {
+  collapsedIds.value = new Set();
+  components.value = filterVisibleComponents(allComponents.value);
+}
+
+function collapseAllComponents() {
+  collapsedIds.value = new Set(allComponents.value.filter((component) => component.childCount > 0).map((component) => component.id));
+  if (selected.value) {
+    expandAncestors(selected.value.id);
+  } else {
+    components.value = filterVisibleComponents(allComponents.value);
+  }
+}
+
+function expandAncestors(id) {
+  const next = new Set(collapsedIds.value);
+  let parentId = allComponents.value.find((component) => component.id === id)?.parentId;
+  while (parentId !== undefined) {
+    next.delete(parentId);
+    parentId = allComponents.value.find((component) => component.id === parentId)?.parentId;
+  }
+  collapsedIds.value = next;
+  components.value = filterVisibleComponents(allComponents.value);
+}
+
+function selectEventComponent() {
+  if (!selectedEvent.value?.componentId) {
+    return;
+  }
+
+  selectComponent(selectedEvent.value.componentId);
+}
+
+function revealEventComponentRoot() {
+  selectEventComponent();
+  revealSelectedRoot();
 }
 
 function revealSelectedRoot() {
@@ -584,6 +674,13 @@ snapshot();
   margin: 0;
 }
 
+.debug-section-title {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
 .debug-grid {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
@@ -613,6 +710,27 @@ snapshot();
   margin: 0;
   list-style: none;
   scrollbar-gutter: stable;
+}
+
+.debug-component-item {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 6px;
+  align-items: stretch;
+}
+
+.debug-tree-toggle,
+.debug-tree-spacer {
+  width: 26px;
+  min-height: 72px;
+}
+
+.debug-tree-toggle {
+  padding: 0;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  color: #3730a3;
+  background: #ffffff;
 }
 
 .debug-component-row {
@@ -712,6 +830,7 @@ snapshot();
   .debug-header,
   .debug-filters,
   .debug-actions,
+  .debug-section-title,
   .debug-grid {
     grid-template-columns: 1fr;
   }
