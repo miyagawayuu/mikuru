@@ -1,11 +1,14 @@
 # Changelog
 
-## 1.0.24 - 2026-05-14
+## 1.0.25 - 2026-05-15
 
 - Added Mikuru-native `m-*` directive syntax across DOM rendering, SSR, and hydration while keeping `v-*` as compatibility aliases.
 - Added debug compiler warnings for `v-*` compatibility aliases, pointing users to the matching `m-*` directive spelling.
 - Updated README, docs, examples, and templates to present `m-*` as the recommended directive syntax.
 - Added shared Debug Inspector diagnostic payloads for compiler, runtime, router, SSR, and hydration warning/error events.
+- Expanded the dogfood Debug Panel with a searchable and collapsible component tree, component root reveal, event filters/search, event-to-component navigation, and copyable compact debug snapshots.
+- Split dogfood Debug Panel filtering, tree, formatting, and snapshot logic into tested example helpers while documenting that they are not public package exports.
+- Improved scoped CSS rewriting coverage for complex selectors, nested at-rules, comments, strings, and malformed CSS diagnostics.
 - Added support for `<template m-if>` / `<template m-else-if>` / `<template m-else>` fragment branches across DOM rendering, SSR, and hydration.
 - Added support for keyed `<template m-for>` fragment rows across DOM rendering, SSR, and hydration.
 - Expanded `<template m-for>` coverage for unkeyed fragments, nested fragment loops, and nested `m-if` / `m-else` branches.
