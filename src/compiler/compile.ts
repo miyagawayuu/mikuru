@@ -25,7 +25,8 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
           filename: options.filename,
           offset: diagnostic.offset,
           line: diagnostic.line,
-          column: diagnostic.column
+          column: diagnostic.column,
+          frame: diagnostic.frame
         });
       }
     }

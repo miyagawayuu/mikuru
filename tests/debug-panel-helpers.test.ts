@@ -131,6 +131,7 @@ describe("dogfood debug panel helpers", () => {
       filename: "src/App.mikuru",
       line: 4,
       column: 13,
+      frame: "   4 |   & .title {\n     |             ^",
       message: "Could not scope a CSS rule because its block is missing a closing brace."
     };
     const event = eventRow({
@@ -138,13 +139,20 @@ describe("dogfood debug panel helpers", () => {
       category: "error",
       summary: summarizeEvent({ type: "compiler:warning", payload: { diagnostic } }),
       diagnosticLocation: formatDiagnosticLocation(diagnostic),
+      diagnosticMessage: String(diagnostic.message),
+      diagnosticPhase: String(diagnostic.phase),
+      diagnosticFrame: String(diagnostic.frame),
       payloadText: JSON.stringify({ diagnostic })
     });
 
     expect(event.summary).toContain("App.mikuru:4:13");
     expect(event.diagnosticLocation).toBe("App.mikuru:4:13");
+    expect(event.diagnosticMessage).toContain("missing a closing brace");
+    expect(event.diagnosticPhase).toBe("style");
+    expect(event.diagnosticFrame).toContain("^");
     expect(matchesEventSearch(event, "4:13")).toBe(true);
     expect(matchesEventSearch(event, "app.mikuru")).toBe(true);
+    expect(matchesEventSearch(event, "^")).toBe(true);
   });
 
   it("keeps snapshot event payloads compact", () => {
@@ -272,6 +280,9 @@ function eventRow(overrides: Partial<DebugEventRow>): DebugEventRow {
     time: "12:00:00",
     summary: "component #1",
     diagnosticLocation: "",
+    diagnosticMessage: "",
+    diagnosticPhase: "",
+    diagnosticFrame: "",
     payloadText: "{}",
     ...overrides
   };

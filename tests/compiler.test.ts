@@ -544,7 +544,8 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
         message: "Could not scope a CSS rule because its block is missing a closing brace.",
         offset: 6,
         line: 1,
-        column: 7
+        column: 7,
+        frame: "   1 | .card { color: red;\n     |       ^"
       }
     ]);
   });
@@ -560,7 +561,8 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
         message: "Could not scope a CSS rule because its block is missing a closing brace.",
         offset: 33,
         line: 3,
-        column: 12
+        column: 12,
+        frame: "   3 |   & .title {\n     |            ^"
       }
     ]);
   });
@@ -1441,6 +1443,7 @@ const count = 0;
             offset: 19,
             line: 2,
             column: 12,
+            frame: "   2 |   & .title {\n     |            ^",
             message: "Could not scope a CSS rule because its block is missing a closing brace."
           }
         }

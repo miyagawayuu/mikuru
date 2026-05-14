@@ -135,6 +135,18 @@
           <p class="debug-event-meta" :class="{ warning: selectedEvent.level === 'warning' }">
             {{ selectedEvent.level }} / {{ selectedEvent.category }} / {{ selectedEvent.componentLabel || "no component" }}
           </p>
+          <div m-if="selectedEvent.diagnosticMessage" class="debug-diagnostic">
+            <strong>Diagnostic</strong>
+            <dl>
+              <dt m-if="selectedEvent.diagnosticPhase">phase</dt>
+              <dd m-if="selectedEvent.diagnosticPhase">{{ selectedEvent.diagnosticPhase }}</dd>
+              <dt m-if="selectedEvent.diagnosticLocation">location</dt>
+              <dd m-if="selectedEvent.diagnosticLocation">{{ selectedEvent.diagnosticLocation }}</dd>
+              <dt>message</dt>
+              <dd>{{ selectedEvent.diagnosticMessage }}</dd>
+            </dl>
+            <pre m-if="selectedEvent.diagnosticFrame">{{ selectedEvent.diagnosticFrame }}</pre>
+          </div>
           <div class="debug-actions" m-if="selectedEvent.componentId">
             <button @click="selectEventComponent">Select component</button>
             <button @click="revealEventComponentRoot">Reveal component root</button>
@@ -188,7 +200,10 @@ import {
   filterVisibleComponents,
   flattenComponentTree,
   formatComponentLabel,
+  formatDiagnosticFrame,
   formatDiagnosticLocation,
+  formatDiagnosticMessage,
+  formatDiagnosticPhase,
   isErrorEvent,
   isForegroundEvent,
   matchesEventSearch,
@@ -293,6 +308,9 @@ function snapshot() {
         time: new Date(event.timestamp).toLocaleTimeString(),
         summary: summarizeEvent(event),
         diagnosticLocation: formatDiagnosticLocation(diagnostic),
+        diagnosticMessage: formatDiagnosticMessage(diagnostic),
+        diagnosticPhase: formatDiagnosticPhase(diagnostic),
+        diagnosticFrame: formatDiagnosticFrame(diagnostic),
         payloadText: stringifyPayload(event.payload ?? {})
       };
     })
@@ -675,6 +693,39 @@ snapshot();
   border-color: #fb923c;
   color: #7c2d12;
   background: #fff7ed;
+}
+
+.debug-diagnostic {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #fb923c;
+  border-radius: 8px;
+  color: #7c2d12;
+  background: #fff7ed;
+}
+
+.debug-diagnostic dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 8px;
+  margin: 0;
+}
+
+.debug-diagnostic dt {
+  font-weight: 700;
+}
+
+.debug-diagnostic dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.debug-diagnostic pre {
+  max-height: 120px;
+  color: #431407;
+  background: #fffbeb;
 }
 
 .debug-snapshot-summary {

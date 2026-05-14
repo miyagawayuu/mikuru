@@ -1,4 +1,5 @@
 import type { SfcDescriptor } from "./types.js";
+import { createCodeFrame, getSourceLocation } from "./errors.js";
 
 export type CssCompileDiagnostic = {
   level: "warning";
@@ -6,6 +7,7 @@ export type CssCompileDiagnostic = {
   offset?: number;
   line?: number;
   column?: number;
+  frame?: string;
 };
 
 export type CssCompileOptions = {
@@ -85,13 +87,14 @@ function scopeCss(
     if (closeIndex === -1) {
       const unclosedOpenIndex = findUnclosedOpenIndex(css, openIndex, "{", "}");
       const diagnosticOffset = offset + unclosedOpenIndex;
-      const location = getOffsetLocation(rootCss, diagnosticOffset);
+      const location = getSourceLocation(rootCss, diagnosticOffset);
       diagnostics.push({
         level: "warning",
         message: "Could not scope a CSS rule because its block is missing a closing brace.",
         offset: diagnosticOffset,
         line: location.line,
-        column: location.column
+        column: location.column,
+        frame: createCodeFrame(rootCss, location)
       });
       result += css.slice(index);
       break;
@@ -671,22 +674,6 @@ function readAtRuleName(prelude: string): string {
 
 function bodyContainsRules(body: string): boolean {
   return findNextTopLevelChar(body, "{", 0) !== -1;
-}
-
-function getOffsetLocation(source: string, offset: number): { line: number; column: number } {
-  let line = 1;
-  let column = 1;
-
-  for (let index = 0; index < source.length && index < offset; index += 1) {
-    if (source[index] === "\n") {
-      line += 1;
-      column = 1;
-    } else {
-      column += 1;
-    }
-  }
-
-  return { line, column };
 }
 
 function isCombinator(char: string): boolean {

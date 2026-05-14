@@ -56,6 +56,9 @@ export type DebugEventRow = {
   time: string;
   summary: string;
   diagnosticLocation: string;
+  diagnosticMessage: string;
+  diagnosticPhase: string;
+  diagnosticFrame: string;
   payloadText: string;
 };
 
@@ -234,6 +237,9 @@ export function matchesEventSearch(event: DebugEventRow, value: string): boolean
     event.type,
     event.summary,
     event.diagnosticLocation,
+    event.diagnosticMessage,
+    event.diagnosticPhase,
+    event.diagnosticFrame,
     event.category,
     event.componentLabel,
     event.payloadText
@@ -354,6 +360,22 @@ export function formatDiagnosticLocation(diagnostic: Record<string, unknown>): s
   }
 
   return `${filename ? `${filename}:` : ""}${line}:${column}`;
+}
+
+export function formatDiagnosticMessage(diagnostic: Record<string, unknown>): string {
+  return typeof diagnostic.message === "string" ? diagnostic.message : "";
+}
+
+export function formatDiagnosticPhase(diagnostic: Record<string, unknown>): string {
+  if (typeof diagnostic.phase === "string") {
+    return diagnostic.phase;
+  }
+
+  return typeof diagnostic.source === "string" ? diagnostic.source : "";
+}
+
+export function formatDiagnosticFrame(diagnostic: Record<string, unknown>): string {
+  return typeof diagnostic.frame === "string" ? diagnostic.frame : "";
 }
 
 export function formatComponentLabel(componentId: unknown, component: unknown): string {
@@ -542,6 +564,9 @@ export function serializeEvent(event: DebugEventRow): Record<string, unknown> {
     time: event.time,
     summary: event.summary,
     diagnosticLocation: event.diagnosticLocation || undefined,
+    diagnosticMessage: event.diagnosticMessage || undefined,
+    diagnosticPhase: event.diagnosticPhase || undefined,
+    diagnosticFrame: event.diagnosticFrame || undefined,
     payload: compactEventPayload(event)
   };
 }
