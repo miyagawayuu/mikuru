@@ -611,11 +611,13 @@ actual: "<em>"
 
 `action` is one of `mount-fallback`, `remount`, `warn-only`, or `sync-dom`. The SSR hydration example renders the collected warnings so you can see how recovery and warning-only hydration differ.
 
-`createDebugInspector()` provides a small unstable reader for experiments: `getComponents()`, `getComponentTree()`, `getEvents()`, `getEventsByType(type)`, `clearEvents()`, and `subscribe(listener)`.
+`createDebugInspector()` provides a small unstable reader for experiments: `getComponents()`, `getComponentTree()`, `getEvents()`, `getEventsByType(type)`, `clearEvents()`, and `subscribe(listener)`. It is exported so local tooling and examples can inspect the unstable hook, but its metadata and event shapes may change between patch releases.
 
 `createDebugDiagnostic(source, level, message, details)` normalizes warning/error payloads, and `emitDebugDiagnostic(source, level, message, details)` emits `${source}:${level}` events with `{ diagnostic }` payloads for custom tooling experiments.
 
 The dogfood example enables `mikuru({ debug: true })` and includes an in-app Debug Panel that uses the inspector to display mounted components as a searchable, collapsible tree, selected props/attrs/root DOM metadata, injected style ids and scope attributes, component event counts, component-scoped event filtering, event category and text search filters, selected event component context, event-to-component selection, payload details, recent debug events, and a collapsible, copyable JSON snapshot with compact component/event state. Its Router lab emits navigation events so router debugging can be exercised without leaving the example.
+
+The Debug Panel implementation and `examples/dogfood/debugPanelHelpers.ts` are dogfood-only example code, not package exports. They show one practical way to consume `createDebugInspector()`, organize event/component state, and copy compact debug snapshots, but applications should copy or adapt those patterns locally instead of depending on those helper files as public API.
 
 The Vite plugin forwards transform failures with `id`, `loc`, and `frame`, including fallback metadata for non-standard compile-time errors. The compiler returns a v3 source map with `sourcesContent`, and generated template element, interpolation, bound attribute, event handler, and script lines map back to their original SFC lines. Generated code inspection can still help for complex compiler issues.
 

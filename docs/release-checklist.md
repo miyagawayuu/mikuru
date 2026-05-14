@@ -5,6 +5,7 @@ Use this checklist before publishing a Mikuru v1 release.
 ## Required Verification
 
 - Run `npm run ci`.
+- If `npm run ci` is not practical locally, run the focused debug/tooling checks before release: `npm run typecheck`, `npm test`, `npm run build:dogfood`, `npm run test:e2e:dogfood`, and `npm run test:docs`.
 - Run `npm run build:mikuru-sample`.
 - Run `npm run build:mikuru-vue-like`.
 - Confirm `npm run test:templates` passes so generated templates use the package version placeholder.
@@ -46,6 +47,7 @@ Confirm these exports work from the packed package:
 
 - SSR and hydration are supported, but dynamic branch/list reconciliation after the initial state is still future work.
 - No stable devtools API. Debug builds expose only an unstable internal devtools metadata/event hook.
+- The dogfood Debug Panel and `examples/dogfood/debugPanelHelpers.ts` are example-only debugging aids and must not be documented or packaged as public exports.
 - No Vue compatibility guarantee.
 - Source maps include original SFC content and line-oriented mappings for common template/script generated lines.
 - Scoped CSS is a basic selector rewrite, not a full CSS compiler.
@@ -57,13 +59,14 @@ Confirm these exports work from the packed package:
 2. Confirm `repository`, `bugs`, and `homepage` metadata point to `https://github.com/miyagawayuu/mikuru`.
 3. Confirm `CHANGELOG.md` and `docs/release-notes-v1.md` describe the release.
 4. Run all required verification commands.
-5. Run `npm publish --dry-run`.
-6. Publish with `npm publish`.
-7. Push `master` to `origin/master`.
-8. Create and push the release tag.
-9. Create the GitHub Release for the release tag and attach the release notes.
-10. Delete merged release or Codex work branches after `master` and the tag are confirmed.
-11. Optionally verify the published package with `npx mikuru@latest create` in a disposable directory.
+5. Confirm the dogfood Debug Panel still covers component tree display, event filtering/search, event-to-component navigation, snapshot display/copy, and helper unit tests.
+6. Run `npm publish --dry-run`.
+7. Publish with `npm publish`.
+8. Push `master` to `origin/master`.
+9. Create and push the release tag.
+10. Create the GitHub Release for the release tag and attach the release notes.
+11. Delete merged release or Codex work branches after `master` and the tag are confirmed.
+12. Optionally verify the published package with `npx mikuru@latest create` in a disposable directory.
 
 ## Published Package Smoke
 

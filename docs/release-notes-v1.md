@@ -13,7 +13,7 @@ Mikuru v1 is the first stable validation release of the compile-first Vue-like S
 - Keyed `m-for` record reuse with cleanup for removed DOM and component records.
 - Built-in routing, Teleport, ErrorBoundary, AsyncBoundary, KeepAlive, Transition, and TransitionGroup helpers.
 - SSR and hydration through `compileSsr()`, `compileHydration()`, `mikuru/server`, `.mikuru?ssr`, `.mikuru?hydrate`, `renderToStream()`, `renderRouteToString()`, and `hydrateRoute()`.
-- Debug diagnostics with compile frames, debug `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context.
+- Debug diagnostics with compile frames, debug `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, hydration warnings that include phase/component/filename context, and dogfood Debug Panel coverage for component trees, event filtering/search, event-to-component navigation, and copyable debug snapshots.
 - Style injection and basic `<style scoped>` selector rewriting.
 - Compile errors with filename, line, column, and code frames.
 - Coarse v3 source maps with `sourcesContent` plus optional debug `sourceURL` output.
@@ -62,7 +62,7 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 - `examples/basic`: minimal counter and component composition.
 - `examples/realworld`: app-like task board with filters and keyed lists.
-- `examples/dogfood`: notes app written with Mikuru SFCs, including Router, AsyncBoundary, ErrorBoundary, KeepAlive, TransitionGroup, `m-model`, and the debug inspector panel.
+- `examples/dogfood`: notes app written with Mikuru SFCs, including Router, AsyncBoundary, ErrorBoundary, KeepAlive, TransitionGroup, `m-model`, and the debug inspector panel. The panel demonstrates `createDebugInspector()` with a searchable component tree, event filters/search, component root reveal, and copyable compact snapshots; its helper module is dogfood example code, not a package export.
 - `examples/router`: client-side RouterView/RouterLink, aliases, redirects, guards, nested routes, dynamic routes, lazy routes, and preloading.
 - `examples/router-ssr-hydration`: route SSR and route hydration with RouterView/RouterLink, redirects, guards, nested routes, lazy route components, and Teleport.
 - `examples/ssr-hydration`: SSR-to-hydration example using `.mikuru?ssr`, `.mikuru?hydrate`, stream output, mismatch recovery, recovery-disabled warnings, AsyncBoundary, Teleport, and nested hydration patterns.
@@ -89,3 +89,4 @@ The next patch release is expected to focus on release polish, documentation com
 - Runtime watchers: `watch(..., { immediate: true })` and cleanup callbacks for work that must be canceled before the next watcher run or stop.
 - Compiler guidance: unsupported syntax, directive typos, `v-*` compatibility aliases, built-in attribute typos, and misplaced `m-slot` errors include actionable alternatives.
 - Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.
+- Debug tooling polish: dogfood-only Debug Panel helper coverage, clearer experimental devtools boundaries, and release checks for debug panel E2E behavior.
