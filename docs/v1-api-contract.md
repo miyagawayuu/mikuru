@@ -6,12 +6,12 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 
 - `mikuru`: re-exports the compiler entry, runtime reactivity helpers, and public runtime helper types.
 - `mikuru/compiler`: exposes `compile`, `compileSsr`, `compileHydration`, `compileStyle`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, scoped CSS diagnostic types, and compile error types.
-- `mikuru/runtime`: exposes `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
+- `mikuru/runtime`: exposes `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, stable devtools helpers including `createDevtoolsInspector()`, and runtime helper types.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
 - `mikuru/server`: exposes `renderToString`, `renderToStream`, `renderComponentToString`, `renderRouteToString`, `hydrateRoute`, `escapeHtml`, `renderAttr`, and `renderAttrs` for SSR and hydration integrations.
-- `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export. Plugin options include `debug`, `include`, and `batchedUpdates`; `.mikuru?hydrate` and `.mikuru?ssr` imports expose hydration and SSR generated modules.
+- `mikuru/vite`: exposes the Vite plugin as `mikuru()` and the default export. Plugin options include `debug`, `include`, `batchedUpdates`, and `templateTypeCheck`; `.mikuru?hydrate` and `.mikuru?ssr` imports expose hydration and SSR generated modules.
 
-The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook and `createDebugInspector()` helper are unstable internal infrastructure and are not part of the stable v1 API.
+Debug builds use the stable v1 devtools contract. `createDevtoolsInspector()` and its compatibility alias `createDebugInspector()` expose `getComponents()`, `getComponentTree()`, `getEvents()`, `getEventsByType(type)`, `getSnapshot()`, `clearEvents()`, and `subscribe(listener)`. Devtools events carry `version: 1`, `type`, `timestamp`, and optional `payload`; snapshots carry `version: 1`, `capturedAt`, `components`, `componentTree`, and `events`. The global `__MIKURU_DEVTOOLS__` hook remains the transport backing that API.
 
 ## SFC Contract
 
@@ -122,7 +122,7 @@ Unsupported in v1:
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
 - Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `m-show`, DOM and component `m-model`, initial `m-if` / `m-for` DOM, keeps hydrated element and `<template m-for>` lists reactive after source changes, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
-- Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`. With recovery disabled, structural mismatches remain warnings and hydration continues best-effort without replacing the mismatched DOM. Hydration warnings include phase, component, filename, kind, action, inferred expected/actual values, and DOM path context where available, and emit unstable `hydration:warning` devtools events when a hook is present.
+- Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`. With recovery disabled, structural mismatches remain warnings and hydration continues best-effort without replacing the mismatched DOM. Hydration warnings include phase, component, filename, kind, action, inferred expected/actual values, and DOM path context where available, and emit versioned `hydration:warning` devtools events when a hook is present.
 - Dynamic branch reconciliation after the initial state is future work.
 
 ## Macro Contract

@@ -14,7 +14,7 @@ Mikuru v1 is the first stable validation release of the compile-first Vue-like S
 - Keyed `m-for` record reuse with cleanup for removed DOM and component records.
 - Built-in routing, Teleport, ErrorBoundary, AsyncBoundary, KeepAlive, Transition, and TransitionGroup helpers.
 - SSR and hydration through `compileSsr()`, `compileHydration()`, `mikuru/server`, `.mikuru?ssr`, `.mikuru?hydrate`, `renderToStream()`, `renderRouteToString()`, and `hydrateRoute()`.
-- Debug diagnostics with compile frames, debug `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, hydration warnings that include phase/component/filename context, and dogfood Debug Panel coverage for component trees, event filtering/search, event-to-component navigation, and copyable debug snapshots.
+- Stable devtools diagnostics with compile frames, debug `sourceURL`, `v-*` compatibility warnings, versioned metadata/events, hydration warnings that include phase/component/filename context, and dogfood Debug Panel coverage for component trees, event filtering/search, event-to-component navigation, and copyable debug snapshots.
 - Style injection and basic `<style scoped>` selector rewriting.
 - Compile errors with filename, line, column, and code frames.
 - v3 source maps with `sourcesContent`, template/script/style line mappings, and generated-column segments for common template expressions, attributes, event handlers, and script/style lines.
@@ -75,7 +75,6 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 
 ## Not Included In v1
 
-- Stable devtools API.
 - Full Vue compatibility.
 - Dynamic branch/list reconciliation after the initial hydration state.
 
@@ -90,4 +89,4 @@ The next patch release is expected to focus on scoped CSS compiler hardening, di
 - Compiler guidance: unsupported syntax, directive typos, `v-*` compatibility aliases, built-in attribute typos, and misplaced `m-slot` errors include actionable alternatives.
 - Scoped CSS compiler hardening: native CSS nesting, `@starting-style`, additional raw descriptor at-rules, robust `:deep(...)` / `:global(...)` parsing, and malformed block diagnostics with offset, line, column, and one-line code frames.
 - Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.
-- Debug tooling polish: dogfood-only Debug Panel helper coverage, compiler/style diagnostic detail blocks with code frames, clearer experimental devtools boundaries, and release checks for debug panel E2E behavior.
+- Debug tooling polish: dogfood-only Debug Panel helper coverage, stable devtools inspector snapshots, compiler/style diagnostic detail blocks with code frames, and release checks for debug panel E2E behavior.

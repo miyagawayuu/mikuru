@@ -152,7 +152,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Vite-routed component CSS for CSS Modules with `<style module>`, preprocessor languages such as `<style lang="scss">`, and project-level CSS transforms such as PostCSS when using `mikuru/vite`
 - Optional TypeScript template type checking with `typeCheckTemplate()`, `compile(..., { templateTypeCheck: true })`, and `mikuru({ templateTypeCheck: true })`, including script bindings, `defineProps()` constructor inference, ref unwrapping, and `m-for` item/index scopes
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
-- Debug diagnostics with optional generated `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, compiler/style diagnostic locations and frames, and hydration warnings that include phase, component, and filename context
+- Stable devtools diagnostics with optional generated `sourceURL`, `v-*` compatibility warnings, versioned metadata/events, component tree snapshots, compiler/style diagnostic locations and frames, and hydration warnings that include phase, component, and filename context
 
 ## Package Exports
 
@@ -231,7 +231,6 @@ const open = ref(false);
 ## Not Included in v1
 
 - Full Vue compatibility.
-- Stable devtools API.
 
 ## Repository Development
 

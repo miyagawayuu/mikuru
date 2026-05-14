@@ -5,6 +5,7 @@ import {
   computed,
   createDebugDiagnostic,
   createDebugInspector,
+  createDevtoolsInspector,
   effect,
   emitDebugDiagnostic,
   emitDebugEvent,
@@ -52,7 +53,7 @@ describe("runtime debug inspector", () => {
       emitDebugEvent("style:inject", { style: { id: "mikuru-test" } });
 
       expect(inspector.getEvents()).toHaveLength(2);
-      expect(inspector.getEvents()[0]).toMatchObject({ type: "test:event", payload: { ok: true } });
+      expect(inspector.getEvents()[0]).toMatchObject({ version: 1, type: "test:event", payload: { ok: true } });
       expect(inspector.getEventsByType("style:inject")).toHaveLength(1);
       expect(received).toEqual(["test:event", "style:inject"]);
 
@@ -62,6 +63,42 @@ describe("runtime debug inspector", () => {
       unsubscribe();
       emitDebugEvent("test:after-unsubscribe");
       expect(received).toEqual(["test:event", "style:inject"]);
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("provides a stable devtools inspector snapshot API", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDevtoolsInspector();
+      const parent = registerDebugComponent({ name: "StableParent" });
+      registerDebugComponent({ name: "StableChild", parentId: parent.id });
+      emitDebugEvent("stable:event", { ok: true });
+
+      const snapshot = inspector.getSnapshot();
+      expect(snapshot).toMatchObject({
+        version: 1,
+        components: [
+          { id: parent.id, name: "StableParent" },
+          { name: "StableChild", parentId: parent.id }
+        ],
+        componentTree: [
+          {
+            id: parent.id,
+            name: "StableParent",
+            childrenTree: [{ name: "StableChild", childrenTree: [] }]
+          }
+        ],
+        events: expect.arrayContaining([expect.objectContaining({ version: 1, type: "stable:event" })])
+      });
+      expect(typeof snapshot.capturedAt).toBe("number");
     } finally {
       if (previousHook === undefined) {
         delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;

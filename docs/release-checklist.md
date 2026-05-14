@@ -47,7 +47,7 @@ Confirm these exports work from the packed package:
 ## Known v1 Limits
 
 - SSR and hydration are supported, but dynamic branch/list reconciliation after the initial state is still future work.
-- No stable devtools API. Debug builds expose only an unstable internal devtools metadata/event hook.
+- Stable devtools API is documented; debug builds expose versioned devtools events and `createDevtoolsInspector()` snapshots.
 - The dogfood Debug Panel and `examples/dogfood/debugPanelHelpers.ts` are example-only debugging aids and must not be documented or packaged as public exports.
 - No Vue compatibility guarantee.
 - Source maps include original SFC content, generated-line mappings, and generated-column segments for common template/script generated code.

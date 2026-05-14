@@ -6,6 +6,7 @@ const { createMemoryHistory, createRouter } = await import("mikuru/router");
 const { escapeHtml, hydrateRoute, renderAttr, renderComponentToString, renderRouteToString, renderToStream, renderToString } = await import("mikuru/server");
 const {
   createDebugInspector,
+  createDevtoolsInspector,
   effect,
   emitDebugEvent,
   flushJobs,
@@ -225,6 +226,8 @@ assert.equal(ticked, true);
 const inspector = createDebugInspector();
 emitDebugEvent("package-smoke");
 assert.equal(inspector.getEvents().at(-1).type, "package-smoke");
+assert.equal(inspector.getEvents().at(-1).version, 1);
+assert.equal(createDevtoolsInspector().getSnapshot().version, 1);
 inspector.clearEvents();
 assert.equal(inspector.getEvents().length, 0);
 

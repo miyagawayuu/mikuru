@@ -6,6 +6,7 @@ export {
   computed,
   createDebugDiagnostic,
   createDebugInspector,
+  createDevtoolsInspector,
   defineAsyncComponent,
   effect,
   emitDebugDiagnostic,
@@ -42,7 +43,11 @@ export type {
   MikuruDebugEvent,
   MikuruDebugInspector,
   MikuruDebugListener,
-  MikuruDevtoolsHook
+  MikuruDevtoolsEvent,
+  MikuruDevtoolsHook,
+  MikuruDevtoolsInspector,
+  MikuruDevtoolsListener,
+  MikuruDevtoolsSnapshot
 } from "./runtime/index.js";
 export type {
   AsyncComponentLoader,

@@ -234,6 +234,7 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await page.evaluate(() => {
     const hook = window.__MIKURU_DEVTOOLS__;
     const event = {
+      version: 1 as const,
       type: "compiler:warning",
       timestamp: Date.now(),
       payload: {
