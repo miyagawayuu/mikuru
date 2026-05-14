@@ -18,6 +18,259 @@ function increment() {
 }
 </script>`;
 
+type ScopedCssFixture = {
+  name: string;
+  source: string;
+  scopeAttr: string;
+  contains: string[];
+  notContains?: string[];
+};
+
+const scopedCssFixtures: ScopedCssFixture[] = [
+  {
+    name: "complex nested CSS without rewriting keyframe steps",
+    source: `
+@media (hover: hover) {
+  section, p:is(.active, [data-kind=","]) { color: red; }
+}
+@supports selector(:has(*)) {
+.card:has(> img) { display: grid; }
+}
+@keyframes pulse {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+:global(.theme-dark) { color: white; }
+.panel :global(.toolbar) { color: green; }
+.shell :deep(.item:hover) { color: blue; }
+`,
+    scopeAttr: "data-mikuru-scope-test",
+    contains: [
+      "@media (hover: hover) {\n  section[data-mikuru-scope-test], p[data-mikuru-scope-test]:is(.active, [data-kind=\",\"]) { color: red; }\n}",
+      ".card[data-mikuru-scope-test]:has(> img) { display: grid; }",
+      "@keyframes pulse {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}",
+      ".theme-dark { color: white; }",
+      ".panel[data-mikuru-scope-test] .toolbar { color: green; }",
+      ".shell[data-mikuru-scope-test] .item:hover { color: blue; }"
+    ]
+  },
+  {
+    name: "comments and strings with CSS delimiters",
+    source: `
+/* comment with { braces } and, commas */
+.card[data-label="{a,b}"], .note::before {
+  content: "{hello, world}";
+  background-image: url("data:image/svg+xml,{still,one,value}");
+}
+@media (min-width: 40rem) {
+  /* nested comment with } and, */
+  .panel::after { content: "closing } brace, comma"; }
+}
+`,
+    scopeAttr: "data-mikuru-scope-edge",
+    contains: [
+      "/* comment with { braces } and, commas */",
+      ".card[data-label=\"{a,b}\"][data-mikuru-scope-edge], .note[data-mikuru-scope-edge]::before",
+      "content: \"{hello, world}\"",
+      "url(\"data:image/svg+xml,{still,one,value}\")",
+      "/* nested comment with } and, */",
+      ".panel[data-mikuru-scope-edge]::after { content: \"closing } brace, comma\"; }"
+    ]
+  },
+  {
+    name: "rules nested inside CSS @scope blocks",
+    source: `
+@scope (.dialog) to (.dialog-footer) {
+  .title, button:hover { color: red; }
+  @media (min-width: 48rem) {
+    .content > p { margin: 0; }
+  }
+}
+`,
+    scopeAttr: "data-mikuru-scope-at-scope",
+    contains: [
+      "@scope (.dialog) to (.dialog-footer) {",
+      ".title[data-mikuru-scope-at-scope], button[data-mikuru-scope-at-scope]:hover { color: red; }",
+      ".content > p[data-mikuru-scope-at-scope] { margin: 0; }"
+    ]
+  },
+  {
+    name: "native CSS nesting selectors inside regular rules",
+    source: `
+.card {
+  color: red;
+  & .title,
+  &:hover {
+    color: blue;
+  }
+  @media (min-width: 48rem) {
+    & > .content:is(.wide, [data-kind=","]) {
+      display: grid;
+    }
+  }
+}
+`,
+    scopeAttr: "data-mikuru-scope-nesting",
+    contains: [
+      ".card[data-mikuru-scope-nesting] {",
+      "& .title[data-mikuru-scope-nesting],\n  &[data-mikuru-scope-nesting]:hover {",
+      "& > .content[data-mikuru-scope-nesting]:is(.wide, [data-kind=\",\"]) {",
+      "display: grid;"
+    ]
+  },
+  {
+    name: "deep and global selectors inside native CSS nesting",
+    source: `
+.card {
+  & :deep(.remote:hover),
+  &.active {
+    color: blue;
+  }
+  & :global(.theme-dark) .label {
+    color: white;
+  }
+}
+`,
+    scopeAttr: "data-mikuru-scope-nested-helpers",
+    contains: [
+      "&[data-mikuru-scope-nested-helpers] .remote:hover,\n  &.active[data-mikuru-scope-nested-helpers] {",
+      "&[data-mikuru-scope-nested-helpers] .theme-dark .label {"
+    ]
+  },
+  {
+    name: "CSS @starting-style rules",
+    source: `
+@starting-style {
+  .panel,
+  .panel::backdrop {
+    opacity: 0;
+  }
+}
+`,
+    scopeAttr: "data-mikuru-scope-starting",
+    contains: [
+      "@starting-style {",
+      ".panel[data-mikuru-scope-starting],\n  .panel[data-mikuru-scope-starting]::backdrop {"
+    ]
+  },
+  {
+    name: "selector lists inside :is, :where, and :not arguments",
+    source: `
+.card:is(.active, [data-state="ready,steady"]):not(.disabled, :where(.ghost, .hidden)),
+.panel:where(:not(.quiet, .muted), .loud)::before {
+  color: red;
+}
+`,
+    scopeAttr: "data-mikuru-scope-pseudo",
+    contains: [
+      ".card[data-mikuru-scope-pseudo]:is(.active, [data-state=\"ready,steady\"]):not(.disabled, :where(.ghost, .hidden))",
+      ".panel[data-mikuru-scope-pseudo]:where(:not(.quiet, .muted), .loud)::before",
+      "color: red;"
+    ]
+  },
+  {
+    name: "escaped selectors used by utility-style class names",
+    source: `
+.icon\\:active:hover,
+.w-\\[10px\\]::before,
+#foo\\,bar .grid\\{dense\\} {
+  color: red;
+}
+`,
+    scopeAttr: "data-mikuru-scope-escaped",
+    contains: [
+      ".icon\\:active[data-mikuru-scope-escaped]:hover",
+      ".w-\\[10px\\][data-mikuru-scope-escaped]::before",
+      "#foo\\,bar .grid\\{dense\\}[data-mikuru-scope-escaped]"
+    ]
+  },
+  {
+    name: "attribute selector punctuation",
+    source: `
+a[href^="https://"][data-value="a,b { c }"]:focus,
+[data-query='button[data-kind="primary"], .link']::after {
+  content: attr(data-value);
+}
+`,
+    scopeAttr: "data-mikuru-scope-attrs",
+    contains: [
+      "a[href^=\"https://\"][data-value=\"a,b { c }\"][data-mikuru-scope-attrs]:focus",
+      "[data-query='button[data-kind=\"primary\"], .link'][data-mikuru-scope-attrs]::after",
+      "content: attr(data-value);"
+    ]
+  },
+  {
+    name: ":deep and :global text inside selector arguments",
+    source: `
+.card[data-helper=":deep(.remote)"]:focus,
+.note[data-helper=':global(.theme)']::before,
+.panel:is([data-helper=":deep(.nested, .value)"], .active) {
+  color: red;
+}
+`,
+    scopeAttr: "data-mikuru-scope-helper-text",
+    contains: [
+      ".card[data-helper=\":deep(.remote)\"][data-mikuru-scope-helper-text]:focus",
+      ".note[data-helper=':global(.theme)'][data-mikuru-scope-helper-text]::before",
+      ".panel[data-mikuru-scope-helper-text]:is([data-helper=\":deep(.nested, .value)\"], .active)",
+      "color: red;"
+    ]
+  },
+  {
+    name: "rules nested inside unknown at-rules",
+    source: `
+@document url-prefix("https://example.com") {
+  .card, main > article:hover { color: red; }
+  @media (min-width: 60rem) {
+    .nested { display: grid; }
+  }
+}
+`,
+    scopeAttr: "data-mikuru-scope-unknown-at",
+    contains: [
+      "@document url-prefix(\"https://example.com\") {",
+      ".card[data-mikuru-scope-unknown-at], main > article[data-mikuru-scope-unknown-at]:hover { color: red; }",
+      ".nested[data-mikuru-scope-unknown-at] { display: grid; }"
+    ]
+  },
+  {
+    name: "@property raw blocks",
+    source: `
+@property --mikuru-tone {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: red;
+}
+`,
+    scopeAttr: "data-mikuru-scope-property",
+    contains: [
+      "@property --mikuru-tone {\n  syntax: \"<color>\";\n  inherits: false;\n  initial-value: red;\n}"
+    ],
+    notContains: ["data-mikuru-scope-property"]
+  },
+  {
+    name: "descriptor-style raw at-rule blocks",
+    source: `
+@font-feature-values MikuruSans {
+  @styleset {
+    pretty: 1;
+  }
+}
+@counter-style thumbs {
+  system: cyclic;
+  symbols: "\\1F44D";
+  suffix: " ";
+}
+`,
+    scopeAttr: "data-mikuru-scope-raw-at",
+    contains: [
+      "@font-feature-values MikuruSans {\n  @styleset {\n    pretty: 1;\n  }\n}",
+      "@counter-style thumbs {\n  system: cyclic;\n  symbols: \"\\1F44D\";\n  suffix: \" \";\n}"
+    ],
+    notContains: ["data-mikuru-scope-raw-at"]
+  }
+];
+
 describe("compiler", () => {
   it("parses SFC blocks", () => {
     const descriptor = parseSfc(counterSource, "Counter.mikuru");
@@ -266,271 +519,16 @@ p { color: red; }
     expect(result.code).toContain(".setAttribute(\"data-mikuru-scope-");
   });
 
-  it("scopes complex nested CSS without rewriting keyframe steps", () => {
-    const result = compileStyle(
-      `
-@media (hover: hover) {
-  section, p:is(.active, [data-kind=","]) { color: red; }
-}
-@supports selector(:has(*)) {
-.card:has(> img) { display: grid; }
-}
-@keyframes pulse {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-:global(.theme-dark) { color: white; }
-.panel :global(.toolbar) { color: green; }
-.shell :deep(.item:hover) { color: blue; }
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-test" }
-    );
-
-    expect(result.code).toContain("@media (hover: hover) {\n  section[data-mikuru-scope-test], p[data-mikuru-scope-test]:is(.active, [data-kind=\",\"]) { color: red; }\n}");
-    expect(result.code).toContain(".card[data-mikuru-scope-test]:has(> img) { display: grid; }");
-    expect(result.code).toContain("@keyframes pulse {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}");
-    expect(result.code).toContain(".theme-dark { color: white; }");
-    expect(result.code).toContain(".panel[data-mikuru-scope-test] .toolbar { color: green; }");
-    expect(result.code).toContain(".shell[data-mikuru-scope-test] .item:hover { color: blue; }");
-  });
-
-  it("keeps comments and strings with CSS delimiters intact while scoping selectors", () => {
-    const result = compileStyle(
-      `
-/* comment with { braces } and, commas */
-.card[data-label="{a,b}"], .note::before {
-  content: "{hello, world}";
-  background-image: url("data:image/svg+xml,{still,one,value}");
-}
-@media (min-width: 40rem) {
-  /* nested comment with } and, */
-  .panel::after { content: "closing } brace, comma"; }
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-edge" }
-    );
+  it.each(scopedCssFixtures)("covers scoped CSS fixture: $name", ({ source, scopeAttr, contains, notContains = [] }) => {
+    const result = compileStyle(source, { scoped: true, scopeAttr });
 
     expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain("/* comment with { braces } and, commas */");
-    expect(result.code).toContain(".card[data-label=\"{a,b}\"][data-mikuru-scope-edge], .note[data-mikuru-scope-edge]::before");
-    expect(result.code).toContain('content: "{hello, world}"');
-    expect(result.code).toContain('url("data:image/svg+xml,{still,one,value}")');
-    expect(result.code).toContain("/* nested comment with } and, */");
-    expect(result.code).toContain('.panel[data-mikuru-scope-edge]::after { content: "closing } brace, comma"; }');
-  });
-
-  it("scopes rules nested inside CSS @scope blocks", () => {
-    const result = compileStyle(
-      `
-@scope (.dialog) to (.dialog-footer) {
-  .title, button:hover { color: red; }
-  @media (min-width: 48rem) {
-    .content > p { margin: 0; }
-  }
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-at-scope" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain("@scope (.dialog) to (.dialog-footer) {");
-    expect(result.code).toContain(".title[data-mikuru-scope-at-scope], button[data-mikuru-scope-at-scope]:hover { color: red; }");
-    expect(result.code).toContain(".content > p[data-mikuru-scope-at-scope] { margin: 0; }");
-  });
-
-  it("scopes native CSS nesting selectors inside regular rules", () => {
-    const result = compileStyle(
-      `
-.card {
-  color: red;
-  & .title,
-  &:hover {
-    color: blue;
-  }
-  @media (min-width: 48rem) {
-    & > .content:is(.wide, [data-kind=","]) {
-      display: grid;
+    for (const expected of contains) {
+      expect(result.code).toContain(expected);
     }
-  }
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-nesting" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain(".card[data-mikuru-scope-nesting] {");
-    expect(result.code).toContain("& .title[data-mikuru-scope-nesting],\n  &[data-mikuru-scope-nesting]:hover {");
-    expect(result.code).toContain("& > .content[data-mikuru-scope-nesting]:is(.wide, [data-kind=\",\"]) {");
-    expect(result.code).toContain("display: grid;");
-  });
-
-  it("scopes deep and global selectors inside native CSS nesting", () => {
-    const result = compileStyle(
-      `
-.card {
-  & :deep(.remote:hover),
-  &.active {
-    color: blue;
-  }
-  & :global(.theme-dark) .label {
-    color: white;
-  }
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-nested-helpers" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain("&[data-mikuru-scope-nested-helpers] .remote:hover,\n  &.active[data-mikuru-scope-nested-helpers] {");
-    expect(result.code).toContain("&[data-mikuru-scope-nested-helpers] .theme-dark .label {");
-  });
-
-  it("scopes CSS @starting-style rules", () => {
-    const result = compileStyle(
-      `
-@starting-style {
-  .panel,
-  .panel::backdrop {
-    opacity: 0;
-  }
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-starting" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain("@starting-style {");
-    expect(result.code).toContain(".panel[data-mikuru-scope-starting],\n  .panel[data-mikuru-scope-starting]::backdrop {");
-  });
-
-  it("does not split selector lists inside :is, :where, and :not arguments", () => {
-    const result = compileStyle(
-      `
-.card:is(.active, [data-state="ready,steady"]):not(.disabled, :where(.ghost, .hidden)),
-.panel:where(:not(.quiet, .muted), .loud)::before {
-  color: red;
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-pseudo" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain('.card[data-mikuru-scope-pseudo]:is(.active, [data-state="ready,steady"]):not(.disabled, :where(.ghost, .hidden))');
-    expect(result.code).toContain(".panel[data-mikuru-scope-pseudo]:where(:not(.quiet, .muted), .loud)::before");
-    expect(result.code).toContain("color: red;");
-  });
-
-  it("scopes escaped selectors used by utility-style class names", () => {
-    const result = compileStyle(
-      `
-.icon\\:active:hover,
-.w-\\[10px\\]::before,
-#foo\\,bar .grid\\{dense\\} {
-  color: red;
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-escaped" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain(".icon\\:active[data-mikuru-scope-escaped]:hover");
-    expect(result.code).toContain(".w-\\[10px\\][data-mikuru-scope-escaped]::before");
-    expect(result.code).toContain("#foo\\,bar .grid\\{dense\\}[data-mikuru-scope-escaped]");
-  });
-
-  it("keeps attribute selector punctuation intact while scoping", () => {
-    const result = compileStyle(
-      `
-a[href^="https://"][data-value="a,b { c }"]:focus,
-[data-query='button[data-kind="primary"], .link']::after {
-  content: attr(data-value);
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-attrs" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain('a[href^="https://"][data-value="a,b { c }"][data-mikuru-scope-attrs]:focus');
-    expect(result.code).toContain('[data-query=\'button[data-kind="primary"], .link\'][data-mikuru-scope-attrs]::after');
-    expect(result.code).toContain("content: attr(data-value);");
-  });
-
-  it("does not treat :deep or :global text inside selector arguments as scoped CSS helpers", () => {
-    const result = compileStyle(
-      `
-.card[data-helper=":deep(.remote)"]:focus,
-.note[data-helper=':global(.theme)']::before,
-.panel:is([data-helper=":deep(.nested, .value)"], .active) {
-  color: red;
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-helper-text" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain('.card[data-helper=":deep(.remote)"][data-mikuru-scope-helper-text]:focus');
-    expect(result.code).toContain(".note[data-helper=':global(.theme)'][data-mikuru-scope-helper-text]::before");
-    expect(result.code).toContain('.panel[data-mikuru-scope-helper-text]:is([data-helper=":deep(.nested, .value)"], .active)');
-    expect(result.code).toContain("color: red;");
-  });
-
-  it("scopes rules nested inside unknown at-rules", () => {
-    const result = compileStyle(
-      `
-@document url-prefix("https://example.com") {
-  .card, main > article:hover { color: red; }
-  @media (min-width: 60rem) {
-    .nested { display: grid; }
-  }
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-unknown-at" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain('@document url-prefix("https://example.com") {');
-    expect(result.code).toContain(".card[data-mikuru-scope-unknown-at], main > article[data-mikuru-scope-unknown-at]:hover { color: red; }");
-    expect(result.code).toContain(".nested[data-mikuru-scope-unknown-at] { display: grid; }");
-  });
-
-  it("preserves @property raw blocks without scoping declarations", () => {
-    const result = compileStyle(
-      `
-@property --mikuru-tone {
-  syntax: "<color>";
-  inherits: false;
-  initial-value: red;
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-property" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain("@property --mikuru-tone {\n  syntax: \"<color>\";\n  inherits: false;\n  initial-value: red;\n}");
-    expect(result.code).not.toContain("data-mikuru-scope-property");
-  });
-
-  it("preserves descriptor-style raw at-rule blocks", () => {
-    const result = compileStyle(
-      `
-@font-feature-values MikuruSans {
-  @styleset {
-    pretty: 1;
-  }
-}
-@counter-style thumbs {
-  system: cyclic;
-  symbols: "\\1F44D";
-  suffix: " ";
-}
-`,
-      { scoped: true, scopeAttr: "data-mikuru-scope-raw-at" }
-    );
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.code).toContain("@font-feature-values MikuruSans {\n  @styleset {\n    pretty: 1;\n  }\n}");
-    expect(result.code).toContain('@counter-style thumbs {\n  system: cyclic;\n  symbols: "\\1F44D";\n  suffix: " ";\n}');
-    expect(result.code).not.toContain("data-mikuru-scope-raw-at");
+    for (const unexpected of notContains) {
+      expect(result.code).not.toContain(unexpected);
+    }
   });
 
   it("reports a diagnostic and preserves CSS when a scoped block is missing a closing brace", () => {

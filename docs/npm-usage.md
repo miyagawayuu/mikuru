@@ -177,11 +177,13 @@ import "mikuru/env";
 Lower-level compiler, runtime, and server entries are also public:
 
 ```ts
-import { compile, compileHydration, compileSsr } from "mikuru/compiler";
+import { compile, compileHydration, compileSsr, compileStyle } from "mikuru/compiler";
 import { effect, flushJobs, isRef, nextTick, queueJob, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch, watchEffect } from "mikuru/runtime";
 import { escapeHtml, hydrateRoute, renderComponentToString, renderRouteToString, renderToStream, renderToString } from "mikuru/server";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
+
+`compileStyle(css, { scoped: true, scopeAttr })` returns `{ code, scoped, scopeAttr, diagnostics }`. Scoped CSS diagnostics are non-throwing warnings; malformed block diagnostics include `offset`, `line`, `column`, and `frame`. In `mikuru({ debug: true })`, style diagnostics are also emitted as `compiler:warning` events with `diagnostic.phase: "style"` and the same location/frame fields.
 
 `compileSsr(source)` generates an async `renderToString(props?)` module for SSR. It supports escaped text, static and bound attributes, content directives, `m-pre`, `m-cloak`, `m-if` / `m-else-if` / `m-else`, `m-for`, SSR-rendered `m-model` form control state, async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection. `renderToStream(component, props?)` exposes SSR output as an async iterable for app shells that want stream-shaped integration. `renderRouteToString(router, location, { teleports })` resolves redirects, lazy route components, route props, nested route slots, route component context, and route-level Teleport collection for router SSR.
 

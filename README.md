@@ -180,11 +180,13 @@ import "mikuru/env";
 Compiler, runtime, and server entries are public for lower-level integrations:
 
 ```ts
-import { compile, compileHydration, compileSsr } from "mikuru/compiler";
+import { compile, compileHydration, compileSsr, compileStyle } from "mikuru/compiler";
 import { effect, isRef, nextTick, reactive, readonly, ref, toRef, toRefs, unref, unwrap, watch } from "mikuru/runtime";
 import { hydrateRoute, renderComponentToString, renderRouteToString, renderToStream, renderToString } from "mikuru/server";
 import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps, MikuruErrorInfo, MikuruErrorPhase } from "mikuru/runtime";
 ```
+
+`compileStyle()` returns scoped CSS code plus non-throwing diagnostics. Malformed scoped CSS diagnostics include `offset`, `line`, `column`, and a one-line `frame`, and debug builds emit the same fields in `compiler:warning` style diagnostic events.
 
 The package also provides the `mikuru` binary:
 

@@ -5,7 +5,7 @@ This document defines the public surface that Mikuru v1 treats as stable enough 
 ## Package Exports
 
 - `mikuru`: re-exports the compiler entry, runtime reactivity helpers, and public runtime helper types.
-- `mikuru/compiler`: exposes `compile`, `compileSsr`, `compileHydration`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, and compile error types.
+- `mikuru/compiler`: exposes `compile`, `compileSsr`, `compileHydration`, `compileStyle`, `parseSfc`, `parseTemplate`, `analyzeTemplate`, scoped CSS diagnostic types, and compile error types.
 - `mikuru/runtime`: exposes `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, `computed`, `effect`, `unwrap`, `setAttribute`, `normalizeClass`, `queueJob`, `flushJobs`, `nextTick`, `watch`, lifecycle callbacks, simple dependency helpers, `MikuruAsyncBoundaryFallbackProps`, `MikuruErrorInfo`, `MikuruErrorPhase`, and `MikuruErrorBoundaryFallbackProps`.
 - `mikuru/router`: exposes `createRouter`, browser and memory histories, router context helpers, `RouterView`, and `RouterLink`.
 - `mikuru/server`: exposes `renderToString`, `renderToStream`, `renderComponentToString`, `renderRouteToString`, `hydrateRoute`, `escapeHtml`, `renderAttr`, and `renderAttrs` for SSR and hydration integrations.
@@ -140,4 +140,4 @@ Unsupported in v1:
 - Patch releases should not remove supported syntax or change generated runtime contracts.
 - Minor releases may add syntax if unsupported forms currently fail at compile time.
 - Breaking changes require a major version unless they only affect behavior documented as unsupported.
-- Error wording can change, but errors should retain filename, line, column, and a code frame where source is available.
+- Error wording can change, but errors should retain filename, line, column, and a code frame where source is available. Scoped CSS warnings returned from `compileStyle()` and emitted as debug `compiler:warning` style diagnostics should retain `offset`, `line`, `column`, and `frame` when a malformed block location is available.
