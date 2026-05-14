@@ -132,6 +132,9 @@
         <div m-if="selectedEvent" class="debug-detail">
           <strong>{{ selectedEvent.type }}</strong>
           <span>{{ selectedEvent.summary }}</span>
+          <p class="debug-event-meta" :class="{ warning: selectedEvent.level === 'warning' }">
+            {{ selectedEvent.level }} / {{ selectedEvent.category }} / {{ selectedEvent.componentLabel || "no component" }}
+          </p>
           <div class="debug-actions" m-if="selectedEvent.componentId">
             <button @click="selectEventComponent">Select component</button>
             <button @click="revealEventComponentRoot">Reveal component root</button>
@@ -153,11 +156,20 @@
         <div class="debug-section-title">
           <h3>Snapshot</h3>
           <div class="debug-actions">
+            <button @click="toggleSnapshot">{{ snapshotOpen ? "Hide snapshot" : "Show snapshot" }}</button>
             <button @click="copySnapshot">Copy snapshot</button>
           </div>
         </div>
+        <dl class="debug-snapshot-summary">
+          <dt>components</dt>
+          <dd>{{ snapshotSummary.components }}</dd>
+          <dt>events</dt>
+          <dd>{{ snapshotSummary.events }}</dd>
+          <dt>filters</dt>
+          <dd>{{ snapshotSummary.filters || "none" }}</dd>
+        </dl>
         <p m-if="copyStatus" class="debug-filter-note">{{ copyStatus }}</p>
-        <pre>{{ snapshotText }}</pre>
+        <pre m-if="snapshotOpen">{{ snapshotText }}</pre>
       </section>
     </div>
   </section>
@@ -179,6 +191,7 @@ const collapsedIds = ref(new Set());
 const componentSearch = ref("");
 const eventSearch = ref("");
 const copyStatus = ref("");
+const snapshotOpen = ref(false);
 
 const selected = computed(() =>
   allComponents.value.find((component) => component.id === selectedId.value) ?? components.value[0]
@@ -201,6 +214,17 @@ const selectedEvent = computed(() =>
 );
 
 const snapshotText = computed(() => JSON.stringify(createPanelSnapshot(), null, 2));
+
+const snapshotSummary = computed(() => ({
+  components: `${components.value.length}/${allComponents.value.length}`,
+  events: `${filteredEvents.value.length}/${allEvents.value.length}`,
+  filters: [
+    componentSearch.value ? `component: ${componentSearch.value}` : "",
+    eventSearch.value ? `event: ${eventSearch.value}` : "",
+    eventFilter.value !== "all" ? `type: ${eventFilter.value}` : "",
+    componentEventFilterId.value !== undefined ? `component #${componentEventFilterId.value}` : ""
+  ].filter(Boolean).join(", ")
+}));
 
 const componentEventFilterLabel = computed(() => {
   if (componentEventFilterId.value === undefined) {
@@ -738,6 +762,10 @@ async function copySnapshot() {
   }
 }
 
+function toggleSnapshot() {
+  snapshotOpen.value = !snapshotOpen.value;
+}
+
 function toggleComponent(id) {
   const next = new Set(collapsedIds.value);
   if (next.has(id)) {
@@ -859,6 +887,7 @@ snapshot();
 .debug-header p,
 .debug-section h3,
 .debug-filter-note,
+.debug-event-meta,
 .debug-empty {
   margin: 0;
 }
@@ -1005,12 +1034,48 @@ snapshot();
 
 .debug-detail pre {
   overflow: auto;
-  max-height: 140px;
+  max-height: 180px;
   padding: 8px;
   margin: 0;
   border-radius: 6px;
   color: #0f172a;
   background: #f8fafc;
+}
+
+.debug-event-meta {
+  padding: 7px 9px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  background: #eff6ff;
+}
+
+.debug-event-meta.warning {
+  border-color: #fb923c;
+  color: #7c2d12;
+  background: #fff7ed;
+}
+
+.debug-snapshot-summary {
+  display: grid;
+  grid-template-columns: repeat(3, auto minmax(0, 1fr));
+  gap: 6px 8px;
+  align-items: center;
+  padding: 10px;
+  margin: 0;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.debug-snapshot-summary dt {
+  font-weight: 700;
+}
+
+.debug-snapshot-summary dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .debug-snapshot pre {
@@ -1058,6 +1123,10 @@ snapshot();
   .debug-list,
   .debug-event-list {
     max-height: 260px;
+  }
+
+  .debug-snapshot-summary {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .debug-event-row {

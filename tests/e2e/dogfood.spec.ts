@@ -219,8 +219,14 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText("route:navigate").first()).toBeVisible();
   await expect(panel.getByText("/ -> /settings").first()).toBeVisible();
   await expect(panel.getByRole("heading", { name: "Snapshot" })).toBeVisible();
+  await expect(panel.locator(".debug-snapshot-summary")).toContainText("components");
+  await expect(panel.locator(".debug-snapshot-summary")).toContainText("type: router");
+  await expect(panel.locator(".debug-snapshot pre")).toHaveCount(0);
+  await panel.getByRole("button", { name: "Show snapshot" }).click();
   await expect(panel.locator(".debug-snapshot pre")).toContainText('"eventFilter": "router"');
   await expect(panel.locator(".debug-snapshot pre")).toContainText('"filteredEvents"');
+  await panel.getByRole("button", { name: "Hide snapshot" }).click();
+  await expect(panel.locator(".debug-snapshot pre")).toHaveCount(0);
   await panel.getByRole("button", { name: "Copy snapshot" }).click();
   await expect(panel.getByText("Snapshot copied.")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("dogfood-debug-snapshot"))).toContain('"eventFilter": "router"');
