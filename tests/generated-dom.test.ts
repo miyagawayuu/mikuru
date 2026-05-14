@@ -1626,6 +1626,63 @@ function removeFirst() {
     ]);
   });
 
+  it("renders unkeyed nested template v-for fragments with conditional branches", () => {
+    const fixture = compileForDom(`<template>
+  <section>
+    <template v-for="group in groups">
+      <h2>{{ group.name }}</h2>
+      <template v-if="group.items.length">
+        <template v-for="item in group.items">
+          <p :data-row="group.name + '-' + item">{{ group.name }}:{{ item }}</p>
+        </template>
+        <span :data-sentinel="group.name">sentinel {{ group.name }}</span>
+      </template>
+      <template v-else>
+        <em>empty {{ group.name }}</em>
+      </template>
+    </template>
+    <button @click="swap">Swap</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const groups = ref([
+  { name: "A", items: ["one", "two"] },
+  { name: "B", items: [] }
+]);
+
+function swap() {
+  groups.value = [
+    { name: "A", items: [] },
+    { name: "B", items: ["three"] }
+  ];
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+
+    expect(fixture.root.querySelector("template")).toBeNull();
+    expect(Array.from(fixture.root.querySelectorAll("h2, p, span, em")).map((node) => node.textContent)).toEqual([
+      "A",
+      "A:one",
+      "A:two",
+      "sentinel A",
+      "B",
+      "empty B"
+    ]);
+
+    fixture.root.querySelector("button")?.dispatchEvent(createEvent(fixture.window, "click"));
+    expect(Array.from(fixture.root.querySelectorAll("h2, p, span, em")).map((node) => node.textContent)).toEqual([
+      "A",
+      "empty A",
+      "B",
+      "B:three",
+      "sentinel B"
+    ]);
+  });
+
   it("auto-unwraps refs inside template expressions", () => {
     const fixture = compileForDom(`<template>
   <section>

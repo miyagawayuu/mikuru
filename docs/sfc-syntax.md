@@ -278,13 +278,25 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 ```
 
 `v-for` は配列から同じテンプレート断片を生成する。
-複数の兄弟要素を1つの繰り返し行として描画する場合は、実DOMを作らない `<template v-for>` を使える。`:key` を付けると兄弟要素のまとまりごとにrecordを再利用・移動する。
+複数の兄弟要素を1つの繰り返し行として描画する場合は、実DOMを作らない `<template v-for>` を使える。`:key` を付けると兄弟要素のまとまりごとにrecordを再利用・移動する。keyなしの `<template v-for>` も使えるが、更新時はfragment全体を再生成する。
 
 ```mikuru
 <template v-for="item in items" :key="item.id">
   <ItemRow :item="item" />
   <button @click="select(item)">Select</button>
   <span ref="sentinel"></span>
+</template>
+
+<template v-for="group in groups">
+  <h2>{{ group.name }}</h2>
+  <template v-if="group.items.length">
+    <template v-for="item in group.items">
+      <p>{{ group.name }}: {{ item.label }}</p>
+    </template>
+  </template>
+  <template v-else>
+    <p>No items</p>
+  </template>
 </template>
 ```
 
@@ -295,7 +307,7 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 
 - `item in items`、`item of items`、`(item, index) in items`、`(item, index) of items` に対応する。
 - `:key` / `v-bind:key` は keyed DOM/component record reuse に使われる。
-- `<template v-for>` はDOMタグを出さず、子要素のまとまりを繰り返す。keyed record reuse はfragment全体に適用される。
+- `<template v-for>` はDOMタグを出さず、子要素のまとまりを繰り返す。keyed record reuse はfragment全体に適用される。keyなしの場合は更新ごとにfragmentを再生成する。
 - `v-memo` と `v-once` は keyed record の更新skipに使われる。ネストした `v-for` の高度な最適化は後続課題にする。
 
 ### コンポーネント

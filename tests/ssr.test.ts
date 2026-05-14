@@ -168,6 +168,35 @@ const items = [
     await expect(render()).resolves.toBe('<section><p data-row="a">0:Alpha</p><button>Select a</button><span data-sentinel="a">sentinel a</span><p data-row="b">1:Beta</p><button>Select b</button><span data-sentinel="b">sentinel b</span></section>');
   });
 
+  it("renders unkeyed nested template v-for fragments with SSR branches", async () => {
+    const result = compileSsr(`<template>
+  <section>
+    <template v-for="group in groups">
+      <h2>{{ group.name }}</h2>
+      <template v-if="group.items.length">
+        <template v-for="item in group.items">
+          <p :data-row="group.name + '-' + item">{{ group.name }}:{{ item }}</p>
+        </template>
+        <span :data-sentinel="group.name">sentinel {{ group.name }}</span>
+      </template>
+      <template v-else>
+        <em>empty {{ group.name }}</em>
+      </template>
+    </template>
+  </section>
+</template>
+<script>
+const groups = [
+  { name: "A", items: ["one", "two"] },
+  { name: "B", items: [] }
+];
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe('<section><h2>A</h2><p data-row="A-one">A:one</p><p data-row="A-two">A:two</p><span data-sentinel="A">sentinel A</span><h2>B</h2><em>empty B</em></section>');
+  });
+
   it("normalizes SSR class and style bindings with static values", async () => {
     const result = compileSsr(`<template>
   <section>
