@@ -390,6 +390,42 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
     expect(result.code).toContain("content: attr(data-value);");
   });
 
+  it("scopes rules nested inside unknown at-rules", () => {
+    const result = compileStyle(
+      `
+@document url-prefix("https://example.com") {
+  .card, main > article:hover { color: red; }
+  @media (min-width: 60rem) {
+    .nested { display: grid; }
+  }
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-unknown-at" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain('@document url-prefix("https://example.com") {');
+    expect(result.code).toContain(".card[data-mikuru-scope-unknown-at], main > article[data-mikuru-scope-unknown-at]:hover { color: red; }");
+    expect(result.code).toContain(".nested[data-mikuru-scope-unknown-at] { display: grid; }");
+  });
+
+  it("preserves @property raw blocks without scoping declarations", () => {
+    const result = compileStyle(
+      `
+@property --mikuru-tone {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: red;
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-property" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("@property --mikuru-tone {\n  syntax: \"<color>\";\n  inherits: false;\n  initial-value: red;\n}");
+    expect(result.code).not.toContain("data-mikuru-scope-property");
+  });
+
   it("reports a diagnostic and preserves CSS when a scoped block is missing a closing brace", () => {
     const source = `.card { color: red;\n.note { color: blue; }`;
     const result = compileStyle(source, { scoped: true, scopeAttr: "data-mikuru-scope-broken" });
