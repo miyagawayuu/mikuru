@@ -63,7 +63,7 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 - `examples/basic`: minimal counter and component composition.
 - `examples/realworld`: app-like task board with filters and keyed lists.
-- `examples/dogfood`: notes app written with Mikuru SFCs, including Router, AsyncBoundary, ErrorBoundary, KeepAlive, TransitionGroup, `m-model`, and the debug inspector panel. The panel demonstrates `createDebugInspector()` with a searchable component tree, event filters/search, component root reveal, and copyable compact snapshots; its helper module is dogfood example code, not a package export.
+- `examples/dogfood`: notes app written with Mikuru SFCs, including Router, AsyncBoundary, ErrorBoundary, KeepAlive, TransitionGroup, `m-model`, original video/audio player components, and the debug inspector panel. The panel demonstrates `createDebugInspector()` with a searchable component tree, event filters/search, component root reveal, and copyable compact snapshots; its helper module is dogfood example code, not a package export.
 - `examples/router`: client-side RouterView/RouterLink, aliases, redirects, guards, nested routes, dynamic routes, lazy routes, and preloading.
 - `examples/router-ssr-hydration`: route SSR and route hydration with RouterView/RouterLink, redirects, guards, nested routes, lazy route components, and Teleport.
 - `examples/ssr-hydration`: SSR-to-hydration example using `.mikuru?ssr`, `.mikuru?hydrate`, stream output, mismatch recovery, recovery-disabled warnings, AsyncBoundary, Teleport, and nested hydration patterns.
@@ -73,6 +73,13 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases should preserve supported syntax and generated runtime contracts. Unsupported syntax should fail loudly at compile time.
 
+## Patch 1.0.27
+
+- Adds dogfood-only `MikuruVideoPlayer.mikuru` and `MikuruAudioPlayer.mikuru` examples that exercise template refs, lifecycle callbacks, component events, computed styles, pointer handling, and keyboard-accessible custom controls.
+- Updates the video player with overlay controls, Font Awesome-shaped mask icons, auto-hidden controls while playback continues outside hover, div-based seeking, stop, rate, mute, and fullscreen controls.
+- Fixes Vite-routed component CSS cache behavior by keying style virtual module URLs from compiled style content, so scoped CSS changes reload with the matching generated DOM scope.
+- Adds compiler tests for content-keyed Vite style requests to prevent stale virtual CSS modules from returning after repeated transforms of the same SFC path.
+
 ## Not Included In v1
 
 - Full Vue compatibility.
@@ -80,13 +87,4 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 
 ## Next Patch Draft
 
-The next patch release is expected to focus on scoped CSS compiler hardening, diagnostic visibility, release polish, and generated app smoke checks.
-
-- Template discovery: `mikuru --list-templates`, template descriptions, and `-t` shorthand.
-- Safer creation: interactive project/template prompts, `--yes` defaults, typo suggestions, and `--dry-run` previews.
-- Generated app checks: starter/basic templates include `npm run typecheck`, `tsconfig.json`, and CSS import declarations.
-- Runtime watchers: `watch(..., { immediate: true })` and cleanup callbacks for work that must be canceled before the next watcher run or stop.
-- Compiler guidance: unsupported syntax, directive typos, `v-*` compatibility aliases, built-in attribute typos, and misplaced `m-slot` errors include actionable alternatives.
-- Scoped CSS compiler hardening: native CSS nesting, `@starting-style`, additional raw descriptor at-rules, robust `:deep(...)` / `:global(...)` parsing, and malformed block diagnostics with offset, line, column, and one-line code frames.
-- Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.
-- Debug tooling polish: dogfood-only Debug Panel helper coverage, stable devtools inspector snapshots, compiler/style diagnostic detail blocks with code frames, and release checks for debug panel E2E behavior.
+The next patch release is expected to focus on additional app examples, scoped CSS compiler hardening, diagnostic visibility, and release polish.

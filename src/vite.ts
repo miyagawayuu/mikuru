@@ -117,9 +117,9 @@ function createStyleImport(descriptor: SfcDescriptor, filename: string, styleMod
     return "";
   }
 
-  const request = createStyleRequest(filename, descriptor);
   const scopeAttr = descriptor.styleScoped ? createScopeAttr(descriptor) : undefined;
   const styleResult = compileDescriptorStyle(descriptor, scopeAttr);
+  const request = createStyleRequest(filename, descriptor, styleResult.code, scopeAttr);
   styleModules.set(request, styleResult.code);
 
   if (descriptor.styleModule) {
@@ -133,11 +133,12 @@ function createStyleImport(descriptor: SfcDescriptor, filename: string, styleMod
   return `import ${JSON.stringify(request)};\n`;
 }
 
-function createStyleRequest(filename: string, descriptor: SfcDescriptor): string {
+function createStyleRequest(filename: string, descriptor: SfcDescriptor, code: string, scopeAttr: string | undefined): string {
   const lang = normalizeStyleLang(descriptor.styleLang);
   const moduleSuffix = descriptor.styleModule ? ".module" : "";
   const normalizedFilename = filename.replace(/\\/g, "/");
-  return normalizeStyleRequest(`/@mikuru-style/${normalizedFilename}${moduleSuffix}.${lang}?mikuru-style`);
+  const key = hashStyleRequest(`${normalizedFilename}\n${lang}\n${descriptor.styleModule ?? ""}\n${scopeAttr ?? ""}\n${code}`);
+  return normalizeStyleRequest(`/@mikuru-style/${normalizedFilename}${moduleSuffix}.${lang}?mikuru-style=${key}`);
 }
 
 function normalizeStyleLang(lang: string | undefined): string {
@@ -155,4 +156,14 @@ function isMikuruStyleRequest(id: string): boolean {
 
 function isIdentifier(value: string): boolean {
   return /^[$A-Z_a-z][$\w]*$/.test(value);
+}
+
+function hashStyleRequest(value: string): string {
+  let result = 5381;
+
+  for (let index = 0; index < value.length; index += 1) {
+    result = (result * 33) ^ value.charCodeAt(index);
+  }
+
+  return (result >>> 0).toString(36);
 }

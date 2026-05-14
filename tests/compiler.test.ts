@@ -1426,10 +1426,37 @@ const count = 0;
       "src/Styled.mikuru"
     );
 
-    const request = "/@mikuru-style/src/Styled.mikuru.css?mikuru-style";
-    expect(result.code).toContain(`import "${request}";`);
+    const requestMatch = result.code.match(/import "([^"]+Styled\.mikuru\.css\?mikuru-style=[^"]+)";/);
+    expect(requestMatch).not.toBeNull();
+    const request = requestMatch![1];
     expect(result.code).not.toContain("document.createElement(\"style\")");
     expect(await load.call({}, request)).toContain(".card[data-mikuru-scope-");
+  });
+
+  it("keys Vite CSS requests by compiled style content", async () => {
+    const plugin = mikuru();
+    const transform = plugin.transform as unknown as Function;
+    const context = {
+      error(error: string | Error) {
+        throw error instanceof Error ? error : new Error(error);
+      }
+    };
+    const first = await transform.call(
+      context,
+      `<template><p class="card">Hello</p></template><style scoped>.card { color: red; }</style>`,
+      "src/Styled.mikuru"
+    );
+    const second = await transform.call(
+      context,
+      `<template><p class="card">Hello</p></template><style scoped>.card { color: blue; }</style>`,
+      "src/Styled.mikuru"
+    );
+
+    const firstRequest = first.code.match(/import "([^"]+Styled\.mikuru\.css\?mikuru-style=[^"]+)";/)?.[1];
+    const secondRequest = second.code.match(/import "([^"]+Styled\.mikuru\.css\?mikuru-style=[^"]+)";/)?.[1];
+    expect(firstRequest).toBeDefined();
+    expect(secondRequest).toBeDefined();
+    expect(firstRequest).not.toBe(secondRequest);
   });
 
   it("routes CSS Modules and preprocessors through Vite CSS requests", async () => {
@@ -1446,8 +1473,9 @@ const count = 0;
       "src/ModuleStyle.mikuru"
     );
 
-    const request = "/@mikuru-style/src/ModuleStyle.mikuru.module.scss?mikuru-style";
-    expect(result.code).toContain(`import $style from "${request}";`);
+    const requestMatch = result.code.match(/import \$style from "([^"]+ModuleStyle\.mikuru\.module\.scss\?mikuru-style=[^"]+)";/);
+    expect(requestMatch).not.toBeNull();
+    const request = requestMatch![1];
     expect(await load.call({}, request)).toBe(".card { color: $brand; }");
   });
 

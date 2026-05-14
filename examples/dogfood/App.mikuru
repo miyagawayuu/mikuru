@@ -18,6 +18,8 @@
 
     <ModelLab />
 
+    <MediaLab />
+
     <TransitionGroupLab />
 
     <AsyncBoundary :loading="LoadingStats" :fallback="AsyncFallback">
@@ -84,6 +86,7 @@
 import { computed, defineAsyncComponent, ref } from "mikuru";
 import DebugPanel from "./DebugPanel.mikuru";
 import KeepAliveLab from "./KeepAliveLab.mikuru";
+import MediaLab from "./MediaLab.mikuru";
 import ModelLab from "./ModelLab.mikuru";
 import RouterLab from "./RouterLab.mikuru";
 import TransitionGroupLab from "./TransitionGroupLab.mikuru";

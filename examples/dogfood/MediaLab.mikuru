@@ -1,0 +1,47 @@
+<template>
+  <section class="media-lab" aria-label="Mikuru media players">
+    <div class="media-heading">
+      <h2>Mikuru media players</h2>
+      <p>Custom video and audio controls powered by template refs, events, and computed labels.</p>
+    </div>
+
+    <MikuruVideoPlayer
+      title="Bloom Frame"
+      subtitle="Mikuru original video player"
+      src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+    />
+
+    <MikuruAudioPlayer
+      title="Tiny Roar"
+      artist="Mikuru original audio player"
+      src="https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3"
+    />
+  </section>
+</template>
+
+<script>
+import MikuruAudioPlayer from "./MikuruAudioPlayer.mikuru";
+import MikuruVideoPlayer from "./MikuruVideoPlayer.mikuru";
+</script>
+
+<style scoped>
+.media-lab {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  color: #134e4a;
+  background: #f0fdfa;
+}
+
+.media-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.media-heading h2,
+.media-heading p {
+  margin: 0;
+}
+</style>

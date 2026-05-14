@@ -150,6 +150,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `m-show`, DOM and component `m-model`, `m-pre`, `m-cloak`, initial `m-if` / `m-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and `<style scoped>` selector rewriting for common selectors, native CSS nesting, `:global(...)`, `:deep(...)`, nested at-rules, and malformed CSS diagnostics
 - Vite-routed component CSS for CSS Modules with `<style module>`, preprocessor languages such as `<style lang="scss">`, and project-level CSS transforms such as PostCSS when using `mikuru/vite`
+- Content-keyed Vite style requests so `.mikuru` scoped CSS updates reload reliably during development instead of reusing stale virtual style modules
 - Optional TypeScript template type checking with `typeCheckTemplate()`, `compile(..., { templateTypeCheck: true })`, and `mikuru({ templateTypeCheck: true })`, including script bindings, `defineProps()` constructor inference, ref unwrapping, and `m-for` item/index scopes
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
 - Stable devtools diagnostics with optional generated `sourceURL`, `v-*` compatibility warnings, versioned metadata/events, component tree snapshots, compiler/style diagnostic locations and frames, and hydration warnings that include phase, component, and filename context
@@ -266,6 +267,11 @@ npm run dev:ssr-hydration
 npm run dev:mikuru-sample
 npm run dev:mikuru-vue-like
 ```
+
+The dogfood example also includes original Mikuru media player components:
+
+- `MikuruVideoPlayer.mikuru`: overlay video controls, div-based seeking, volume/mute, playback rate, stop, and fullscreen controls.
+- `MikuruAudioPlayer.mikuru`: audio playback with seeking, skip controls, volume, and mute.
 
 ## Documentation
 
