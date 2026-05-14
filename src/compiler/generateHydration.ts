@@ -1,4 +1,6 @@
 import { createCompileError, type SourceLocation } from "./errors.js";
+import { createScopeAttr, generateChildren as generateDomChildren, generateNode as generateDomNode, withoutForAttrs as withoutDomForAttrs } from "./generate.js";
+import type { GenerateContext } from "./generate.js";
 import { compileTemplateExpression, parseForExpression, validateAssignableExpression } from "./parseExpression.js";
 import type { ExpressionLocationContext } from "./parseExpression.js";
 import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode } from "./types.js";
@@ -7,7 +9,12 @@ type HydrationContext = {
   lines: string[];
   index: number;
   teleportIndex: number;
+  scopeAttr?: string;
   templateRefMode?: "single" | "array";
+  componentContextVar?: string;
+  debug?: boolean;
+  batchedUpdates?: boolean;
+  once?: boolean;
   source?: string;
   filename?: string;
 };
@@ -69,13 +76,14 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
     source: descriptor.source,
     filename: descriptor.filename
   };
+  context.scopeAttr = descriptor.styleScoped ? createScopeAttr(descriptor) : undefined;
   const script = splitScript(descriptor.script ?? "");
 
   if (options.includeImports !== false) {
     for (const importLine of script.imports) {
       emit(context, 0, importLine);
     }
-    emit(context, 0, "import { effect, setAttribute, unwrap } from \"mikuru/runtime\";");
+    emit(context, 0, "import { effect, ref, setAttribute, unwrap } from \"mikuru/runtime\";");
     emit(context, 0, "");
   }
 
@@ -85,7 +93,15 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
   emit(context, 1, "const __mikuru_afterUnmount = [];");
   emit(context, 1, "const __mikuru_mounted = [];");
   emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), errorHandler: props.__mikuru_context?.errorHandler, ...__mikuru_componentInfo };");
-  emit(context, 1, "const __mikuru_try = (fn) => { try { return fn(); } catch (error) { setTimeout(() => { throw error; }); } };");
+  emit(context, 1, "const __mikuru_errorInfo = (phase) => ({ ...__mikuru_componentInfo, phase });");
+  emit(context, 1, "const __mikuru_reportError = (error, errorHandler = __mikuru_context.errorHandler, phase = \"runtime\") => { if (typeof errorHandler === \"function\") { Promise.resolve().then(() => errorHandler(error, __mikuru_errorInfo(phase))); return; } setTimeout(() => { throw error; }); };");
+  emit(context, 1, "const __mikuru_try = (fn, errorHandler, phase) => { try { return fn(); } catch (error) { __mikuru_reportError(error, errorHandler, phase); } };");
+  emit(context, 1, "const __mikuru_memoEqual = (previous, next) => Array.isArray(previous) && Array.isArray(next) && previous.length === next.length && previous.every((value, index) => Object.is(value, next[index]));");
+  emit(context, 1, "const __mikuru_guardEventHandler = (fn, errorHandler = __mikuru_context.errorHandler) => (...args) => __mikuru_try(() => fn(...args), errorHandler, \"event\");");
+  emit(context, 1, "const __mikuru_runCleanup = (cleanups) => { for (const cleanup of cleanups.splice(0).reverse()) __mikuru_try(cleanup, undefined, \"cleanup\"); };");
+  emit(context, 1, "const __mikuru_removeNode = (node) => { if (node?.parentNode) node.remove(); };");
+  emit(context, 1, "const __mikuru_applyTransitionEnter = () => {};");
+  emit(context, 1, "const __mikuru_applyTransitionMove = () => {};");
   emit(context, 1, "const __mikuru_previousRegistrar = globalThis.__mikuru_currentRegistrar;");
   emit(context, 1, "globalThis.__mikuru_currentRegistrar = {");
   emit(context, 2, "registerMounted: (fn) => __mikuru_mounted.push(fn),");
@@ -434,6 +450,8 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
   const forExpression = parseForExpression(String(attr.value));
   const listVar = nextName(context, "list");
   const itemVar = nextName(context, "item");
+  const startIndexVar = nextName(context, "forStartIndex");
+  emit(context, indent, `const ${startIndexVar} = ${domIndex};`);
   if (node.tag === "template") {
     emit(context, indent, `const ${listVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
     emit(context, indent, `for (const [__mikuru_index, ${itemVar}] of ${listVar}.entries()) {`);
@@ -445,6 +463,7 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
       hydrateFragmentChildrenAtIndex(context, node.children, parentVar, domIndex, indent + 1);
     });
     emit(context, indent, "}");
+    emitHydratedForUpdate(context, node, parentVar, startIndexVar, domIndex, indent, forExpression);
     return;
   }
 
@@ -468,6 +487,69 @@ function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: str
   if (advanceVar) {
     emit(context, indent, `${advanceVar} += ${listVar}.length;`);
   }
+  emitHydratedForUpdate(context, node, parentVar, startIndexVar, domIndex, indent, forExpression);
+}
+
+function emitHydratedForUpdate(
+  context: HydrationContext,
+  node: ElementNode,
+  parentVar: string,
+  startIndexVar: string,
+  endIndexVar: string,
+  indent: number,
+  forExpression: { item: string; index?: string; source: string }
+): void {
+  const hydratedFirstVar = nextName(context, "forHydratedFirst");
+  const hydratedAfterVar = nextName(context, "forHydratedAfter");
+  const startAnchorVar = nextName(context, "forUpdateStart");
+  const endAnchorVar = nextName(context, "forUpdateEnd");
+  const initializedVar = nextName(context, "forInitialized");
+  const branchCleanupVar = nextName(context, "forCleanup");
+  const stopVar = nextName(context, "stop");
+  const sourceVar = nextName(context, "forSource");
+  const indexVar = nextName(context, "forIndex");
+  const rawItemVar = nextName(context, "forItem");
+  emit(context, indent, `const ${hydratedFirstVar} = ${parentVar}.childNodes[${startIndexVar}] ?? null;`);
+  emit(context, indent, `const ${hydratedAfterVar} = ${parentVar}.childNodes[${endIndexVar}] ?? null;`);
+  emit(context, indent, `let ${startAnchorVar};`);
+  emit(context, indent, `let ${endAnchorVar};`);
+  emit(context, indent, `let ${initializedVar} = false;`);
+  emit(context, indent, `const ${branchCleanupVar} = [];`);
+  emit(context, indent, `const ${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${sourceVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
+  emit(context, indent + 1, `if (!${initializedVar}) { ${initializedVar} = true; return; }`);
+  emit(context, indent + 1, `if (!${startAnchorVar}) {`);
+  emit(context, indent + 2, `${startAnchorVar} = document.createComment("for");`);
+  emit(context, indent + 2, `${endAnchorVar} = document.createComment("/for");`);
+  emit(context, indent + 2, `${parentVar}.insertBefore(${startAnchorVar}, ${hydratedFirstVar}?.parentNode === ${parentVar} ? ${hydratedFirstVar} : ${hydratedAfterVar});`);
+  emit(context, indent + 2, `${parentVar}.insertBefore(${endAnchorVar}, ${hydratedAfterVar});`);
+  emit(context, indent + 1, `}`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  emitHydrationRemoveBetween(context, indent + 1, startAnchorVar, endAnchorVar);
+  emit(context, indent + 1, `for (let ${indexVar} = 0; ${indexVar} < ${sourceVar}.length; ${indexVar} += 1) {`);
+  emit(context, indent + 2, `const ${rawItemVar} = ${sourceVar}[${indexVar}];`);
+  emit(context, indent + 2, `const ${forExpression.item} = ${rawItemVar};`);
+  if (forExpression.index) {
+    emit(context, indent + 2, `const ${forExpression.index} = ${indexVar};`);
+  }
+
+  const previousTemplateRefMode = context.templateRefMode;
+  context.templateRefMode = "array";
+  try {
+    if (node.tag === "template") {
+      generateDomChildren(context as GenerateContext, node.children, parentVar, branchCleanupVar, indent + 2, endAnchorVar);
+    } else {
+      generateDomNode(context as GenerateContext, withoutDomForAttrs(node), parentVar, branchCleanupVar, indent + 2, endAnchorVar);
+    }
+  } finally {
+    context.templateRefMode = previousTemplateRefMode;
+  }
+  emit(context, indent + 1, `}`);
+  emit(context, indent, `});`);
+  emit(context, indent, `__mikuru_cleanup.push(() => {`);
+  emit(context, indent + 1, `${stopVar}();`);
+  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  emit(context, indent, `});`);
 }
 
 function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -1283,6 +1365,17 @@ function hydrateComponentProps(context: HydrationContext, node: ElementNode, pro
 
     emit(context, indent, `${propsVar}[${quote(attr.name)}] = ${attr.value === true ? "true" : quote(attr.value)};`);
   }
+}
+
+function emitHydrationRemoveBetween(context: HydrationContext, indent: number, startVar: string, endVar: string): void {
+  const currentVar = nextName(context, "current");
+  const nextVarName = nextName(context, "next");
+  emit(context, indent, `let ${currentVar} = ${startVar}.nextSibling;`);
+  emit(context, indent, `while (${currentVar} && ${currentVar} !== ${endVar}) {`);
+  emit(context, indent + 1, `const ${nextVarName} = ${currentVar}.nextSibling;`);
+  emit(context, indent + 1, `__mikuru_removeNode(${currentVar});`);
+  emit(context, indent + 1, `${currentVar} = ${nextVarName};`);
+  emit(context, indent, `}`);
 }
 
 function hydrateEvents(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {

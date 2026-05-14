@@ -6,6 +6,7 @@
 - Added support for `<template v-if>` / `<template v-else-if>` / `<template v-else>` fragment branches across DOM rendering, SSR, and hydration.
 - Added support for keyed `<template v-for>` fragment rows across DOM rendering, SSR, and hydration.
 - Expanded `<template v-for>` coverage for unkeyed fragments, nested fragment loops, and nested `v-if` / `v-else` branches.
+- Added hydrated `v-for` reconciliation so element and `<template v-for>` lists can append, remove, replace, and recreate rows after SSR hydration.
 
 ## 1.0.23 - 2026-05-13
 

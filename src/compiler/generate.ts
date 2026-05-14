@@ -6,7 +6,7 @@ import type { SourceLocation } from "./errors.js";
 import type { ExpressionLocationContext } from "./parseExpression.js";
 import { compileTemplateExpression, parseForExpression, validateAssignableExpression, validateTemplateExpression } from "./parseExpression.js";
 
-type GenerateContext = {
+export type GenerateContext = {
   lines: string[];
   index: number;
   source?: string;
@@ -369,7 +369,7 @@ function emitDevtoolsRootUpdate(context: GenerateContext, rootVar: string, inden
   emit(context, indent, "emitDebugEvent(\"component:mount\", { component: __mikuru_componentInfo, componentId: __mikuru_debug.id, root: __mikuru_debug.metadata.root, props: __mikuru_debug.metadata.props, attrs: __mikuru_debug.metadata.attrs });");
 }
 
-function generateNode(
+export function generateNode(
   context: GenerateContext,
   node: TemplateNode,
   parentVar: string,
@@ -2030,7 +2030,7 @@ function emitObjectListeners(
   emit(context, indent, "});");
 }
 
-function generateChildren(
+export function generateChildren(
   context: GenerateContext,
   children: TemplateNode[],
   parentVar: string,
@@ -3510,7 +3510,7 @@ function withoutAttr(node: ElementNode, name: string): ElementNode {
   return withoutAttrs(node, [name]);
 }
 
-function withoutForAttrs(node: ElementNode): ElementNode {
+export function withoutForAttrs(node: ElementNode): ElementNode {
   return withoutAttrs(node, ["v-for", "key", ":key", "v-bind:key", "v-memo", "v-once"]);
 }
 
@@ -5060,7 +5060,7 @@ function quotePropertyName(value: string): string {
   return /^[A-Za-z_$][\w$]*$/.test(value) ? value : quote(value);
 }
 
-function createScopeAttr(descriptor: SfcDescriptor): string {
+export function createScopeAttr(descriptor: SfcDescriptor): string {
   return `data-mikuru-scope-${hash(`${descriptor.filename ?? ""}\n${descriptor.style ?? ""}`)}`;
 }
 

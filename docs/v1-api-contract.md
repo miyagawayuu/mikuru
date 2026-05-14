@@ -121,9 +121,9 @@ Unsupported in v1:
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
-- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, keeps hydrated element and `<template v-for>` lists reactive after source changes, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 - Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`. With recovery disabled, structural mismatches remain warnings and hydration continues best-effort without replacing the mismatched DOM. Hydration warnings include phase, component, filename, kind, action, inferred expected/actual values, and DOM path context where available, and emit unstable `hydration:warning` devtools events when a hook is present.
-- Dynamic branch/list reconciliation after the initial state is future work.
+- Dynamic branch reconciliation after the initial state is future work.
 
 ## Macro Contract
 

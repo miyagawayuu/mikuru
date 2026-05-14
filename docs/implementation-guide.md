@@ -223,6 +223,8 @@ Use `v-memo` with keyed `v-for` when a reused record should skip subtree updates
 />
 ```
 
+Hydrated SSR lists also keep reacting after hydration. Element `v-for` rows and `<template v-for>` fragments reuse the initial SSR DOM, then create an internal update range the first time the source list changes so appended, removed, or replaced rows render with the same event and binding behavior as normal mount.
+
 When the key is reused and the memo array is unchanged, Mikuru keeps the existing DOM/component record and does not update the generated item/index refs for that record.
 
 Use `v-once` when a subtree should render only once. On regular elements/components, bound text, attributes, and component props are evaluated during the initial render and then left alone. On keyed `v-for` records, `v-once` behaves like an empty memo dependency list for reused records.
