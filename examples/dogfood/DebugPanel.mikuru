@@ -142,6 +142,8 @@
           <dl>
             <dt>category</dt>
             <dd>{{ selectedEvent.category }}</dd>
+            <dt m-if="selectedEvent.diagnosticLocation">location</dt>
+            <dd m-if="selectedEvent.diagnosticLocation">{{ selectedEvent.diagnosticLocation }}</dd>
             <dt>component</dt>
             <dd>{{ selectedEvent.componentLabel || "none" }}</dd>
             <dt>time</dt>
@@ -186,6 +188,7 @@ import {
   filterVisibleComponents,
   flattenComponentTree,
   formatComponentLabel,
+  formatDiagnosticLocation,
   isErrorEvent,
   isForegroundEvent,
   matchesEventSearch,
@@ -278,17 +281,21 @@ function snapshot() {
 
   allEvents.value = visibleEvents
     .slice(-100)
-    .map((event, index) => ({
-      id: `${event.timestamp}-${index}-${event.type}`,
-      type: event.type,
-      category: categorizeEvent(event),
-      componentId: event.payload?.componentId,
-      componentLabel: formatComponentLabel(event.payload?.componentId, event.payload?.component),
-      level: isErrorEvent(event) ? "warning" : "info",
-      time: new Date(event.timestamp).toLocaleTimeString(),
-      summary: summarizeEvent(event),
-      payloadText: stringifyPayload(event.payload ?? {})
-    }))
+    .map((event, index) => {
+      const diagnostic = event.payload?.diagnostic ?? {};
+      return {
+        id: `${event.timestamp}-${index}-${event.type}`,
+        type: event.type,
+        category: categorizeEvent(event),
+        componentId: event.payload?.componentId,
+        componentLabel: formatComponentLabel(event.payload?.componentId, event.payload?.component),
+        level: isErrorEvent(event) ? "warning" : "info",
+        time: new Date(event.timestamp).toLocaleTimeString(),
+        summary: summarizeEvent(event),
+        diagnosticLocation: formatDiagnosticLocation(diagnostic),
+        payloadText: stringifyPayload(event.payload ?? {})
+      };
+    })
     .reverse();
 
   if (selectedId.value && !allComponents.value.some((component) => component.id === selectedId.value)) {

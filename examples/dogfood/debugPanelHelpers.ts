@@ -47,6 +47,7 @@ export type DebugComponentRow = {
 };
 
 export type DebugEventRow = {
+  id?: string;
   type: string;
   category: string;
   componentId?: number;
@@ -54,6 +55,7 @@ export type DebugEventRow = {
   level: "info" | "warning";
   time: string;
   summary: string;
+  diagnosticLocation: string;
   payloadText: string;
 };
 
@@ -231,6 +233,7 @@ export function matchesEventSearch(event: DebugEventRow, value: string): boolean
   return [
     event.type,
     event.summary,
+    event.diagnosticLocation,
     event.category,
     event.componentLabel,
     event.payloadText
@@ -248,7 +251,8 @@ export function summarizeEvent(event: DebugEventLike): string {
   const payload = event.payload ?? {};
   const diagnostic = asRecord(payload.diagnostic);
   if (typeof diagnostic.message === "string") {
-    return `${diagnostic.phase ?? diagnostic.source ?? event.type}: ${diagnostic.message}`;
+    const location = formatDiagnosticLocation(diagnostic);
+    return `${diagnostic.phase ?? diagnostic.source ?? event.type}: ${diagnostic.message}${location ? ` (${location})` : ""}`;
   }
 
   if (event.type === "style:inject") {
@@ -339,6 +343,17 @@ export function formatFilename(filename: unknown): string {
   }
 
   return String(filename).split(/[\\/]/).pop() ?? String(filename);
+}
+
+export function formatDiagnosticLocation(diagnostic: Record<string, unknown>): string {
+  const filename = typeof diagnostic.filename === "string" ? formatFilename(diagnostic.filename) : "";
+  const line = asNumber(diagnostic.line);
+  const column = asNumber(diagnostic.column);
+  if (line === undefined || column === undefined) {
+    return filename;
+  }
+
+  return `${filename ? `${filename}:` : ""}${line}:${column}`;
 }
 
 export function formatComponentLabel(componentId: unknown, component: unknown): string {
@@ -526,6 +541,7 @@ export function serializeEvent(event: DebugEventRow): Record<string, unknown> {
     level: event.level,
     time: event.time,
     summary: event.summary,
+    diagnosticLocation: event.diagnosticLocation || undefined,
     payload: compactEventPayload(event)
   };
 }

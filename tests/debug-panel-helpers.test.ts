@@ -7,9 +7,11 @@ import {
   createSnapshotSummary,
   filterVisibleComponents,
   flattenComponentTree,
+  formatDiagnosticLocation,
   formatRootLabel,
   formatRootPath,
   matchesEventSearch,
+  summarizeEvent,
   stringifyPayload,
   type DebugComponentRow,
   type DebugEventRow
@@ -119,6 +121,30 @@ describe("dogfood debug panel helpers", () => {
     expect(matchesEventSearch(event, "debugpanel")).toBe(true);
     expect(matchesEventSearch(event, "data-mikuru-scope-debug")).toBe(true);
     expect(matchesEventSearch(event, "route:navigate")).toBe(false);
+  });
+
+  it("surfaces diagnostic source locations for debug panel events", () => {
+    const diagnostic = {
+      source: "compiler",
+      level: "warning",
+      phase: "style",
+      filename: "src/App.mikuru",
+      line: 4,
+      column: 13,
+      message: "Could not scope a CSS rule because its block is missing a closing brace."
+    };
+    const event = eventRow({
+      type: "compiler:warning",
+      category: "error",
+      summary: summarizeEvent({ type: "compiler:warning", payload: { diagnostic } }),
+      diagnosticLocation: formatDiagnosticLocation(diagnostic),
+      payloadText: JSON.stringify({ diagnostic })
+    });
+
+    expect(event.summary).toContain("App.mikuru:4:13");
+    expect(event.diagnosticLocation).toBe("App.mikuru:4:13");
+    expect(matchesEventSearch(event, "4:13")).toBe(true);
+    expect(matchesEventSearch(event, "app.mikuru")).toBe(true);
   });
 
   it("keeps snapshot event payloads compact", () => {
@@ -245,6 +271,7 @@ function eventRow(overrides: Partial<DebugEventRow>): DebugEventRow {
     level: "info",
     time: "12:00:00",
     summary: "component #1",
+    diagnosticLocation: "",
     payloadText: "{}",
     ...overrides
   };

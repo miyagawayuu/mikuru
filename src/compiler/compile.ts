@@ -23,7 +23,9 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
         emitDebugDiagnostic("compiler", diagnostic.level, diagnostic.message, {
           phase: "style",
           filename: options.filename,
-          offset: diagnostic.offset
+          offset: diagnostic.offset,
+          line: diagnostic.line,
+          column: diagnostic.column
         });
       }
     }

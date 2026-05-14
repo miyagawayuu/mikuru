@@ -549,6 +549,22 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
     ]);
   });
 
+  it("reports the nested CSS block location when native nesting is missing a closing brace", () => {
+    const source = `.card {\n  color: red;\n  & .title {\n    color: blue;`;
+    const result = compileStyle(source, { scoped: true, scopeAttr: "data-mikuru-scope-broken-nested" });
+
+    expect(result.code).toBe(source);
+    expect(result.diagnostics).toEqual([
+      {
+        level: "warning",
+        message: "Could not scope a CSS rule because its block is missing a closing brace.",
+        offset: 33,
+        line: 3,
+        column: 12
+      }
+    ]);
+  });
+
   it("emits style injection metadata for devtools in debug builds", () => {
     const result = compile(`<template><section>Hello</section></template><style scoped>section { color: red; }</style>`, {
       debug: true,
@@ -1390,6 +1406,42 @@ const count = 0;
             phase: "compile",
             filename: "Broken.mikuru",
             message: expect.stringMatching(/Directive v-if requires a value/)
+          }
+        }
+      });
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("emits scoped CSS diagnostic locations to the debug inspector", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+
+      compile(`<template><section>Broken style</section></template><style scoped>.card {\n  & .title {\n    color: red;</style>`, {
+        debug: true,
+        filename: "StyleWarning.mikuru"
+      });
+
+      expect(inspector.getEvents()[0]).toMatchObject({
+        type: "compiler:warning",
+        payload: {
+          diagnostic: {
+            source: "compiler",
+            level: "warning",
+            phase: "style",
+            filename: "StyleWarning.mikuru",
+            offset: 19,
+            line: 2,
+            column: 12,
+            message: "Could not scope a CSS rule because its block is missing a closing brace."
           }
         }
       });

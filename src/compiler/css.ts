@@ -83,7 +83,8 @@ function scopeCss(
 
     const closeIndex = findMatchingBrace(css, openIndex);
     if (closeIndex === -1) {
-      const diagnosticOffset = offset + openIndex;
+      const unclosedOpenIndex = findUnclosedOpenIndex(css, openIndex, "{", "}");
+      const diagnosticOffset = offset + unclosedOpenIndex;
       const location = getOffsetLocation(rootCss, diagnosticOffset);
       diagnostics.push({
         level: "warning",
@@ -610,6 +611,57 @@ function findMatchingPair(source: string, openIndex: number, openChar: string, c
   }
 
   return -1;
+}
+
+function findUnclosedOpenIndex(source: string, openIndex: number, openChar: string, closeChar: string): number {
+  const openIndexes: number[] = [];
+  let quote: string | undefined;
+  let inComment = false;
+
+  for (let index = openIndex; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    const previous = source[index - 1];
+
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
+    if (inComment) {
+      if (char === "*" && next === "/") {
+        inComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      inComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote && previous !== "\\") {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char === openChar) {
+      openIndexes.push(index);
+    } else if (char === closeChar) {
+      openIndexes.pop();
+    }
+  }
+
+  return openIndexes.at(-1) ?? openIndex;
 }
 
 function readAtRuleName(prelude: string): string {
