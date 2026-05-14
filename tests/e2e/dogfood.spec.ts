@@ -124,11 +124,11 @@ test("dogfood app animates keyed rows with TransitionGroup", async ({ page }) =>
   await expect(rows.first()).toContainText("Generated row 4");
 });
 
-test("dogfood app syncs practical v-model forms", async ({ page }) => {
+test("dogfood app syncs practical m-model forms", async ({ page }) => {
   await page.goto("/");
 
-  const lab = page.getByRole("region", { name: "v-model lab" });
-  await expect(lab.getByRole("heading", { name: "v-model lab" })).toBeVisible();
+  const lab = page.getByRole("region", { name: "m-model lab" });
+  await expect(lab.getByRole("heading", { name: "m-model lab" })).toBeVisible();
   await expect(lab.getByText("ready:1:2:Launch checklist:false:Mikuru:Runtime:waiting:effect:Mikuru Runtime:queued:Mikuru Runtime")).toBeVisible();
 
   await lab.getByLabel("Search phrase").fill("  shipped  ");

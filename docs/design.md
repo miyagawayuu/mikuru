@@ -36,7 +36,7 @@ flowchart LR
 
 ### Template Parser
 
-テンプレートをHTMLに近いASTへ変換し、Mikuru固有の構文をノード情報として保持する。v1の対象は、要素、テキスト、補間、イベント、属性バインド、`v-if` / `v-else-if` / `v-else`、`v-show`、`v-for`、`v-model`、slot、子コンポーネント呼び出しに限定する。
+テンプレートをHTMLに近いASTへ変換し、Mikuru固有の構文をノード情報として保持する。v1の対象は、要素、テキスト、補間、イベント、属性バインド、`m-if` / `m-else-if` / `m-else`、`m-show`、`m-for`、`m-model`、slot、子コンポーネント呼び出しに限定する。
 
 ### Dependency Analyzer
 
@@ -60,7 +60,7 @@ flowchart LR
 - SFCの読みやすさ。
 - テンプレートの宣言性。
 - `ref`、`computed`、`effect` に近いComposition API風の状態モデル。
-- `@event`、`:attr`、`v-if`、`v-for` のような短いテンプレート記法。
+- `@event`、`:attr`、`m-if`、`m-for` のような短いテンプレート記法。
 
 ## Vueと違うもの
 

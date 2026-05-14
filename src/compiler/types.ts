@@ -34,6 +34,7 @@ export type TextPart =
 
 export type TemplateAttribute = {
   name: string;
+  sourceName?: string;
   value: string | true;
   loc?: SourceLocation;
   valueLoc?: SourceLocation;

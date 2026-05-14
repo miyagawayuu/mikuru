@@ -1,4 +1,5 @@
 import { analyzeTemplate } from "./analyzeTemplate.js";
+import { emitCompatDirectiveDiagnostics } from "./compatDiagnostics.js";
 import { generate } from "./generate.js";
 import { generateHydration } from "./generateHydration.js";
 import { parseSfc } from "./parseSfc.js";
@@ -15,6 +16,7 @@ export function compileHydration(source: string, options: CompileOptions = {}): 
       source,
       offset: descriptor.templateOffset
     });
+    emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile-hydration" });
     const bindings = analyzeTemplate(ast, { source, filename: options.filename });
     const mountCode = generate(descriptor, ast, { debug: options.debug === true, batchedUpdates: options.batchedUpdates === true });
     const hydrationCode = generateHydration(descriptor, ast, { includeImports: false });

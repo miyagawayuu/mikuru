@@ -1,37 +1,37 @@
 <template>
-  <section class="model-lab" aria-label="v-model lab">
+  <section class="model-lab" aria-label="m-model lab">
     <div>
-      <h2>v-model lab</h2>
+      <h2>m-model lab</h2>
       <p>Native modifiers, checkbox arrays, and multiple component models stay in sync.</p>
     </div>
 
     <label>
       <span>Search phrase</span>
-      <input v-model.trim.lazy="phrase" />
+      <input m-model.trim.lazy="phrase" />
     </label>
 
     <label>
       <span>Priority</span>
-      <input type="number" v-model.number="priority" />
+      <input type="number" m-model.number="priority" />
     </label>
 
     <fieldset>
       <legend>Flags</legend>
       <label>
-        <input type="checkbox" value="1" v-model.number="flags" />
+        <input type="checkbox" value="1" m-model.number="flags" />
         One
       </label>
       <label>
-        <input type="checkbox" value="2" v-model.number="flags" />
+        <input type="checkbox" value="2" m-model.number="flags" />
         Two
       </label>
     </fieldset>
 
-    <ModelEditor v-model:title.trim="cardTitle" v-model:checked="cardEnabled" />
+    <ModelEditor m-model:title.trim="cardTitle" m-model:checked="cardEnabled" />
 
     <label>
       <span>Owner name</span>
-      <input v-model.trim="ownerName" />
+      <input m-model.trim="ownerName" />
     </label>
 
     <p class="model-summary">{{ phrase }}:{{ priority }}:{{ flags.join(",") }}:{{ cardTitle }}:{{ cardEnabled }}:{{ ownerFirst }}:{{ ownerLast }}:{{ ownerWatch }}:{{ ownerEffect }}:{{ ownerQueued }}</p>

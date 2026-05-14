@@ -291,7 +291,7 @@ Start with simple hooks that can be replaced later.
 
 Security should be designed at the app layer, not hidden in components.
 
-- Escape-by-default text rendering should be preserved by avoiding `v-html`.
+- Escape-by-default text rendering should be preserved by avoiding `m-html`.
 - Do not introduce raw HTML rendering without a sanitizer and a clear trust boundary.
 - Centralize auth headers in the API client.
 - Include CSRF protection when using cookie-based auth.

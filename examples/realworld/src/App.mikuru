@@ -1,15 +1,15 @@
 <template>
   <div>
-    <section v-show="currentPage === 'dashboard'">
+    <section m-show="currentPage === 'dashboard'">
       <DashboardPage @navigate="navigate" />
     </section>
-    <section v-show="currentPage === 'login'">
+    <section m-show="currentPage === 'login'">
       <LoginPage :redirectPath="redirectTarget" @navigate="navigate" />
     </section>
-    <section v-show="currentPage === 'admin'">
+    <section m-show="currentPage === 'admin'">
       <AdminPage />
     </section>
-    <section v-show="currentPage === 'notFound'">
+    <section m-show="currentPage === 'notFound'">
       <NotFoundPage :path="currentPath" @navigate="navigate" />
     </section>
   </div>

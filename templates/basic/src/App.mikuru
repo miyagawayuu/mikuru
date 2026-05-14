@@ -2,7 +2,7 @@
   <section class="app">
     <h1>Mikuru Counter</h1>
     <button @click="increment">count: {{ count }}</button>
-    <MoodBadge label="Mood" v-model="mood">
+    <MoodBadge label="Mood" m-model="mood">
       <span>Current mood is {{ mood }}</span>
     </MoodBadge>
   </section>

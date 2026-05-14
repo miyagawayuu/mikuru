@@ -2144,6 +2144,45 @@ const ModelChild = {
     expect(root.querySelector("button")?.hasAttribute("data-model")).toBe(false);
   });
 
+  it("hydrates m-* directive aliases", async () => {
+    const source = `<template>
+  <form>
+    <p m-show="visible">{{ name }}</p>
+    <input m-model.trim="name" />
+    <ul>
+      <li m-for="item in items" m-bind:key="item.id">{{ item.label }}</li>
+    </ul>
+  </form>
+</template>
+<script>
+import { ref } from "mikuru";
+const visible = ref(false);
+const name = ref("Ada");
+const items = ref([{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }]);
+</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const input = root.querySelector("input") as HTMLInputElement | null;
+
+    expect((root.querySelector("p") as HTMLElement | null)?.style.display).toBe("none");
+    expect(input?.value).toBe("Ada");
+    expect(Array.from(root.querySelectorAll("li")).map((item) => item.textContent)).toEqual(["Alpha", "Beta"]);
+
+    if (input) {
+      input.value = " Grace ";
+      input.dispatchEvent(new window.Event("input") as unknown as Event);
+    }
+
+    expect(root.querySelector("p")?.textContent).toBe("Grace");
+
+    instance.unmount();
+  });
+
   it("hydrates v-show and DOM v-model controls", async () => {
     const source = `<template>
   <form>

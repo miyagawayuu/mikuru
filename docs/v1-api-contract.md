@@ -25,27 +25,27 @@ The debug-only `globalThis.__MIKURU_DEVTOOLS__` component metadata/event hook an
 Supported in v1:
 
 - Text interpolation with `{{ expression }}`.
-- DOM events with `@event` and `v-on:event`.
-- Object-form events with `v-on="listeners"` and native-element option modifiers such as `v-on.once`, `v-on.capture`, and `v-on.passive`.
+- DOM events with `@event` and `m-on:event`.
+- Object-form events with `m-on="listeners"` and native-element option modifiers such as `m-on.once`, `m-on.capture`, and `m-on.passive`.
 - DOM event modifiers `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`.
 - Component event modifier `.once`.
-- Attribute bindings with `:name`, `v-bind:name`, dynamic arguments, and `.prop` / `.attr` / `.camel` modifiers.
-- Object-form attributes and component props with `v-bind="attrs"`, plus native-element object modifiers such as `v-bind.prop`, `v-bind.attr`, and `v-bind.camel`.
+- Attribute bindings with `:name`, `m-bind:name`, dynamic arguments, and `.prop` / `.attr` / `.camel` modifiers.
+- Object-form attributes and component props with `m-bind="attrs"`, plus native-element object modifiers such as `m-bind.prop`, `m-bind.attr`, and `m-bind.camel`.
 - `class` and `style` binding normalization for strings, arrays, and objects.
 - Child component DOM attribute fallthrough for `class`, `style`, `id`, `title`, `role`, `aria-*`, `data-*`, and related DOM-facing attributes.
-- `v-if`, `v-else-if`, `v-else`, and `v-show`.
-- `v-for` with `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
-- `:key` / `v-bind:key` on `v-for` for keyed DOM reuse.
-- `v-memo` on keyed `v-for` records, with an array expression dependency list.
-- `v-once` for one-time element/component rendering and keyed `v-for` records.
-- `v-model` for text input, textarea, boolean checkboxes, checkbox arrays, radio, select, multiple select, modifiers, and named child component models.
-- Template refs with `ref="name"`, dynamic `:ref`, callback refs, and `v-for` ref arrays for DOM elements and child components.
+- `m-if`, `m-else-if`, `m-else`, and `m-show`.
+- `m-for` with `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
+- `:key` / `m-bind:key` on `m-for` for keyed DOM reuse.
+- `m-memo` on keyed `m-for` records, with an array expression dependency list.
+- `m-once` for one-time element/component rendering and keyed `m-for` records.
+- `m-model` for text input, textarea, boolean checkboxes, checkbox arrays, radio, select, multiple select, modifiers, and named child component models.
+- Template refs with `ref="name"`, dynamic `:ref`, callback refs, and `m-for` ref arrays for DOM elements and child components.
 - Default slots through `<slot />`.
 - Named slots through `<slot name="header" />` and `<template #header>`.
-- Dynamic slot names through `<slot :name="name" />`, `<template v-slot:[name]>`, and `<template #[name]>`.
+- Dynamic slot names through `<slot :name="name" />`, `<template m-slot:[name]>`, and `<template #[name]>`.
 - Slot props through bound `<slot>` attributes and slot scope bindings with aliases, default values, nested object destructuring, and top-level rest destructuring.
-- CSS class transitions through built-in `<Transition name="fade">`, including single children, `v-if` chains, dynamic components, class override attributes, `appear` opt-out, and `mode="out-in"` for `v-if` chains.
-- Keyed list transitions through built-in `<TransitionGroup name="list" tag="ul">` with one keyed `v-for` child, enter/leave class overrides, and move classes.
+- CSS class transitions through built-in `<Transition name="fade">`, including single children, `m-if` chains, dynamic components, class override attributes, `appear` opt-out, and `mode="out-in"` for `m-if` chains.
+- Keyed list transitions through built-in `<TransitionGroup name="list" tag="ul">` with one keyed `m-for` child, enter/leave class overrides, and move classes.
 - Teleport through built-in `<Teleport to="#target">`, including dynamic `to` and `disabled`.
 - Async boundaries through built-in `<AsyncBoundary :loading :fallback :delay :timeout>`.
 - Error boundaries through built-in `<ErrorBoundary :fallback>`, including `errorInfo`, `retry`, `reset`, and `:reset-key`.
@@ -54,7 +54,7 @@ Supported in v1:
 Unsupported in v1:
 
 - Multiple template roots.
-- `v-html`.
+- `m-html`.
 - Full HTML parser compatibility.
 
 ## Component Contract
@@ -63,10 +63,10 @@ Unsupported in v1:
 - Static attributes and bound props are passed through `props`.
 - DOM-facing attributes are also applied to the root `element` returned from `mount`; `class` and `style` are merged with the root element's existing values.
 - Components can read fallthrough attributes with `useAttrs()` and opt out of automatic root fallthrough with `defineOptions({ inheritAttrs: false })`.
-- Template refs assign the child component instance to a ref object or callback and clean up on unmount; repeated refs inside `v-for` collect values in an array.
+- Template refs assign the child component instance to a ref object or callback and clean up on unmount; repeated refs inside `m-for` collect values in an array.
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
-- Component `v-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present. Named models such as `v-model:title` pass `title`, `onUpdateTitle`, and `titleModifiers` when modifiers are present.
-- Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `v-show`.
+- Component `m-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present. Named models such as `m-model:title` pass `title`, `onUpdateTitle`, and `titleModifiers` when modifiers are present.
+- Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `m-show`.
 - `<KeepAlive>` caches dynamic component instances across type switches, supports `include`/`exclude` string, array, and `RegExp` name filters, prunes least recently used records with `max`, runs `onActivated`/`onDeactivated` for cached generated components, and disposes the cache when the parent component unmounts.
 - `defineAsyncComponent()` creates component objects from async loaders and supports loading, error, retry, timeout fallback behavior, and SSR loader resolution through `renderToString()`.
 - Child component instances must return `{ element, unmount }` from `mount`.
@@ -113,7 +113,7 @@ Unsupported in v1:
 ## SSR Contract
 
 - `compileSsr(source)` returns generated module code with `renderToString(props?)`.
-- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `v-bind:attr`, object `v-bind`, content directives, `v-pre`, `v-cloak`, SSR-rendered `v-model` form control state, `v-if` / `v-else-if` / `v-else`, array-like `v-for`, sync or async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection through `props.__mikuru_teleports`.
+- SSR supports HTML-escaped text interpolation, static attributes, `:attr` / `m-bind:attr`, object `m-bind`, content directives, `m-pre`, `m-cloak`, SSR-rendered `m-model` form control state, `m-if` / `m-else-if` / `m-else`, array-like `m-for`, sync or async child components, props, named/default slots, scoped slot props, component tree context for `provide()` / `inject()`, and Teleport collection through `props.__mikuru_teleports`.
 - `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output. `renderToStream` exposes rendered output as an async iterable for stream-shaped integrations.
 - `renderRouteToString(router, location, { teleports })` resolves redirects, lazy route components, route props, route component context, nested route components using default slots, and route-level Teleport collection.
 - `hydrateRoute(router, target, location?, options?)` resolves redirects, lazy route components, route props, route component context, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback. Generated route components can use `<RouterView>` and `<RouterLink>` during SSR/hydration. `{ listen: true }` starts router history listening after hydration and stops it on unmount; `examples/router-ssr-hydration` keeps route SSR and route hydration wired together for browser E2E coverage.
@@ -121,7 +121,7 @@ Unsupported in v1:
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
-- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `v-show`, DOM and component `v-model`, initial `v-if` / `v-for` DOM, keeps hydrated element and `<template v-for>` lists reactive after source changes, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `m-show`, DOM and component `m-model`, initial `m-if` / `m-for` DOM, keeps hydrated element and `<template m-for>` lists reactive after source changes, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
 - Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`. With recovery disabled, structural mismatches remain warnings and hydration continues best-effort without replacing the mismatched DOM. Hydration warnings include phase, component, filename, kind, action, inferred expected/actual values, and DOM path context where available, and emit unstable `hydration:warning` devtools events when a hook is present.
 - Dynamic branch reconciliation after the initial state is future work.
 

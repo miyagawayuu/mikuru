@@ -8,7 +8,7 @@
       </div>
     </header>
 
-    <TextField label="Search" v-model="search" />
+    <TextField label="Search" m-model="search" />
 
     <DebugPanel />
 
@@ -57,9 +57,9 @@
 
     <section class="notes">
       <NoteCard
-        v-for="note in filteredNotes"
+        m-for="note in filteredNotes"
         :key="note.id"
-        v-memo="[note.id, note.title, note.body, note.archived]"
+        m-memo="[note.id, note.title, note.body, note.archived]"
         :note="note"
         @archive="archiveNote"
         @restore="restoreNote"
@@ -69,7 +69,7 @@
     </section>
 
     <Teleport to="#modal-root">
-      <section v-if="summaryOpen" class="summary-modal" role="dialog">
+      <section m-if="summaryOpen" class="summary-modal" role="dialog">
         <div class="summary-card">
           <strong>Teleported summary</strong>
           <p>{{ activeCount }} active notes and {{ archivedCount }} archived notes.</p>

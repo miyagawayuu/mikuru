@@ -2,7 +2,7 @@
   <label class="field">
     <span>{{ label }}</span>
     <input :value="modelValue" :placeholder="placeholder" :aria-label="label" :aria-invalid="error ? 'true' : 'false'" @input="updateValue" />
-    <small v-if="error" class="error">{{ error }}</small>
+    <small m-if="error" class="error">{{ error }}</small>
   </label>
 </template>
 

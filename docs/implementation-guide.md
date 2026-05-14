@@ -45,7 +45,7 @@ The compiler emits a JavaScript module with `mount(target, props)` and a default
 
 ## State and Derived Values
 
-Use `ref` for mutable state and `computed` for derived state. Use `computed({ get, set })` when a derived value should also accept writes, for example as a `v-model` bridge.
+Use `ref` for mutable state and `computed` for derived state. Use `computed({ get, set })` when a derived value should also accept writes, for example as a `m-model` bridge.
 
 ```mikuru
 <script>
@@ -72,15 +72,15 @@ Prefer `.value` in `<script>` code. In templates, avoid using object properties 
 
 ## Events
 
-Use `@event` or `v-on:event` for DOM events. Use `v-on="listeners"` when an object should provide multiple DOM or component event handlers.
+Use `@event` or `m-on:event` for DOM events. Use `m-on="listeners"` when an object should provide multiple DOM or component event handlers. The older `v-on` spelling remains available as a compatibility alias.
 
 ```mikuru
 <button @click="save">Save</button>
 <form @submit.prevent="save">...</form>
 <button @click.stop="select">Select</button>
 <Child @select.once="select" />
-<button v-on="listeners">Select</button>
-<button v-on.once="listeners">Select once</button>
+<button m-on="listeners">Select</button>
+<button m-on.once="listeners">Select once</button>
 ```
 
 Supported DOM event modifiers are:
@@ -102,16 +102,16 @@ Event handlers can be a function reference or a simple call expression.
 Mikuru validates event expressions as JavaScript expressions. Statements and assignments are intentionally rejected.
 DOM events support `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`. `.passive` cannot be combined with `.prevent`.
 Component events support `.once`. Other event modifiers are DOM-only because they rely on browser `Event` methods or listener options.
-Object-form `v-on` updates listener sets reactively. Removed keys detach their previous DOM listeners, native elements support `.once`, `.capture`, and `.passive`, and component event objects are exposed as `onEventName` props.
+Object-form `m-on` updates listener sets reactively. Removed keys detach their previous DOM listeners, native elements support `.once`, `.capture`, and `.passive`, and component event objects are exposed as `onEventName` props.
 
 ## Attributes and Classes
 
-Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when an object should provide multiple DOM attributes or component props.
+Use `:attr` or `m-bind:attr` for dynamic attributes. Use `m-bind="attrs"` when an object should provide multiple DOM attributes or component props. The older `v-bind` spelling remains available as a compatibility alias.
 
 ```mikuru
 <p :title="message">{{ message }}</p>
-<p v-bind="attrs">{{ message }}</p>
-<p v-bind.camel="attrs">{{ message }}</p>
+<p m-bind="attrs">{{ message }}</p>
+<p m-bind.camel="attrs">{{ message }}</p>
 <input type="checkbox" :indeterminate.prop="mixed">
 <p :data-user-id.camel="userId">{{ message }}</p>
 <article class="card" :class="{ archived: note.archived }">
@@ -124,15 +124,15 @@ Use `:attr` or `v-bind:attr` for dynamic attributes. Use `v-bind="attrs"` when a
 
 `class` supports strings, numbers, arrays, and objects. Static `class` and dynamic `:class` can be combined.
 `style` supports strings, numbers, arrays, and objects. Object keys can be camelCase or custom CSS properties.
-On child components, DOM-facing attributes fall through to the child component root element. This includes `class`, `style`, `id`, `title`, `role`, `tabindex`, `lang`, `dir`, `hidden`, `aria-*`, and `data-*` from static attributes, direct bindings, and object-form `v-bind`. `class` and `style` are merged with the root element's existing values.
-Object-form `v-bind` updates attributes reactively and removes stale keys when they disappear from the bound object.
-Direct, dynamic, and object-form `v-bind` arguments support `.prop`, `.attr`, and `.camel`. Use `.prop` for DOM property-only state such as `:indeterminate.prop` or `v-bind.prop="attrs"`, `.attr` when property sync should be skipped, and `.camel` when a kebab-case binding name should become camelCase.
+On child components, DOM-facing attributes fall through to the child component root element. This includes `class`, `style`, `id`, `title`, `role`, `tabindex`, `lang`, `dir`, `hidden`, `aria-*`, and `data-*` from static attributes, direct bindings, and object-form `m-bind`. `class` and `style` are merged with the root element's existing values.
+Object-form `m-bind` updates attributes reactively and removes stale keys when they disappear from the bound object.
+Direct, dynamic, and object-form `m-bind` arguments support `.prop`, `.attr`, and `.camel`. Use `.prop` for DOM property-only state such as `:indeterminate.prop` or `m-bind.prop="attrs"`, `.attr` when property sync should be skipped, and `.camel` when a kebab-case binding name should become camelCase.
 
 `null`, `undefined`, and `false` remove attributes. `true` creates a boolean-style attribute.
 
-## Forms and `v-model`
+## Forms and `m-model`
 
-`v-model` supports:
+`m-model` supports:
 
 - text inputs
 - textareas
@@ -144,29 +144,29 @@ Direct, dynamic, and object-form `v-bind` arguments support `.prop`, `.attr`, an
 - named child component models
 
 ```mikuru
-<input v-model="title">
-<textarea v-model="body"></textarea>
-<input type="checkbox" v-model="enabled">
-<input type="checkbox" value="compiler" v-model="selectedTags">
-<input type="radio" value="draft" v-model="status">
-<select v-model="tag">
+<input m-model="title">
+<textarea m-model="body"></textarea>
+<input type="checkbox" m-model="enabled">
+<input type="checkbox" value="compiler" m-model="selectedTags">
+<input type="radio" value="draft" m-model="status">
+<select m-model="tag">
   <option value="compiler">compiler</option>
   <option value="runtime">runtime</option>
 </select>
-<select multiple v-model="selectedTags">
+<select multiple m-model="selectedTags">
   <option value="compiler">compiler</option>
   <option value="runtime">runtime</option>
 </select>
 ```
 
-DOM `v-model` supports `.trim`, `.number`, and `.lazy`. Checkbox models can be booleans or arrays; with arrays, the checkbox value is added or removed. Component `v-model` passes `modelModifiers` when modifiers are present, and named models pass `${propName}Modifiers`.
+DOM `m-model` supports `.trim`, `.number`, and `.lazy`. Checkbox models can be booleans or arrays; with arrays, the checkbox value is added or removed. Component `m-model` passes `modelModifiers` when modifiers are present, and named models pass `${propName}Modifiers`. The older `v-model` spelling remains available as a compatibility alias.
 
-For child components, `v-model` passes `modelValue` and `onUpdateModelValue`. Named models such as `v-model:title` pass `title` and `onUpdateTitle`.
+For child components, `m-model` passes `modelValue` and `onUpdateModelValue`. Named models such as `m-model:title` pass `title` and `onUpdateTitle`.
 
 ```mikuru
 <!-- Parent -->
-<TextField label="Title" v-model="title" />
-<PanelEditor v-model:title.trim="title" v-model:checked="enabled" />
+<TextField label="Title" m-model="title" />
+<PanelEditor m-model:title.trim="title" m-model:checked="enabled" />
 ```
 
 ```mikuru
@@ -174,7 +174,7 @@ For child components, `v-model` passes `modelValue` and `onUpdateModelValue`. Na
 <template>
   <label>
     <span>{{ label }}</span>
-    <input v-model="draft">
+    <input m-model="draft">
   </label>
 </template>
 
@@ -194,11 +194,11 @@ const draft = {
 
 ## Lists
 
-Use `v-for` for lists.
+Use `m-for` for lists. The older `v-for` spelling remains available as a compatibility alias.
 
 ```mikuru
-<li v-for="item in items" :key="item.id">{{ item.label }}</li>
-<li v-for="(item, index) of items" :key="item.id">
+<li m-for="item in items" :key="item.id">{{ item.label }}</li>
+<li m-for="(item, index) of items" :key="item.id">
   {{ index + 1 }}. {{ item.label }}
 </li>
 ```
@@ -210,54 +210,54 @@ Supported forms:
 - `(item, index) in items`
 - `(item, index) of items`
 
-Use `:key` or `v-bind:key` when list identity matters. Keyed lists reuse DOM records across reorders and clean up removed records.
+Use `:key` or `m-bind:key` when list identity matters. Keyed lists reuse DOM records across reorders and clean up removed records.
 
-Use `v-memo` with keyed `v-for` when a reused record should skip subtree updates until selected dependencies change. The value must be an array expression.
+Use `m-memo` with keyed `m-for` when a reused record should skip subtree updates until selected dependencies change. The value must be an array expression.
 
 ```mikuru
 <NoteCard
-  v-for="note in notes"
+  m-for="note in notes"
   :key="note.id"
-  v-memo="[note.id, note.updatedAt]"
+  m-memo="[note.id, note.updatedAt]"
   :note="note"
 />
 ```
 
-Hydrated SSR lists also keep reacting after hydration. Element `v-for` rows and `<template v-for>` fragments reuse the initial SSR DOM, then create an internal update range the first time the source list changes so appended, removed, or replaced rows render with the same event and binding behavior as normal mount.
+Hydrated SSR lists also keep reacting after hydration. Element `m-for` rows and `<template m-for>` fragments reuse the initial SSR DOM, then create an internal update range the first time the source list changes so appended, removed, or replaced rows render with the same event and binding behavior as normal mount.
 
 When the key is reused and the memo array is unchanged, Mikuru keeps the existing DOM/component record and does not update the generated item/index refs for that record.
 
-Use `v-once` when a subtree should render only once. On regular elements/components, bound text, attributes, and component props are evaluated during the initial render and then left alone. On keyed `v-for` records, `v-once` behaves like an empty memo dependency list for reused records.
+Use `m-once` when a subtree should render only once. On regular elements/components, bound text, attributes, and component props are evaluated during the initial render and then left alone. On keyed `m-for` records, `m-once` behaves like an empty memo dependency list for reused records.
 
 ```mikuru
-<h2 v-once>{{ staticTitle }}</h2>
-<NoteCard v-for="note in notes" :key="note.id" v-once :note="note" />
+<h2 m-once>{{ staticTitle }}</h2>
+<NoteCard m-for="note in notes" :key="note.id" m-once :note="note" />
 ```
 
 ## Conditional Rendering
 
-Use `v-if`, `v-else-if`, and `v-else` for conditional DOM creation.
+Use `m-if`, `m-else-if`, and `m-else` for conditional DOM creation. The older `v-if` family remains available as a compatibility alias.
 
 ```mikuru
-<p v-if="loading">Loading...</p>
-<p v-else-if="error">{{ error }}</p>
-<p v-else>Ready</p>
+<p m-if="loading">Loading...</p>
+<p m-else-if="error">{{ error }}</p>
+<p m-else>Ready</p>
 ```
 
-Use `v-show` when the DOM should stay mounted and only visibility should change.
+Use `m-show` when the DOM should stay mounted and only visibility should change.
 
 ```mikuru
-<aside v-show="detailsOpen">Details</aside>
-<Panel v-show="detailsOpen" />
+<aside m-show="detailsOpen">Details</aside>
+<Panel m-show="detailsOpen" />
 ```
 
-Wrap one conditional child or one `v-if` chain in `<Transition>` when the DOM should animate as it enters and leaves.
+Wrap one conditional child or one `m-if` chain in `<Transition>` when the DOM should animate as it enters and leaves.
 
 ```mikuru
 <template>
   <Transition name="notice">
-    <p v-if="saved">Saved</p>
-    <p v-else>Unsaved changes</p>
+    <p m-if="saved">Saved</p>
+    <p m-else>Unsaved changes</p>
   </Transition>
 </template>
 
@@ -274,11 +274,11 @@ Wrap one conditional child or one `v-if` chain in `<Transition>` when the DOM sh
 </style>
 ```
 
-Use `<TransitionGroup>` for a single keyed `v-for` child when list rows should receive enter, leave, and move classes. The built-in renders a wrapper tag, `span` by default, and supports `tag`, `name`, `enter-*`, `leave-*`, and `move-class` attributes.
+Use `<TransitionGroup>` for a single keyed `m-for` child when list rows should receive enter, leave, and move classes. The built-in renders a wrapper tag, `span` by default, and supports `tag`, `name`, `enter-*`, `leave-*`, and `move-class` attributes.
 
 ```mikuru
 <TransitionGroup name="row" tag="ul" move-class="row-moving">
-  <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+  <li m-for="item in items" :key="item.id">{{ item.label }}</li>
 </TransitionGroup>
 ```
 
@@ -311,7 +311,7 @@ Component events are passed as camel-cased handler props. For example:
 - `@toggle="handle"` becomes `props.onToggle`
 - `@item-select="handle"` becomes `props.onItemSelect`
 - `@toggle.once="handle"` wraps `props.onToggle` so it calls `handle` only once per child mount
-- `v-model` uses `props.onUpdateModelValue`; `v-model:title` uses `props.onUpdateTitle`
+- `m-model` uses `props.onUpdateModelValue`; `m-model:title` uses `props.onUpdateTitle`
 
 Use `<component :is="Current" />` when the component type should come from state. `:is` must resolve to a Mikuru component object with `mount()`. When the value changes, Mikuru unmounts the previous component, cleans up its refs/fallthrough effects/slots, and mounts the next component in the same position.
 
@@ -321,7 +321,7 @@ Use `<component :is="Current" />` when the component type should come from state
 </component>
 ```
 
-Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `v-show` behavior as explicit child component tags.
+Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `m-show` behavior as explicit child component tags.
 
 Wrap one dynamic component in `<KeepAlive>` when switching component types should preserve each component instance until the parent unmounts. The v1 built-in accepts exactly one `<component :is="...">` child and optional `include`, `exclude`, and `max` cache controls. `include` and `exclude` match the component `name`, `displayName`, `__name`, or constructor name with a comma-delimited string, array, or `RegExp`; `max` prunes the least recently used cached instance.
 
@@ -421,7 +421,7 @@ Use `useAttrs()` when a component needs to read fallthrough attributes or forwar
 
 ```mikuru
 <template>
-  <button class="button" v-bind="attrs">
+  <button class="button" m-bind="attrs">
     <slot />
   </button>
 </template>
@@ -432,7 +432,7 @@ defineOptions({ inheritAttrs: false });
 </script>
 ```
 
-`useAttrs()` returns DOM-facing fallthrough attributes such as `class`, `style`, `id`, `title`, `role`, `aria-*`, and `data-*`. Values stay reactive for direct bindings and object-form `v-bind` from the parent. Manual forwarding uses normal `v-bind="attrs"` behavior, so `class` and `style` keep the same normalization as other attribute bindings.
+`useAttrs()` returns DOM-facing fallthrough attributes such as `class`, `style`, `id`, `title`, `role`, `aria-*`, and `data-*`. Values stay reactive for direct bindings and object-form `m-bind` from the parent. Manual forwarding uses normal `m-bind="attrs"` behavior, so `class` and `style` keep the same normalization as other attribute bindings.
 
 ## Template Refs
 
@@ -441,7 +441,7 @@ Use `ref="name"` to assign a DOM element or child component instance to a ref ob
 ```mikuru
 <template>
   <input ref="inputEl">
-  <li v-for="item in items" ref="itemEls">{{ item.label }}</li>
+  <li m-for="item in items" ref="itemEls">{{ item.label }}</li>
   <TextField ref="field" />
   <Dialog :ref="activeDialogRef" />
   <button :ref="captureButton">Open</button>
@@ -463,7 +463,7 @@ const captureButton = (el) => {
 
 DOM refs receive the rendered element. Component refs receive the object returned from the child component's `mount`. Mikuru clears a single ref back to `null` when that element or component unmounts.
 
-Inside `v-for`, repeated refs collect values in an array and remove stale entries during cleanup. Dynamic `:ref` can evaluate to a ref object or a callback function. Callback refs receive the value on mount and `null` on unmount.
+Inside `m-for`, repeated refs collect values in an array and remove stale entries during cleanup. Dynamic `:ref` can evaluate to a ref object or a callback function. Callback refs receive the value on mount and `null` on unmount.
 
 ## Props and Emits
 
@@ -520,7 +520,7 @@ Mikuru supports default slots, named slots, and simple slot props.
 </template>
 ```
 
-Use `<slot name="header" />` in a child component and `<template #header>` or `<template v-slot:header>` in the parent for named content. Use `:name` on `<slot>` and `v-slot:[name]` / `#[name]` when the slot name should come from an expression.
+Use `<slot name="header" />` in a child component and `<template #header>` or `<template m-slot:header>` in the parent for named content. Use `:name` on `<slot>` and `m-slot:[name]` / `#[name]` when the slot name should come from an expression.
 
 ```mikuru
 <!-- Parent -->
@@ -591,11 +591,11 @@ Unsupported attribute ":fallbak" on <AsyncBoundary>. Did you mean :fallback?
 Directive and modifier typos use the same style:
 
 ```text
-Unsupported directive "v-modle". Did you mean v-model?
+Unsupported directive "v-modle". Did you mean m-model?
 Unsupported event modifier .prevet. Did you mean .prevent?
 ```
 
-For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, hydration warning events, router navigation/preload/error events, compiler diagnostics, and SSR diagnostics when those modules run with a devtools hook present. Warning/error payloads share a nested `diagnostic` object with `source`, `level`, `message`, optional `phase`, and available component, filename, route, error, or hydration details. Hydration warnings include `phase: "hydration"`, component, filename, warning message, `kind`, recovery `action`, inferred `expected` / `actual` values when available, and `domPath` in `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
+For development builds, `mikuru({ debug: true })` appends a generated `sourceURL` comment to transformed `.mikuru` modules and enables an unstable internal `globalThis.__MIKURU_DEVTOOLS__` hook. Mounted debug components register component ids, component name, filename, root element, public props, fallthrough attrs, parent/children links, and mount timestamps, then unregister on unmount. The hook also records component mount/unmount/error events, async pending/resolved/rejected events, hydration warning events, router navigation/preload/error events, compiler diagnostics, `v-*` compatibility warnings, and SSR diagnostics when those modules run with a devtools hook present. Warning/error payloads share a nested `diagnostic` object with `source`, `level`, `message`, optional `phase`, and available component, filename, route, error, or hydration details. Hydration warnings include `phase: "hydration"`, component, filename, warning message, `kind`, recovery `action`, inferred `expected` / `actual` values when available, and `domPath` in `hydration:warning` event payloads. Treat the hook as experimental debugging infrastructure rather than a stable public API.
 
 Hydration warning payloads are meant to be scanned by humans first:
 
@@ -658,6 +658,6 @@ Use the dogfood app as a reference for practical Mikuru patterns:
 - Prefer functions in `<script>` for non-trivial logic.
 - Use `computed` for filtered or derived lists.
 - Use `:key` for every dynamic list with stable identity.
-- Use component `v-model` for reusable inputs.
+- Use component `m-model` for reusable inputs.
 - Keep unsupported syntax loud: do not work around compile errors with ambiguous template patterns.
 - Treat `.mikuru` as a small, documented subset rather than Vue compatibility.
