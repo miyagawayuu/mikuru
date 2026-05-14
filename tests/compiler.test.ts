@@ -390,6 +390,25 @@ a[href^="https://"][data-value="a,b { c }"]:focus,
     expect(result.code).toContain("content: attr(data-value);");
   });
 
+  it("does not treat :deep or :global text inside selector arguments as scoped CSS helpers", () => {
+    const result = compileStyle(
+      `
+.card[data-helper=":deep(.remote)"]:focus,
+.note[data-helper=':global(.theme)']::before,
+.panel:is([data-helper=":deep(.nested, .value)"], .active) {
+  color: red;
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-helper-text" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain('.card[data-helper=":deep(.remote)"][data-mikuru-scope-helper-text]:focus');
+    expect(result.code).toContain(".note[data-helper=':global(.theme)'][data-mikuru-scope-helper-text]::before");
+    expect(result.code).toContain('.panel[data-mikuru-scope-helper-text]:is([data-helper=":deep(.nested, .value)"], .active)');
+    expect(result.code).toContain("color: red;");
+  });
+
   it("scopes rules nested inside unknown at-rules", () => {
     const result = compileStyle(
       `

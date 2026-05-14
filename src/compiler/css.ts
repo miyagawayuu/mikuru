@@ -282,23 +282,83 @@ function isPureGlobalSelector(selector: string, name: string): boolean {
 }
 
 function findFunctionalPseudo(selector: string, name: string): { start: number; end: number; argument: string } | undefined {
-  const token = `:${name}(`;
-  const start = selector.indexOf(token);
-  if (start === -1) {
-    return undefined;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let quote: string | undefined;
+
+  for (let index = 0; index < selector.length; index += 1) {
+    const char = selector[index];
+    const previous = selector[index - 1];
+
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote && previous !== "\\") {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (bracketDepth > 0) {
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+
+    if (char !== ":" || parenDepth > 0 || !matchesFunctionalPseudoName(selector, index, name)) {
+      continue;
+    }
+
+    const argumentStart = index + name.length + 2;
+    const close = findMatchingParen(selector, argumentStart - 1);
+    if (close === -1) {
+      return undefined;
+    }
+
+    return {
+      start: index,
+      end: close + 1,
+      argument: selector.slice(argumentStart, close)
+    };
   }
 
-  const argumentStart = start + token.length;
-  const close = findMatchingParen(selector, argumentStart - 1);
-  if (close === -1) {
-    return undefined;
+  return undefined;
+}
+
+function matchesFunctionalPseudoName(selector: string, colonIndex: number, name: string): boolean {
+  if (selector[colonIndex + 1] === ":") {
+    return false;
   }
 
-  return {
-    start,
-    end: close + 1,
-    argument: selector.slice(argumentStart, close)
-  };
+  const nameStart = colonIndex + 1;
+  const nameEnd = nameStart + name.length;
+  return selector.slice(nameStart, nameEnd) === name && selector[nameEnd] === "(";
 }
 
 function findPreludeStart(css: string, searchStart: number, openIndex: number): number {
