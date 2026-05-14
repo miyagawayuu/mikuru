@@ -232,7 +232,6 @@ const open = ref(false);
 - Full Vue compatibility.
 - Stable devtools API.
 - Full template type checking.
-- Precise source-map segment mapping.
 
 ## Repository Development
 

@@ -8,6 +8,13 @@ type SourceMapCandidate = {
   needle: string;
 } & SourceLocation;
 
+type SourceMapSegment = {
+  generatedColumn: number;
+  sourceIndex: number;
+  originalLine: number;
+  originalColumn: number;
+};
+
 export function createSourceMap(code: string, descriptor: SfcDescriptor, root?: ElementNode): SourceMap {
   const source = descriptor.source ?? "";
   const filename = descriptor.filename ?? "anonymous.mikuru";
@@ -24,7 +31,7 @@ export function createSourceMap(code: string, descriptor: SfcDescriptor, root?: 
   let previousSourceColumn = 0;
 
   for (const line of generatedLines) {
-    const original = pickOriginalLocation(line, {
+    const segments = createLineSegments(line, {
       templateLocation,
       scriptLocation,
       styleLocation,
@@ -32,21 +39,23 @@ export function createSourceMap(code: string, descriptor: SfcDescriptor, root?: 
       styleLineCandidates,
       templateCandidates
     });
-    const generatedColumn = Math.max(0, line.length - line.trimStart().length);
-    const sourceIndex = 0;
-    const originalLine = original.line - 1;
-    const originalColumn = original.column - 1;
-    mappings.push([
-      [
-        generatedColumn,
-        sourceIndex - previousSourceIndex,
-        originalLine - previousSourceLine,
-        originalColumn - previousSourceColumn
-      ]
-    ]);
-    previousSourceIndex = sourceIndex;
-    previousSourceLine = originalLine;
-    previousSourceColumn = originalColumn;
+    let previousGeneratedColumn = 0;
+    const encodedLine: number[][] = [];
+
+    for (const segment of segments) {
+      encodedLine.push([
+        segment.generatedColumn - previousGeneratedColumn,
+        segment.sourceIndex - previousSourceIndex,
+        segment.originalLine - previousSourceLine,
+        segment.originalColumn - previousSourceColumn
+      ]);
+      previousGeneratedColumn = segment.generatedColumn;
+      previousSourceIndex = segment.sourceIndex;
+      previousSourceLine = segment.originalLine;
+      previousSourceColumn = segment.originalColumn;
+    }
+
+    mappings.push(encodedLine);
   }
 
   return {
@@ -57,6 +66,83 @@ export function createSourceMap(code: string, descriptor: SfcDescriptor, root?: 
     names: [],
     mappings: mappings.map((segments) => segments.map((segment) => segment.map(encodeVlq).join("")).join(",")).join(";")
   };
+}
+
+function createLineSegments(
+  generatedLine: string,
+  context: {
+    templateLocation: ReturnType<typeof getSourceLocation>;
+    scriptLocation: ReturnType<typeof getSourceLocation>;
+    styleLocation: ReturnType<typeof getSourceLocation>;
+    scriptLineCandidates: SourceMapCandidate[];
+    styleLineCandidates: SourceMapCandidate[];
+    templateCandidates: SourceMapCandidate[];
+  }
+): SourceMapSegment[] {
+  const segments: SourceMapSegment[] = [];
+
+  for (const candidate of [
+    ...context.scriptLineCandidates,
+    ...context.styleLineCandidates,
+    ...context.templateCandidates
+  ]) {
+    for (const column of findNeedleColumns(generatedLine, candidate.needle)) {
+      segments.push({
+        generatedColumn: column,
+        sourceIndex: 0,
+        originalLine: candidate.line - 1,
+        originalColumn: candidate.column - 1
+      });
+    }
+  }
+
+  if (segments.length > 0) {
+    return dedupeSegments(segments).sort((left, right) => left.generatedColumn - right.generatedColumn);
+  }
+
+  const generatedColumn = Math.max(0, generatedLine.length - generatedLine.trimStart().length);
+  const original = pickOriginalLocation(generatedLine, context);
+  return [
+    {
+      generatedColumn,
+      sourceIndex: 0,
+      originalLine: original.line - 1,
+      originalColumn: original.column - 1
+    }
+  ];
+}
+
+function findNeedleColumns(line: string, needle: string): number[] {
+  const columns: number[] = [];
+  let cursor = 0;
+
+  while (cursor < line.length) {
+    const index = line.indexOf(needle, cursor);
+    if (index === -1) {
+      break;
+    }
+
+    columns.push(index);
+    cursor = index + Math.max(1, needle.length);
+  }
+
+  return columns;
+}
+
+function dedupeSegments(segments: SourceMapSegment[]): SourceMapSegment[] {
+  const seen = new Set<string>();
+  const result: SourceMapSegment[] = [];
+
+  for (const segment of segments) {
+    const key = `${segment.generatedColumn}:${segment.sourceIndex}:${segment.originalLine}:${segment.originalColumn}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(segment);
+  }
+
+  return result;
 }
 
 function pickOriginalLocation(

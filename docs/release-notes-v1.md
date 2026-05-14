@@ -16,7 +16,7 @@ Mikuru v1 is the first stable validation release of the compile-first Vue-like S
 - Debug diagnostics with compile frames, debug `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, hydration warnings that include phase/component/filename context, and dogfood Debug Panel coverage for component trees, event filtering/search, event-to-component navigation, and copyable debug snapshots.
 - Style injection and basic `<style scoped>` selector rewriting.
 - Compile errors with filename, line, column, and code frames.
-- Coarse v3 source maps with `sourcesContent` plus optional debug `sourceURL` output.
+- v3 source maps with `sourcesContent`, template/script/style line mappings, and generated-column segments for common template expressions, attributes, event handlers, and script/style lines.
 
 ## Getting Started
 
@@ -77,7 +77,6 @@ The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases s
 - Stable devtools API.
 - Full Vue compatibility.
 - Full template type checking.
-- Precise source-map segment mapping.
 - Dynamic branch/list reconciliation after the initial hydration state.
 
 ## Next Patch Draft

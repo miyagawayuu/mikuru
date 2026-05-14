@@ -556,6 +556,30 @@ p { color: red; }
     expect(decoded[generatedLine("__mikuru_guardEventHandler(save)")]?.originalLine).toBe(3);
     expect(decoded[generatedLine("unwrap(message)")]?.originalLine).toBe(3);
     expect(decoded[generatedLine('const message = "mapped";')]?.originalLine).toBe(8);
+
+    const decodedSegments = decodeSourceMapMappingSegments(result.map.mappings);
+    const templateSourceLine = `    <p :class="stateClass" @click="save">{{ message }}</p>`;
+    const generatedSegment = (linePattern: string, columnPattern: string) => {
+      const lineIndex = generatedLine(linePattern);
+      const generatedColumn = codeLines[lineIndex]!.indexOf(columnPattern);
+      expect(generatedColumn).toBeGreaterThanOrEqual(0);
+      const segment = decodedSegments[lineIndex]?.find((entry) => entry.generatedColumn === generatedColumn);
+      expect(segment).toBeDefined();
+      return segment!;
+    };
+
+    expect(generatedSegment("unwrap(stateClass)", "stateClass")).toMatchObject({
+      originalLine: 3,
+      originalColumn: templateSourceLine.indexOf("stateClass") + 1
+    });
+    expect(generatedSegment("__mikuru_guardEventHandler(save)", "save")).toMatchObject({
+      originalLine: 3,
+      originalColumn: templateSourceLine.indexOf("save") + 1
+    });
+    expect(generatedSegment("unwrap(message)", "message")).toMatchObject({
+      originalLine: 3,
+      originalColumn: templateSourceLine.indexOf("message") + 1
+    });
   });
 
   it("scopes style selectors and generated elements", () => {
@@ -1594,28 +1618,44 @@ function captureCompileError(source: string, filename: string): MikuruCompileErr
 }
 
 function decodeSourceMapMappings(mappings: string): Array<{ originalLine: number; originalColumn: number } | undefined> {
-  const lines = mappings.split(";");
+  return decodeSourceMapMappingSegments(mappings).map((line) => line[0]);
+}
+
+function decodeSourceMapMappingSegments(
+  mappings: string
+): Array<Array<{ generatedColumn: number; originalLine: number; originalColumn: number }>> {
   let sourceLine = 0;
   let sourceColumn = 0;
+  let sourceIndex = 0;
 
-  return lines.map((line) => {
+  return mappings.split(";").map((line) => {
     if (!line) {
-      return undefined;
+      return [];
     }
 
-    const segment = decodeVlqSegment(line.split(",")[0] ?? "");
+    let generatedColumn = 0;
+    const decodedLine: Array<{ generatedColumn: number; originalLine: number; originalColumn: number }> = [];
 
-    if (segment.length < 4) {
-      return undefined;
+    for (const encodedSegment of line.split(",")) {
+      const segment = decodeVlqSegment(encodedSegment);
+
+      if (segment.length < 4) {
+        continue;
+      }
+
+      generatedColumn += segment[0] ?? 0;
+      sourceIndex += segment[1] ?? 0;
+      sourceLine += segment[2] ?? 0;
+      sourceColumn += segment[3] ?? 0;
+
+      decodedLine.push({
+        generatedColumn,
+        originalLine: sourceLine + 1,
+        originalColumn: sourceColumn + 1
+      });
     }
 
-    sourceLine += segment[2] ?? 0;
-    sourceColumn += segment[3] ?? 0;
-
-    return {
-      originalLine: sourceLine + 1,
-      originalColumn: sourceColumn + 1
-    };
+    return decodedLine;
   });
 }
 

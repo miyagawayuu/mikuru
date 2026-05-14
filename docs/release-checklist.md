@@ -50,7 +50,7 @@ Confirm these exports work from the packed package:
 - No stable devtools API. Debug builds expose only an unstable internal devtools metadata/event hook.
 - The dogfood Debug Panel and `examples/dogfood/debugPanelHelpers.ts` are example-only debugging aids and must not be documented or packaged as public exports.
 - No Vue compatibility guarantee.
-- Source maps include original SFC content and line-oriented mappings for common template/script generated lines.
+- Source maps include original SFC content, generated-line mappings, and generated-column segments for common template/script generated code.
 - Scoped CSS supports common selector rewriting, native CSS nesting, and diagnostic reporting, but it is not a full CSS compiler.
 - `provide` / `inject` are scoped to the current component tree when called during Mikuru component mounting.
 
