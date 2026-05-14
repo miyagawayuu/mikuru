@@ -147,9 +147,9 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, and `RouterView` / `RouterLink` across mount, SSR, and hydration
 - SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `m-pre`, `m-cloak`, `m-if` chains, `m-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, string and async iterable stream rendering, and router route rendering with context propagation
 - Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `m-show`, DOM and component `m-model`, `m-pre`, `m-cloak`, initial `m-if` / `m-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
-- Style injection and basic `<style scoped>` selector rewriting
+- Style injection and `<style scoped>` selector rewriting for common selectors, native CSS nesting, `:global(...)`, `:deep(...)`, nested at-rules, and malformed CSS diagnostics
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
-- Debug diagnostics with optional generated `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context
+- Debug diagnostics with optional generated `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, compiler/style diagnostic locations and frames, and hydration warnings that include phase, component, and filename context
 
 ## Package Exports
 
@@ -229,7 +229,7 @@ const open = ref(false);
 
 Mikuru does not claim Vue compatibility. The v1 package does not include stable devtools or full template type checking.
 
-Scoped CSS is a basic selector rewrite, not a full CSS compiler. Avoid relying on `:global()`, deep selectors, complex nesting, CSS Modules, or preprocessors in v1.
+Scoped CSS covers common selector rewriting, native CSS nesting, `:global(...)`, `:deep(...)`, nested at-rules such as `@media`, `@scope`, and `@starting-style`, and malformed block diagnostics. It is still not a full CSS compiler; CSS Modules and preprocessors are outside the v1 package.
 
 ## Repository Development
 
