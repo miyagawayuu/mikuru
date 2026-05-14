@@ -6,8 +6,8 @@
     </div>
     <p>{{ note.body }}</p>
     <slot />
-    <button v-if="note.archived" @click="restore">Restore</button>
-    <button v-else @click="archive">Archive</button>
+    <button m-if="note.archived" @click="restore">Restore</button>
+    <button m-else @click="archive">Archive</button>
   </article>
 </template>
 

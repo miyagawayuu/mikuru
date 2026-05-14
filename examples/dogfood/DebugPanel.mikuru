@@ -2,7 +2,7 @@
   <section class="debug-panel" aria-label="Debug panel">
     <header class="debug-header">
       <div>
-        <h2 v-once>Debug Panel</h2>
+        <h2 m-once>Debug Panel</h2>
         <p>{{ components.length }} components, {{ allEvents.length }} events</p>
       </div>
       <button @click="clearEvents">Clear events</button>
@@ -10,7 +10,7 @@
 
     <nav class="debug-filters" aria-label="Debug event filters">
       <button
-        v-for="option in filterOptions"
+        m-for="option in filterOptions"
         :key="option.id"
         :class="{ active: eventFilter === option.id }"
         @click="setEventFilter(option.id)"
@@ -22,8 +22,8 @@
     <div class="debug-grid">
       <section class="debug-section">
         <h3>Components</h3>
-        <ul v-if="components.length > 0" class="debug-list">
-          <li v-for="component in components" :key="component.id">
+        <ul m-if="components.length > 0" class="debug-list">
+          <li m-for="component in components" :key="component.id">
             <button
               class="debug-component-row"
               :class="{ selected: selected?.id === component.id }"
@@ -34,12 +34,12 @@
             </button>
           </li>
         </ul>
-        <p v-else class="debug-empty">No debug components yet.</p>
+        <p m-else class="debug-empty">No debug components yet.</p>
       </section>
 
       <section class="debug-section">
         <h3>Selected</h3>
-        <div v-if="selected" class="debug-detail">
+        <div m-if="selected" class="debug-detail">
           <strong>{{ selected.name }}</strong>
           <span>{{ selected.filename }}</span>
           <dl>
@@ -52,13 +52,13 @@
           </dl>
           <pre>{{ selected.propsText }}</pre>
         </div>
-        <p v-else class="debug-empty">Select a component.</p>
+        <p m-else class="debug-empty">Select a component.</p>
       </section>
 
       <section class="debug-section debug-events">
         <h3>Events</h3>
-        <ol v-if="filteredEvents.length > 0" class="debug-event-list">
-          <li v-for="event in filteredEvents" :key="event.id">
+        <ol m-if="filteredEvents.length > 0" class="debug-event-list">
+          <li m-for="event in filteredEvents" :key="event.id">
             <button
               class="debug-event-row"
               :class="{ selected: selectedEvent?.id === event.id, warning: event.level === 'warning' }"
@@ -69,12 +69,12 @@
             </button>
           </li>
         </ol>
-        <p v-else class="debug-empty">No matching debug events.</p>
+        <p m-else class="debug-empty">No matching debug events.</p>
       </section>
 
       <section class="debug-section debug-event-detail">
         <h3>Event detail</h3>
-        <div v-if="selectedEvent" class="debug-detail">
+        <div m-if="selectedEvent" class="debug-detail">
           <strong>{{ selectedEvent.type }}</strong>
           <span>{{ selectedEvent.summary }}</span>
           <dl>
@@ -85,7 +85,7 @@
           </dl>
           <pre>{{ selectedEvent.payloadText }}</pre>
         </div>
-        <p v-else class="debug-empty">Select an event.</p>
+        <p m-else class="debug-empty">Select an event.</p>
       </section>
     </div>
   </section>

@@ -221,14 +221,15 @@ function parseAttributes(source: string, sourceStart: number, context: LocationC
       cursor += 1;
     }
 
-    const name = source.slice(nameStart, cursor);
+    const rawName = source.slice(nameStart, cursor);
+    const name = normalizeDirectiveName(rawName);
 
-    if (!name) {
+    if (!rawName) {
       break;
     }
 
-    if (!/^[^\s="'<>/]+$/.test(name)) {
-      throw createCompileError(`Invalid template attribute name: ${name}`, context.source, context.offset + sourceStart + nameStart, context.filename);
+    if (!/^[^\s="'<>/]+$/.test(rawName)) {
+      throw createCompileError(`Invalid template attribute name: ${rawName}`, context.source, context.offset + sourceStart + nameStart, context.filename);
     }
 
     if (seen.has(name)) {
@@ -239,7 +240,12 @@ function parseAttributes(source: string, sourceStart: number, context: LocationC
     cursor = skipWhitespace(source, cursor);
 
     if (source[cursor] !== "=") {
-      attrs.push({ name, value: true, loc: toLocation(sourceStart + nameStart, context) });
+      attrs.push({
+        name,
+        sourceName: directiveSourceName(rawName, name),
+        value: true,
+        loc: toLocation(sourceStart + nameStart, context)
+      });
       continue;
     }
 
@@ -249,6 +255,7 @@ function parseAttributes(source: string, sourceStart: number, context: LocationC
     const parsedValue = parseAttributeValue(source, cursor, sourceStart, context);
     attrs.push({
       name,
+      sourceName: directiveSourceName(rawName, name),
       value: parsedValue.value,
       loc: toLocation(sourceStart + nameStart, context),
       valueLoc: toLocation(sourceStart + parsedValue.valueStart, context)
@@ -257,6 +264,14 @@ function parseAttributes(source: string, sourceStart: number, context: LocationC
   }
 
   return attrs;
+}
+
+function normalizeDirectiveName(name: string): string {
+  return name.startsWith("m-") ? `v-${name.slice("m-".length)}` : name;
+}
+
+function directiveSourceName(rawName: string, name: string): string | undefined {
+  return rawName.startsWith("v-") || rawName !== name ? rawName : undefined;
 }
 
 function parseAttributeValue(

@@ -2,14 +2,14 @@
   <section class="app">
     <h1>Mikuru Counter</h1>
     <button @click="increment">count: {{ count }}</button>
-    <MoodBadge label="Mood" v-model="mood">
+    <MoodBadge label="Mood" m-model="mood">
       <span>Current mood is {{ mood }}</span>
       <span>Settled mood is {{ delayedMood }}</span>
     </MoodBadge>
     <button @click="toggleDetails">Toggle note</button>
     <Transition name="note">
-      <p v-if="showDetails" class="note">Transitions can animate conditional content.</p>
-      <p v-else class="note note-muted">The note is hidden.</p>
+      <p m-if="showDetails" class="note">Transitions can animate conditional content.</p>
+      <p m-else class="note note-muted">The note is hidden.</p>
     </Transition>
   </section>
 </template>

@@ -7,13 +7,13 @@ Mikuru v1 is the first stable validation release of the compile-first Vue-like S
 - `.mikuru` single-file components with `<template>`, `<script>`, and `<style>`.
 - Vite plugin support through `mikuru/vite`.
 - Ref-based runtime with `ref`, `computed`, `effect`, `watch`, `nextTick`, lifecycle callbacks, `provide`, and `inject`.
-- Vue-like template syntax for interpolation, DOM events, attribute bindings, `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, and `v-model`.
-- Component composition with props, events, component `v-model`, `defineProps`, `defineEmits`, default slots, named slots, and slot props.
+- Mikuru-native template syntax for interpolation, DOM events, attribute bindings, `m-if`, `m-else-if`, `m-else`, `m-show`, `m-for`, and `m-model`; older `v-*` spellings remain available as compatibility aliases.
+- Component composition with props, events, component `m-model`, `defineProps`, `defineEmits`, default slots, named slots, and slot props.
 - CSS class transitions with built-in `<Transition name="fade">`.
-- Keyed `v-for` record reuse with cleanup for removed DOM and component records.
+- Keyed `m-for` record reuse with cleanup for removed DOM and component records.
 - Built-in routing, Teleport, ErrorBoundary, AsyncBoundary, KeepAlive, Transition, and TransitionGroup helpers.
 - SSR and hydration through `compileSsr()`, `compileHydration()`, `mikuru/server`, `.mikuru?ssr`, `.mikuru?hydrate`, `renderToStream()`, `renderRouteToString()`, and `hydrateRoute()`.
-- Debug diagnostics with compile frames, debug `sourceURL`, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context.
+- Debug diagnostics with compile frames, debug `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context.
 - Style injection and basic `<style scoped>` selector rewriting.
 - Compile errors with filename, line, column, and code frames.
 - Coarse v3 source maps with `sourcesContent` plus optional debug `sourceURL` output.
@@ -62,7 +62,7 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 - `examples/basic`: minimal counter and component composition.
 - `examples/realworld`: app-like task board with filters and keyed lists.
-- `examples/dogfood`: notes app written with Mikuru SFCs, including Router, AsyncBoundary, ErrorBoundary, KeepAlive, TransitionGroup, `v-model`, and the debug inspector panel.
+- `examples/dogfood`: notes app written with Mikuru SFCs, including Router, AsyncBoundary, ErrorBoundary, KeepAlive, TransitionGroup, `m-model`, and the debug inspector panel.
 - `examples/router`: client-side RouterView/RouterLink, aliases, redirects, guards, nested routes, dynamic routes, lazy routes, and preloading.
 - `examples/router-ssr-hydration`: route SSR and route hydration with RouterView/RouterLink, redirects, guards, nested routes, lazy route components, and Teleport.
 - `examples/ssr-hydration`: SSR-to-hydration example using `.mikuru?ssr`, `.mikuru?hydrate`, stream output, mismatch recovery, recovery-disabled warnings, AsyncBoundary, Teleport, and nested hydration patterns.
@@ -87,5 +87,5 @@ The next patch release is expected to focus on release polish, documentation com
 - Safer creation: interactive project/template prompts, `--yes` defaults, typo suggestions, and `--dry-run` previews.
 - Generated app checks: starter/basic templates include `npm run typecheck`, `tsconfig.json`, and CSS import declarations.
 - Runtime watchers: `watch(..., { immediate: true })` and cleanup callbacks for work that must be canceled before the next watcher run or stop.
-- Compiler guidance: unsupported syntax, directive typos, built-in attribute typos, and misplaced `v-slot` errors include actionable alternatives.
+- Compiler guidance: unsupported syntax, directive typos, `v-*` compatibility aliases, built-in attribute typos, and misplaced `m-slot` errors include actionable alternatives.
 - Release hygiene: template/package version drift checks, docs smoke coverage, clearer release checklist steps, and a Windows npm pack smoke warning fix.

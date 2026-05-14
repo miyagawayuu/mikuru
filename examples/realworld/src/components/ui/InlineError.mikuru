@@ -1,5 +1,5 @@
 <template>
-  <p v-if="message" class="inline-error" role="alert">{{ message }}</p>
+  <p m-if="message" class="inline-error" role="alert">{{ message }}</p>
 </template>
 
 <script>

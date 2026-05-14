@@ -503,7 +503,7 @@ defineOptions({ inheritAttrs: false });
   it("generates long-form slot templates and slot fallback branches", () => {
     const parent = compile(`<template>
   <Panel>
-    <template v-slot:header="slotProps">
+    <template m-slot:header="slotProps">
       <h2>{{ slotProps.title }}</h2>
     </template>
   </Panel>
@@ -524,7 +524,7 @@ defineOptions({ inheritAttrs: false });
   it("generates dynamic slot names for outlets and templates", () => {
     const parent = compile(`<template>
   <Panel>
-    <template v-slot:[activeSlot]="{ title }">
+    <template m-slot:[activeSlot]="{ title }">
       <h2>{{ title }}</h2>
     </template>
   </Panel>
@@ -1099,6 +1099,64 @@ const count = 0;
           }
         }
       });
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("emits debug warnings for v-* compatibility aliases", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+      const source = `<template><section><input v-model="name" /><p v-if="ready">Ready</p></section></template><script>const name = ref(""); const ready = true;</script>`;
+
+      compile(source, { debug: true, filename: "CompatAliases.mikuru" });
+
+      const warnings = inspector.getEvents().filter((event) => event.type === "compiler:warning");
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0]).toMatchObject({
+        payload: {
+          diagnostic: {
+            source: "compiler",
+            level: "warning",
+            phase: "compile",
+            filename: "CompatAliases.mikuru",
+            directive: "v-model",
+            preferredDirective: "m-model",
+            message: "v-model is supported as a compatibility alias. Prefer m-model in Mikuru components."
+          }
+        }
+      });
+      expect(warnings[1]?.payload?.diagnostic).toMatchObject({
+        directive: "v-if",
+        preferredDirective: "m-if"
+      });
+    } finally {
+      if (previousHook === undefined) {
+        delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+      } else {
+        (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__ = previousHook;
+      }
+    }
+  });
+
+  it("keeps m-* directives quiet in debug diagnostics", () => {
+    const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+    delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
+
+    try {
+      const inspector = createDebugInspector();
+      const source = `<template><section><input m-model="name" /><p m-if="ready">Ready</p></section></template><script>const name = ref(""); const ready = true;</script>`;
+
+      compile(source, { debug: true, filename: "NativeAliases.mikuru" });
+
+      expect(inspector.getEvents().filter((event) => event.type === "compiler:warning")).toHaveLength(0);
     } finally {
       if (previousHook === undefined) {
         delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;

@@ -1,4 +1,5 @@
 import { analyzeTemplate } from "./analyzeTemplate.js";
+import { emitCompatDirectiveDiagnostics } from "./compatDiagnostics.js";
 import { generateSsr } from "./generateSsr.js";
 import { parseSfc } from "./parseSfc.js";
 import { parseTemplate } from "./parseTemplate.js";
@@ -13,6 +14,7 @@ export function compileSsr(source: string, options: CompileOptions = {}): SsrCom
       source,
       offset: descriptor.templateOffset
     });
+    emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile-ssr" });
     const bindings = analyzeTemplate(ast, { source, filename: options.filename });
     const code = generateSsr(descriptor, ast);
 

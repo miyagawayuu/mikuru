@@ -95,7 +95,7 @@ button {
 
 ```mikuru
 <button @click="increment">Add</button>
-<button v-on:click="increment">Add</button>
+<button m-on:click="increment">Add</button>
 <form @submit.prevent="save">...</form>
 <button @click.stop="select">Select</button>
 <button @click.self.once="select">Select</button>
@@ -108,12 +108,12 @@ button {
 <Child @select.once="select" />
 ```
 
-`@event="handler"` と `v-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent`、`.stop`、`.self`、`.once`、`.capture`、`.passive` を使える。
+`@event="handler"` と `m-on:event="handler"` は `addEventListener` に変換する。DOMイベントでは `.prevent`、`.stop`、`.self`、`.once`、`.capture`、`.passive` を使える。
 DOMイベントでは短いinline handlerも使える。`ref` への代入や更新は `count += 1` のように書け、生成コードでは `count.value` へ書き戻す。
 DOM keyboardイベントでは `.enter`、`.escape` / `.esc`、`.space`、`.tab`、`.delete`、`.backspace`、`.up`、`.down`、`.left`、`.right` を使える。`.ctrl`、`.shift`、`.alt`、`.meta` はsystem key条件として使える。
 mouse/pointer系イベントでは `.left`、`.right`、`.middle` をbutton条件として使える。`.exact` を付けると、指定していないsystem keyが押されている場合はhandlerを実行しない。
 コンポーネントイベントでは `.once` を使える。
-`@[eventName]` と `v-on:[eventName]` はイベント名を式から決め、式が変わった場合は古いlistenerを外して新しいlistenerを付ける。
+`@[eventName]` と `m-on:[eventName]` はイベント名を式から決め、式が変わった場合は古いlistenerを外して新しいlistenerを付ける。
 
 制約:
 
@@ -126,9 +126,9 @@ mouse/pointer系イベントでは `.left`、`.right`、`.middle` をbutton条�
 
 ```mikuru
 <div :class="className" :id="itemId"></div>
-<div v-bind:class="className"></div>
-<div v-bind="attrs"></div>
-<div v-bind.camel="attrs"></div>
+<div m-bind:class="className"></div>
+<div m-bind="attrs"></div>
+<div m-bind.camel="attrs"></div>
 <div :[attrName]="value"></div>
 <input type="checkbox" :indeterminate.prop="mixed">
 <p :data-user-id.camel="userId"></p>
@@ -138,48 +138,48 @@ mouse/pointer系イベントでは `.left`、`.right`、`.middle` をbutton条�
 <div :style="[{ color }, { fontSize: size, '--tone': tone }]"></div>
 ```
 
-`:attr="expr"` と `v-bind:attr="expr"` は、依存値が変わったときに属性を更新する。`v-bind="attrs"` はオブジェクトのkey/valueをまとめて属性へ反映し、消えたkeyは削除する。
-`:[attrName]="value"` と `v-bind:[attrName]="value"` は属性名を式から決める。属性名が変わると古い属性を削除して新しい属性を設定する。
+`:attr="expr"` と `m-bind:attr="expr"` は、依存値が変わったときに属性を更新する。`m-bind="attrs"` はオブジェクトのkey/valueをまとめて属性へ反映し、消えたkeyは削除する。
+`:[attrName]="value"` と `m-bind:[attrName]="value"` は属性名を式から決める。属性名が変わると古い属性を削除して新しい属性を設定する。
 boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`value` などのフォーム系属性は対応するDOM propertyも同期する。通常属性に真偽値を渡した場合は `"true"` / `"false"` として出力する。
-直接・動的引数とオブジェクト形式の `v-bind` は `.prop`、`.attr`、`.camel` modifiers をサポートする。`.prop` はDOM propertyだけを更新し、`.attr` はDOM property同期を避けて属性だけを更新する。`.camel` はkebab-case名をcamelCaseへ変換する。`.prop` と `.attr` はnative element専用で、同時には使えない。
+直接・動的引数とオブジェクト形式の `m-bind` は `.prop`、`.attr`、`.camel` modifiers をサポートする。`.prop` はDOM propertyだけを更新し、`.attr` はDOM property同期を避けて属性だけを更新する。`.camel` はkebab-case名をcamelCaseへ変換する。`.prop` と `.attr` はnative element専用で、同時には使えない。
 
 生成方針:
 
 - `class`、`id`、`title` など通常属性は `setAttribute` で更新する。
 - `class` は文字列、数値、配列、オブジェクトを正規化する。オブジェクト形式ではtruthyなキーだけclass名にする。
 - `style` は文字列、数値、配列、オブジェクトを正規化する。オブジェクト形式ではcamelCaseキーをkebab-caseにし、CSS custom propertyはそのまま扱う。
-- 子コンポーネントのDOM向け属性は、子の `mount` が返す root element にfallthroughする。対象は `class`、`style`、`id`、`title`、`role`、`tabindex`、`lang`、`dir`、`hidden`、`aria-*`、`data-*`。通常属性、直接バインド、オブジェクト形式の `v-bind` が対象で、`class` / `style` はroot側の既存値とマージする。
+- 子コンポーネントのDOM向け属性は、子の `mount` が返す root element にfallthroughする。対象は `class`、`style`、`id`、`title`、`role`、`tabindex`、`lang`、`dir`、`hidden`、`aria-*`、`data-*`。通常属性、直接バインド、オブジェクト形式の `m-bind` が対象で、`class` / `style` はroot側の既存値とマージする。
 - 値が `null`、`undefined`、`false` の場合は属性を削除する。
 - DOM propertyバインドと属性バインドの差はv1では扱わない。
 
 ### オブジェクトイベント
 
 ```mikuru
-<button v-on="listeners">Save</button>
-<button v-on.once="listeners">Save once</button>
+<button m-on="listeners">Save</button>
+<button m-on.once="listeners">Save once</button>
 ```
 
-`v-on="listeners"` はオブジェクトのkeyをイベント名、valueをhandlerとして扱う。依存値が変わると古いlistenerを外して新しいlistenerを登録する。native elementのobject-form `v-on` は `.once`、`.capture`、`.passive` modifiers をサポートする。子コンポーネントでは `select` が `onSelect` のようなイベントpropsに変換される。
+`m-on="listeners"` はオブジェクトのkeyをイベント名、valueをhandlerとして扱う。依存値が変わると古いlistenerを外して新しいlistenerを登録する。native elementのobject-form `m-on` は `.once`、`.capture`、`.passive` modifiers をサポートする。子コンポーネントでは `select` が `onSelect` のようなイベントpropsに変換される。
 
 ### テキスト入力
 
 ```mikuru
-<input v-model="name" />
-<textarea v-model="message"></textarea>
-<input type="checkbox" v-model="enabled" />
-<input type="checkbox" value="1" v-model.number="selectedIds" />
-<input type="radio" value="mint" v-model="flavor" />
-<select v-model="flavor">
+<input m-model="name" />
+<textarea m-model="message"></textarea>
+<input type="checkbox" m-model="enabled" />
+<input type="checkbox" value="1" m-model.number="selectedIds" />
+<input type="radio" value="mint" m-model="flavor" />
+<select m-model="flavor">
   <option value="mint">Mint</option>
   <option value="berry">Berry</option>
 </select>
-<select multiple v-model.number="ids">
+<select multiple m-model.number="ids">
   <option value="1">One</option>
   <option value="2">Two</option>
 </select>
 ```
 
-`v-model="refName"` は、フォーム要素の値と `refName.value` を同期する。
+`m-model="refName"` は、フォーム要素の値と `refName.value` を同期する。
 
 制約:
 
@@ -195,7 +195,7 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 
 ```mikuru
 <input ref="inputEl" />
-<li v-for="item in items" ref="itemEls">{{ item.label }}</li>
+<li m-for="item in items" ref="itemEls">{{ item.label }}</li>
 <Child ref="childRef" />
 <Child :ref="currentChildRef" />
 <button :ref="captureButton">Open</button>
@@ -203,31 +203,31 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 
 `ref="name"` は、`<script>` で宣言した `ref(null)` などのrefオブジェクトへ値を代入する。DOM要素では生成されたelement、子コンポーネントでは `mount` が返したinstanceが入る。対象がunmountされると `null` に戻る。
 
-`v-for` の中で同じrefを使うと、値は配列として集められ、cleanup時に古いentryを取り除く。`:ref="expr"` はrefオブジェクトまたはcallback関数を返す式として扱う。callback refはmount時に値、unmount時に `null` を受け取る。
+`m-for` の中で同じrefを使うと、値は配列として集められ、cleanup時に古いentryを取り除く。`:ref="expr"` はrefオブジェクトまたはcallback関数を返す式として扱う。callback refはmount時に値、unmount時に `null` を受け取る。
 
 ### 条件分岐
 
 ```mikuru
-<p v-if="visible">Shown</p>
-<p v-else-if="pending">Loading</p>
-<p v-else>Hidden</p>
+<p m-if="visible">Shown</p>
+<p m-else-if="pending">Loading</p>
+<p m-else>Hidden</p>
 ```
 
-`v-if` / `v-else-if` / `v-else` は条件に応じて、同じ位置に表示する分岐を切り替える。
+`m-if` / `m-else-if` / `m-else` は条件に応じて、同じ位置に表示する分岐を切り替える。
 
 複数の兄弟要素を1つの条件分岐としてまとめる場合は、実DOMを作らない `<template>` branch を使える。
 
 ```mikuru
-<template v-if="items.length > 0">
-  <ItemRow v-for="item in items" :key="item.id" :item="item" />
+<template m-if="items.length > 0">
+  <ItemRow m-for="item in items" :key="item.id" :item="item" />
   <button @click="loadMore">Load more</button>
   <span ref="sentinel"></span>
 </template>
-<template v-else-if="loading">
+<template m-else-if="loading">
   <p>Loading...</p>
   <span class="spinner"></span>
 </template>
-<template v-else>
+<template m-else>
   <p>No items</p>
 </template>
 ```
@@ -235,17 +235,17 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 生成方針:
 
 - コンパイラはコメントアンカーまたは固定位置を使って差し替え位置を保持する。
-- `v-else-if` と `v-else` は直前の `v-if` または `v-else-if` に続けて書く。空白のみのテキストは間にあってもよい。
-- 孤立した `v-else-if` / `v-else` はコンパイルエラーにする。
+- `m-else-if` と `m-else` は直前の `m-if` または `m-else-if` に続けて書く。空白のみのテキストは間にあってもよい。
+- 孤立した `m-else-if` / `m-else` はコンパイルエラーにする。
 - 条件式の依存値が変わったときだけ更新する。
 
 ### 表示切り替え
 
 ```mikuru
-<p v-show="visible">Shown</p>
+<p m-show="visible">Shown</p>
 ```
 
-`v-show` はノードを削除せず、`style.display` を `""` または `"none"` に切り替える。DOMを保持したい軽い表示切り替えに使う。
+`m-show` はノードを削除せず、`style.display` を `""` または `"none"` に切り替える。DOMを保持したい軽い表示切り替えに使う。
 
 生成方針:
 
@@ -256,59 +256,59 @@ boolean属性は `false` で削除し、`disabled`、`checked`、`selected`、`v
 ### コンテンツと静的化ディレクティブ
 
 ```mikuru
-<article v-html="trustedHtml"></article>
-<p v-text="message"></p>
-<code v-pre>{{ raw }}</code>
-<main v-cloak>{{ message }}</main>
+<article m-html="trustedHtml"></article>
+<p m-text="message"></p>
+<code m-pre>{{ raw }}</code>
+<main m-cloak>{{ message }}</main>
 ```
 
-`v-html` は式の値を `innerHTML` として入れる。値はサニタイズ済みであることを前提にする。`v-text` は `textContent` として入れるため、HTMLは文字列として扱われる。
+`m-html` は式の値を `innerHTML` として入れる。値はサニタイズ済みであることを前提にする。`m-text` は `textContent` として入れるため、HTMLは文字列として扱われる。
 
-`v-pre` は対象elementと子孫をコンパイル対象から外し、補間やディレクティブ風の属性を文字どおり出力する。`v-pre` 自体は出力しない。
+`m-pre` は対象elementと子孫をコンパイル対象から外し、補間やディレクティブ風の属性を文字どおり出力する。`m-pre` 自体は出力しない。
 
-`v-cloak` はSSRでは属性として残し、hydration後に外す。通常のDOM mountでは最初から属性を出さない。未hydrated状態をCSSで隠したい場合に使う。
+`m-cloak` はSSRでは属性として残し、hydration後に外す。通常のDOM mountでは最初から属性を出さない。未hydrated状態をCSSで隠したい場合に使う。
 
 ### 繰り返し
 
 ```mikuru
-<li v-for="item in items">{{ item.label }}</li>
-<li v-for="(item, index) of items">{{ index }}: {{ item.label }}</li>
-<li v-for="item in items" :key="item.id" v-memo="[item.version]">{{ item.label }}</li>
-<li v-for="item in items" :key="item.id" v-once>{{ item.label }}</li>
+<li m-for="item in items">{{ item.label }}</li>
+<li m-for="(item, index) of items">{{ index }}: {{ item.label }}</li>
+<li m-for="item in items" :key="item.id" m-memo="[item.version]">{{ item.label }}</li>
+<li m-for="item in items" :key="item.id" m-once>{{ item.label }}</li>
 ```
 
-`v-for` は配列から同じテンプレート断片を生成する。
-複数の兄弟要素を1つの繰り返し行として描画する場合は、実DOMを作らない `<template v-for>` を使える。`:key` を付けると兄弟要素のまとまりごとにrecordを再利用・移動する。keyなしの `<template v-for>` も使えるが、更新時はfragment全体を再生成する。
+`m-for` は配列から同じテンプレート断片を生成する。
+複数の兄弟要素を1つの繰り返し行として描画する場合は、実DOMを作らない `<template m-for>` を使える。`:key` を付けると兄弟要素のまとまりごとにrecordを再利用・移動する。keyなしの `<template m-for>` も使えるが、更新時はfragment全体を再生成する。
 
 ```mikuru
-<template v-for="item in items" :key="item.id">
+<template m-for="item in items" :key="item.id">
   <ItemRow :item="item" />
   <button @click="select(item)">Select</button>
   <span ref="sentinel"></span>
 </template>
 
-<template v-for="group in groups">
+<template m-for="group in groups">
   <h2>{{ group.name }}</h2>
-  <template v-if="group.items.length">
-    <template v-for="item in group.items">
+  <template m-if="group.items.length">
+    <template m-for="item in group.items">
       <p>{{ group.name }}: {{ item.label }}</p>
     </template>
   </template>
-  <template v-else>
+  <template m-else>
     <p>No items</p>
   </template>
 </template>
 ```
 
-`v-memo` は keyed `v-for` と組み合わせると、同じ key のrecordでmemo配列が変わらない間、そのrecordのitem/index更新をskipする。値は配列式である必要がある。
-`v-once` は通常のelement/componentでは初回だけ評価し、keyed `v-for` では空のmemo配列と同じようにreused recordの更新をskipする。
+`m-memo` は keyed `m-for` と組み合わせると、同じ key のrecordでmemo配列が変わらない間、そのrecordのitem/index更新をskipする。値は配列式である必要がある。
+`m-once` は通常のelement/componentでは初回だけ評価し、keyed `m-for` では空のmemo配列と同じようにreused recordの更新をskipする。
 
 制約:
 
 - `item in items`、`item of items`、`(item, index) in items`、`(item, index) of items` に対応する。
-- `:key` / `v-bind:key` は keyed DOM/component record reuse に使われる。
-- `<template v-for>` はDOMタグを出さず、子要素のまとまりを繰り返す。keyed record reuse はfragment全体に適用される。keyなしの場合は更新ごとにfragmentを再生成する。
-- `v-memo` と `v-once` は keyed record の更新skipに使われる。ネストした `v-for` の高度な最適化は後続課題にする。
+- `:key` / `m-bind:key` は keyed DOM/component record reuse に使われる。
+- `<template m-for>` はDOMタグを出さず、子要素のまとまりを繰り返す。keyed record reuse はfragment全体に適用される。keyなしの場合は更新ごとにfragmentを再生成する。
+- `m-memo` と `m-once` は keyed record の更新skipに使われる。ネストした `m-for` の高度な最適化は後続課題にする。
 
 ### コンポーネント
 
@@ -332,16 +332,16 @@ function select(value) {
 
 子要素はdefault slotとして `props.children` に渡される。子コンポーネント側では `<slot />` の位置に親から渡されたDOM断片を描画する。
 
-子コンポーネント側では `<slot name="header" />` でnamed slotを描画する。親コンポーネント側では `<template #header>` または `<template v-slot:header>` で渡す。動的なslot名は子側の `<slot :name="activeSlot" />` と親側の `<template v-slot:[activeSlot]>` / `<template #[activeSlot]>` で扱う。`<slot name="header" :title="title" />` のようにslot propsを渡し、親側では `<template #header="{ title }">`、`<template #header="{ title: heading }">`、`<template #header="{ title = 'Untitled' }">`、`<template #header="{ item: { title }, ...rest }">` のような識別子、単純な分割代入、default値つき分割代入、nested object、top-level restで受け取る。親がslotを渡さない場合は、`<slot>Fallback</slot>` の子要素をfallbackとして描画する。
+子コンポーネント側では `<slot name="header" />` でnamed slotを描画する。親コンポーネント側では `<template #header>` または `<template m-slot:header>` で渡す。動的なslot名は子側の `<slot :name="activeSlot" />` と親側の `<template m-slot:[activeSlot]>` / `<template #[activeSlot]>` で扱う。`<slot name="header" :title="title" />` のようにslot propsを渡し、親側では `<template #header="{ title }">`、`<template #header="{ title: heading }">`、`<template #header="{ title = 'Untitled' }">`、`<template #header="{ item: { title }, ...rest }">` のような識別子、単純な分割代入、default値つき分割代入、nested object、top-level restで受け取る。親がslotを渡さない場合は、`<slot>Fallback</slot>` の子要素をfallbackとして描画する。
 
 slot scopeの未対応パターンはコンパイルエラーにする。配列パターン、computed key、top-level以外のrest、object以外のnested patternは対象外。
 
 制約:
 
 - v1ではdefault importされたコンポーネントを想定する。
-- 静的属性と `:prop` / `v-bind:prop` をpropsとして渡す。
-- `@select="select"` / `v-on:select="select"` は `props.onSelect` として子へ渡す。
-- `v-model="value"` は `modelValue` と `onUpdateModelValue` を渡す。`v-model:title="title"` は `title` と `onUpdateTitle` を渡す。修飾子は `modelModifiers` または `titleModifiers` として渡す。
+- 静的属性と `:prop` / `m-bind:prop` をpropsとして渡す。
+- `@select="select"` / `m-on:select="select"` は `props.onSelect` として子へ渡す。
+- `m-model="value"` は `modelValue` と `onUpdateModelValue` を渡す。`m-model:title="title"` は `title` と `onUpdateTitle` を渡す。修飾子は `modelModifiers` または `titleModifiers` として渡す。
 - 専用emit API、動的コンポーネントは後続課題にする。
 
 ### Props宣言
@@ -403,7 +403,7 @@ function flip() {
 
 ```mikuru
 <template>
-  <button v-bind="attrs"><slot /></button>
+  <button m-bind="attrs"><slot /></button>
 </template>
 
 <script>
@@ -412,7 +412,7 @@ defineOptions({ inheritAttrs: false });
 </script>
 ```
 
-`useAttrs()` は親から渡されたDOM向けfallthrough属性を読むコンパイル専用API。`defineOptions({ inheritAttrs: false })` を書くとroot elementへの自動fallthroughを止め、`v-bind="attrs"` で任意の要素へ手動forwardできる。
+`useAttrs()` は親から渡されたDOM向けfallthrough属性を読むコンパイル専用API。`defineOptions({ inheritAttrs: false })` を書くとroot elementへの自動fallthroughを止め、`m-bind="attrs"` で任意の要素へ手動forwardできる。
 
 対応形式:
 
@@ -442,17 +442,17 @@ defineOptions({ inheritAttrs: false });
 </style>
 ```
 
-`<Transition>` は1つのelement/component child、または1つの `v-if` chainを受け取り、mount時に `fade-enter-from` / `fade-enter-active` / `fade-enter-to`、削除時に `fade-leave-from` / `fade-leave-active` / `fade-leave-to` を付け替える。`name` を省略すると `v` を使う。
+`<Transition>` は1つのelement/component child、または1つの `m-if` chainを受け取り、mount時に `fade-enter-from` / `fade-enter-active` / `fade-enter-to`、削除時に `fade-leave-from` / `fade-leave-active` / `fade-leave-to` を付け替える。`name` を省略すると `v` を使う。
 
 対応形式:
 
 - `<Transition><p>...</p></Transition>`
 - `<Transition name="fade">...</Transition>`
 - `<Transition :name="transitionName">...</Transition>`
-- `<Transition><p v-if="visible">...</p><p v-else>...</p></Transition>`
+- `<Transition><p m-if="visible">...</p><p m-else>...</p></Transition>`
 - `<Transition><component :is="current" /></Transition>`
 - `:appear="false"` で初回enter classを省略
-- `mode="out-in"` で `v-if` chainのleave後に次のbranchを描画
+- `mode="out-in"` で `m-if` chainのleave後に次のbranchを描画
 - `enter-from-class` / `enter-active-class` / `enter-to-class`
 - `leave-from-class` / `leave-active-class` / `leave-to-class`
 
@@ -472,11 +472,11 @@ class overrideを使うと、複数のTransitionで同じCSS classを共有で�
 
 ```mikuru
 <TransitionGroup name="row" tag="ul" move-class="row-moving">
-  <li v-for="item in items" :key="item.id">{{ item.label }}</li>
+  <li m-for="item in items" :key="item.id">{{ item.label }}</li>
 </TransitionGroup>
 ```
 
-`<TransitionGroup>` は1つのkeyed `v-for` childを受け取り、追加時に `row-enter-*`、削除時に `row-leave-*`、再配置時に `row-moving` または `row-move` を付ける。v1では wrapper `tag` を描画し、`tag` 未指定時は `span` を使う。対応属性は `name`、`tag`、`enter-from-class` / `enter-active-class` / `enter-to-class`、`leave-from-class` / `leave-active-class` / `leave-to-class`、`move-class`。
+`<TransitionGroup>` は1つのkeyed `m-for` childを受け取り、追加時に `row-enter-*`、削除時に `row-leave-*`、再配置時に `row-moving` または `row-move` を付ける。v1では wrapper `tag` を描画し、`tag` 未指定時は `span` を使う。対応属性は `name`、`tag`、`enter-from-class` / `enter-active-class` / `enter-to-class`、`leave-from-class` / `leave-active-class` / `leave-to-class`、`move-class`。
 
 ### Teleport
 
@@ -573,9 +573,9 @@ v1では、曖昧な構文を黙って無視しない。
 `<KeepAlive>` は1つの `<component :is>` childをcacheし、component typeを切り替えて戻った時に同じinstanceを再利用する。`include` / `exclude` はcomponentの `name` / `displayName` / `__name` / constructor nameに対して、comma区切りstring、array、`RegExp` で判定する。`:max` はcache上限を指定し、least recently used順に古いinstanceを破棄する。cache対象のgenerated componentでは `onActivated()` / `onDeactivated()` が使え、async componentもresolve後のchildへactivation状態を転送する。親componentのunmount時にはcache全体を破棄する。
 
 ```mikuru
-<Panel v-slot:header>
+<Panel m-slot:header>
   Header
 </Panel>
 ```
 
-コンポーネント本体に付けた `v-slot` はv1対象外。named slotは `<template #header>...</template>` または `<template v-slot:header>...</template>` で渡す。
+コンポーネント本体に付けた `m-slot` はv1対象外。named slotは `<template #header>...</template>` または `<template m-slot:header>...</template>` で渡す。

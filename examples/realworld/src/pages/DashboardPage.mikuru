@@ -15,12 +15,12 @@
     <section class="controls">
       <label class="field">
         <span>Search tasks</span>
-        <input v-model="search" placeholder="Search tasks" aria-label="Search tasks" />
+        <input m-model="search" placeholder="Search tasks" aria-label="Search tasks" />
       </label>
 
       <label class="field">
         <span>Owner</span>
-        <select v-model="owner" aria-label="Owner">
+        <select m-model="owner" aria-label="Owner">
           <option value="all">All</option>
           <option value="Compiler">Compiler</option>
           <option value="Runtime">Runtime</option>
@@ -32,13 +32,13 @@
     <form class="new-task" @submit.prevent="addTask">
       <label class="field">
         <span>New task</span>
-        <input v-model="newTitle" placeholder="New task title" aria-label="New task" :aria-invalid="titleError ? 'true' : 'false'" />
-        <small v-if="titleError" class="field-error">{{ titleError }}</small>
+        <input m-model="newTitle" placeholder="New task title" aria-label="New task" :aria-invalid="titleError ? 'true' : 'false'" />
+        <small m-if="titleError" class="field-error">{{ titleError }}</small>
       </label>
 
       <label class="field">
         <span>Owner</span>
-        <select v-model="newOwner" aria-label="New task owner">
+        <select m-model="newOwner" aria-label="New task owner">
           <option value="Compiler">Compiler</option>
           <option value="Runtime">Runtime</option>
           <option value="DX">DX</option>
@@ -50,14 +50,14 @@
 
     <InlineError :message="formError" />
 
-    <LoadingState v-if="loading" message="Loading release tasks..." />
-    <ErrorState v-else-if="loadError" :message="loadError" @retry="loadTasks" />
-    <section v-else-if="filteredTasks.length === 0" class="empty-state">
+    <LoadingState m-if="loading" message="Loading release tasks..." />
+    <ErrorState m-else-if="loadError" :message="loadError" @retry="loadTasks" />
+    <section m-else-if="filteredTasks.length === 0" class="empty-state">
       <strong>No tasks found</strong>
       <p>Try a different search term or owner filter.</p>
     </section>
-    <section v-else class="tasks" aria-label="Release tasks">
-      <TaskCard v-for="task in filteredTasks" :key="task.id" :task="task" />
+    <section m-else class="tasks" aria-label="Release tasks">
+      <TaskCard m-for="task in filteredTasks" :key="task.id" :task="task" />
     </section>
   </main>
 </template>

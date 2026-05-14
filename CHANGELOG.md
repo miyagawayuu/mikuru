@@ -2,11 +2,14 @@
 
 ## Unreleased
 
+- Added Mikuru-native `m-*` directive syntax across DOM rendering, SSR, and hydration while keeping `v-*` as compatibility aliases.
+- Added debug compiler warnings for `v-*` compatibility aliases, pointing users to the matching `m-*` directive spelling.
+- Updated README, docs, examples, and templates to present `m-*` as the recommended directive syntax.
 - Added shared Debug Inspector diagnostic payloads for compiler, runtime, router, SSR, and hydration warning/error events.
-- Added support for `<template v-if>` / `<template v-else-if>` / `<template v-else>` fragment branches across DOM rendering, SSR, and hydration.
-- Added support for keyed `<template v-for>` fragment rows across DOM rendering, SSR, and hydration.
-- Expanded `<template v-for>` coverage for unkeyed fragments, nested fragment loops, and nested `v-if` / `v-else` branches.
-- Added hydrated `v-for` reconciliation so element and `<template v-for>` lists can append, remove, replace, and recreate rows after SSR hydration.
+- Added support for `<template m-if>` / `<template m-else-if>` / `<template m-else>` fragment branches across DOM rendering, SSR, and hydration.
+- Added support for keyed `<template m-for>` fragment rows across DOM rendering, SSR, and hydration.
+- Expanded `<template m-for>` coverage for unkeyed fragments, nested fragment loops, and nested `m-if` / `m-else` branches.
+- Added hydrated `m-for` reconciliation so element and `<template m-for>` lists can append, remove, replace, and recreate rows after SSR hydration.
 
 ## 1.0.23 - 2026-05-13
 

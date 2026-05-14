@@ -119,6 +119,28 @@ const items = [{ label: "one" }, { label: "two & more" }];
     await expect(render()).resolves.toBe("<section class=\"card\" data-count=\"2\"><h1>SSR &lt;phase&gt;</h1><p>Ready &amp; &lt;script&gt;</p><ul><li data-index=\"0\">one</li><li data-index=\"1\">two &amp; more</li></ul></section>");
   });
 
+  it("renders m-* directive aliases in SSR output", async () => {
+    const result = compileSsr(`<template>
+  <section m-bind:data-count="items.length">
+    <p m-if="ready">Ready & {{ unsafe }}</p>
+    <p m-else>Waiting</p>
+    <ul>
+      <li m-for="(item, index) in items" m-bind:data-index="index">{{ item.label }}</li>
+    </ul>
+  </section>
+</template>
+
+<script>
+const ready = true;
+const unsafe = "<safe>";
+const items = [{ label: "one" }, { label: "two" }];
+</script>`);
+
+    const render = loadSsrRender(result.code);
+
+    await expect(render()).resolves.toBe("<section data-count=\"2\"><p>Ready &amp; &lt;safe&gt;</p><ul><li data-index=\"0\">one</li><li data-index=\"1\">two</li></ul></section>");
+  });
+
   it("renders template v-if branches as SSR fragments", async () => {
     const result = compileSsr(`<template>
   <section>

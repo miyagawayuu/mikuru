@@ -816,6 +816,56 @@ function toggle() {
     expect(button?.textContent).toBe("active");
   });
 
+  it("supports m-* directive aliases", () => {
+    const fixture = compileForDom(`<template>
+  <section m-bind:data-count="items.length">
+    <p m-if="visible">Visible</p>
+    <p m-else>Hidden</p>
+    <input m-model.trim="name" />
+    <button m-on:click="toggle">{{ name }}</button>
+    <span m-show="visible">shown</span>
+    <ul>
+      <li m-for="item in items" m-bind:key="item.id">{{ item.label }}</li>
+    </ul>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const visible = ref(true);
+const name = ref(" Ada ");
+const items = ref([{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }]);
+
+function toggle() {
+  visible.value = !visible.value;
+}
+</script>`);
+
+    fixture.module.mount(fixture.root);
+    const section = fixture.root.querySelector("section");
+    const input = fixture.root.querySelector("input") as HTMLInputElement | null;
+    const button = fixture.root.querySelector("button");
+
+    expect(section?.getAttribute("data-count")).toBe("2");
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Visible");
+    expect(input?.value).toBe(" Ada ");
+    expect(button?.textContent).toBe(" Ada ");
+    expect(fixture.root.querySelectorAll("li")).toHaveLength(2);
+
+    if (input) {
+      input.value = " Grace ";
+      input.dispatchEvent(createEvent(fixture.window, "input"));
+    }
+
+    expect(button?.textContent).toBe("Grace");
+
+    button?.dispatchEvent(createEvent(fixture.window, "click"));
+
+    expect(fixture.root.querySelector("p")?.textContent).toBe("Hidden");
+    expect((fixture.root.querySelector("span") as HTMLElement | null)?.style.display).toBe("none");
+  });
+
   it("supports object-form v-bind on DOM elements", () => {
     const fixture = compileForDom(`<template>
   <section>
@@ -2348,7 +2398,7 @@ const Card = {
     const fixture = compileForDom(`<template>
   <section>
     <Card>
-      <template v-slot:[activeSlot]="{ title }">
+      <template m-slot:[activeSlot]="{ title }">
         <h2>{{ title }}</h2>
       </template>
     </Card>

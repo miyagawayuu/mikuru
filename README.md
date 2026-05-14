@@ -132,23 +132,24 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `.mikuru` SFCs with `<template>`, `<script>`, and `<style>`
 - Vite plugin support through `mikuru/vite`
 - Template interpolation with `{{ value }}`
-- DOM events with `@click`, `v-on:click`, inline handlers, object-form option modifiers, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, `.passive`, key, mouse button, system, and `.exact` modifiers
+- DOM events with `@click`, `m-on:click`, inline handlers, object-form option modifiers, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, `.passive`, key, mouse button, system, and `.exact` modifiers
 - Component events with `@select` and `.once`
-- Attribute bindings with normalized `:class` and `:style`, boolean/form property sync, direct/object `v-bind` modifiers like `.prop`, `.attr`, and `.camel`, plus dynamic arguments like `:[name]` and `@[event]`
-- `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, `v-html`, `v-text`, `v-pre`, and `v-cloak`
-- `v-model` for common form controls, checkbox arrays, radio groups, multiple selects, modifiers, and named child component models
+- Attribute bindings with normalized `:class` and `:style`, boolean/form property sync, direct/object `m-bind` modifiers like `.prop`, `.attr`, and `.camel`, plus dynamic arguments like `:[name]` and `@[event]`
+- `m-if`, `m-else-if`, `m-else`, `m-show`, `m-for`, `m-html`, `m-text`, `m-pre`, and `m-cloak`
+- `m-model` for common form controls, checkbox arrays, radio groups, multiple selects, modifiers, and named child component models
+- `v-*` directive spellings remain available as compatibility aliases for existing components and Vue-oriented migrations
 - Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
-- CSS class transitions with built-in `<Transition name="fade">`, `v-if` chains, dynamic components, class overrides, `appear`, `mode="out-in"`, and `<TransitionGroup>` for keyed lists
+- CSS class transitions with built-in `<Transition name="fade">`, `m-if` chains, dynamic components, class overrides, `appear`, `mode="out-in"`, and `<TransitionGroup>` for keyed lists
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
 - Built-in `<AsyncBoundary :loading :fallback :delay :timeout>` for grouped async loading, delayed loading UI, boundary timeouts, and retryable async failures with aggregated fallback errors
 - Built-in `<ErrorBoundary :fallback>` for local component mount, descendant event handler, lifecycle, and cleanup fallbacks, with `errorInfo`, `retry`, `reset`, and `:reset-key` recovery
 - Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff and SSR loader resolution
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, and `RouterView` / `RouterLink` across mount, SSR, and hydration
-- SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `v-pre`, `v-cloak`, `v-if` chains, `v-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, string and async iterable stream rendering, and router route rendering with context propagation
-- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `v-show`, DOM and component `v-model`, `v-pre`, `v-cloak`, initial `v-if` / `v-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
+- SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `m-pre`, `m-cloak`, `m-if` chains, `m-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, string and async iterable stream rendering, and router route rendering with context propagation
+- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `m-show`, DOM and component `m-model`, `m-pre`, `m-cloak`, initial `m-if` / `m-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and basic `<style scoped>` selector rewriting
 - Compile errors with filenames, line/column information, code frames, and typo suggestions for built-in attributes, directives, and modifiers
-- Debug diagnostics with optional generated `sourceURL`, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context
+- Debug diagnostics with optional generated `sourceURL`, `v-*` compatibility warnings, unstable devtools metadata/events, and hydration warnings that include phase, component, and filename context
 
 ## Package Exports
 
@@ -199,8 +200,8 @@ npx mikuru --list-templates
 <template>
   <button @click="open = !open">Toggle</button>
   <Transition name="fade">
-    <p v-if="open">Saved changes</p>
-    <p v-else>Waiting for edits</p>
+    <p m-if="open">Saved changes</p>
+    <p m-else>Waiting for edits</p>
   </Transition>
 </template>
 
