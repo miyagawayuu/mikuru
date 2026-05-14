@@ -9,6 +9,7 @@ Use this checklist before publishing a Mikuru v1 release.
 - Run `npm run build:mikuru-sample`.
 - Run `npm run build:mikuru-vue-like`.
 - Confirm `npm run test:templates` passes so generated templates use the package version placeholder.
+- Confirm `npm run test:package` passes so public package exports, including `compileStyle()`, work from the packaged entry points.
 - Run `npm pack --dry-run` and confirm the tarball only includes package files.
 - Run `npm publish --dry-run` before the real publish.
 
@@ -58,7 +59,7 @@ Confirm these exports work from the packed package:
 1. Confirm `package.json` has the intended `version`.
 2. Confirm `repository`, `bugs`, and `homepage` metadata point to `https://github.com/miyagawayuu/mikuru`.
 3. Confirm `CHANGELOG.md` and `docs/release-notes-v1.md` describe the release.
-4. Run all required verification commands.
+4. Run all required verification commands, including the package usage smoke that imports and executes `compileStyle()`.
 5. Confirm the dogfood Debug Panel still covers component tree display, event filtering/search, event-to-component navigation, diagnostic detail display, diagnostic snapshot/copy fields, snapshot display/copy, and helper unit tests.
 6. Run `npm publish --dry-run`.
 7. Publish with `npm publish`.

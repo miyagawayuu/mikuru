@@ -3,8 +3,9 @@
 ## Unreleased
 
 - Improved scoped CSS rewriting with native CSS nesting, `@starting-style`, additional raw descriptor at-rules, and stronger `:deep(...)` / `:global(...)` parsing around attributes and functional pseudo-class arguments.
-- Added scoped CSS malformed-block diagnostics with offset, line, column, and one-line code frames, including nested CSS block locations.
-- Expanded the dogfood Debug Panel to show compiler/style diagnostic message, phase, location, and code frame details, with browser E2E coverage for that diagnostic UI.
+- Added scoped CSS malformed-block diagnostics with offset, line, column, and one-line code frames, including nested CSS block locations and debug `compiler:warning` style payloads.
+- Expanded the dogfood Debug Panel with compiler/style diagnostic message, phase, location, code frame details, event search coverage, and snapshot/copy coverage for diagnostic fields.
+- Added fixture-style scoped CSS compiler coverage and package usage smoke checks for public `compileStyle()` exports, scoped rewriting, and malformed diagnostic fields.
 
 ## 1.0.25 - 2026-05-15
 
