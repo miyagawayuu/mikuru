@@ -292,14 +292,92 @@ function findFunctionalPseudo(selector: string, name: string): { start: number; 
 }
 
 function findPreludeStart(css: string, searchStart: number, openIndex: number): number {
-  let index = openIndex - 1;
-  while (index >= searchStart && /\s/.test(css[index])) {
-    index -= 1;
+  let boundary = searchStart;
+  let quote: string | undefined;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let inComment = false;
+
+  for (let index = searchStart; index < openIndex; index += 1) {
+    const char = css[index];
+    const next = css[index + 1];
+    const previous = css[index - 1];
+
+    if (inComment) {
+      if (char === "*" && next === "/") {
+        inComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      inComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote && previous !== "\\") {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (char === "}" && parenDepth === 0 && bracketDepth === 0) {
+      boundary = index + 1;
+    }
   }
-  while (index >= searchStart && css[index] !== "}") {
-    index -= 1;
+
+  return skipCssIgnorablePrefix(css, boundary, openIndex);
+}
+
+function skipCssIgnorablePrefix(css: string, start: number, end: number): number {
+  let index = start;
+
+  while (index < end) {
+    while (index < end && /\s/.test(css[index])) {
+      index += 1;
+    }
+
+    if (css[index] === "/" && css[index + 1] === "*") {
+      const commentEnd = css.indexOf("*/", index + 2);
+      if (commentEnd === -1 || commentEnd + 2 > end) {
+        return start;
+      }
+      index = commentEnd + 2;
+      continue;
+    }
+
+    break;
   }
-  return index + 1;
+
+  return index;
 }
 
 function findNextTopLevelChar(source: string, target: string, start: number): number {

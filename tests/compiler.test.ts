@@ -294,6 +294,45 @@ p { color: red; }
     expect(result.code).toContain(".shell[data-mikuru-scope-test] .item:hover { color: blue; }");
   });
 
+  it("keeps comments and strings with CSS delimiters intact while scoping selectors", () => {
+    const result = compileStyle(
+      `
+/* comment with { braces } and, commas */
+.card[data-label="{a,b}"], .note::before {
+  content: "{hello, world}";
+  background-image: url("data:image/svg+xml,{still,one,value}");
+}
+@media (min-width: 40rem) {
+  /* nested comment with } and, */
+  .panel::after { content: "closing } brace, comma"; }
+}
+`,
+      { scoped: true, scopeAttr: "data-mikuru-scope-edge" }
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.code).toContain("/* comment with { braces } and, commas */");
+    expect(result.code).toContain(".card[data-label=\"{a,b}\"][data-mikuru-scope-edge], .note[data-mikuru-scope-edge]::before");
+    expect(result.code).toContain('content: "{hello, world}"');
+    expect(result.code).toContain('url("data:image/svg+xml,{still,one,value}")');
+    expect(result.code).toContain("/* nested comment with } and, */");
+    expect(result.code).toContain('.panel[data-mikuru-scope-edge]::after { content: "closing } brace, comma"; }');
+  });
+
+  it("reports a diagnostic and preserves CSS when a scoped block is missing a closing brace", () => {
+    const source = `.card { color: red;\n.note { color: blue; }`;
+    const result = compileStyle(source, { scoped: true, scopeAttr: "data-mikuru-scope-broken" });
+
+    expect(result.code).toBe(source);
+    expect(result.diagnostics).toEqual([
+      {
+        level: "warning",
+        message: "Could not scope a CSS rule because its block is missing a closing brace.",
+        offset: 6
+      }
+    ]);
+  });
+
   it("emits style injection metadata for devtools in debug builds", () => {
     const result = compile(`<template><section>Hello</section></template><style scoped>section { color: red; }</style>`, {
       debug: true,
