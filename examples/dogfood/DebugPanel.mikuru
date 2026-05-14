@@ -28,6 +28,14 @@
             <button @click="collapseAllComponents">Collapse all</button>
           </div>
         </div>
+        <div class="debug-search">
+          <input
+            aria-label="Component search"
+            placeholder="Search components"
+            m-model="componentSearch"
+          />
+          <button m-if="componentSearch" @click="clearComponentSearch">Clear search</button>
+        </div>
         <ul m-if="components.length > 0" class="debug-list">
           <li m-for="component in components" :key="component.id">
             <div class="debug-component-item" :style="{ paddingLeft: component.indent }">
@@ -94,7 +102,15 @@
       </section>
 
       <section class="debug-section debug-events">
-        <h3>Events {{ filteredEvents.length }} / {{ componentFilteredEvents.length }}</h3>
+        <h3>Events {{ filteredEvents.length }} / {{ searchedEvents.length }}</h3>
+        <div class="debug-search">
+          <input
+            aria-label="Event search"
+            placeholder="Search events"
+            m-model="eventSearch"
+          />
+          <button m-if="eventSearch" @click="clearEventSearch">Clear search</button>
+        </div>
         <p m-if="componentEventFilterLabel" class="debug-filter-note">{{ componentEventFilterLabel }}</p>
         <ol m-if="filteredEvents.length > 0" class="debug-event-list">
           <li m-for="event in filteredEvents" :key="event.id">
@@ -137,7 +153,7 @@
 </template>
 
 <script>
-import { computed, createDebugInspector, onBeforeUnmount, ref } from "mikuru/runtime";
+import { computed, createDebugInspector, onBeforeUnmount, ref, watch } from "mikuru/runtime";
 
 const inspector = createDebugInspector();
 const allComponents = ref([]);
@@ -149,6 +165,8 @@ const eventFilter = ref("all");
 const componentEventFilterId = ref(undefined);
 const hideBackgroundEventsAfterClear = ref(false);
 const collapsedIds = ref(new Set());
+const componentSearch = ref("");
+const eventSearch = ref("");
 
 const selected = computed(() =>
   allComponents.value.find((component) => component.id === selectedId.value) ?? components.value[0]
@@ -158,8 +176,12 @@ const componentFilteredEvents = computed(() =>
   allEvents.value.filter((event) => componentEventFilterId.value === undefined || event.componentId === componentEventFilterId.value)
 );
 
+const searchedEvents = computed(() =>
+  componentFilteredEvents.value.filter((event) => matchesEventSearch(event, eventSearch.value))
+);
+
 const filteredEvents = computed(() =>
-  componentFilteredEvents.value.filter((event) => eventFilter.value === "all" || event.category === eventFilter.value)
+  searchedEvents.value.filter((event) => eventFilter.value === "all" || event.category === eventFilter.value)
 );
 
 const selectedEvent = computed(() =>
@@ -308,6 +330,21 @@ function flattenComponentTree(tree, stylesByComponent, eventsByComponent, depth 
 }
 
 function filterVisibleComponents(rows) {
+  const query = normalizeSearch(componentSearch.value);
+  if (query) {
+    const matchingIds = new Set(rows.filter((component) => matchesComponentSearch(component, query)).map((component) => component.id));
+    const visibleIds = new Set(matchingIds);
+    for (const id of matchingIds) {
+      let parentId = rows.find((component) => component.id === id)?.parentId;
+      while (parentId !== undefined) {
+        visibleIds.add(parentId);
+        parentId = rows.find((component) => component.id === parentId)?.parentId;
+      }
+    }
+
+    return rows.filter((component) => visibleIds.has(component.id));
+  }
+
   return rows.filter((component) => {
     let parentId = component.parentId;
     while (parentId !== undefined) {
@@ -320,6 +357,38 @@ function filterVisibleComponents(rows) {
 
     return true;
   });
+}
+
+function normalizeSearch(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function matchesComponentSearch(component, query) {
+  return [
+    component.name,
+    component.filename,
+    component.rootLabel,
+    component.rootPath,
+    component.propKeys,
+    component.attrKeys,
+    component.styleIds,
+    component.scopeAttrs
+  ].some((value) => String(value ?? "").toLowerCase().includes(query));
+}
+
+function matchesEventSearch(event, value) {
+  const query = normalizeSearch(value);
+  if (!query) {
+    return true;
+  }
+
+  return [
+    event.type,
+    event.summary,
+    event.category,
+    event.componentLabel,
+    event.payloadText
+  ].some((item) => String(item ?? "").toLowerCase().includes(query));
 }
 
 function formatEventBreakdown(counts) {
@@ -406,7 +475,7 @@ function isForegroundEvent(event) {
 }
 
 function countEvents(category) {
-  return componentFilteredEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
+  return searchedEvents.value.filter((event) => category === "error" ? event.level === "warning" : event.category === category).length;
 }
 
 function formatError(error) {
@@ -554,6 +623,16 @@ function clearComponentEventFilter() {
   selectedEventId.value = undefined;
 }
 
+function clearComponentSearch() {
+  componentSearch.value = "";
+  components.value = filterVisibleComponents(allComponents.value);
+}
+
+function clearEventSearch() {
+  eventSearch.value = "";
+  selectedEventId.value = undefined;
+}
+
 function toggleComponent(id) {
   const next = new Set(collapsedIds.value);
   if (next.has(id)) {
@@ -625,12 +704,17 @@ function revealSelectedRoot() {
 function clearEvents() {
   inspector.clearEvents();
   componentEventFilterId.value = undefined;
+  eventSearch.value = "";
   hideBackgroundEventsAfterClear.value = true;
   snapshot();
 }
 
 const unsubscribe = inspector.subscribe(snapshot);
+const stopComponentSearch = watch(componentSearch, () => {
+  components.value = filterVisibleComponents(allComponents.value);
+});
 onBeforeUnmount(unsubscribe);
+onBeforeUnmount(stopComponentSearch);
 snapshot();
 </script>
 
@@ -663,7 +747,7 @@ snapshot();
 }
 
 .debug-actions {
-  grid-template-columns: repeat(2, minmax(0, max-content));
+  grid-template-columns: repeat(auto-fit, minmax(0, max-content));
 }
 
 .debug-header h2,
@@ -679,6 +763,21 @@ snapshot();
   grid-template-columns: 1fr auto;
   gap: 10px;
   align-items: center;
+}
+
+.debug-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.debug-search input {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  color: inherit;
+  background: #ffffff;
 }
 
 .debug-grid {
@@ -831,6 +930,7 @@ snapshot();
   .debug-filters,
   .debug-actions,
   .debug-section-title,
+  .debug-search,
   .debug-grid {
     grid-template-columns: 1fr;
   }

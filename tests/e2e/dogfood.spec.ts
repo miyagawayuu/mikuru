@@ -159,6 +159,11 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText("component:register").first()).toBeVisible();
   await panel.getByRole("button", { name: "Collapse all" }).click();
   await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/)).toHaveCount(0);
+  await panel.getByLabel("Component search").fill("DebugPanel");
+  await expect(panel.getByText(/root #\d+ .*App\.mikuru/).first()).toBeVisible();
+  await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/).first()).toBeVisible();
+  await panel.getByRole("button", { name: "Clear search" }).click();
+  await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/)).toHaveCount(0);
   await panel.getByRole("button", { name: "Expand all" }).click();
   await expect(panel.getByText(/child #\d+ .*DebugPanel\.mikuru/).first()).toBeVisible();
 
@@ -181,8 +186,13 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await expect(panel.getByText(/Filtered by #/)).toHaveCount(0);
 
   await panel.locator(".debug-filters").getByRole("button", { name: /Style/ }).click();
+  await panel.getByLabel("Event search").fill("scoped");
   await expect(panel.getByText("style:inject").first()).toBeVisible();
   await expect(panel.getByText(/mikuru-.*scoped/).first()).toBeVisible();
+  await panel.getByLabel("Event search").fill("route:navigate");
+  await expect(panel.getByText("No matching debug events.")).toBeVisible();
+  await panel.getByRole("button", { name: "Clear search" }).click();
+  await expect(panel.getByText("style:inject").first()).toBeVisible();
   await panel.getByText("style:inject").first().click();
   await expect(panel.getByRole("button", { name: "Select component" })).toBeVisible();
   await panel.getByRole("button", { name: "Select component" }).click();
