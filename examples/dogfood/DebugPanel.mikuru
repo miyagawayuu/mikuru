@@ -149,6 +149,7 @@ function snapshot() {
       id: `${event.timestamp}-${index}-${event.type}`,
       type: event.type,
       category: categorizeEvent(event),
+      componentId: event.payload?.componentId,
       level: isErrorEvent(event) ? "warning" : "info",
       time: new Date(event.timestamp).toLocaleTimeString(),
       summary: summarizeEvent(event),
@@ -224,7 +225,7 @@ function summarizeEvent(event) {
     const style = payload.style ?? {};
     const scoped = style.scoped ? "scoped" : "global";
     const size = typeof style.length === "number" ? `${style.length} chars` : "unknown size";
-    return `${style.id ?? "style"} (${scoped}, ${size})`;
+    return `${formatFilename(payload.component?.filename)}: ${style.id ?? "style"} (${scoped}, ${size})`;
   }
 
   if (event.type === "hydration:warning") {
@@ -302,6 +303,14 @@ function formatError(error) {
   return error.message ?? String(error);
 }
 
+function formatFilename(filename) {
+  if (!filename) {
+    return "unknown";
+  }
+
+  return String(filename).split(/[\\/]/).pop() ?? String(filename);
+}
+
 function stringifyPayload(payload) {
   return JSON.stringify(payload, (_key, value) => {
     if (value instanceof Error) {
@@ -334,6 +343,10 @@ function selectComponent(id) {
 
 function selectEvent(id) {
   selectedEventId.value = id;
+  const event = filteredEvents.value.find((item) => item.id === id);
+  if (event?.componentId && components.value.some((component) => component.id === event.componentId)) {
+    selectedId.value = event.componentId;
+  }
 }
 
 function setEventFilter(filter) {

@@ -163,6 +163,8 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await panel.locator(".debug-filters").getByRole("button", { name: /Style/ }).click();
   await expect(panel.getByText("style:inject").first()).toBeVisible();
   await expect(panel.getByText(/mikuru-.*scoped/).first()).toBeVisible();
+  await panel.getByText("style:inject").first().click();
+  await expect(panel.locator(".debug-detail").filter({ hasText: /data-mikuru-scope-/ }).first()).toBeVisible();
 
   await panel.getByRole("button", { name: "Clear events" }).click();
   await expect(panel.getByText("No matching debug events.")).toBeVisible();
