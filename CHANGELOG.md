@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.29 - 2026-05-15
+
+- Fixed `MikuruVideoPlayer` and `MikuruAudioPlayer` unmount handling so media events fired while a modal or conditional branch is being removed no longer update component refs recursively.
+- Handled aborted `play()` promises during media player teardown to avoid uncaught browser `AbortError` / `DOMException` noise when closing a sample video quickly.
+
 ## 1.0.28 - 2026-05-15
 
 - Added package-exported Mikuru video player, audio player, image viewer, modal, carousel, toast, dropdown, tooltip, progress, and code block components with custom controls, template refs, lifecycle cleanup, keyboard-accessible seeking/navigation, volume, mute, playback rate, stop, fullscreen, close/select/dismiss events, progress states, and copy actions.

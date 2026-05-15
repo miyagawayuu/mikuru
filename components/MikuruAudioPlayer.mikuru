@@ -49,7 +49,7 @@
 </template>
 
 <script>
-import { computed, onMounted, ref } from "mikuru";
+import { computed, onBeforeUnmount, onMounted, ref } from "mikuru";
 
 const {
   src,
@@ -76,16 +76,23 @@ const initials = computed(() => {
   const words = title.value.split(" ").filter(Boolean);
   return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "M";
 });
+let isDisposed = false;
 
 onMounted(() => {
   applyAudioSettings();
 });
 
+onBeforeUnmount(() => {
+  isDisposed = true;
+});
+
 function getMedia() {
+  if (isDisposed) return null;
   return mediaEl.value;
 }
 
 function syncMedia() {
+  if (isDisposed) return;
   const media = getMedia();
   if (!media) return;
   currentTime.value = media.currentTime || 0;
@@ -95,6 +102,7 @@ function syncMedia() {
 }
 
 function applyAudioSettings() {
+  if (isDisposed) return;
   const media = getMedia();
   if (!media) return;
   media.volume = volume.value;
@@ -102,10 +110,12 @@ function applyAudioSettings() {
 }
 
 function markPlaying() {
+  if (isDisposed) return;
   isPlaying.value = true;
 }
 
 function markPaused() {
+  if (isDisposed) return;
   isPlaying.value = false;
 }
 
@@ -113,13 +123,20 @@ async function togglePlayback() {
   const media = getMedia();
   if (!media) return;
   if (media.paused) {
-    await media.play();
+    try {
+      await media.play();
+    } catch (error) {
+      if (!isDisposed && error?.name !== "AbortError") {
+        throw error;
+      }
+    }
     return;
   }
   media.pause();
 }
 
 function seek(event) {
+  if (isDisposed) return;
   const media = getMedia();
   const nextTime = Number(event.target.value);
   currentTime.value = nextTime;
@@ -129,6 +146,7 @@ function seek(event) {
 }
 
 function setVolume(event) {
+  if (isDisposed) return;
   const nextVolume = Number(event.target.value);
   volume.value = nextVolume;
   muted.value = nextVolume === 0;
@@ -136,6 +154,7 @@ function setVolume(event) {
 }
 
 function toggleMute() {
+  if (isDisposed) return;
   muted.value = !muted.value;
   applyAudioSettings();
 }
@@ -149,6 +168,7 @@ function skipForward() {
 }
 
 function skipBy(offset) {
+  if (isDisposed) return;
   const media = getMedia();
   if (!media) return;
   const nextTime = Math.min(Math.max(media.currentTime + offset, 0), safeDuration.value || media.currentTime + offset);

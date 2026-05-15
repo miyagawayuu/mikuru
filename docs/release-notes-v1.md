@@ -73,6 +73,11 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases should preserve supported syntax and generated runtime contracts. Unsupported syntax should fail loudly at compile time.
 
+## Patch 1.0.29
+
+- Fixes `MikuruVideoPlayer.mikuru` and `MikuruAudioPlayer.mikuru` teardown guards so media events fired during conditional unmounts do not recursively update refs while the component is being removed.
+- Catches aborted media `play()` promises during teardown so closing a modal with an active sample video does not surface uncaught browser `DOMException` errors.
+
 ## Patch 1.0.28
 
 - Adds package-exported `MikuruVideoPlayer.mikuru`, `MikuruAudioPlayer.mikuru`, `MikuruImageViewer.mikuru`, `MikuruModal.mikuru`, `MikuruCarousel.mikuru`, `MikuruToast.mikuru`, `MikuruDropdown.mikuru`, `MikuruToolTip.mikuru`, `MikuruProgress.mikuru`, and `MikuruCodeBlock.mikuru` components that exercise template refs, lifecycle callbacks, component events, slots, computed styles, pointer handling, fullscreen, progress states, clipboard actions, and keyboard-accessible custom controls.

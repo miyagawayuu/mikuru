@@ -92,7 +92,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted, ref } from "mikuru";
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from "mikuru";
 
 const {
   src,
@@ -130,10 +130,17 @@ const seekStyle = computed(() => "--progress: " + seekProgress.value + "%");
 const playLabel = computed(() => isPlaying.value ? "Pause video" : "Play video");
 const muteLabel = computed(() => muted.value ? "Unmute video" : "Mute video");
 const rates = [1, 1.25, 1.5, 2, 0.75];
+let isDisposed = false;
 
 onMounted(() => {
   applyAudioSettings();
   document.addEventListener("fullscreenchange", updateFullscreen);
+});
+
+onBeforeUnmount(() => {
+  isDisposed = true;
+  isSeeking.value = false;
+  pointerInside.value = false;
 });
 
 onUnmounted(() => {
@@ -141,10 +148,12 @@ onUnmounted(() => {
 });
 
 function getMedia() {
+  if (isDisposed) return null;
   return mediaEl.value;
 }
 
 function syncMedia() {
+  if (isDisposed) return;
   const media = getMedia();
   if (!media) return;
   currentTime.value = media.currentTime || 0;
@@ -155,6 +164,7 @@ function syncMedia() {
 }
 
 function applyAudioSettings() {
+  if (isDisposed) return;
   const media = getMedia();
   if (!media) return;
   media.volume = volume.value;
@@ -163,16 +173,19 @@ function applyAudioSettings() {
 }
 
 function markPlaying() {
+  if (isDisposed) return;
   isPlaying.value = true;
   controlsVisible.value = pointerInside.value;
 }
 
 function markPaused() {
+  if (isDisposed) return;
   isPlaying.value = false;
   controlsVisible.value = true;
 }
 
 function updateFullscreen() {
+  if (isDisposed) return;
   isFullscreen.value = document.fullscreenElement === screenEl.value || document.fullscreenElement === mediaEl.value;
 }
 
@@ -180,7 +193,13 @@ async function togglePlayback() {
   const media = getMedia();
   if (!media) return;
   if (media.paused) {
-    await media.play();
+    try {
+      await media.play();
+    } catch (error) {
+      if (!isDisposed && error?.name !== "AbortError") {
+        throw error;
+      }
+    }
     return;
   }
   media.pause();
@@ -194,6 +213,7 @@ function getPointerTime(event) {
 }
 
 function seekTo(nextTime) {
+  if (isDisposed) return;
   const media = getMedia();
   currentTime.value = nextTime;
   if (media) {
@@ -206,6 +226,7 @@ function seekFromPointer(event) {
 }
 
 function startSeek(event) {
+  if (isDisposed) return;
   isSeeking.value = true;
   controlsVisible.value = true;
   event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -213,11 +234,13 @@ function startSeek(event) {
 }
 
 function dragSeek(event) {
+  if (isDisposed) return;
   if (!isSeeking.value) return;
   seekFromPointer(event);
 }
 
 function endSeek(event) {
+  if (isDisposed) return;
   if (!isSeeking.value) return;
   isSeeking.value = false;
   event.currentTarget.releasePointerCapture?.(event.pointerId);
@@ -225,17 +248,20 @@ function endSeek(event) {
 }
 
 function showControls() {
+  if (isDisposed) return;
   pointerInside.value = true;
   controlsVisible.value = true;
 }
 
 function hideControls() {
+  if (isDisposed) return;
   pointerInside.value = false;
   if (!isPlaying.value || isSeeking.value) return;
   controlsVisible.value = false;
 }
 
 function seekWithKeyboard(event) {
+  if (isDisposed) return;
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") {
     return;
   }
@@ -256,6 +282,7 @@ function seekWithKeyboard(event) {
 }
 
 function stopPlayback() {
+  if (isDisposed) return;
   const media = getMedia();
   if (!media) return;
   media.pause();
@@ -265,6 +292,7 @@ function stopPlayback() {
 }
 
 function setVolume(event) {
+  if (isDisposed) return;
   const nextVolume = Number(event.target.value);
   volume.value = nextVolume;
   muted.value = nextVolume === 0;
@@ -272,17 +300,20 @@ function setVolume(event) {
 }
 
 function toggleMute() {
+  if (isDisposed) return;
   muted.value = !muted.value;
   applyAudioSettings();
 }
 
 function cycleRate() {
+  if (isDisposed) return;
   const currentIndex = rates.indexOf(playbackRate.value);
   playbackRate.value = rates[(currentIndex + 1) % rates.length];
   applyAudioSettings();
 }
 
 function toggleFullscreen() {
+  if (isDisposed) return;
   if (document.fullscreenElement) {
     document.exitFullscreen?.();
     return;
