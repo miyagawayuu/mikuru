@@ -31,13 +31,11 @@
       <div class="controls">
         <button type="button" @click="skipBackward">-10</button>
         <button class="primary" type="button" @click="togglePlayback" :aria-label="playLabel">
-          <span m-if="isPlaying">Pause</span>
-          <span m-else>Play</span>
+          <span>{{ playText }}</span>
         </button>
         <button type="button" @click="skipForward">+10</button>
         <button type="button" @click="toggleMute" :aria-label="muteLabel">
-          <span m-if="muted">Muted</span>
-          <span m-else>Sound</span>
+          <span>Sound</span>
         </button>
         <label class="volume">
           <span>Volume</span>
@@ -72,11 +70,13 @@ const isPlaying = ref(false);
 const safeDuration = computed(() => duration.value > 0 ? duration.value : 0);
 const playLabel = computed(() => isPlaying.value ? "Pause audio" : "Play audio");
 const muteLabel = computed(() => muted.value ? "Unmute audio" : "Mute audio");
+const playText = computed(() => isPlaying.value ? "Pause" : "Play");
 const initials = computed(() => {
   const words = title.value.split(" ").filter(Boolean);
   return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "M";
 });
 let isDisposed = false;
+let ignoreMediaEventsUntil = 0;
 
 onMounted(() => {
   applyAudioSettings();
@@ -91,14 +91,20 @@ function getMedia() {
   return mediaEl.value;
 }
 
+function ignoreMediaEventsFor(ms) {
+  ignoreMediaEventsUntil = performance.now() + ms;
+}
+
+function shouldIgnoreMediaEvent() {
+  return performance.now() < ignoreMediaEventsUntil;
+}
+
 function syncMedia() {
-  if (isDisposed) return;
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
   const media = getMedia();
   if (!media) return;
   currentTime.value = media.currentTime || 0;
   duration.value = Number.isFinite(media.duration) ? media.duration : 0;
-  volume.value = media.volume;
-  muted.value = media.muted;
 }
 
 function applyAudioSettings() {
@@ -110,12 +116,12 @@ function applyAudioSettings() {
 }
 
 function markPlaying() {
-  if (isDisposed) return;
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = true;
 }
 
 function markPaused() {
-  if (isDisposed) return;
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = false;
 }
 
@@ -126,7 +132,7 @@ async function togglePlayback() {
     try {
       await media.play();
     } catch (error) {
-      if (!isDisposed && error?.name !== "AbortError") {
+      if (error?.name !== "AbortError") {
         throw error;
       }
     }
@@ -148,15 +154,26 @@ function seek(event) {
 function setVolume(event) {
   if (isDisposed) return;
   const nextVolume = Number(event.target.value);
-  volume.value = nextVolume;
-  muted.value = nextVolume === 0;
-  applyAudioSettings();
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    const media = getMedia();
+    if (!media) return;
+    media.volume = nextVolume;
+    media.muted = nextVolume === 0;
+  }, 0);
 }
 
-function toggleMute() {
+function toggleMute(event) {
   if (isDisposed) return;
-  muted.value = !muted.value;
-  applyAudioSettings();
+  const button = event.currentTarget;
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    const media = getMedia();
+    if (!media) return;
+    media.muted = !media.muted;
+    button.textContent = media.muted ? "Muted" : "Sound";
+    button.setAttribute("aria-label", media.muted ? "Unmute audio" : "Mute audio");
+  }, 0);
 }
 
 function skipBackward() {
@@ -172,8 +189,12 @@ function skipBy(offset) {
   const media = getMedia();
   if (!media) return;
   const nextTime = Math.min(Math.max(media.currentTime + offset, 0), safeDuration.value || media.currentTime + offset);
-  media.currentTime = nextTime;
-  currentTime.value = nextTime;
+  ignoreMediaEventsFor(100);
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    media.currentTime = nextTime;
+    currentTime.value = nextTime;
+  }, 0);
 }
 
 function formatTime(seconds) {

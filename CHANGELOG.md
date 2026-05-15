@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.30 - 2026-05-15
+
+- Hardened `MikuruVideoPlayer` controls so stop, mute, playback speed, seeking, and modal close operations do not trigger recursive updates while browser media events are firing.
+- Kept media button UI stable by avoiding reactive branch swaps for player control icons and deferring non-play media operations out of the click event stack.
+
 ## 1.0.29 - 2026-05-15
 
 - Fixed `MikuruVideoPlayer` and `MikuruAudioPlayer` unmount handling so media events fired while a modal or conditional branch is being removed no longer update component refs recursively.

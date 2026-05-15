@@ -32,8 +32,7 @@
       </div>
 
       <button class="center-toggle" type="button" @click="togglePlayback" :aria-label="playLabel">
-        <span m-if="isPlaying" class="fa-icon icon-pause large" aria-hidden="true"></span>
-        <span m-else class="fa-icon icon-play large" aria-hidden="true"></span>
+        <span class="fa-icon large" :class="playIconClass" aria-hidden="true"></span>
       </button>
 
       <div class="control-shelf">
@@ -61,15 +60,13 @@
         <div class="control-row">
           <div class="left-controls">
             <button class="icon-button" type="button" @click="togglePlayback" :aria-label="playLabel">
-              <span m-if="isPlaying" class="fa-icon icon-pause" aria-hidden="true"></span>
-              <span m-else class="fa-icon icon-play" aria-hidden="true"></span>
+              <span class="fa-icon" :class="playIconClass" aria-hidden="true"></span>
             </button>
             <button class="icon-button" type="button" @click="stopPlayback" aria-label="Stop video">
               <span class="fa-icon icon-stop" aria-hidden="true"></span>
             </button>
             <button class="icon-button" type="button" @click="toggleMute" :aria-label="muteLabel">
-              <span m-if="muted" class="fa-icon icon-mute" aria-hidden="true"></span>
-              <span m-else class="fa-icon icon-volume" aria-hidden="true"></span>
+              <span class="fa-icon icon-volume" aria-hidden="true"></span>
             </button>
             <label class="volume">
               <span>Volume</span>
@@ -79,10 +76,9 @@
           </div>
 
           <div class="right-controls">
-            <button class="pill-button" type="button" @click="cycleRate">{{ playbackRate }}x</button>
+            <button class="pill-button" type="button" @click="cycleRate" aria-label="Change playback speed">1x</button>
             <button class="icon-button fullscreen-button" type="button" @click="toggleFullscreen" aria-label="Fullscreen">
-              <span m-if="isFullscreen" class="fa-icon icon-minimize" aria-hidden="true"></span>
-              <span m-else class="fa-icon icon-maximize" aria-hidden="true"></span>
+              <span class="fa-icon" :class="fullscreenIconClass" aria-hidden="true"></span>
             </button>
           </div>
         </div>
@@ -119,7 +115,6 @@ const isFullscreen = ref(false);
 const isSeeking = ref(false);
 const pointerInside = ref(false);
 const controlsVisible = ref(true);
-const playbackRate = ref(1);
 const safeDuration = computed(() => duration.value > 0 ? duration.value : 0);
 const seekProgress = computed(() => {
   if (safeDuration.value <= 0) return 0;
@@ -129,8 +124,13 @@ const seekProgress = computed(() => {
 const seekStyle = computed(() => "--progress: " + seekProgress.value + "%");
 const playLabel = computed(() => isPlaying.value ? "Pause video" : "Play video");
 const muteLabel = computed(() => muted.value ? "Unmute video" : "Mute video");
+const playIconClass = computed(() => isPlaying.value ? "icon-pause" : "icon-play");
+const fullscreenIconClass = computed(() => isFullscreen.value ? "icon-minimize" : "icon-maximize");
 const rates = [1, 1.25, 1.5, 2, 0.75];
+let playbackRate = 1;
+let rateIndex = 0;
 let isDisposed = false;
+let ignoreMediaEventsUntil = 0;
 
 onMounted(() => {
   applyAudioSettings();
@@ -152,15 +152,20 @@ function getMedia() {
   return mediaEl.value;
 }
 
+function ignoreMediaEventsFor(ms) {
+  ignoreMediaEventsUntil = performance.now() + ms;
+}
+
+function shouldIgnoreMediaEvent() {
+  return performance.now() < ignoreMediaEventsUntil;
+}
+
 function syncMedia() {
-  if (isDisposed) return;
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
   const media = getMedia();
   if (!media) return;
   currentTime.value = media.currentTime || 0;
   duration.value = Number.isFinite(media.duration) ? media.duration : 0;
-  volume.value = media.volume;
-  muted.value = media.muted;
-  playbackRate.value = media.playbackRate;
 }
 
 function applyAudioSettings() {
@@ -169,17 +174,17 @@ function applyAudioSettings() {
   if (!media) return;
   media.volume = volume.value;
   media.muted = muted.value;
-  media.playbackRate = playbackRate.value;
+  media.playbackRate = playbackRate;
 }
 
 function markPlaying() {
-  if (isDisposed) return;
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = true;
   controlsVisible.value = pointerInside.value;
 }
 
 function markPaused() {
-  if (isDisposed) return;
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = false;
   controlsVisible.value = true;
 }
@@ -196,7 +201,7 @@ async function togglePlayback() {
     try {
       await media.play();
     } catch (error) {
-      if (!isDisposed && error?.name !== "AbortError") {
+      if (error?.name !== "AbortError") {
         throw error;
       }
     }
@@ -283,33 +288,56 @@ function seekWithKeyboard(event) {
 
 function stopPlayback() {
   if (isDisposed) return;
-  const media = getMedia();
-  if (!media) return;
-  media.pause();
-  media.currentTime = 0;
-  currentTime.value = 0;
-  isPlaying.value = false;
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    const media = getMedia();
+    if (!media) return;
+    ignoreMediaEventsFor(300);
+    media.pause();
+    media.currentTime = 0;
+  }, 0);
 }
 
 function setVolume(event) {
   if (isDisposed) return;
   const nextVolume = Number(event.target.value);
-  volume.value = nextVolume;
-  muted.value = nextVolume === 0;
-  applyAudioSettings();
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    const media = getMedia();
+    if (!media) return;
+    media.volume = nextVolume;
+    media.muted = nextVolume === 0;
+  }, 0);
 }
 
-function toggleMute() {
+function toggleMute(event) {
   if (isDisposed) return;
-  muted.value = !muted.value;
-  applyAudioSettings();
+  const button = event.currentTarget;
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    const media = getMedia();
+    if (!media) return;
+    media.muted = !media.muted;
+    const icon = button.querySelector(".fa-icon");
+    icon?.classList.toggle("icon-volume", !media.muted);
+    icon?.classList.toggle("icon-mute", media.muted);
+    button.setAttribute("aria-label", media.muted ? "Unmute video" : "Mute video");
+  }, 0);
 }
 
-function cycleRate() {
+function cycleRate(event) {
   if (isDisposed) return;
-  const currentIndex = rates.indexOf(playbackRate.value);
-  playbackRate.value = rates[(currentIndex + 1) % rates.length];
-  applyAudioSettings();
+  const button = event.currentTarget;
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    rateIndex = (rateIndex + 1) % rates.length;
+    playbackRate = rates[rateIndex];
+    const media = getMedia();
+    if (media) {
+      media.playbackRate = playbackRate;
+    }
+    button.textContent = playbackRate + "x";
+  }, 0);
 }
 
 function toggleFullscreen() {

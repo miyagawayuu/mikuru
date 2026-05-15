@@ -73,6 +73,11 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases should preserve supported syntax and generated runtime contracts. Unsupported syntax should fail loudly at compile time.
 
+## Patch 1.0.30
+
+- Hardens `MikuruVideoPlayer.mikuru` controls so stop, mute, playback speed, seeking, and modal close operations avoid recursive updates while browser media events are firing.
+- Keeps media control buttons stable by avoiding reactive branch swaps for player control icons and deferring non-play media operations out of the click event stack.
+
 ## Patch 1.0.29
 
 - Fixes `MikuruVideoPlayer.mikuru` and `MikuruAudioPlayer.mikuru` teardown guards so media events fired during conditional unmounts do not recursively update refs while the component is being removed.
