@@ -73,6 +73,11 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases should preserve supported syntax and generated runtime contracts. Unsupported syntax should fail loudly at compile time.
 
+## Patch 1.0.31
+
+- Exports `MikuruVideoPlayer.mikuru` media events for playback, timing, seeking, volume, mute, and playback-rate changes with a typed media state payload.
+- Exports the same event payload pattern from `MikuruAudioPlayer.mikuru` and documents media player event usage.
+
 ## Patch 1.0.30
 
 - Hardens `MikuruVideoPlayer.mikuru` controls so stop, mute, playback speed, seeking, and modal close operations avoid recursive updates while browser media events are firing.

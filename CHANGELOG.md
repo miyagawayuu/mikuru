@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.31 - 2026-05-16
+
+- Exported `MikuruVideoPlayer` media events so parent components can listen for playback, timing, seeking, volume, and playback-rate changes with typed media state payloads.
+- Exported matching `MikuruAudioPlayer` media events and documented the shared media player event payload.
+
 ## 1.0.30 - 2026-05-15
 
 - Hardened `MikuruVideoPlayer` controls so stop, mute, playback speed, seeking, and modal close operations do not trigger recursive updates while browser media events are firing.

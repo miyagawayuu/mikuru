@@ -4,12 +4,15 @@
       ref="mediaEl"
       :src="src"
       :preload="preload"
-      @loadedmetadata="syncMedia"
-      @timeupdate="syncMedia"
-      @durationchange="syncMedia"
+      @loadedmetadata="handleLoadedMetadata"
+      @timeupdate="handleTimeUpdate"
+      @durationchange="handleDurationChange"
       @play="markPlaying"
       @pause="markPaused"
-      @ended="markPaused"
+      @ended="markEnded"
+      @seeked="handleSeeked"
+      @volumechange="handleVolumeChange"
+      @ratechange="handleRateChange"
     ></audio>
 
     <div class="art">
@@ -61,6 +64,18 @@ const {
   preload: String
 });
 
+const emit = defineEmits([
+  "loadedmetadata",
+  "timeupdate",
+  "durationchange",
+  "play",
+  "pause",
+  "ended",
+  "seeked",
+  "volumechange",
+  "ratechange"
+]);
+
 const mediaEl = ref(null);
 const currentTime = ref(0);
 const duration = ref(0);
@@ -107,6 +122,58 @@ function syncMedia() {
   duration.value = Number.isFinite(media.duration) ? media.duration : 0;
 }
 
+function createMediaPayload(event) {
+  const media = getMedia();
+  if (!media) return null;
+  return {
+    currentTime: media.currentTime || 0,
+    duration: Number.isFinite(media.duration) ? media.duration : 0,
+    paused: media.paused,
+    ended: media.ended,
+    muted: media.muted,
+    volume: media.volume,
+    playbackRate: media.playbackRate,
+    nativeEvent: event
+  };
+}
+
+function emitMediaPayload(event, dispatch) {
+  const payload = createMediaPayload(event);
+  if (payload) {
+    dispatch(payload);
+  }
+}
+
+function handleLoadedMetadata(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("loadedmetadata", payload));
+}
+
+function handleTimeUpdate(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("timeupdate", payload));
+}
+
+function handleDurationChange(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("durationchange", payload));
+}
+
+function handleSeeked(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("seeked", payload));
+}
+
+function handleVolumeChange(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("volumechange", payload));
+}
+
+function handleRateChange(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("ratechange", payload));
+}
+
 function applyAudioSettings() {
   if (isDisposed) return;
   const media = getMedia();
@@ -115,14 +182,22 @@ function applyAudioSettings() {
   media.muted = muted.value;
 }
 
-function markPlaying() {
+function markPlaying(event) {
   if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = true;
+  emitMediaPayload(event, (payload) => emit("play", payload));
 }
 
-function markPaused() {
+function markPaused(event) {
   if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = false;
+  emitMediaPayload(event, (payload) => emit("pause", payload));
+}
+
+function markEnded(event) {
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
+  isPlaying.value = false;
+  emitMediaPayload(event, (payload) => emit("ended", payload));
 }
 
 async function togglePlayback() {

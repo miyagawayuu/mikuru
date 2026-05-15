@@ -133,6 +133,55 @@ Audio:
 | `artist` | `string` | No | Small text shown under the title. |
 | `preload` | `string` | No | Native audio preload setting. Defaults to `metadata`. |
 
+## Events
+
+Both media players forward native media events as component events with the current media state.
+
+```mikuru
+<MikuruVideoPlayer
+  src="/media/sample.mp4"
+  @play="handlePlay"
+  @timeupdate="handleTimeUpdate"
+  @ended="handleEnded"
+/>
+
+<MikuruAudioPlayer
+  src="/media/sample.mp3"
+  @play="handlePlay"
+  @timeupdate="handleTimeUpdate"
+  @ended="handleEnded"
+/>
+```
+
+Available events:
+
+| Event | Description |
+| --- | --- |
+| `loadedmetadata` | Metadata such as duration became available. |
+| `timeupdate` | Playback position changed. |
+| `durationchange` | Duration changed. |
+| `play` | Playback started. |
+| `pause` | Playback paused. |
+| `ended` | Playback reached the end. |
+| `seeked` | Seeking completed. |
+| `volumechange` | Volume or mute state changed. |
+| `ratechange` | Playback rate changed. |
+
+The handler receives this payload:
+
+```ts
+type MediaPlayerEventPayload = {
+  currentTime: number;
+  duration: number;
+  paused: boolean;
+  ended: boolean;
+  muted: boolean;
+  volume: number;
+  playbackRate: number;
+  nativeEvent?: Event;
+};
+```
+
 ## Controls
 
 `MikuruVideoPlayer` includes:
