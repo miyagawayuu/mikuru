@@ -1,0 +1,85 @@
+<template>
+  <div class="mikuru-progress" :class="{ indeterminate }">
+    <div class="progress-label">
+      <span>{{ label }}</span>
+      <strong m-if="!indeterminate">{{ percentLabel }}</strong>
+    </div>
+    <div
+      class="progress-track"
+      role="progressbar"
+      :aria-label="label"
+      aria-valuemin="0"
+      :aria-valuemax="max"
+      :aria-valuenow="indeterminate ? undefined : clampedValue"
+    >
+      <span class="progress-fill" :style="fillStyle"></span>
+    </div>
+  </div>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  value = 0,
+  max = 100,
+  label = "Progress",
+  indeterminate = false
+} = defineProps({
+  value: Number,
+  max: Number,
+  label: String,
+  indeterminate: Boolean
+});
+
+const safeMax = computed(() => max.value > 0 ? max.value : 100);
+const clampedValue = computed(() => Math.min(Math.max(value.value, 0), safeMax.value));
+const percent = computed(() => Math.round((clampedValue.value / safeMax.value) * 100));
+const percentLabel = computed(() => `${percent.value}%`);
+const fillStyle = computed(() => ({
+  width: indeterminate.value ? "45%" : `${percent.value}%`
+}));
+</script>
+
+<style scoped>
+.mikuru-progress {
+  display: grid;
+  gap: 7px;
+  color: #111827;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  transition: width 180ms ease;
+}
+
+.indeterminate .progress-fill {
+  animation: mikuru-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes mikuru-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+</style>

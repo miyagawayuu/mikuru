@@ -18,6 +18,8 @@ Use this checklist before publishing a Mikuru v1 release.
 The npm package should include:
 
 - `dist`
+- `components`
+- `types`
 - `templates`
 - `README.md`
 - `CHANGELOG.md`

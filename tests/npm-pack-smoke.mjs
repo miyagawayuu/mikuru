@@ -88,13 +88,49 @@ mount(app);
   );
   writeFileSync(
     join(appRoot, "src", "App.mikuru"),
-    `<template><button @click="increment">packed: {{ count }}</button></template>
+    `<template>
+  <div>
+    <button @click="increment">packed: {{ count }}</button>
+    <MikuruVideoPlayer title="Packed video" src="/sample.mp4" />
+    <MikuruAudioPlayer title="Packed audio" src="/sample.mp3" />
+    <MikuruImageViewer src="/sample.jpg" alt="Packed image" caption="Packed image" />
+    <MikuruCarousel title="Packed carousel" :images="slides" />
+    <MikuruModal :open="modalOpen" title="Packed modal" body="Modal from package export" @close="closeModal" />
+    <MikuruToast :toasts="toasts" @dismiss="dismissToast" />
+    <MikuruDropdown label="Packed menu" :items="menuItems" @select="selectItem" />
+    <MikuruToolTip text="Packed tooltip" label="?" />
+    <MikuruProgress label="Packed progress" :value="count" :max="10" />
+    <MikuruCodeBlock language="js" code="const fromPackage = true;" />
+  </div>
+</template>
 <script>
 import { ref } from "mikuru";
+import MikuruAudioPlayer from "mikuru/components/MikuruAudioPlayer";
+import MikuruCodeBlock from "mikuru/components/MikuruCodeBlock";
+import MikuruCarousel from "mikuru/components/MikuruCarousel";
+import MikuruDropdown from "mikuru/components/MikuruDropdown";
+import MikuruImageViewer from "mikuru/components/MikuruImageViewer";
+import MikuruModal from "mikuru/components/MikuruModal";
+import MikuruProgress from "mikuru/components/MikuruProgress";
+import MikuruToast from "mikuru/components/MikuruToast";
+import MikuruToolTip from "mikuru/components/MikuruToolTip";
+import MikuruVideoPlayer from "mikuru/components/MikuruVideoPlayer";
 const count = ref(1);
+const modalOpen = ref(false);
+const toasts = [{ id: "pack", title: "Packed", message: "Toast package export", tone: "success" }];
+const menuItems = [{ label: "Open", value: "open", description: "Package dropdown item" }];
+const slides = [
+  { src: "/slide-one.jpg", alt: "Slide one", title: "Slide one", caption: "First packed slide" },
+  { src: "/slide-two.jpg", alt: "Slide two", title: "Slide two", caption: "Second packed slide" }
+];
 function increment() {
   count.value += 1;
 }
+function closeModal() {
+  modalOpen.value = false;
+}
+function dismissToast() {}
+function selectItem() {}
 </script>`
   );
   writeFileSync(
@@ -111,12 +147,23 @@ function increment() {
 }
 
 function runNpm(args, cwd) {
-  if (npmCli) {
-    execFileSync(process.execPath, [npmCli, ...args], { cwd, stdio: "ignore" });
-    return;
-  }
+  const command = npmCli ? process.execPath : npm;
+  const commandArgs = npmCli ? [npmCli, ...args] : args;
+  runCommand(command, commandArgs, cwd);
+}
 
-  execFileSync(npm, args, { cwd, stdio: "ignore" });
+function runCommand(command, args, cwd) {
+  try {
+    execFileSync(command, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+  } catch (error) {
+    if (error.stdout?.length) {
+      process.stdout.write(error.stdout);
+    }
+    if (error.stderr?.length) {
+      process.stderr.write(error.stderr);
+    }
+    throw error;
+  }
 }
 
 function installAndBuildGeneratedApp(appRoot, tarball) {

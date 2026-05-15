@@ -1,0 +1,280 @@
+<template>
+  <section class="mikuru-carousel" :aria-label="title" @keydown="handleKeydown" tabindex="0">
+    <div class="carousel-viewport">
+      <div class="carousel-track" :style="trackStyle">
+        <article
+          class="carousel-slide"
+          m-for="slide in normalizedSlides"
+          :key="slide.id"
+          :aria-label="slide.label"
+        >
+          <img :src="slide.src" :alt="slide.alt" />
+          <div class="slide-caption">
+            <strong>{{ slide.title }}</strong>
+            <span>{{ slide.caption }}</span>
+          </div>
+        </article>
+      </div>
+
+      <div m-if="isEmpty" class="carousel-empty">
+        <strong>{{ emptyTitle }}</strong>
+        <span>{{ emptyMessage }}</span>
+      </div>
+
+      <button class="carousel-arrow previous" type="button" @click="previous" aria-label="Previous slide">
+        ‹
+      </button>
+      <button class="carousel-arrow next" type="button" @click="next" aria-label="Next slide">
+        ›
+      </button>
+    </div>
+
+    <div class="carousel-footer">
+      <span>{{ positionLabel }}</span>
+      <div class="carousel-dots" role="tablist" aria-label="Carousel slides">
+        <button
+          m-for="slide in normalizedSlides"
+          :key="slide.id"
+          type="button"
+          :class="{ active: slide.index === activeIndex }"
+          :aria-label="slide.label"
+          @click="goToSlide(slide.index)"
+        ></button>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref } from "mikuru";
+
+const {
+  images = [],
+  title = "Mikuru Carousel",
+  autoplay = false,
+  interval = 5000,
+  emptyTitle = "No slides",
+  emptyMessage = "Add images to show the carousel."
+} = defineProps({
+  images: Array,
+  title: String,
+  autoplay: Boolean,
+  interval: Number,
+  emptyTitle: String,
+  emptyMessage: String
+});
+
+const activeIndex = ref(0);
+let timer = null;
+
+const normalizedSlides = computed(() => {
+  const source = Array.isArray(images.value) ? images.value : [];
+  return source.map((item, index) => {
+    const src = typeof item === "string" ? item : item.src;
+    const alt = typeof item === "string" ? "" : item.alt || item.title || `Slide ${index + 1}`;
+    const slideTitle = typeof item === "string" ? `Slide ${index + 1}` : item.title || `Slide ${index + 1}`;
+    const caption = typeof item === "string" ? "" : item.caption || "";
+    return {
+      id: `${src}-${index}`,
+      index,
+      src,
+      alt,
+      title: slideTitle,
+      caption,
+      label: `${slideTitle}, ${index + 1} of ${source.length}`
+    };
+  });
+});
+const slideCount = computed(() => normalizedSlides.value.length);
+const isEmpty = computed(() => slideCount.value === 0);
+const trackStyle = computed(() => ({
+  transform: `translateX(-${activeIndex.value * 100}%)`
+}));
+const positionLabel = computed(() => {
+  if (slideCount.value === 0) return "0 / 0";
+  return `${activeIndex.value + 1} / ${slideCount.value}`;
+});
+
+onMounted(() => {
+  startAutoplay();
+});
+
+onUnmounted(() => {
+  stopAutoplay();
+});
+
+function clampIndex(index) {
+  if (slideCount.value === 0) return 0;
+  if (index < 0) return slideCount.value - 1;
+  if (index >= slideCount.value) return 0;
+  return index;
+}
+
+function goToSlide(index) {
+  activeIndex.value = clampIndex(index);
+  restartAutoplay();
+}
+
+function previous() {
+  goToSlide(activeIndex.value - 1);
+}
+
+function next() {
+  goToSlide(activeIndex.value + 1);
+}
+
+function startAutoplay() {
+  stopAutoplay();
+  if (!autoplay.value || slideCount.value <= 1) return;
+  timer = window.setInterval(() => {
+    activeIndex.value = clampIndex(activeIndex.value + 1);
+  }, Math.max(interval.value, 1000));
+}
+
+function stopAutoplay() {
+  if (timer) {
+    window.clearInterval(timer);
+    timer = null;
+  }
+}
+
+function restartAutoplay() {
+  startAutoplay();
+}
+
+function handleKeydown(event) {
+  if (event.key === "ArrowLeft") {
+    previous();
+    event.preventDefault();
+  } else if (event.key === "ArrowRight") {
+    next();
+    event.preventDefault();
+  } else if (event.key === "Home") {
+    goToSlide(0);
+    event.preventDefault();
+  } else if (event.key === "End") {
+    goToSlide(slideCount.value - 1);
+    event.preventDefault();
+  }
+}
+</script>
+
+<style scoped>
+.mikuru-carousel {
+  display: grid;
+  gap: 10px;
+  color: #111827;
+  outline: none;
+}
+
+.mikuru-carousel:focus-visible {
+  box-shadow: 0 0 0 3px #38bdf8;
+}
+
+.carousel-viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #111827;
+}
+
+.carousel-track {
+  display: flex;
+  transition: transform 260ms ease;
+}
+
+.carousel-slide {
+  position: relative;
+  flex: 0 0 100%;
+  min-height: 300px;
+  margin: 0;
+}
+
+.carousel-slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  object-fit: cover;
+}
+
+.slide-caption {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  gap: 3px;
+  padding: 18px;
+  color: #f8fafc;
+  background: rgb(15 23 42 / 72%);
+}
+
+.slide-caption strong,
+.slide-caption span {
+  overflow-wrap: anywhere;
+}
+
+.carousel-empty {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  gap: 4px;
+  color: #cbd5e1;
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  font-size: 1.8rem;
+  line-height: 1;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.previous {
+  left: 12px;
+}
+
+.next {
+  right: 12px;
+}
+
+.carousel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.carousel-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.carousel-dots button {
+  width: 9px;
+  height: 9px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: #94a3b8;
+  cursor: pointer;
+}
+
+.carousel-dots button.active {
+  width: 24px;
+  background: #111827;
+}
+</style>

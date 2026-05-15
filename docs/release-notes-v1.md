@@ -73,9 +73,9 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases should preserve supported syntax and generated runtime contracts. Unsupported syntax should fail loudly at compile time.
 
-## Patch 1.0.27
+## Patch 1.0.28
 
-- Adds dogfood-only `MikuruVideoPlayer.mikuru` and `MikuruAudioPlayer.mikuru` examples that exercise template refs, lifecycle callbacks, component events, computed styles, pointer handling, and keyboard-accessible custom controls.
+- Adds package-exported `MikuruVideoPlayer.mikuru`, `MikuruAudioPlayer.mikuru`, `MikuruImageViewer.mikuru`, `MikuruModal.mikuru`, `MikuruCarousel.mikuru`, `MikuruToast.mikuru`, `MikuruDropdown.mikuru`, `MikuruToolTip.mikuru`, `MikuruProgress.mikuru`, and `MikuruCodeBlock.mikuru` components that exercise template refs, lifecycle callbacks, component events, slots, computed styles, pointer handling, fullscreen, progress states, clipboard actions, and keyboard-accessible custom controls.
 - Updates the video player with overlay controls, Font Awesome-shaped mask icons, auto-hidden controls while playback continues outside hover, div-based seeking, stop, rate, mute, and fullscreen controls.
 - Fixes Vite-routed component CSS cache behavior by keying style virtual module URLs from compiled style content, so scoped CSS changes reload with the matching generated DOM scope.
 - Adds compiler tests for content-keyed Vite style requests to prevent stale virtual CSS modules from returning after repeated transforms of the same SFC path.

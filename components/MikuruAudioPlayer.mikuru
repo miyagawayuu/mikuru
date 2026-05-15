@@ -1,0 +1,263 @@
+<template>
+  <section class="mikuru-audio" :class="{ 'is-playing': isPlaying }" :aria-label="title">
+    <audio
+      ref="mediaEl"
+      :src="src"
+      :preload="preload"
+      @loadedmetadata="syncMedia"
+      @timeupdate="syncMedia"
+      @durationchange="syncMedia"
+      @play="markPlaying"
+      @pause="markPaused"
+      @ended="markPaused"
+    ></audio>
+
+    <div class="art">
+      <span>{{ initials }}</span>
+    </div>
+
+    <div class="body">
+      <div class="identity">
+        <strong>{{ title }}</strong>
+        <span>{{ artist }}</span>
+      </div>
+
+      <div class="timeline">
+        <span>{{ formatTime(currentTime) }}</span>
+        <input type="range" min="0" :max="safeDuration" step="0.1" :value="currentTime" @input="seek" />
+        <span>{{ formatTime(duration) }}</span>
+      </div>
+
+      <div class="controls">
+        <button type="button" @click="skipBackward">-10</button>
+        <button class="primary" type="button" @click="togglePlayback" :aria-label="playLabel">
+          <span m-if="isPlaying">Pause</span>
+          <span m-else>Play</span>
+        </button>
+        <button type="button" @click="skipForward">+10</button>
+        <button type="button" @click="toggleMute" :aria-label="muteLabel">
+          <span m-if="muted">Muted</span>
+          <span m-else>Sound</span>
+        </button>
+        <label class="volume">
+          <span>Volume</span>
+          <input type="range" min="0" max="1" step="0.01" :value="volume" @input="setVolume" />
+        </label>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script>
+import { computed, onMounted, ref } from "mikuru";
+
+const {
+  src,
+  title = "Mikuru Audio",
+  artist = "Original player component",
+  preload = "metadata"
+} = defineProps({
+  src: String,
+  title: String,
+  artist: String,
+  preload: String
+});
+
+const mediaEl = ref(null);
+const currentTime = ref(0);
+const duration = ref(0);
+const volume = ref(0.75);
+const muted = ref(false);
+const isPlaying = ref(false);
+const safeDuration = computed(() => duration.value > 0 ? duration.value : 0);
+const playLabel = computed(() => isPlaying.value ? "Pause audio" : "Play audio");
+const muteLabel = computed(() => muted.value ? "Unmute audio" : "Mute audio");
+const initials = computed(() => {
+  const words = title.value.split(" ").filter(Boolean);
+  return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "M";
+});
+
+onMounted(() => {
+  applyAudioSettings();
+});
+
+function getMedia() {
+  return mediaEl.value;
+}
+
+function syncMedia() {
+  const media = getMedia();
+  if (!media) return;
+  currentTime.value = media.currentTime || 0;
+  duration.value = Number.isFinite(media.duration) ? media.duration : 0;
+  volume.value = media.volume;
+  muted.value = media.muted;
+}
+
+function applyAudioSettings() {
+  const media = getMedia();
+  if (!media) return;
+  media.volume = volume.value;
+  media.muted = muted.value;
+}
+
+function markPlaying() {
+  isPlaying.value = true;
+}
+
+function markPaused() {
+  isPlaying.value = false;
+}
+
+async function togglePlayback() {
+  const media = getMedia();
+  if (!media) return;
+  if (media.paused) {
+    await media.play();
+    return;
+  }
+  media.pause();
+}
+
+function seek(event) {
+  const media = getMedia();
+  const nextTime = Number(event.target.value);
+  currentTime.value = nextTime;
+  if (media) {
+    media.currentTime = nextTime;
+  }
+}
+
+function setVolume(event) {
+  const nextVolume = Number(event.target.value);
+  volume.value = nextVolume;
+  muted.value = nextVolume === 0;
+  applyAudioSettings();
+}
+
+function toggleMute() {
+  muted.value = !muted.value;
+  applyAudioSettings();
+}
+
+function skipBackward() {
+  skipBy(-10);
+}
+
+function skipForward() {
+  skipBy(10);
+}
+
+function skipBy(offset) {
+  const media = getMedia();
+  if (!media) return;
+  const nextTime = Math.min(Math.max(media.currentTime + offset, 0), safeDuration.value || media.currentTime + offset);
+  media.currentTime = nextTime;
+  currentTime.value = nextTime;
+}
+
+function formatTime(seconds) {
+  const safeSeconds = Number.isFinite(seconds) ? Math.floor(seconds) : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = String(safeSeconds % 60).padStart(2, "0");
+  return minutes + ":" + remainder;
+}
+</script>
+
+<style scoped>
+.mikuru-audio {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #172554;
+  background: #f8fbff;
+}
+
+.art {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #0f766e;
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.body,
+.identity {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.identity span,
+.timeline,
+.volume span {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.timeline {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  gap: 8px;
+  align-items: center;
+}
+
+.timeline span:last-child {
+  text-align: right;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+input[type="range"] {
+  accent-color: #0f766e;
+}
+
+button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #172554;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #0f766e;
+}
+
+.primary {
+  border-color: #0f766e;
+  color: #ffffff;
+  background: #0f766e;
+}
+
+@media (max-width: 620px) {
+  .mikuru-audio {
+    grid-template-columns: 1fr;
+  }
+
+  .art {
+    width: 86px;
+  }
+}
+</style>

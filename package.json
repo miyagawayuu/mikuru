@@ -1,6 +1,6 @@
 {
   "name": "mikuru",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "private": false,
   "type": "module",
   "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",
@@ -37,6 +37,86 @@
       "types": "./types/env.d.ts",
       "default": "./dist/env.js"
     },
+    "./components/MikuruVideoPlayer": {
+      "types": "./types/components/MikuruVideoPlayer.d.ts",
+      "default": "./components/MikuruVideoPlayer.mikuru"
+    },
+    "./components/MikuruVideoPlayer.mikuru": {
+      "types": "./types/components/MikuruVideoPlayer.d.ts",
+      "default": "./components/MikuruVideoPlayer.mikuru"
+    },
+    "./components/MikuruAudioPlayer": {
+      "types": "./types/components/MikuruAudioPlayer.d.ts",
+      "default": "./components/MikuruAudioPlayer.mikuru"
+    },
+    "./components/MikuruAudioPlayer.mikuru": {
+      "types": "./types/components/MikuruAudioPlayer.d.ts",
+      "default": "./components/MikuruAudioPlayer.mikuru"
+    },
+    "./components/MikuruImageViewer": {
+      "types": "./types/components/MikuruImageViewer.d.ts",
+      "default": "./components/MikuruImageViewer.mikuru"
+    },
+    "./components/MikuruImageViewer.mikuru": {
+      "types": "./types/components/MikuruImageViewer.d.ts",
+      "default": "./components/MikuruImageViewer.mikuru"
+    },
+    "./components/MikuruModal": {
+      "types": "./types/components/MikuruModal.d.ts",
+      "default": "./components/MikuruModal.mikuru"
+    },
+    "./components/MikuruModal.mikuru": {
+      "types": "./types/components/MikuruModal.d.ts",
+      "default": "./components/MikuruModal.mikuru"
+    },
+    "./components/MikuruCarousel": {
+      "types": "./types/components/MikuruCarousel.d.ts",
+      "default": "./components/MikuruCarousel.mikuru"
+    },
+    "./components/MikuruCarousel.mikuru": {
+      "types": "./types/components/MikuruCarousel.d.ts",
+      "default": "./components/MikuruCarousel.mikuru"
+    },
+    "./components/MikuruToast": {
+      "types": "./types/components/MikuruToast.d.ts",
+      "default": "./components/MikuruToast.mikuru"
+    },
+    "./components/MikuruToast.mikuru": {
+      "types": "./types/components/MikuruToast.d.ts",
+      "default": "./components/MikuruToast.mikuru"
+    },
+    "./components/MikuruDropdown": {
+      "types": "./types/components/MikuruDropdown.d.ts",
+      "default": "./components/MikuruDropdown.mikuru"
+    },
+    "./components/MikuruDropdown.mikuru": {
+      "types": "./types/components/MikuruDropdown.d.ts",
+      "default": "./components/MikuruDropdown.mikuru"
+    },
+    "./components/MikuruToolTip": {
+      "types": "./types/components/MikuruToolTip.d.ts",
+      "default": "./components/MikuruToolTip.mikuru"
+    },
+    "./components/MikuruToolTip.mikuru": {
+      "types": "./types/components/MikuruToolTip.d.ts",
+      "default": "./components/MikuruToolTip.mikuru"
+    },
+    "./components/MikuruProgress": {
+      "types": "./types/components/MikuruProgress.d.ts",
+      "default": "./components/MikuruProgress.mikuru"
+    },
+    "./components/MikuruProgress.mikuru": {
+      "types": "./types/components/MikuruProgress.d.ts",
+      "default": "./components/MikuruProgress.mikuru"
+    },
+    "./components/MikuruCodeBlock": {
+      "types": "./types/components/MikuruCodeBlock.d.ts",
+      "default": "./components/MikuruCodeBlock.mikuru"
+    },
+    "./components/MikuruCodeBlock.mikuru": {
+      "types": "./types/components/MikuruCodeBlock.d.ts",
+      "default": "./components/MikuruCodeBlock.mikuru"
+    },
     "./vite": {
       "types": "./dist/vite.d.ts",
       "default": "./dist/vite.js"
@@ -46,6 +126,7 @@
     "mikuru": "dist/cli.js"
   },
   "files": [
+    "components",
     "dist",
     "types",
     "templates",

@@ -1,0 +1,128 @@
+<template>
+  <section class="mikuru-toast-stack" :class="positionClass" aria-live="polite" aria-label="Notifications">
+    <article
+      class="toast"
+      m-for="toast in normalizedToasts"
+      :key="toast.id"
+      :class="toast.toneClass"
+      role="status"
+    >
+      <div class="toast-body">
+        <strong>{{ toast.title }}</strong>
+        <span>{{ toast.message }}</span>
+      </div>
+      <button type="button" @click="dismissToast(toast.id)" :aria-label="toast.dismissLabel">Close</button>
+    </article>
+  </section>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  toasts = [],
+  position = "bottom-right"
+} = defineProps({
+  toasts: Array,
+  position: String
+});
+
+const emit = defineEmits(["dismiss"]);
+const positionClass = computed(() => `position-${position.value}`);
+const normalizedToasts = computed(() => {
+  const source = Array.isArray(toasts.value) ? toasts.value : [];
+  return source.map((toast, index) => {
+    const id = toast.id ?? index;
+    const tone = toast.tone || "info";
+    return {
+      id,
+      title: toast.title || "Notification",
+      message: toast.message || "",
+      toneClass: `tone-${tone}`,
+      dismissLabel: `Dismiss ${toast.title || "notification"}`
+    };
+  });
+});
+
+function dismissToast(id) {
+  emit("dismiss", id);
+}
+</script>
+
+<style scoped>
+.mikuru-toast-stack {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  width: min(360px, calc(100vw - 32px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.position-bottom-right {
+  right: 16px;
+  bottom: 16px;
+}
+
+.position-bottom-left {
+  bottom: 16px;
+  left: 16px;
+}
+
+.position-top-right {
+  top: 16px;
+  right: 16px;
+}
+
+.position-top-left {
+  top: 16px;
+  left: 16px;
+}
+
+.toast {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  padding: 12px;
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 16px 44px rgb(15 23 42 / 18%);
+  pointer-events: auto;
+}
+
+.tone-success {
+  border-left-color: #059669;
+}
+
+.tone-warning {
+  border-left-color: #d97706;
+}
+
+.tone-danger {
+  border-left-color: #dc2626;
+}
+
+.toast-body {
+  display: grid;
+  gap: 3px;
+}
+
+.toast-body span {
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.toast button {
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #334155;
+  background: #f1f5f9;
+  font: inherit;
+  cursor: pointer;
+}
+</style>

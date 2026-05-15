@@ -1,0 +1,269 @@
+<template>
+  <figure
+    class="mikuru-image-viewer"
+    :class="{ 'is-dragging': isDragging, 'is-fullscreen': isFullscreen }"
+    :aria-label="label"
+  >
+    <div
+      class="viewer-frame"
+      ref="frameEl"
+      tabindex="0"
+      role="img"
+      :aria-label="alt"
+      @dblclick="toggleZoom"
+      @keydown="handleKeydown"
+      @pointerdown="startPan"
+      @pointermove="panImage"
+      @pointerup="endPan"
+      @pointercancel="endPan"
+      @pointerleave="endPan"
+    >
+      <img
+        ref="imageEl"
+        :src="src"
+        :alt="alt"
+        :style="imageStyle"
+        draggable="false"
+      />
+    </div>
+
+    <figcaption class="viewer-caption">
+      <span>{{ captionText }}</span>
+      <strong>{{ zoomLabel }}</strong>
+    </figcaption>
+
+    <div class="viewer-controls" aria-label="Image controls">
+      <button type="button" @click="zoomOut" aria-label="Zoom out">-</button>
+      <button type="button" @click="resetView" aria-label="Reset view">Reset</button>
+      <button type="button" @click="zoomIn" aria-label="Zoom in">+</button>
+      <button type="button" @click="rotateLeft" aria-label="Rotate left">Left</button>
+      <button type="button" @click="rotateRight" aria-label="Rotate right">Right</button>
+      <button type="button" @click="toggleFullscreen" :aria-label="fullscreenLabel">
+        <span m-if="isFullscreen">Exit</span>
+        <span m-else>Full</span>
+      </button>
+    </div>
+  </figure>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref } from "mikuru";
+
+const {
+  src,
+  alt = "Mikuru image",
+  caption = "",
+  minZoom = 1,
+  maxZoom = 4,
+  zoomStep = 0.25
+} = defineProps({
+  src: String,
+  alt: String,
+  caption: String,
+  minZoom: Number,
+  maxZoom: Number,
+  zoomStep: Number
+});
+
+const frameEl = ref(null);
+const imageEl = ref(null);
+const zoom = ref(1);
+const rotation = ref(0);
+const offsetX = ref(0);
+const offsetY = ref(0);
+const startX = ref(0);
+const startY = ref(0);
+const startOffsetX = ref(0);
+const startOffsetY = ref(0);
+const isDragging = ref(false);
+const isFullscreen = ref(false);
+
+const label = computed(() => caption.value || alt.value);
+const captionText = computed(() => caption.value || alt.value);
+const zoomLabel = computed(() => `${Math.round(zoom.value * 100)}%`);
+const fullscreenLabel = computed(() => isFullscreen.value ? "Exit fullscreen" : "Enter fullscreen");
+const imageStyle = computed(() => ({
+  transform: `translate(${offsetX.value}px, ${offsetY.value}px) scale(${zoom.value}) rotate(${rotation.value}deg)`
+}));
+
+onMounted(() => {
+  document.addEventListener("fullscreenchange", syncFullscreen);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("fullscreenchange", syncFullscreen);
+});
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function setZoom(nextZoom) {
+  zoom.value = clamp(nextZoom, minZoom.value, maxZoom.value);
+  if (zoom.value === minZoom.value) {
+    offsetX.value = 0;
+    offsetY.value = 0;
+  }
+}
+
+function zoomIn() {
+  setZoom(zoom.value + zoomStep.value);
+}
+
+function zoomOut() {
+  setZoom(zoom.value - zoomStep.value);
+}
+
+function toggleZoom() {
+  if (zoom.value > minZoom.value) {
+    resetView();
+    return;
+  }
+  setZoom(Math.min(2, maxZoom.value));
+}
+
+function resetView() {
+  zoom.value = minZoom.value;
+  rotation.value = 0;
+  offsetX.value = 0;
+  offsetY.value = 0;
+}
+
+function rotateLeft() {
+  rotation.value -= 90;
+}
+
+function rotateRight() {
+  rotation.value += 90;
+}
+
+function startPan(event) {
+  if (zoom.value <= minZoom.value) return;
+  isDragging.value = true;
+  startX.value = event.clientX;
+  startY.value = event.clientY;
+  startOffsetX.value = offsetX.value;
+  startOffsetY.value = offsetY.value;
+  event.currentTarget.setPointerCapture(event.pointerId);
+}
+
+function panImage(event) {
+  if (!isDragging.value) return;
+  offsetX.value = startOffsetX.value + event.clientX - startX.value;
+  offsetY.value = startOffsetY.value + event.clientY - startY.value;
+}
+
+function endPan(event) {
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+}
+
+async function toggleFullscreen() {
+  const frame = frameEl.value;
+  if (!frame) return;
+  if (document.fullscreenElement) {
+    await document.exitFullscreen();
+    return;
+  }
+  await frame.requestFullscreen();
+}
+
+function syncFullscreen() {
+  isFullscreen.value = document.fullscreenElement === frameEl.value;
+}
+
+function handleKeydown(event) {
+  if (event.key === "+" || event.key === "=") {
+    zoomIn();
+    event.preventDefault();
+  } else if (event.key === "-") {
+    zoomOut();
+    event.preventDefault();
+  } else if (event.key === "0") {
+    resetView();
+    event.preventDefault();
+  } else if (event.key === "ArrowLeft") {
+    rotateLeft();
+    event.preventDefault();
+  } else if (event.key === "ArrowRight") {
+    rotateRight();
+    event.preventDefault();
+  }
+}
+</script>
+
+<style scoped>
+.mikuru-image-viewer {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  color: #f8fafc;
+}
+
+.viewer-frame {
+  position: relative;
+  display: grid;
+  min-height: 280px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 8px;
+  background: #111827;
+  outline: none;
+  touch-action: none;
+}
+
+.viewer-frame:focus-visible {
+  box-shadow: 0 0 0 3px #38bdf8;
+}
+
+.viewer-frame img {
+  max-width: 100%;
+  max-height: 72vh;
+  user-select: none;
+  transition: transform 160ms ease;
+  transform-origin: center;
+}
+
+.is-dragging .viewer-frame img {
+  transition: none;
+  cursor: grabbing;
+}
+
+.viewer-caption,
+.viewer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viewer-caption {
+  justify-content: space-between;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.viewer-controls button {
+  min-width: 44px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #f8fafc;
+  background: #1f2937;
+  font: inherit;
+  cursor: pointer;
+}
+
+.viewer-controls button:hover,
+.viewer-controls button:focus-visible {
+  background: #0f172a;
+}
+
+.is-fullscreen {
+  padding: 18px;
+  background: #020617;
+}
+</style>

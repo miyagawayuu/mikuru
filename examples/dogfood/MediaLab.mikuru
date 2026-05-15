@@ -1,33 +1,159 @@
 <template>
-  <section class="media-lab" aria-label="Mikuru media players">
+  <section class="media-lab" aria-label="Mikuru package components">
     <div class="media-heading">
-      <h2>Mikuru media players</h2>
-      <p>Custom video and audio controls powered by template refs, events, and computed labels.</p>
+      <h2>Mikuru package components</h2>
+      <p>Package-exported media and UI components powered by refs, events, slots, and lifecycle cleanup.</p>
     </div>
 
-    <MikuruVideoPlayer
-      title="Bloom Frame"
-      subtitle="Mikuru original video player"
-      src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
-    />
+    <div class="component-grid">
+      <MikuruVideoPlayer
+        title="Bloom Frame"
+        subtitle="Mikuru original video player"
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      />
 
-    <MikuruAudioPlayer
-      title="Tiny Roar"
-      artist="Mikuru original audio player"
-      src="https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3"
-    />
+      <MikuruAudioPlayer
+        title="Tiny Roar"
+        artist="Mikuru original audio player"
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3"
+      />
+
+      <MikuruImageViewer
+        src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
+        alt="Quiet lake house"
+        caption="Zoom, pan, rotate, and fullscreen image viewer"
+      />
+
+      <MikuruCarousel title="Mikuru gallery" :images="slides" />
+    </div>
+
+    <div class="ui-lab">
+      <div class="ui-panel">
+        <h3>Actions</h3>
+        <div class="actions">
+          <button type="button" @click="openModal">Open modal</button>
+          <button type="button" @click="addToast">Add toast</button>
+          <MikuruDropdown label="Choose action" :items="menuItems" @select="selectMenuItem" />
+          <MikuruToolTip text="This tooltip appears on hover and focus." label="Tip" placement="top" />
+        </div>
+        <p>{{ actionMessage }}</p>
+      </div>
+
+      <div class="ui-panel">
+        <h3>Progress and code</h3>
+        <MikuruProgress label="Dogfood progress" :value="progress" :max="100" />
+        <MikuruProgress label="Background sync" indeterminate />
+        <MikuruCodeBlock language="mikuru" :code="codeSample" />
+      </div>
+    </div>
+
+    <MikuruToast :toasts="toasts" position="bottom-right" @dismiss="dismissToast" />
+
+    <MikuruModal :open="modalOpen" title="Package modal" footer="Esc, backdrop, or Close can dismiss." @close="closeModal">
+      <p>This modal is imported from the package component set and rendered inside dogfood.</p>
+      <p>It uses slots, Teleport, and a close event to keep the caller in control.</p>
+    </MikuruModal>
   </section>
 </template>
 
 <script>
+import { computed, ref } from "mikuru";
+import MikuruCarousel from "../../components/MikuruCarousel.mikuru";
+import MikuruCodeBlock from "../../components/MikuruCodeBlock.mikuru";
+import MikuruDropdown from "../../components/MikuruDropdown.mikuru";
+import MikuruImageViewer from "../../components/MikuruImageViewer.mikuru";
+import MikuruModal from "../../components/MikuruModal.mikuru";
+import MikuruProgress from "../../components/MikuruProgress.mikuru";
+import MikuruToast from "../../components/MikuruToast.mikuru";
+import MikuruToolTip from "../../components/MikuruToolTip.mikuru";
 import MikuruAudioPlayer from "./MikuruAudioPlayer.mikuru";
 import MikuruVideoPlayer from "./MikuruVideoPlayer.mikuru";
+
+const modalOpen = ref(false);
+const toastCount = ref(1);
+const progress = ref(64);
+const lastAction = ref("No action selected yet.");
+const toasts = ref([
+  { id: "welcome", title: "Dogfood ready", message: "Package components are mounted.", tone: "success" }
+]);
+const slides = [
+  {
+    src: "https://images.unsplash.com/photo-1496307042754-b4aa456c4a2d?auto=format&fit=crop&w=1200&q=80",
+    alt: "Colorful night buildings",
+    title: "Neon state",
+    caption: "Carousel slide with caption"
+  },
+  {
+    src: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80",
+    alt: "Mountain landscape",
+    title: "Route preview",
+    caption: "Keyboard arrows and dots are enabled"
+  },
+  {
+    src: "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
+    alt: "Starry mountain sky",
+    title: "Night build",
+    caption: "Autoplay is optional for package users"
+  }
+];
+const menuItems = [
+  { label: "Increase progress", value: "progress", description: "Advance the progress bar" },
+  { label: "Open modal", value: "modal", description: "Show the package modal" },
+  { label: "Toast update", value: "toast", description: "Create a new notification" }
+];
+const codeSample = `<template>
+  <MikuruModal :open="modalOpen" @close="closeModal">
+    <p>Package component slot content.</p>
+  </MikuruModal>
+</template>`;
+const actionMessage = computed(() => lastAction.value);
+
+function openModal() {
+  modalOpen.value = true;
+  lastAction.value = "Modal opened.";
+}
+
+function closeModal() {
+  modalOpen.value = false;
+  lastAction.value = "Modal closed.";
+}
+
+function addToast() {
+  const id = `toast-${toastCount.value}`;
+  toasts.value = [
+    ...toasts.value,
+    {
+      id,
+      title: `Toast ${toastCount.value}`,
+      message: "Dismiss events update this list.",
+      tone: toastCount.value % 2 === 0 ? "info" : "warning"
+    }
+  ];
+  toastCount.value += 1;
+  lastAction.value = "Toast added.";
+}
+
+function dismissToast(id) {
+  toasts.value = toasts.value.filter((toast) => toast.id !== id);
+  lastAction.value = `Dismissed ${id}.`;
+}
+
+function selectMenuItem(value) {
+  if (value === "progress") {
+    progress.value = progress.value >= 100 ? 10 : progress.value + 12;
+    lastAction.value = "Progress advanced.";
+  } else if (value === "modal") {
+    openModal();
+  } else if (value === "toast") {
+    addToast();
+  }
+}
 </script>
 
 <style scoped>
 .media-lab {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   padding: 14px;
   border: 1px solid #99f6e4;
   border-radius: 8px;
@@ -43,5 +169,54 @@ import MikuruVideoPlayer from "./MikuruVideoPlayer.mikuru";
 .media-heading h2,
 .media-heading p {
   margin: 0;
+}
+
+.component-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.ui-lab {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ui-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid #ccfbf1;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.ui-panel h3,
+.ui-panel p {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.actions > button {
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #f8fafc;
+  background: #0f766e;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 800px) {
+  .ui-lab {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -1,0 +1,159 @@
+<template>
+  <Teleport to="body">
+    <div
+      m-if="open"
+      class="mikuru-modal-backdrop"
+      role="presentation"
+      @click="handleBackdrop"
+    >
+      <section
+        ref="dialogEl"
+        class="mikuru-modal"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+        tabindex="-1"
+        @click="stopEvent"
+      >
+        <header class="modal-header">
+          <h2>{{ title }}</h2>
+          <button type="button" @click="requestClose" aria-label="Close modal">Close</button>
+        </header>
+
+        <div class="modal-body">
+          <slot>{{ body }}</slot>
+        </div>
+
+        <footer m-if="footer" class="modal-footer">
+          <span>{{ footer }}</span>
+        </footer>
+      </section>
+    </div>
+  </Teleport>
+</template>
+
+<script>
+import { onMounted, onUnmounted, ref, watch } from "mikuru";
+
+const {
+  open = false,
+  title = "Mikuru Modal",
+  body = "",
+  footer = "",
+  closeOnBackdrop = true,
+  closeOnEscape = true
+} = defineProps({
+  open: Boolean,
+  title: String,
+  body: String,
+  footer: String,
+  closeOnBackdrop: Boolean,
+  closeOnEscape: Boolean
+});
+
+const emit = defineEmits(["close"]);
+const dialogEl = ref(null);
+
+onMounted(() => {
+  document.addEventListener("keydown", handleDocumentKeydown);
+  focusDialog();
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleDocumentKeydown);
+});
+
+watch(open, () => {
+  focusDialog();
+});
+
+function focusDialog() {
+  requestAnimationFrame(() => {
+    if (open.value && dialogEl.value) {
+      dialogEl.value.focus();
+    }
+  });
+}
+
+function requestClose() {
+  emit("close");
+}
+
+function handleBackdrop() {
+  if (closeOnBackdrop.value) {
+    requestClose();
+  }
+}
+
+function handleDocumentKeydown(event) {
+  if (!open.value || !closeOnEscape.value) return;
+  if (event.key === "Escape") {
+    requestClose();
+  }
+}
+
+function stopEvent(event) {
+  event.stopPropagation();
+}
+</script>
+
+<style scoped>
+.mikuru-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 72%);
+}
+
+.mikuru-modal {
+  display: grid;
+  width: min(560px, 100%);
+  max-height: min(720px, 92vh);
+  overflow: hidden;
+  border-radius: 8px;
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 34%);
+  outline: none;
+}
+
+.modal-header,
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-footer {
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 0;
+  color: #475569;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.modal-header button {
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #f8fafc;
+  background: #111827;
+  font: inherit;
+  cursor: pointer;
+}
+
+.modal-body {
+  overflow: auto;
+  padding: 18px;
+  color: #334155;
+}
+</style>

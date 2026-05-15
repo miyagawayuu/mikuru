@@ -1,0 +1,635 @@
+<template>
+  <section
+    class="mikuru-video"
+    :class="{ 'is-playing': isPlaying, 'controls-visible': controlsVisible }"
+    :aria-label="title"
+    @mouseenter="showControls"
+    @mouseleave="hideControls"
+    @pointerenter="showControls"
+    @pointerleave="hideControls"
+    @focusin="showControls"
+  >
+    <div class="screen" ref="screenEl">
+      <video
+        ref="mediaEl"
+        class="media"
+        :src="src"
+        :poster="poster"
+        :preload="preload"
+        playsinline
+        @loadedmetadata="syncMedia"
+        @timeupdate="syncMedia"
+        @durationchange="syncMedia"
+        @play="markPlaying"
+        @pause="markPaused"
+        @ended="markPaused"
+        @click="togglePlayback"
+      ></video>
+
+      <div class="top-bar">
+        <strong>{{ title }}</strong>
+        <span>{{ subtitle }}</span>
+      </div>
+
+      <button class="center-toggle" type="button" @click="togglePlayback" :aria-label="playLabel">
+        <span m-if="isPlaying" class="fa-icon icon-pause large" aria-hidden="true"></span>
+        <span m-else class="fa-icon icon-play large" aria-hidden="true"></span>
+      </button>
+
+      <div class="control-shelf">
+        <div
+          class="seek"
+          role="slider"
+          tabindex="0"
+          aria-label="Seek"
+          aria-valuemin="0"
+          :aria-valuemax="safeDuration"
+          :aria-valuenow="currentTime"
+          :aria-valuetext="formatTime(currentTime) + ' of ' + formatTime(duration)"
+          :style="seekStyle"
+          @click="seekFromPointer"
+          @keydown="seekWithKeyboard"
+          @pointerdown="startSeek"
+          @pointermove="dragSeek"
+          @pointerup="endSeek"
+          @pointercancel="endSeek"
+        >
+          <span class="seek-fill"></span>
+          <span class="seek-thumb"></span>
+        </div>
+
+        <div class="control-row">
+          <div class="left-controls">
+            <button class="icon-button" type="button" @click="togglePlayback" :aria-label="playLabel">
+              <span m-if="isPlaying" class="fa-icon icon-pause" aria-hidden="true"></span>
+              <span m-else class="fa-icon icon-play" aria-hidden="true"></span>
+            </button>
+            <button class="icon-button" type="button" @click="stopPlayback" aria-label="Stop video">
+              <span class="fa-icon icon-stop" aria-hidden="true"></span>
+            </button>
+            <button class="icon-button" type="button" @click="toggleMute" :aria-label="muteLabel">
+              <span m-if="muted" class="fa-icon icon-mute" aria-hidden="true"></span>
+              <span m-else class="fa-icon icon-volume" aria-hidden="true"></span>
+            </button>
+            <label class="volume">
+              <span>Volume</span>
+              <input type="range" min="0" max="1" step="0.01" :value="volume" @input="setVolume" />
+            </label>
+            <span class="clock">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+          </div>
+
+          <div class="right-controls">
+            <button class="pill-button" type="button" @click="cycleRate">{{ playbackRate }}x</button>
+            <button class="icon-button fullscreen-button" type="button" @click="toggleFullscreen" aria-label="Fullscreen">
+              <span m-if="isFullscreen" class="fa-icon icon-minimize" aria-hidden="true"></span>
+              <span m-else class="fa-icon icon-maximize" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref } from "mikuru";
+
+const {
+  src,
+  poster = "",
+  title = "Mikuru Video",
+  subtitle = "Original player component",
+  preload = "metadata"
+} = defineProps({
+  src: String,
+  poster: String,
+  title: String,
+  subtitle: String,
+  preload: String
+});
+
+const mediaEl = ref(null);
+const screenEl = ref(null);
+const currentTime = ref(0);
+const duration = ref(0);
+const volume = ref(0.8);
+const muted = ref(false);
+const isPlaying = ref(false);
+const isFullscreen = ref(false);
+const isSeeking = ref(false);
+const pointerInside = ref(false);
+const controlsVisible = ref(true);
+const playbackRate = ref(1);
+const safeDuration = computed(() => duration.value > 0 ? duration.value : 0);
+const seekProgress = computed(() => {
+  if (safeDuration.value <= 0) return 0;
+  if (safeDuration.value - currentTime.value <= 0.15) return 100;
+  return Math.min((currentTime.value / safeDuration.value) * 100, 100);
+});
+const seekStyle = computed(() => "--progress: " + seekProgress.value + "%");
+const playLabel = computed(() => isPlaying.value ? "Pause video" : "Play video");
+const muteLabel = computed(() => muted.value ? "Unmute video" : "Mute video");
+const rates = [1, 1.25, 1.5, 2, 0.75];
+
+onMounted(() => {
+  applyAudioSettings();
+  document.addEventListener("fullscreenchange", updateFullscreen);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("fullscreenchange", updateFullscreen);
+});
+
+function getMedia() {
+  return mediaEl.value;
+}
+
+function syncMedia() {
+  const media = getMedia();
+  if (!media) return;
+  currentTime.value = media.currentTime || 0;
+  duration.value = Number.isFinite(media.duration) ? media.duration : 0;
+  volume.value = media.volume;
+  muted.value = media.muted;
+  playbackRate.value = media.playbackRate;
+}
+
+function applyAudioSettings() {
+  const media = getMedia();
+  if (!media) return;
+  media.volume = volume.value;
+  media.muted = muted.value;
+  media.playbackRate = playbackRate.value;
+}
+
+function markPlaying() {
+  isPlaying.value = true;
+  controlsVisible.value = pointerInside.value;
+}
+
+function markPaused() {
+  isPlaying.value = false;
+  controlsVisible.value = true;
+}
+
+function updateFullscreen() {
+  isFullscreen.value = document.fullscreenElement === screenEl.value || document.fullscreenElement === mediaEl.value;
+}
+
+async function togglePlayback() {
+  const media = getMedia();
+  if (!media) return;
+  if (media.paused) {
+    await media.play();
+    return;
+  }
+  media.pause();
+}
+
+function getPointerTime(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const ratio = rect.width > 0 ? Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1) : 0;
+  const rawTime = ratio * safeDuration.value;
+  return safeDuration.value - rawTime <= 0.15 ? safeDuration.value : rawTime;
+}
+
+function seekTo(nextTime) {
+  const media = getMedia();
+  currentTime.value = nextTime;
+  if (media) {
+    media.currentTime = nextTime;
+  }
+}
+
+function seekFromPointer(event) {
+  seekTo(getPointerTime(event));
+}
+
+function startSeek(event) {
+  isSeeking.value = true;
+  controlsVisible.value = true;
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  seekFromPointer(event);
+}
+
+function dragSeek(event) {
+  if (!isSeeking.value) return;
+  seekFromPointer(event);
+}
+
+function endSeek(event) {
+  if (!isSeeking.value) return;
+  isSeeking.value = false;
+  event.currentTarget.releasePointerCapture?.(event.pointerId);
+  seekFromPointer(event);
+}
+
+function showControls() {
+  pointerInside.value = true;
+  controlsVisible.value = true;
+}
+
+function hideControls() {
+  pointerInside.value = false;
+  if (!isPlaying.value || isSeeking.value) return;
+  controlsVisible.value = false;
+}
+
+function seekWithKeyboard(event) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.key === "Home") {
+    seekTo(0);
+    return;
+  }
+  if (event.key === "End") {
+    seekTo(safeDuration.value);
+    return;
+  }
+
+  const offset = event.key === "ArrowRight" ? 5 : -5;
+  const nextTime = Math.min(Math.max(currentTime.value + offset, 0), safeDuration.value);
+  seekTo(nextTime);
+}
+
+function stopPlayback() {
+  const media = getMedia();
+  if (!media) return;
+  media.pause();
+  media.currentTime = 0;
+  currentTime.value = 0;
+  isPlaying.value = false;
+}
+
+function setVolume(event) {
+  const nextVolume = Number(event.target.value);
+  volume.value = nextVolume;
+  muted.value = nextVolume === 0;
+  applyAudioSettings();
+}
+
+function toggleMute() {
+  muted.value = !muted.value;
+  applyAudioSettings();
+}
+
+function cycleRate() {
+  const currentIndex = rates.indexOf(playbackRate.value);
+  playbackRate.value = rates[(currentIndex + 1) % rates.length];
+  applyAudioSettings();
+}
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen?.();
+    return;
+  }
+  const target = screenEl.value ?? getMedia();
+  if (!target || typeof target.requestFullscreen !== "function") return;
+  target.requestFullscreen();
+}
+
+function formatTime(seconds) {
+  const safeSeconds = Number.isFinite(seconds) ? Math.floor(seconds) : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = String(safeSeconds % 60).padStart(2, "0");
+  return minutes + ":" + remainder;
+}
+</script>
+
+<style scoped>
+.mikuru-video {
+  overflow: hidden;
+  border: 1px solid #18181b;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #050505;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+}
+
+.screen {
+  position: relative;
+  display: grid;
+  aspect-ratio: 16 / 9;
+  background: #111827;
+}
+
+.screen::before,
+.screen::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  height: 34%;
+  pointer-events: none;
+  content: "";
+}
+
+.screen::before {
+  top: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.68), rgba(0, 0, 0, 0));
+}
+
+.screen::after {
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0));
+}
+
+.media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.top-bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 12px 16px;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.top-bar strong,
+.top-bar span,
+.clock {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-bar span,
+.clock,
+.seek span,
+.volume span {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.88rem;
+}
+
+.center-toggle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 64px;
+  min-width: 88px;
+  min-height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.68);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.36);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.controls-visible .center-toggle,
+.center-toggle:focus-visible {
+  opacity: 0.95;
+  pointer-events: auto;
+}
+
+.control-shelf {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+  padding: 0 14px 12px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.controls-visible .top-bar,
+.controls-visible .control-shelf {
+  opacity: 1;
+}
+
+.controls-visible .control-shelf {
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.seek {
+  position: relative;
+  display: block;
+  height: 18px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.volume span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.control-row,
+.left-controls,
+.right-controls,
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-row {
+  justify-content: space-between;
+  min-height: 38px;
+}
+
+.left-controls,
+.right-controls {
+  min-width: 0;
+}
+
+.clock {
+  min-width: 92px;
+  font-variant-numeric: tabular-nums;
+}
+
+.volume input {
+  width: 100%;
+  accent-color: #ef4444;
+}
+
+.seek::before,
+.seek-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 6px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+  content: "";
+}
+
+.seek::before {
+  right: 0;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.seek-fill {
+  width: var(--progress);
+  background: #ef4444;
+}
+
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--progress);
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
+  transform: translate(-50%, -50%);
+}
+
+.seek:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.95);
+  outline-offset: 3px;
+}
+
+.volume input {
+  width: 86px;
+}
+
+.pill-button {
+  min-width: 48px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+}
+
+button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #ffffff;
+  background: rgba(17, 24, 39, 0.42);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(17, 24, 39, 0.88);
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.fa-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.28));
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+
+.fa-icon.large {
+  width: 42px;
+  height: 42px;
+}
+
+.center-toggle .icon-play {
+  transform: translateX(3px);
+}
+
+.center-toggle .icon-pause,
+.center-toggle .icon-stop {
+  transform: translateX(0);
+}
+
+.icon-play {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z"/></svg>');
+}
+
+.icon-pause {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M176 96C149.5 96 128 117.5 128 144L128 496C128 522.5 149.5 544 176 544L240 544C266.5 544 288 522.5 288 496L288 144C288 117.5 266.5 96 240 96L176 96zM400 96C373.5 96 352 117.5 352 144L352 496C352 522.5 373.5 544 400 544L464 544C490.5 544 512 522.5 512 496L512 144C512 117.5 490.5 96 464 96L400 96z"/></svg>');
+}
+
+.icon-stop {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z"/></svg>');
+}
+
+.icon-maximize {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M264 96L120 96C106.7 96 96 106.7 96 120L96 264C96 273.7 101.8 282.5 110.8 286.2C119.8 289.9 130.1 287.8 137 281L177 241L256 320L177 399L137 359C130.1 352.1 119.8 350.1 110.8 353.8C101.8 357.5 96 366.3 96 376L96 520C96 533.3 106.7 544 120 544L264 544C273.7 544 282.5 538.2 286.2 529.2C289.9 520.2 287.9 509.9 281 503L241 463L320 384L399 463L359 503C352.1 509.9 350.1 520.2 353.8 529.2C357.5 538.2 366.3 544 376 544L520 544C533.3 544 544 533.3 544 520L544 376C544 366.3 538.2 357.5 529.2 353.8C520.2 350.1 509.9 352.1 503 359L463 399L384 320L463 241L503 281C509.9 287.9 520.2 289.9 529.2 286.2C538.2 282.5 544 273.7 544 264L544 120C544 106.7 533.3 96 520 96L376 96C366.3 96 357.5 101.8 353.8 110.8C350.1 119.8 352.2 130.1 359 137L399 177L320 256L241 177L281 137C287.9 130.1 289.9 119.8 286.2 110.8C282.5 101.8 273.7 96 264 96z"/></svg>');
+}
+
+.icon-minimize {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M520 288L376 288C362.7 288 352 277.3 352 264L352 120C352 110.3 357.8 101.5 366.8 97.8C375.8 94.1 386.1 96.2 393 103L433 143L506.4 69.6C510 66 514.9 64 520 64C525.1 64 530 66 533.7 69.7L570.4 106.4C574 110 576 114.9 576 120C576 125.1 574 130 570.3 133.7L497 207L537 247C543.9 253.9 545.9 264.2 542.2 273.2C538.5 282.2 529.7 288 520 288zM520 352C529.7 352 538.5 357.8 542.2 366.8C545.9 375.8 543.9 386.1 537 393L497 433L570.4 506.4C574 510 576.1 514.9 576.1 520.1C576.1 525.3 574.1 530.1 570.4 533.8L533.7 570.5C530 574 525.1 576 520 576C514.9 576 510 574 506.3 570.3L433 497L393 537C386.1 543.9 375.8 545.9 366.8 542.2C357.8 538.5 352 529.7 352 520L352 376C352 362.7 362.7 352 376 352L520 352zM264 352C277.3 352 288 362.7 288 376L288 520C288 529.7 282.2 538.5 273.2 542.2C264.2 545.9 253.9 543.9 247 537L207 497L133.6 570.4C130 574 125.1 576 120 576C114.9 576 110 574 106.3 570.3L69.7 533.7C66 530 64 525.1 64 520C64 514.9 66 510 69.7 506.3L143 433L103 393C96.1 386.1 94.1 375.8 97.8 366.8C101.5 357.8 110.3 352 120 352L264 352zM120 288C110.3 288 101.5 282.2 97.8 273.2C94.1 264.2 96.2 253.9 103 247L143 207L69.7 133.7C66 130 64 125.1 64 120C64 114.9 66 110 69.7 106.3L106.3 69.7C110 66 114.9 64 120 64C125.1 64 130 66 133.7 69.7L207 143L247 103C253.9 96.1 264.2 94.1 273.2 97.8C282.2 101.5 288 110.3 288 120L288 264C288 277.3 277.3 288 264 288L120 288z"/></svg>');
+}
+
+.icon-volume {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M112 416L160 416L294.1 535.2C300.5 540.9 308.7 544 317.2 544C336.4 544 352 528.4 352 509.2L352 130.8C352 111.6 336.4 96 317.2 96C308.7 96 300.5 99.1 294.1 104.8L160 224L112 224C85.5 224 64 245.5 64 272L64 368C64 394.5 85.5 416 112 416zM505.1 171C494.8 162.6 479.7 164.2 471.3 174.5C462.9 184.8 464.5 199.9 474.8 208.3C507.3 234.7 528 274.9 528 320C528 365.1 507.3 405.3 474.8 431.8C464.5 440.2 463 455.3 471.3 465.6C479.6 475.9 494.8 477.4 505.1 469.1C548.3 433.9 576 380.2 576 320.1C576 260 548.3 206.3 505.1 171.1zM444.6 245.5C434.3 237.1 419.2 238.7 410.8 249C402.4 259.3 404 274.4 414.3 282.8C425.1 291.6 432 305 432 320C432 335 425.1 348.4 414.3 357.3C404 365.7 402.5 380.8 410.8 391.1C419.1 401.4 434.3 402.9 444.6 394.6C466.1 376.9 480 350.1 480 320C480 289.9 466.1 263.1 444.5 245.5z"/></svg>');
+}
+
+.icon-mute {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M80 416L128 416L262.1 535.2C268.5 540.9 276.7 544 285.2 544C304.4 544 320 528.4 320 509.2L320 130.8C320 111.6 304.4 96 285.2 96C276.7 96 268.5 99.1 262.1 104.8L128 224L80 224C53.5 224 32 245.5 32 272L32 368C32 394.5 53.5 416 80 416zM399 239C389.6 248.4 389.6 263.6 399 272.9L446 319.9L399 366.9C389.6 376.3 389.6 391.5 399 400.8C408.4 410.1 423.6 410.2 432.9 400.8L479.9 353.8L526.9 400.8C536.3 410.2 551.5 410.2 560.8 400.8C570.1 391.4 570.2 376.2 560.8 366.9L513.8 319.9L560.8 272.9C570.2 263.5 570.2 248.3 560.8 239C551.4 229.7 536.2 229.6 526.9 239L479.9 286L432.9 239C423.5 229.6 408.3 229.6 399 239z"/></svg>');
+}
+
+@media (max-width: 620px) {
+  .top-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 70px;
+  }
+
+  .control-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .left-controls,
+  .right-controls {
+    flex-wrap: wrap;
+  }
+
+  .volume {
+    flex: 1;
+  }
+
+  .volume input {
+    width: 100%;
+    min-width: 88px;
+  }
+}
+</style>

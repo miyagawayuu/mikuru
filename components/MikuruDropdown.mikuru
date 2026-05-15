@@ -1,0 +1,153 @@
+<template>
+  <div class="mikuru-dropdown" ref="rootEl" @keydown="handleKeydown">
+    <button
+      class="dropdown-trigger"
+      type="button"
+      :aria-expanded="isOpen ? 'true' : 'false'"
+      aria-haspopup="menu"
+      @click="toggle"
+    >
+      <span>{{ label }}</span>
+      <span aria-hidden="true">⌄</span>
+    </button>
+
+    <div m-if="isOpen" class="dropdown-menu" role="menu">
+      <button
+        m-for="item in normalizedItems"
+        :key="item.value"
+        class="dropdown-item"
+        type="button"
+        role="menuitem"
+        :disabled="item.disabled"
+        @click="selectItem(item)"
+      >
+        <span>{{ item.label }}</span>
+        <small>{{ item.description }}</small>
+      </button>
+    </div>
+  </div>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref } from "mikuru";
+
+const {
+  label = "Menu",
+  items = []
+} = defineProps({
+  label: String,
+  items: Array
+});
+
+const emit = defineEmits(["select"]);
+const rootEl = ref(null);
+const isOpen = ref(false);
+const normalizedItems = computed(() => {
+  const source = Array.isArray(items.value) ? items.value : [];
+  return source.map((item, index) => {
+    if (typeof item === "string") {
+      return { label: item, value: item, description: "", disabled: false };
+    }
+    return {
+      label: item.label || `Item ${index + 1}`,
+      value: item.value ?? item.label ?? index,
+      description: item.description || "",
+      disabled: Boolean(item.disabled)
+    };
+  });
+});
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointer);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointer);
+});
+
+function toggle() {
+  isOpen.value = !isOpen.value;
+}
+
+function close() {
+  isOpen.value = false;
+}
+
+function selectItem(item) {
+  if (item.disabled) return;
+  emit("select", item.value);
+  close();
+}
+
+function handleDocumentPointer(event) {
+  const root = rootEl.value;
+  if (!root || root.contains(event.target)) return;
+  close();
+}
+
+function handleKeydown(event) {
+  if (event.key === "Escape") {
+    close();
+  }
+}
+</script>
+
+<style scoped>
+.mikuru-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: grid;
+  min-width: 220px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 16%);
+}
+
+.dropdown-item {
+  display: grid;
+  gap: 2px;
+  border: 0;
+  padding: 10px 12px;
+  color: #111827;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus-visible {
+  background: #f1f5f9;
+}
+
+.dropdown-item:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.dropdown-item small {
+  color: #64748b;
+}
+</style>

@@ -268,15 +268,41 @@ npm run dev:mikuru-sample
 npm run dev:mikuru-vue-like
 ```
 
-The dogfood example also includes original Mikuru media player components:
+The package also includes original Mikuru components:
 
 - `MikuruVideoPlayer.mikuru`: overlay video controls, div-based seeking, volume/mute, playback rate, stop, and fullscreen controls.
 - `MikuruAudioPlayer.mikuru`: audio playback with seeking, skip controls, volume, and mute.
+- `MikuruImageViewer.mikuru`: image zoom, pan, rotate, reset, and fullscreen controls.
+- `MikuruModal.mikuru`: accessible modal shell with backdrop, Escape close, slots, and close events.
+- `MikuruCarousel.mikuru`: image carousel with arrows, dots, keyboard navigation, and optional autoplay.
+- `MikuruToast.mikuru`: fixed notification stack with dismiss events and tone variants.
+- `MikuruDropdown.mikuru`: menu button with outside-click close, Escape handling, and select events.
+- `MikuruToolTip.mikuru`: hover/focus tooltip with configurable placement.
+- `MikuruProgress.mikuru`: determinate and indeterminate progress indicator.
+- `MikuruCodeBlock.mikuru`: code display with language label, line numbers, and copy action.
+
+They can be imported from the package:
+
+```mikuru
+<script>
+import MikuruVideoPlayer from "mikuru/components/MikuruVideoPlayer";
+import MikuruAudioPlayer from "mikuru/components/MikuruAudioPlayer";
+import MikuruImageViewer from "mikuru/components/MikuruImageViewer";
+import MikuruModal from "mikuru/components/MikuruModal";
+import MikuruCarousel from "mikuru/components/MikuruCarousel";
+import MikuruToast from "mikuru/components/MikuruToast";
+import MikuruDropdown from "mikuru/components/MikuruDropdown";
+import MikuruToolTip from "mikuru/components/MikuruToolTip";
+import MikuruProgress from "mikuru/components/MikuruProgress";
+import MikuruCodeBlock from "mikuru/components/MikuruCodeBlock";
+</script>
+```
 
 ## Documentation
 
 - `CHANGELOG.md` lists published package changes.
 - `docs/npm-usage.md` shows a manual Vite setup for package consumers.
+- `docs/mikuru-components.md` shows usage examples for package-exported Mikuru components.
 - `docs/app-architecture.md` describes how to keep larger Mikuru apps split across components, API modules, stores, forms, auth, and tests.
 - `docs/router.md` documents the runtime router.
 - `docs/production-readiness.md` summarizes debugging, parser, package, SSR, and hydration caveats.

@@ -1,8 +1,8 @@
 # Changelog
 
-## 1.0.27 - 2026-05-15
+## 1.0.28 - 2026-05-15
 
-- Added dogfood Mikuru video and audio player components with custom controls, template refs, lifecycle cleanup, keyboard-accessible div-based seeking, volume, mute, playback rate, stop, and fullscreen controls.
+- Added package-exported Mikuru video player, audio player, image viewer, modal, carousel, toast, dropdown, tooltip, progress, and code block components with custom controls, template refs, lifecycle cleanup, keyboard-accessible seeking/navigation, volume, mute, playback rate, stop, fullscreen, close/select/dismiss events, progress states, and copy actions.
 - Updated the dogfood media player UI with video-overlay controls, Font Awesome-shaped CSS mask icons, auto-hiding playback controls, and a custom seek track that renders cleanly at the final position.
 - Fixed Vite-routed component CSS requests so style virtual module URLs are keyed by compiled style content, preventing stale `<style scoped>` CSS from being reused after SFC style changes.
 - Added compiler coverage for content-keyed Vite CSS requests so repeated transforms of the same `.mikuru` file with changed styles resolve to distinct style module URLs.

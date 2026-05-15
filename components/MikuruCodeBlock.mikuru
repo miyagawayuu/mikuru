@@ -1,0 +1,96 @@
+<template>
+  <figure class="mikuru-code-block">
+    <figcaption class="code-header">
+      <span>{{ languageLabel }}</span>
+      <button type="button" @click="copyCode">{{ copyLabel }}</button>
+    </figcaption>
+    <pre><code><span m-for="line in lines" :key="line.number" class="code-line"><span m-if="showLineNumbers" class="line-number">{{ line.number }}</span><span>{{ line.text }}</span>
+</span></code></pre>
+  </figure>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const {
+  code = "",
+  language = "text",
+  showLineNumbers = true
+} = defineProps({
+  code: String,
+  language: String,
+  showLineNumbers: Boolean
+});
+
+const copied = ref(false);
+const languageLabel = computed(() => language.value || "text");
+const copyLabel = computed(() => copied.value ? "Copied" : "Copy");
+const lines = computed(() => code.value.split("\n").map((text, index) => ({
+  number: index + 1,
+  text
+})));
+
+async function copyCode() {
+  if (!navigator.clipboard) return;
+  await navigator.clipboard.writeText(code.value);
+  copied.value = true;
+  window.setTimeout(() => {
+    copied.value = false;
+  }, 1400);
+}
+</script>
+
+<style scoped>
+.mikuru-code-block {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  color: #cbd5e1;
+  background: #111827;
+  font-size: 0.85rem;
+}
+
+.code-header button {
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: #f8fafc;
+  background: #1f2937;
+  font: inherit;
+  cursor: pointer;
+}
+
+pre {
+  margin: 0;
+  overflow: auto;
+  padding: 12px 0;
+  color: #e5e7eb;
+  font: 0.9rem/1.55 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.code-line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  min-width: max-content;
+  padding: 0 14px;
+  white-space: pre;
+}
+
+.line-number {
+  min-width: 3ch;
+  margin-right: 14px;
+  color: #64748b;
+  text-align: right;
+  user-select: none;
+}
+</style>

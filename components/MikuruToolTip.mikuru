@@ -1,0 +1,95 @@
+<template>
+  <span
+    class="mikuru-tooltip"
+    :class="placementClass"
+    @mouseenter="show"
+    @mouseleave="hide"
+    @focusin="show"
+    @focusout="hide"
+  >
+    <span class="tooltip-trigger" tabindex="0">
+      <slot>{{ label }}</slot>
+    </span>
+    <span m-if="visible" class="tooltip-bubble" role="tooltip">{{ text }}</span>
+  </span>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const {
+  text = "Tooltip",
+  label = "?",
+  placement = "top"
+} = defineProps({
+  text: String,
+  label: String,
+  placement: String
+});
+
+const visible = ref(false);
+const placementClass = computed(() => `placement-${placement.value}`);
+
+function show() {
+  visible.value = true;
+}
+
+function hide() {
+  visible.value = false;
+}
+</script>
+
+<style scoped>
+.mikuru-tooltip {
+  position: relative;
+  display: inline-flex;
+  width: max-content;
+}
+
+.tooltip-trigger {
+  display: inline-flex;
+  outline: none;
+}
+
+.tooltip-trigger:focus-visible {
+  box-shadow: 0 0 0 3px #38bdf8;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  z-index: 45;
+  width: max-content;
+  max-width: 240px;
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: #f8fafc;
+  background: #111827;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.placement-top .tooltip-bubble {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.placement-bottom .tooltip-bubble {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.placement-left .tooltip-bubble {
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+
+.placement-right .tooltip-bubble {
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+</style>
