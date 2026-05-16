@@ -4,7 +4,7 @@
       <div class="carousel-track" :style="trackStyle">
         <article
           class="carousel-slide"
-          m-for="slide in normalizedSlides"
+          m-for="slide in slides"
           :key="slide.id"
           :aria-label="slide.label"
         >
@@ -33,7 +33,7 @@
       <span>{{ positionLabel }}</span>
       <div class="carousel-dots" role="tablist" aria-label="Carousel slides">
         <button
-          m-for="slide in normalizedSlides"
+          m-for="slide in slides"
           :key="slide.id"
           type="button"
           :class="{ active: slide.index === activeIndex }"
@@ -46,7 +46,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted, ref } from "mikuru";
+import { computed, onMounted, onUnmounted, ref, watch } from "mikuru";
 
 const {
   images = [],
@@ -65,11 +65,24 @@ const {
 });
 
 const activeIndex = ref(0);
+const slides = ref([]);
+let slidesSignature = "";
 let timer = null;
+let mounted = false;
 
-const normalizedSlides = computed(() => {
+const slideCount = computed(() => slides.value.length);
+const isEmpty = computed(() => slideCount.value === 0);
+const trackStyle = computed(() => `transform: translateX(-${activeIndex.value * 100}%)`);
+const positionLabel = computed(() => {
+  if (slideCount.value === 0) return "0 / 0";
+  return `${activeIndex.value + 1} / ${slideCount.value}`;
+});
+
+watch(images, syncSlides, { immediate: true });
+
+function syncSlides() {
   const source = Array.isArray(images.value) ? images.value : [];
-  return source.map((item, index) => {
+  const nextSlides = source.map((item, index) => {
     const src = typeof item === "string" ? item : item.src;
     const alt = typeof item === "string" ? "" : item.alt || item.title || `Slide ${index + 1}`;
     const slideTitle = typeof item === "string" ? `Slide ${index + 1}` : item.title || `Slide ${index + 1}`;
@@ -84,22 +97,25 @@ const normalizedSlides = computed(() => {
       label: `${slideTitle}, ${index + 1} of ${source.length}`
     };
   });
-});
-const slideCount = computed(() => normalizedSlides.value.length);
-const isEmpty = computed(() => slideCount.value === 0);
-const trackStyle = computed(() => ({
-  transform: `translateX(-${activeIndex.value * 100}%)`
-}));
-const positionLabel = computed(() => {
-  if (slideCount.value === 0) return "0 / 0";
-  return `${activeIndex.value + 1} / ${slideCount.value}`;
-});
+  const nextSignature = nextSlides
+    .map((slide) => `${slide.id}\u0000${slide.alt}\u0000${slide.title}\u0000${slide.caption}`)
+    .join("\u0001");
+  if (nextSignature === slidesSignature) return;
+  slidesSignature = nextSignature;
+  slides.value = nextSlides;
+  activeIndex.value = clampIndex(activeIndex.value);
+  if (mounted) {
+    startAutoplay();
+  }
+}
 
 onMounted(() => {
+  mounted = true;
   startAutoplay();
 });
 
 onUnmounted(() => {
+  mounted = false;
   stopAutoplay();
 });
 

@@ -36,9 +36,7 @@ const safeMax = computed(() => max.value > 0 ? max.value : 100);
 const clampedValue = computed(() => Math.min(Math.max(value.value, 0), safeMax.value));
 const percent = computed(() => Math.round((clampedValue.value / safeMax.value) * 100));
 const percentLabel = computed(() => `${percent.value}%`);
-const fillStyle = computed(() => ({
-  width: indeterminate.value ? "45%" : `${percent.value}%`
-}));
+const fillStyle = computed(() => `width: ${indeterminate.value ? "45%" : `${percent.value}%`}`);
 </script>
 
 <style scoped>

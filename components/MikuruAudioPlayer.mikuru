@@ -111,10 +111,11 @@ const showSkipControl = computed(() => hasControl("skip"));
 const showMuteControl = computed(() => hasControl("mute"));
 const showVolumeControl = computed(() => hasControl("volume"));
 const showTimeline = computed(() => showSeekControl.value || showTimeControl.value);
-const timelineClass = computed(() => ({
-  "timeline-seek-only": showSeekControl.value && !showTimeControl.value,
-  "timeline-time-only": showTimeControl.value && !showSeekControl.value
-}));
+const timelineClass = computed(() => {
+  if (showSeekControl.value && !showTimeControl.value) return "timeline-seek-only";
+  if (showTimeControl.value && !showSeekControl.value) return "timeline-time-only";
+  return "";
+});
 const showControls = computed(() => (
   showPlayControl.value ||
   showSkipControl.value ||

@@ -144,7 +144,7 @@
 </template>
 
 <script>
-import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from "mikuru";
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from "mikuru";
 
 const {
   src,
@@ -202,19 +202,40 @@ const controlsVisible = ref(true);
 const settingsEl = ref(null);
 const allControls = ["play", "seek", "time", "mute", "volume", "settings", "fullscreen"];
 const liveHiddenControls = ["seek", "time"];
-const activeControls = computed(() => {
+const activeControls = ref(new Set(allControls));
+const normalizedQualityOptions = ref([]);
+let controlsSignature = "";
+let qualityOptionsSignature = "";
+
+watch(controls, syncControls, { immediate: true });
+watch([qualityOptions, src, poster], syncQualityOptions, { immediate: true });
+
+function syncControls() {
   const configuredControls = Array.isArray(controls.value) ? controls.value : allControls;
-  return new Set(configuredControls);
-});
-const normalizedQualityOptions = computed(() => {
+  const nextSignature = configuredControls.join("\u0001");
+  if (nextSignature === controlsSignature) return;
+  controlsSignature = nextSignature;
+  activeControls.value = new Set(configuredControls);
+}
+
+function syncQualityOptions() {
   const source = Array.isArray(qualityOptions.value) ? qualityOptions.value : [];
   const options = source
     .map((option, index) => normalizeQualityOption(option, index))
     .filter(Boolean);
-  return options.length > 0
+  const nextOptions = options.length > 0
     ? options
     : [{ id: "auto", label: "Auto", src: src.value, poster: poster.value }];
-});
+  const nextSignature = nextOptions
+    .map((option) => `${option.id}\u0000${option.label}\u0000${option.src}\u0000${option.poster}`)
+    .join("\u0001");
+  if (nextSignature === qualityOptionsSignature) return;
+  qualityOptionsSignature = nextSignature;
+  normalizedQualityOptions.value = nextOptions;
+  if (!nextOptions.some((option) => option.id === selectedQualityId.value)) {
+    selectedQualityId.value = nextOptions[0]?.id || "auto";
+  }
+}
 const selectedQuality = computed(() =>
   normalizedQualityOptions.value.find((option) => option.id === selectedQualityId.value) ?? normalizedQualityOptions.value[0]
 );
@@ -223,15 +244,15 @@ const selectedVideoSrc = computed(() => selectedQuality.value?.src || src.value)
 const selectedPoster = computed(() => selectedQuality.value?.poster ?? poster.value);
 const playerStyle = computed(() => {
   const normalizedWidth = normalizeCssSize(width.value);
-  return normalizedWidth ? { width: normalizedWidth } : null;
+  return normalizedWidth ? `width: ${normalizedWidth}` : "";
 });
 const screenStyle = computed(() => {
   const normalizedHeight = normalizeCssSize(height.value);
   const normalizedAspectRatio = normalizeAspectRatio(aspectRatio.value);
-  return {
-    height: normalizedHeight || null,
-    aspectRatio: normalizedAspectRatio || null
-  };
+  const declarations = [];
+  if (normalizedHeight) declarations.push(`height: ${normalizedHeight}`);
+  if (normalizedAspectRatio) declarations.push(`aspect-ratio: ${normalizedAspectRatio}`);
+  return declarations.join("; ");
 });
 const isLive = computed(() => live.value === true);
 const safeDuration = computed(() => duration.value > 0 ? duration.value : 0);

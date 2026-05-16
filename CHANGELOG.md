@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.34 - 2026-05-16
+
+- Stabilized package component internals so repeated mounts and parent rerenders no longer recreate equivalent derived arrays, Sets, or style objects unnecessarily.
+- Hardened `MikuruCarousel`, `MikuruDropdown`, `MikuruToast`, `MikuruCodeBlock`, and `MikuruVideoPlayer` against recursive update loops when parents pass freshly-created array props with unchanged contents.
+- Switched package component style bindings in `MikuruImageViewer`, `MikuruProgress`, and `MikuruVideoPlayer` to stable string styles to avoid avoidable reactive object churn.
+- Updated `MikuruAudioPlayer` timeline class derivation to return stable class strings.
+
 ## 1.0.33 - 2026-05-16
 
 - Added `MikuruVideoPlayer` sizing props for width, height, and aspect ratio.

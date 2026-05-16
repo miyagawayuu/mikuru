@@ -82,9 +82,7 @@ const label = computed(() => caption.value || alt.value);
 const captionText = computed(() => caption.value || alt.value);
 const zoomLabel = computed(() => `${Math.round(zoom.value * 100)}%`);
 const fullscreenLabel = computed(() => isFullscreen.value ? "Exit fullscreen" : "Enter fullscreen");
-const imageStyle = computed(() => ({
-  transform: `translate(${offsetX.value}px, ${offsetY.value}px) scale(${zoom.value}) rotate(${rotation.value}deg)`
-}));
+const imageStyle = computed(() => `transform: translate(${offsetX.value}px, ${offsetY.value}px) scale(${zoom.value}) rotate(${rotation.value}deg)`);
 
 onMounted(() => {
   document.addEventListener("fullscreenchange", syncFullscreen);

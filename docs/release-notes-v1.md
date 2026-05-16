@@ -73,6 +73,12 @@ See `docs/npm-usage.md` for a full Vite setup.
 
 The v1 API contract is documented in `docs/v1-api-contract.md`. Patch releases should preserve supported syntax and generated runtime contracts. Unsupported syntax should fail loudly at compile time.
 
+## Patch 1.0.34
+
+- Stabilizes package component internals so multiple mounted media, image, carousel, toast, dropdown, progress, and code block components tolerate parent rerenders that pass freshly-created props with unchanged contents.
+- Caches normalized array-derived state in `MikuruCarousel.mikuru`, `MikuruDropdown.mikuru`, `MikuruToast.mikuru`, `MikuruCodeBlock.mikuru`, and `MikuruVideoPlayer.mikuru` so equivalent inputs do not trigger avoidable child reconciliation.
+- Uses stable string style bindings in `MikuruImageViewer.mikuru`, `MikuruProgress.mikuru`, and `MikuruVideoPlayer.mikuru`, and stable timeline class strings in `MikuruAudioPlayer.mikuru`.
+
 ## Patch 1.0.31
 
 - Exports `MikuruVideoPlayer.mikuru` media events for playback, timing, seeking, volume, mute, and playback-rate changes with a typed media state payload.

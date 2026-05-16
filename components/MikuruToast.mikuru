@@ -17,7 +17,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted, watch } from "mikuru";
+import { computed, onMounted, onUnmounted, ref, watch } from "mikuru";
 
 const {
   toasts = [],
@@ -32,9 +32,14 @@ const {
 const emit = defineEmits(["dismiss"]);
 const timers = new Map();
 const positionClass = computed(() => `position-${position.value}`);
-const normalizedToasts = computed(() => {
+const normalizedToasts = ref([]);
+let toastsSignature = "";
+
+watch([toasts, duration], syncToasts, { immediate: true });
+
+function syncToasts() {
   const source = Array.isArray(toasts.value) ? toasts.value : [];
-  return source.map((toast, index) => {
+  const nextToasts = source.map((toast, index) => {
     const id = toast.id ?? index;
     const tone = toast.tone || "info";
     const toastDuration = typeof toast.duration === "number" ? toast.duration : duration.value;
@@ -47,7 +52,14 @@ const normalizedToasts = computed(() => {
       duration: toastDuration
     };
   });
-});
+  const nextSignature = nextToasts
+    .map((toast) => `${toast.id}\u0000${toast.title}\u0000${toast.message}\u0000${toast.toneClass}\u0000${toast.duration}`)
+    .join("\u0001");
+  if (nextSignature === toastsSignature) return;
+  toastsSignature = nextSignature;
+  normalizedToasts.value = nextToasts;
+  syncToastTimers();
+}
 
 onMounted(() => {
   syncToastTimers();
@@ -55,10 +67,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearToastTimers();
-});
-
-watch(toasts, () => {
-  syncToastTimers();
 });
 
 function dismissToast(id) {

@@ -10,7 +10,7 @@
 </template>
 
 <script>
-import { computed, ref } from "mikuru";
+import { computed, ref, watch } from "mikuru";
 
 const {
   code = "",
@@ -23,12 +23,16 @@ const {
 });
 
 const copied = ref(false);
+const lines = ref([]);
 const languageLabel = computed(() => language.value || "text");
 const copyLabel = computed(() => copied.value ? "Copied" : "Copy");
-const lines = computed(() => code.value.split("\n").map((text, index) => ({
-  number: index + 1,
-  text
-})));
+
+watch(code, () => {
+  lines.value = code.value.split("\n").map((text, index) => ({
+    number: index + 1,
+    text
+  }));
+}, { immediate: true });
 
 async function copyCode() {
   if (!navigator.clipboard) return;

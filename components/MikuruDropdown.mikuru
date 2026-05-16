@@ -29,7 +29,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted, ref } from "mikuru";
+import { onMounted, onUnmounted, ref, watch } from "mikuru";
 
 const {
   label = "Menu",
@@ -42,9 +42,14 @@ const {
 const emit = defineEmits(["select"]);
 const rootEl = ref(null);
 const isOpen = ref(false);
-const normalizedItems = computed(() => {
+const normalizedItems = ref([]);
+let itemsSignature = "";
+
+watch(items, syncItems, { immediate: true });
+
+function syncItems() {
   const source = Array.isArray(items.value) ? items.value : [];
-  return source.map((item, index) => {
+  const nextItems = source.map((item, index) => {
     if (typeof item === "string") {
       return { label: item, value: item, description: "", disabled: false };
     }
@@ -55,7 +60,13 @@ const normalizedItems = computed(() => {
       disabled: Boolean(item.disabled)
     };
   });
-});
+  const nextSignature = nextItems
+    .map((item) => `${item.value}\u0000${item.label}\u0000${item.description}\u0000${item.disabled}`)
+    .join("\u0001");
+  if (nextSignature === itemsSignature) return;
+  itemsSignature = nextSignature;
+  normalizedItems.value = nextItems;
+}
 
 onMounted(() => {
   document.addEventListener("pointerdown", handleDocumentPointer);
