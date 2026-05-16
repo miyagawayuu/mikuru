@@ -23,12 +23,23 @@ export type MikuruVideoPlayerEvents = {
   onRatechange?: (payload: MikuruVideoPlayerEventPayload) => void;
 };
 
+export type MikuruVideoPlayerControl =
+  | "play"
+  | "seek"
+  | "time"
+  | "mute"
+  | "volume"
+  | "rate"
+  | "fullscreen";
+
 export type MikuruVideoPlayerProps = {
   src: string;
   poster?: string;
   title?: string;
   subtitle?: string;
   preload?: string;
+  controls?: MikuruVideoPlayerControl[];
+  live?: boolean;
 } & MikuruVideoPlayerEvents;
 
 declare const component: MikuruComponent<MikuruVideoPlayerProps>;

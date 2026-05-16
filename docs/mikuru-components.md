@@ -150,7 +150,7 @@ See `docs/mikuru-video-player.md` for video and audio player examples.
 
 ```mikuru
 <template>
-  <MikuruToast :toasts="toasts" @dismiss="dismissToast" />
+  <MikuruToast :toasts="toasts" :duration="5000" @dismiss="dismissToast" />
 </template>
 
 <script>
@@ -165,6 +165,8 @@ function dismissToast(id) {
 }
 </script>
 ```
+
+Toasts auto-dismiss after `duration` milliseconds. Set `duration` to `0` to keep them open until the close button is pressed, or set `duration` on an individual toast item to override the stack default.
 
 ## Dropdown
 

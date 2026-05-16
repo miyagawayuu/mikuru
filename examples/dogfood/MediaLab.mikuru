@@ -18,6 +18,22 @@
         src="https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3"
       />
 
+      <MikuruVideoPlayer
+        title="Bloom Live"
+        subtitle="Live mode video sample"
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+        live
+        :controls="['play', 'mute', 'volume', 'fullscreen']"
+      />
+
+      <MikuruAudioPlayer
+        title="Roar Radio"
+        artist="Live mode audio sample"
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3"
+        live
+        :controls="['play', 'mute', 'volume']"
+      />
+
       <MikuruImageViewer
         src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
         alt="Quiet lake house"
@@ -47,7 +63,7 @@
       </div>
     </div>
 
-    <MikuruToast :toasts="toasts" position="bottom-right" @dismiss="dismissToast" />
+    <MikuruToast :toasts="toasts" position="bottom-right" :duration="4500" @dismiss="dismissToast" />
 
     <MikuruModal :open="modalOpen" title="Package modal" footer="Esc, backdrop, or Close can dismiss." @close="closeModal">
       <p>This modal is imported from the package component set and rendered inside dogfood.</p>

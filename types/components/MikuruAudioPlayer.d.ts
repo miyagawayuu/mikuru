@@ -23,11 +23,21 @@ export type MikuruAudioPlayerEvents = {
   onRatechange?: (payload: MikuruAudioPlayerEventPayload) => void;
 };
 
+export type MikuruAudioPlayerControl =
+  | "play"
+  | "seek"
+  | "time"
+  | "skip"
+  | "mute"
+  | "volume";
+
 export type MikuruAudioPlayerProps = {
   src: string;
   title?: string;
   artist?: string;
   preload?: string;
+  controls?: MikuruAudioPlayerControl[];
+  live?: boolean;
 } & MikuruAudioPlayerEvents;
 
 declare const component: MikuruComponent<MikuruAudioPlayerProps>;

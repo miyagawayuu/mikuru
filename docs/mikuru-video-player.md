@@ -114,6 +114,10 @@ export default defineConfig({
 
 ## Props
 
+Both players accept a `controls` array. When omitted, all standard controls are shown. Pass an empty array to hide the custom controls, or pass only the controls you want to display.
+
+Live mode is enabled with `live`. Live players show a `LIVE` label and hide seek-oriented controls because a live stream does not have a stable timeline.
+
 Video:
 
 | Prop | Type | Required | Description |
@@ -123,6 +127,8 @@ Video:
 | `subtitle` | `string` | No | Small text under the title. |
 | `poster` | `string` | No | Poster image URL. |
 | `preload` | `string` | No | Native video preload setting. Defaults to `metadata`. |
+| `controls` | `MikuruVideoPlayerControl[]` | No | Custom controls to show. Allowed values: `play`, `seek`, `time`, `mute`, `volume`, `rate`, `fullscreen`. |
+| `live` | `boolean` | No | Shows live mode and hides `seek`, `time`, and `rate` controls. |
 
 Audio:
 
@@ -132,6 +138,26 @@ Audio:
 | `title` | `string` | No | Player title. Defaults to `Mikuru Audio`. |
 | `artist` | `string` | No | Small text shown under the title. |
 | `preload` | `string` | No | Native audio preload setting. Defaults to `metadata`. |
+| `controls` | `MikuruAudioPlayerControl[]` | No | Custom controls to show. Allowed values: `play`, `seek`, `time`, `skip`, `mute`, `volume`. |
+| `live` | `boolean` | No | Shows live mode and hides `seek`, `time`, and `skip` controls. |
+
+Examples:
+
+```mikuru
+<MikuruVideoPlayer
+  title="Live keynote"
+  src="/media/keynote.m3u8"
+  live
+  :controls="['play', 'mute', 'volume', 'fullscreen']"
+/>
+
+<MikuruAudioPlayer
+  title="Live radio"
+  src="/media/radio.mp3"
+  live
+  :controls="['play', 'mute', 'volume']"
+/>
+```
 
 ## Events
 
@@ -187,7 +213,6 @@ type MediaPlayerEventPayload = {
 `MikuruVideoPlayer` includes:
 
 - Play and pause
-- Stop
 - Click and drag seeking
 - Keyboard seeking with `ArrowLeft`, `ArrowRight`, `Home`, and `End`
 - Volume

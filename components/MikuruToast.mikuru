@@ -17,35 +17,83 @@
 </template>
 
 <script>
-import { computed } from "mikuru";
+import { computed, onMounted, onUnmounted, watch } from "mikuru";
 
 const {
   toasts = [],
-  position = "bottom-right"
+  position = "bottom-right",
+  duration = 5000
 } = defineProps({
   toasts: Array,
-  position: String
+  position: String,
+  duration: Number
 });
 
 const emit = defineEmits(["dismiss"]);
+const timers = new Map();
 const positionClass = computed(() => `position-${position.value}`);
 const normalizedToasts = computed(() => {
   const source = Array.isArray(toasts.value) ? toasts.value : [];
   return source.map((toast, index) => {
     const id = toast.id ?? index;
     const tone = toast.tone || "info";
+    const toastDuration = typeof toast.duration === "number" ? toast.duration : duration.value;
     return {
       id,
       title: toast.title || "Notification",
       message: toast.message || "",
       toneClass: `tone-${tone}`,
-      dismissLabel: `Dismiss ${toast.title || "notification"}`
+      dismissLabel: `Dismiss ${toast.title || "notification"}`,
+      duration: toastDuration
     };
   });
 });
 
+onMounted(() => {
+  syncToastTimers();
+});
+
+onUnmounted(() => {
+  clearToastTimers();
+});
+
+watch(toasts, () => {
+  syncToastTimers();
+});
+
 function dismissToast(id) {
+  clearToastTimer(id);
   emit("dismiss", id);
+}
+
+function syncToastTimers() {
+  const visibleIds = new Set(normalizedToasts.value.map((toast) => toast.id));
+  Array.from(timers.keys()).forEach((id) => {
+    if (!visibleIds.has(id)) {
+      clearToastTimer(id);
+    }
+  });
+
+  normalizedToasts.value.forEach((toast) => {
+    if (timers.has(toast.id)) return;
+    if (!Number.isFinite(toast.duration) || toast.duration <= 0) return;
+    const timer = window.setTimeout(() => {
+      timers.delete(toast.id);
+      emit("dismiss", toast.id);
+    }, toast.duration);
+    timers.set(toast.id, timer);
+  });
+}
+
+function clearToastTimer(id) {
+  const timer = timers.get(id);
+  if (!timer) return;
+  window.clearTimeout(timer);
+  timers.delete(id);
+}
+
+function clearToastTimers() {
+  Array.from(timers.keys()).forEach((id) => clearToastTimer(id));
 }
 </script>
 

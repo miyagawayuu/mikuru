@@ -5,11 +5,13 @@ export type MikuruToastItem = {
   title?: string;
   message?: string;
   tone?: "info" | "success" | "warning" | "danger" | string;
+  duration?: number;
 };
 
 export type MikuruToastProps = {
   toasts?: MikuruToastItem[];
   position?: "bottom-right" | "bottom-left" | "top-right" | "top-left" | string;
+  duration?: number;
 };
 
 declare const component: MikuruComponent<MikuruToastProps>;

@@ -1,7 +1,11 @@
 # Changelog
 
-## 1.0.31 - 2026-05-16
+## 1.0.32 - 2026-05-16
 
+- Added `controls` and `live` props to `MikuruVideoPlayer` and `MikuruAudioPlayer` so callers can choose visible controls and render live-stream UI without seek controls.
+- Removed the `MikuruVideoPlayer` stop control so video playback uses the same play/pause-only primary transport as the center control.
+- Updated `MikuruAudioPlayer` controls to use icon buttons for play, skip, mute, and volume-facing actions, matching the video player control style.
+- Added timed auto-dismiss to `MikuruToast` with stack-level and per-toast `duration` controls.
 - Exported `MikuruVideoPlayer` media events so parent components can listen for playback, timing, seeking, volume, and playback-rate changes with typed media state payloads.
 - Exported matching `MikuruAudioPlayer` media events and documented the shared media player event payload.
 

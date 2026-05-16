@@ -295,7 +295,7 @@ function snapshot() {
     : events;
 
   allEvents.value = visibleEvents
-    .slice(-100)
+    .slice(-250)
     .map((event, index) => {
       const diagnostic = event.payload?.diagnostic ?? {};
       return {

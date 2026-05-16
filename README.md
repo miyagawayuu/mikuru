@@ -270,12 +270,12 @@ npm run dev:mikuru-vue-like
 
 The package also includes original Mikuru components:
 
-- `MikuruVideoPlayer.mikuru`: overlay video controls, div-based seeking, volume/mute, playback rate, stop, and fullscreen controls.
-- `MikuruAudioPlayer.mikuru`: audio playback with seeking, skip controls, volume, and mute.
+- `MikuruVideoPlayer.mikuru`: overlay video controls, configurable control visibility, live mode, div-based seeking, volume/mute, playback rate, and fullscreen controls.
+- `MikuruAudioPlayer.mikuru`: audio playback with configurable control visibility, live mode, seeking, skip controls, volume, and mute.
 - `MikuruImageViewer.mikuru`: image zoom, pan, rotate, reset, and fullscreen controls.
 - `MikuruModal.mikuru`: accessible modal shell with backdrop, Escape close, slots, and close events.
 - `MikuruCarousel.mikuru`: image carousel with arrows, dots, keyboard navigation, and optional autoplay.
-- `MikuruToast.mikuru`: fixed notification stack with dismiss events and tone variants.
+- `MikuruToast.mikuru`: fixed notification stack with timed auto-dismiss, dismiss events, and tone variants.
 - `MikuruDropdown.mikuru`: menu button with outside-click close, Escape handling, and select events.
 - `MikuruToolTip.mikuru`: hover/focus tooltip with configurable placement.
 - `MikuruProgress.mikuru`: determinate and indeterminate progress indicator.

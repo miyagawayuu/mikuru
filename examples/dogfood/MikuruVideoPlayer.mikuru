@@ -17,26 +17,30 @@
         :poster="poster"
         :preload="preload"
         playsinline
-        @loadedmetadata="syncMedia"
-        @timeupdate="syncMedia"
-        @durationchange="syncMedia"
+        @loadedmetadata="handleLoadedMetadata"
+        @timeupdate="handleTimeUpdate"
+        @durationchange="handleDurationChange"
         @play="markPlaying"
         @pause="markPaused"
-        @ended="markPaused"
+        @ended="markEnded"
+        @seeked="handleSeeked"
+        @volumechange="handleVolumeChange"
+        @ratechange="handleRateChange"
         @click="togglePlayback"
       ></video>
 
       <div class="top-bar">
         <strong>{{ title }}</strong>
-        <span>{{ subtitle }}</span>
+        <span :class="{ 'live-badge': isLive }">{{ statusText }}</span>
       </div>
 
-      <button class="center-toggle" type="button" @click="togglePlayback" :aria-label="playLabel">
+      <button m-if="showPlayControl" class="center-toggle" type="button" @click="togglePlayback" :aria-label="playLabel">
         <span class="fa-icon large" :class="playIconClass" aria-hidden="true"></span>
       </button>
 
-      <div class="control-shelf">
+      <div m-if="showControlShelf" class="control-shelf">
         <div
+          m-if="showSeekControl"
           class="seek"
           role="slider"
           tabindex="0"
@@ -59,25 +63,22 @@
 
         <div class="control-row">
           <div class="left-controls">
-            <button class="icon-button" type="button" @click="togglePlayback" :aria-label="playLabel">
+            <button m-if="showPlayControl" class="icon-button" type="button" @click="togglePlayback" :aria-label="playLabel">
               <span class="fa-icon" :class="playIconClass" aria-hidden="true"></span>
             </button>
-            <button class="icon-button" type="button" @click="stopPlayback" aria-label="Stop video">
-              <span class="fa-icon icon-stop" aria-hidden="true"></span>
-            </button>
-            <button class="icon-button" type="button" @click="toggleMute" :aria-label="muteLabel">
+            <button m-if="showMuteControl" class="icon-button" type="button" @click="toggleMute" :aria-label="muteLabel">
               <span class="fa-icon icon-volume" aria-hidden="true"></span>
             </button>
-            <label class="volume">
+            <label m-if="showVolumeControl" class="volume">
               <span>Volume</span>
               <input type="range" min="0" max="1" step="0.01" :value="volume" @input="setVolume" />
             </label>
-            <span class="clock">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+            <span m-if="showTimeControl" class="clock">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
           </div>
 
           <div class="right-controls">
-            <button class="pill-button" type="button" @click="cycleRate" aria-label="Change playback speed">1x</button>
-            <button class="icon-button fullscreen-button" type="button" @click="toggleFullscreen" aria-label="Fullscreen">
+            <button m-if="showRateControl" class="pill-button" type="button" @click="cycleRate" aria-label="Change playback speed">1x</button>
+            <button m-if="showFullscreenControl" class="icon-button fullscreen-button" type="button" @click="toggleFullscreen" aria-label="Fullscreen">
               <span class="fa-icon" :class="fullscreenIconClass" aria-hidden="true"></span>
             </button>
           </div>
@@ -95,14 +96,30 @@ const {
   poster = "",
   title = "Mikuru Video",
   subtitle = "Original player component",
-  preload = "metadata"
+  preload = "metadata",
+  controls,
+  live = false
 } = defineProps({
   src: String,
   poster: String,
   title: String,
   subtitle: String,
-  preload: String
+  preload: String,
+  controls: Array,
+  live: Boolean
 });
+
+const emit = defineEmits([
+  "loadedmetadata",
+  "timeupdate",
+  "durationchange",
+  "play",
+  "pause",
+  "ended",
+  "seeked",
+  "volumechange",
+  "ratechange"
+]);
 
 const mediaEl = ref(null);
 const screenEl = ref(null);
@@ -115,6 +132,13 @@ const isFullscreen = ref(false);
 const isSeeking = ref(false);
 const pointerInside = ref(false);
 const controlsVisible = ref(true);
+const allControls = ["play", "seek", "time", "mute", "volume", "rate", "fullscreen"];
+const liveHiddenControls = ["seek", "time", "rate"];
+const activeControls = computed(() => {
+  const configuredControls = Array.isArray(controls.value) ? controls.value : allControls;
+  return new Set(configuredControls);
+});
+const isLive = computed(() => live.value === true);
 const safeDuration = computed(() => duration.value > 0 ? duration.value : 0);
 const seekProgress = computed(() => {
   if (safeDuration.value <= 0) return 0;
@@ -126,6 +150,24 @@ const playLabel = computed(() => isPlaying.value ? "Pause video" : "Play video")
 const muteLabel = computed(() => muted.value ? "Unmute video" : "Mute video");
 const playIconClass = computed(() => isPlaying.value ? "icon-pause" : "icon-play");
 const fullscreenIconClass = computed(() => isFullscreen.value ? "icon-minimize" : "icon-maximize");
+const statusText = computed(() => isLive.value ? "LIVE" : subtitle.value);
+const showPlayControl = computed(() => hasControl("play"));
+const showSeekControl = computed(() => hasControl("seek"));
+const showTimeControl = computed(() => hasControl("time"));
+const showMuteControl = computed(() => hasControl("mute"));
+const showVolumeControl = computed(() => hasControl("volume"));
+const showRateControl = computed(() => hasControl("rate"));
+const showFullscreenControl = computed(() => hasControl("fullscreen"));
+const showControlShelf = computed(() => (
+  showPlayControl.value ||
+  showSeekControl.value ||
+  showTimeControl.value ||
+  showMuteControl.value ||
+  showVolumeControl.value ||
+  showRateControl.value ||
+  showFullscreenControl.value ||
+  isLive.value
+));
 const rates = [1, 1.25, 1.5, 2, 0.75];
 let playbackRate = 1;
 let rateIndex = 0;
@@ -160,12 +202,69 @@ function shouldIgnoreMediaEvent() {
   return performance.now() < ignoreMediaEventsUntil;
 }
 
+function hasControl(name) {
+  if (isLive.value && liveHiddenControls.includes(name)) return false;
+  return activeControls.value.has(name);
+}
+
 function syncMedia() {
   if (isDisposed || shouldIgnoreMediaEvent()) return;
   const media = getMedia();
   if (!media) return;
   currentTime.value = media.currentTime || 0;
   duration.value = Number.isFinite(media.duration) ? media.duration : 0;
+}
+
+function createMediaPayload(event) {
+  const media = getMedia();
+  if (!media) return null;
+  return {
+    currentTime: media.currentTime || 0,
+    duration: Number.isFinite(media.duration) ? media.duration : 0,
+    paused: media.paused,
+    ended: media.ended,
+    muted: media.muted,
+    volume: media.volume,
+    playbackRate: media.playbackRate,
+    nativeEvent: event
+  };
+}
+
+function emitMediaPayload(event, dispatch) {
+  const payload = createMediaPayload(event);
+  if (payload) {
+    dispatch(payload);
+  }
+}
+
+function handleLoadedMetadata(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("loadedmetadata", payload));
+}
+
+function handleTimeUpdate(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("timeupdate", payload));
+}
+
+function handleDurationChange(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("durationchange", payload));
+}
+
+function handleSeeked(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("seeked", payload));
+}
+
+function handleVolumeChange(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("volumechange", payload));
+}
+
+function handleRateChange(event) {
+  syncMedia();
+  emitMediaPayload(event, (payload) => emit("ratechange", payload));
 }
 
 function applyAudioSettings() {
@@ -177,16 +276,25 @@ function applyAudioSettings() {
   media.playbackRate = playbackRate;
 }
 
-function markPlaying() {
+function markPlaying(event) {
   if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = true;
   controlsVisible.value = pointerInside.value;
+  emitMediaPayload(event, (payload) => emit("play", payload));
 }
 
-function markPaused() {
+function markPaused(event) {
   if (isDisposed || shouldIgnoreMediaEvent()) return;
   isPlaying.value = false;
   controlsVisible.value = true;
+  emitMediaPayload(event, (payload) => emit("pause", payload));
+}
+
+function markEnded(event) {
+  if (isDisposed || shouldIgnoreMediaEvent()) return;
+  isPlaying.value = false;
+  controlsVisible.value = true;
+  emitMediaPayload(event, (payload) => emit("ended", payload));
 }
 
 function updateFullscreen() {
@@ -284,18 +392,6 @@ function seekWithKeyboard(event) {
   const offset = event.key === "ArrowRight" ? 5 : -5;
   const nextTime = Math.min(Math.max(currentTime.value + offset, 0), safeDuration.value);
   seekTo(nextTime);
-}
-
-function stopPlayback() {
-  if (isDisposed) return;
-  window.setTimeout(() => {
-    if (isDisposed) return;
-    const media = getMedia();
-    if (!media) return;
-    ignoreMediaEventsFor(300);
-    media.pause();
-    media.currentTime = 0;
-  }, 0);
 }
 
 function setVolume(event) {
@@ -435,6 +531,20 @@ function formatTime(seconds) {
 .volume span {
   color: rgba(255, 255, 255, 0.82);
   font-size: 0.88rem;
+}
+
+.live-badge {
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.live-badge {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #dc2626;
 }
 
 .center-toggle {
@@ -631,8 +741,7 @@ button:hover {
   transform: translateX(3px);
 }
 
-.center-toggle .icon-pause,
-.center-toggle .icon-stop {
+.center-toggle .icon-pause {
   transform: translateX(0);
 }
 
@@ -642,10 +751,6 @@ button:hover {
 
 .icon-pause {
   mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M176 96C149.5 96 128 117.5 128 144L128 496C128 522.5 149.5 544 176 544L240 544C266.5 544 288 522.5 288 496L288 144C288 117.5 266.5 96 240 96L176 96zM400 96C373.5 96 352 117.5 352 144L352 496C352 522.5 373.5 544 400 544L464 544C490.5 544 512 522.5 512 496L512 144C512 117.5 490.5 96 464 96L400 96z"/></svg>');
-}
-
-.icon-stop {
-  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z"/></svg>');
 }
 
 .icon-maximize {
