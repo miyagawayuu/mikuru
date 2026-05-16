@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.33 - 2026-05-16
+
+- Added `MikuruVideoPlayer` sizing props for width, height, and aspect ratio.
+- Added a `MikuruVideoPlayer` settings menu for quality selection, playback speed, and keyboard skip seconds.
+
 ## 1.0.32 - 2026-05-16
 
 - Added `controls` and `live` props to `MikuruVideoPlayer` and `MikuruAudioPlayer` so callers can choose visible controls and render live-stream UI without seek controls.

@@ -30,7 +30,15 @@ export type MikuruVideoPlayerControl =
   | "mute"
   | "volume"
   | "rate"
+  | "settings"
   | "fullscreen";
+
+export type MikuruVideoPlayerQualityOption = {
+  id?: string | number;
+  label: string;
+  src: string;
+  poster?: string;
+};
 
 export type MikuruVideoPlayerProps = {
   src: string;
@@ -38,6 +46,10 @@ export type MikuruVideoPlayerProps = {
   title?: string;
   subtitle?: string;
   preload?: string;
+  width?: string | number;
+  height?: string | number;
+  aspectRatio?: string | number;
+  qualityOptions?: MikuruVideoPlayerQualityOption[];
   controls?: MikuruVideoPlayerControl[];
   live?: boolean;
 } & MikuruVideoPlayerEvents;

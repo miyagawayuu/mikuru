@@ -10,6 +10,8 @@
         title="Bloom Frame"
         subtitle="Mikuru original video player"
         src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+        width="720px"
+        :quality-options="videoQualityOptions"
       />
 
       <MikuruAudioPlayer
@@ -110,6 +112,23 @@ const slides = [
     alt: "Starry mountain sky",
     title: "Night build",
     caption: "Autoplay is optional for package users"
+  }
+];
+const videoQualityOptions = [
+  {
+    id: "auto",
+    label: "Auto",
+    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+  },
+  {
+    id: "720p",
+    label: "720p",
+    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+  },
+  {
+    id: "480p",
+    label: "480p",
+    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
   }
 ];
 const menuItems = [

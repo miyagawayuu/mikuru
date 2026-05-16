@@ -2,6 +2,7 @@
   <section
     class="mikuru-video"
     :class="{ 'is-playing': isPlaying, 'controls-visible': controlsVisible }"
+    :style="playerStyle"
     :aria-label="title"
     @mouseenter="showControls"
     @mouseleave="hideControls"
@@ -9,12 +10,12 @@
     @pointerleave="hideControls"
     @focusin="showControls"
   >
-    <div class="screen" ref="screenEl">
+    <div class="screen" ref="screenEl" :style="screenStyle">
       <video
         ref="mediaEl"
         class="media"
-        :src="src"
-        :poster="poster"
+        :src="selectedVideoSrc"
+        :poster="selectedPoster"
         :preload="preload"
         playsinline
         @loadedmetadata="handleLoadedMetadata"
@@ -77,7 +78,61 @@
           </div>
 
           <div class="right-controls">
-            <button m-if="showRateControl" class="pill-button" type="button" @click="cycleRate" aria-label="Change playback speed">1x</button>
+            <div m-if="showSettingsControl" class="settings" ref="settingsEl" @click="stopEvent">
+              <button
+                class="icon-button settings-button"
+                type="button"
+                @click="toggleSettings"
+                aria-label="Video settings"
+                :aria-expanded="settingsOpen"
+              >
+                <span class="fa-icon icon-settings" aria-hidden="true"></span>
+              </button>
+
+              <div m-if="settingsOpen" class="settings-menu" role="menu" aria-label="Video settings">
+                <div class="settings-group">
+                  <span class="settings-label">Quality</span>
+                  <button
+                    m-for="quality in normalizedQualityOptions"
+                    :key="quality.id"
+                    type="button"
+                    class="settings-option"
+                    :class="{ active: quality.id === activeQualityId }"
+                    @click="selectQuality(quality.id)"
+                  >
+                    {{ quality.label }}
+                  </button>
+                </div>
+
+                <div class="settings-group">
+                  <span class="settings-label">Speed</span>
+                  <button
+                    m-for="rate in rateOptions"
+                    :key="rate.value"
+                    type="button"
+                    class="settings-option"
+                    :class="{ active: rate.value === playbackRateValue }"
+                    @click="setPlaybackRate(rate.value)"
+                  >
+                    {{ rate.label }}
+                  </button>
+                </div>
+
+                <div class="settings-group">
+                  <span class="settings-label">Skip</span>
+                  <button
+                    m-for="option in skipOptions"
+                    :key="option.value"
+                    type="button"
+                    class="settings-option"
+                    :class="{ active: option.value === skipSeconds }"
+                    @click="setSkipSeconds(option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
             <button m-if="showFullscreenControl" class="icon-button fullscreen-button" type="button" @click="toggleFullscreen" aria-label="Fullscreen">
               <span class="fa-icon" :class="fullscreenIconClass" aria-hidden="true"></span>
             </button>
@@ -97,6 +152,10 @@ const {
   title = "Mikuru Video",
   subtitle = "Original player component",
   preload = "metadata",
+  width,
+  height,
+  aspectRatio,
+  qualityOptions = [],
   controls,
   live = false
 } = defineProps({
@@ -105,6 +164,10 @@ const {
   title: String,
   subtitle: String,
   preload: String,
+  width: String,
+  height: String,
+  aspectRatio: String,
+  qualityOptions: Array,
   controls: Array,
   live: Boolean
 });
@@ -130,13 +193,45 @@ const muted = ref(false);
 const isPlaying = ref(false);
 const isFullscreen = ref(false);
 const isSeeking = ref(false);
+const settingsOpen = ref(false);
+const selectedQualityId = ref("auto");
+const playbackRateValue = ref(1);
+const skipSeconds = ref(5);
 const pointerInside = ref(false);
 const controlsVisible = ref(true);
-const allControls = ["play", "seek", "time", "mute", "volume", "rate", "fullscreen"];
-const liveHiddenControls = ["seek", "time", "rate"];
+const settingsEl = ref(null);
+const allControls = ["play", "seek", "time", "mute", "volume", "settings", "fullscreen"];
+const liveHiddenControls = ["seek", "time"];
 const activeControls = computed(() => {
   const configuredControls = Array.isArray(controls.value) ? controls.value : allControls;
   return new Set(configuredControls);
+});
+const normalizedQualityOptions = computed(() => {
+  const source = Array.isArray(qualityOptions.value) ? qualityOptions.value : [];
+  const options = source
+    .map((option, index) => normalizeQualityOption(option, index))
+    .filter(Boolean);
+  return options.length > 0
+    ? options
+    : [{ id: "auto", label: "Auto", src: src.value, poster: poster.value }];
+});
+const selectedQuality = computed(() =>
+  normalizedQualityOptions.value.find((option) => option.id === selectedQualityId.value) ?? normalizedQualityOptions.value[0]
+);
+const activeQualityId = computed(() => selectedQuality.value?.id);
+const selectedVideoSrc = computed(() => selectedQuality.value?.src || src.value);
+const selectedPoster = computed(() => selectedQuality.value?.poster ?? poster.value);
+const playerStyle = computed(() => {
+  const normalizedWidth = normalizeCssSize(width.value);
+  return normalizedWidth ? { width: normalizedWidth } : null;
+});
+const screenStyle = computed(() => {
+  const normalizedHeight = normalizeCssSize(height.value);
+  const normalizedAspectRatio = normalizeAspectRatio(aspectRatio.value);
+  return {
+    height: normalizedHeight || null,
+    aspectRatio: normalizedAspectRatio || null
+  };
 });
 const isLive = computed(() => live.value === true);
 const safeDuration = computed(() => duration.value > 0 ? duration.value : 0);
@@ -151,12 +246,25 @@ const muteLabel = computed(() => muted.value ? "Unmute video" : "Mute video");
 const playIconClass = computed(() => isPlaying.value ? "icon-pause" : "icon-play");
 const fullscreenIconClass = computed(() => isFullscreen.value ? "icon-minimize" : "icon-maximize");
 const statusText = computed(() => isLive.value ? "LIVE" : subtitle.value);
+const rateOptions = [
+  { value: 0.75, label: "0.75x" },
+  { value: 1, label: "1x" },
+  { value: 1.25, label: "1.25x" },
+  { value: 1.5, label: "1.5x" },
+  { value: 2, label: "2x" }
+];
+const skipOptions = [
+  { value: 5, label: "5s" },
+  { value: 10, label: "10s" },
+  { value: 15, label: "15s" },
+  { value: 30, label: "30s" }
+];
 const showPlayControl = computed(() => hasControl("play"));
 const showSeekControl = computed(() => hasControl("seek"));
 const showTimeControl = computed(() => hasControl("time"));
 const showMuteControl = computed(() => hasControl("mute"));
 const showVolumeControl = computed(() => hasControl("volume"));
-const showRateControl = computed(() => hasControl("rate"));
+const showSettingsControl = computed(() => hasControl("settings") || hasControl("rate"));
 const showFullscreenControl = computed(() => hasControl("fullscreen"));
 const showControlShelf = computed(() => (
   showPlayControl.value ||
@@ -164,19 +272,17 @@ const showControlShelf = computed(() => (
   showTimeControl.value ||
   showMuteControl.value ||
   showVolumeControl.value ||
-  showRateControl.value ||
+  showSettingsControl.value ||
   showFullscreenControl.value ||
   isLive.value
 ));
-const rates = [1, 1.25, 1.5, 2, 0.75];
-let playbackRate = 1;
-let rateIndex = 0;
 let isDisposed = false;
 let ignoreMediaEventsUntil = 0;
 
 onMounted(() => {
   applyAudioSettings();
   document.addEventListener("fullscreenchange", updateFullscreen);
+  document.addEventListener("pointerdown", handleDocumentPointerDown);
 });
 
 onBeforeUnmount(() => {
@@ -187,6 +293,7 @@ onBeforeUnmount(() => {
 
 onUnmounted(() => {
   document.removeEventListener("fullscreenchange", updateFullscreen);
+  document.removeEventListener("pointerdown", handleDocumentPointerDown);
 });
 
 function getMedia() {
@@ -200,6 +307,41 @@ function ignoreMediaEventsFor(ms) {
 
 function shouldIgnoreMediaEvent() {
   return performance.now() < ignoreMediaEventsUntil;
+}
+
+function normalizeQualityOption(option, index) {
+  if (typeof option === "string") {
+    return { id: option || `quality-${index}`, label: option || `Quality ${index + 1}`, src: src.value, poster: poster.value };
+  }
+  if (!option || typeof option !== "object") {
+    return null;
+  }
+  const optionSrc = typeof option.src === "string" && option.src ? option.src : src.value;
+  const label = typeof option.label === "string" && option.label ? option.label : `Quality ${index + 1}`;
+  return {
+    id: typeof option.id === "string" || typeof option.id === "number" ? String(option.id) : `${label}-${index}`,
+    label,
+    src: optionSrc,
+    poster: typeof option.poster === "string" ? option.poster : poster.value
+  };
+}
+
+function normalizeCssSize(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value >= 0 ? value + "px" : "";
+  }
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return /^\d+(\.\d+)?$/.test(trimmed) ? trimmed + "px" : trimmed;
+}
+
+function normalizeAspectRatio(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 0 ? String(value) : "";
+  }
+  if (typeof value !== "string") return "";
+  return value.trim();
 }
 
 function hasControl(name) {
@@ -273,7 +415,7 @@ function applyAudioSettings() {
   if (!media) return;
   media.volume = volume.value;
   media.muted = muted.value;
-  media.playbackRate = playbackRate;
+  media.playbackRate = playbackRateValue.value;
 }
 
 function markPlaying(event) {
@@ -389,7 +531,7 @@ function seekWithKeyboard(event) {
     return;
   }
 
-  const offset = event.key === "ArrowRight" ? 5 : -5;
+  const offset = event.key === "ArrowRight" ? skipSeconds.value : -skipSeconds.value;
   const nextTime = Math.min(Math.max(currentTime.value + offset, 0), safeDuration.value);
   seekTo(nextTime);
 }
@@ -421,19 +563,66 @@ function toggleMute(event) {
   }, 0);
 }
 
-function cycleRate(event) {
+function toggleSettings() {
   if (isDisposed) return;
-  const button = event.currentTarget;
+  settingsOpen.value = !settingsOpen.value;
+  controlsVisible.value = true;
+}
+
+function selectQuality(id) {
+  if (isDisposed) return;
+  const media = getMedia();
+  const wasPlaying = media ? !media.paused : false;
+  const previousTime = media?.currentTime || 0;
+  selectedQualityId.value = id;
+  settingsOpen.value = false;
+  if (!media) return;
   window.setTimeout(() => {
     if (isDisposed) return;
-    rateIndex = (rateIndex + 1) % rates.length;
-    playbackRate = rates[rateIndex];
-    const media = getMedia();
-    if (media) {
-      media.playbackRate = playbackRate;
+    const nextMedia = getMedia();
+    if (!nextMedia) return;
+    if (Number.isFinite(previousTime) && previousTime > 0 && safeDuration.value > 0) {
+      nextMedia.currentTime = Math.min(previousTime, safeDuration.value);
+      currentTime.value = nextMedia.currentTime;
     }
-    button.textContent = playbackRate + "x";
+    nextMedia.playbackRate = playbackRateValue.value;
+    if (wasPlaying) {
+      nextMedia.play().catch((error) => {
+        if (error?.name !== "AbortError") {
+          throw error;
+        }
+      });
+    }
   }, 0);
+}
+
+function setPlaybackRate(nextRate) {
+  if (isDisposed) return;
+  playbackRateValue.value = nextRate;
+  settingsOpen.value = false;
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    const media = getMedia();
+    if (!media) return;
+    media.playbackRate = nextRate;
+  }, 0);
+}
+
+function setSkipSeconds(nextSeconds) {
+  if (isDisposed) return;
+  skipSeconds.value = nextSeconds;
+  settingsOpen.value = false;
+}
+
+function handleDocumentPointerDown(event) {
+  if (isDisposed || !settingsOpen.value) return;
+  const menu = settingsEl.value;
+  if (menu?.contains?.(event.target)) return;
+  settingsOpen.value = false;
+}
+
+function stopEvent(event) {
+  event.stopPropagation();
 }
 
 function toggleFullscreen() {
@@ -696,6 +885,53 @@ function formatTime(seconds) {
   font-size: 0.84rem;
 }
 
+.settings {
+  position: relative;
+}
+
+.settings-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 4;
+  display: grid;
+  gap: 12px;
+  width: min(240px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #ffffff;
+  background: rgba(3, 7, 18, 0.94);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.36);
+}
+
+.settings-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.settings-label {
+  grid-column: 1 / -1;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.settings-option {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.settings-option.active {
+  border-color: #ef4444;
+  color: #ffffff;
+  background: #ef4444;
+}
+
 button {
   min-height: 36px;
   padding: 0 12px;
@@ -767,6 +1003,10 @@ button:hover {
 
 .icon-mute {
   mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M80 416L128 416L262.1 535.2C268.5 540.9 276.7 544 285.2 544C304.4 544 320 528.4 320 509.2L320 130.8C320 111.6 304.4 96 285.2 96C276.7 96 268.5 99.1 262.1 104.8L128 224L80 224C53.5 224 32 245.5 32 272L32 368C32 394.5 53.5 416 80 416zM399 239C389.6 248.4 389.6 263.6 399 272.9L446 319.9L399 366.9C389.6 376.3 389.6 391.5 399 400.8C408.4 410.1 423.6 410.2 432.9 400.8L479.9 353.8L526.9 400.8C536.3 410.2 551.5 410.2 560.8 400.8C570.1 391.4 570.2 376.2 560.8 366.9L513.8 319.9L560.8 272.9C570.2 263.5 570.2 248.3 560.8 239C551.4 229.7 536.2 229.6 526.9 239L479.9 286L432.9 239C423.5 229.6 408.3 229.6 399 239z"/></svg>');
+}
+
+.icon-settings {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M259.1 73.5C262.1 59 274.9 48 290 48L350 48C365.1 48 377.9 59 380.9 73.5L389.8 116.8C404.9 122.5 419.2 130 432.5 139.1L474.3 125.1C488.6 120.3 504.4 126.1 512 139.1L542 190.9C549.6 203.9 546.8 220.5 535.5 230.5L502.7 259.8C504 267.7 504.7 275.8 504.7 284C504.7 292.2 504 300.3 502.7 308.2L535.5 337.5C546.8 347.5 549.6 364.1 542 377.1L512 428.9C504.4 441.9 488.6 447.7 474.3 442.9L432.5 428.9C419.2 438 404.9 445.5 389.8 451.2L380.9 494.5C377.9 509 365.1 520 350 520L290 520C274.9 520 262.1 509 259.1 494.5L250.2 451.2C235.1 445.5 220.8 438 207.5 428.9L165.7 442.9C151.4 447.7 135.6 441.9 128 428.9L98 377.1C90.4 364.1 93.2 347.5 104.5 337.5L137.3 308.2C136 300.3 135.3 292.2 135.3 284C135.3 275.8 136 267.7 137.3 259.8L104.5 230.5C93.2 220.5 90.4 203.9 98 190.9L128 139.1C135.6 126.1 151.4 120.3 165.7 125.1L207.5 139.1C220.8 130 235.1 122.5 250.2 116.8L259.1 73.5zM320 356C359.8 356 392 323.8 392 284C392 244.2 359.8 212 320 212C280.2 212 248 244.2 248 284C248 323.8 280.2 356 320 356z"/></svg>');
 }
 
 @media (max-width: 620px) {

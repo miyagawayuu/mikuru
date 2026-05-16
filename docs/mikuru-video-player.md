@@ -127,8 +127,12 @@ Video:
 | `subtitle` | `string` | No | Small text under the title. |
 | `poster` | `string` | No | Poster image URL. |
 | `preload` | `string` | No | Native video preload setting. Defaults to `metadata`. |
-| `controls` | `MikuruVideoPlayerControl[]` | No | Custom controls to show. Allowed values: `play`, `seek`, `time`, `mute`, `volume`, `rate`, `fullscreen`. |
-| `live` | `boolean` | No | Shows live mode and hides `seek`, `time`, and `rate` controls. |
+| `width` | `string \| number` | No | Player width. Numbers are treated as pixels. |
+| `height` | `string \| number` | No | Video area height. Numbers are treated as pixels. |
+| `aspectRatio` | `string \| number` | No | Video area aspect ratio. Defaults to CSS `16 / 9` when omitted. |
+| `qualityOptions` | `MikuruVideoPlayerQualityOption[]` | No | Quality choices shown in the settings menu. Each item accepts `label`, `src`, optional `id`, and optional `poster`. |
+| `controls` | `MikuruVideoPlayerControl[]` | No | Custom controls to show. Allowed values: `play`, `seek`, `time`, `mute`, `volume`, `settings`, `fullscreen`. |
+| `live` | `boolean` | No | Shows live mode and hides `seek` and `time` controls. |
 
 Audio:
 
@@ -148,7 +152,18 @@ Examples:
   title="Live keynote"
   src="/media/keynote.m3u8"
   live
-  :controls="['play', 'mute', 'volume', 'fullscreen']"
+  :controls="['play', 'mute', 'volume', 'settings', 'fullscreen']"
+/>
+
+<MikuruVideoPlayer
+  title="Adaptive sample"
+  src="/media/sample-720p.mp4"
+  width="720px"
+  aspect-ratio="4 / 3"
+  :quality-options="[
+    { label: '720p', src: '/media/sample-720p.mp4' },
+    { label: '480p', src: '/media/sample-480p.mp4' }
+  ]"
 />
 
 <MikuruAudioPlayer
@@ -217,7 +232,7 @@ type MediaPlayerEventPayload = {
 - Keyboard seeking with `ArrowLeft`, `ArrowRight`, `Home`, and `End`
 - Volume
 - Mute
-- Playback speed
+- Settings menu for quality, playback speed, and keyboard skip seconds
 - Fullscreen
 - Auto-hiding controls while playback continues
 
