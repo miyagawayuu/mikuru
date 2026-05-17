@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.37 - 2026-05-17
+
+- Fixed `MikuruVideoPlayer` speed and skip settings so option records avoid `.value` template access, preventing crashes in consuming apps when selecting playback rate or keyboard skip seconds.
+
 ## 1.0.36 - 2026-05-17
 
 - Stabilized `MikuruVideoPlayer` settings interactions so playback speed and keyboard skip selections defer UI updates out of the click stack, matching the other media controls and avoiding recursive update freezes.

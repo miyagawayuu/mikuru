@@ -108,11 +108,11 @@
                   <span class="settings-label">Speed</span>
                   <button
                     m-for="rate in rateOptions"
-                    :key="rate.value"
+                    :key="rate.rate"
                     type="button"
                     class="settings-option"
-                    :class="{ active: rate.value === playbackRateValue }"
-                    @click="setPlaybackRate(rate.value)"
+                    :class="{ active: rate.rate === playbackRateValue }"
+                    @click="setPlaybackRate(rate.rate)"
                   >
                     {{ rate.label }}
                   </button>
@@ -122,11 +122,11 @@
                   <span class="settings-label">Skip</span>
                   <button
                     m-for="option in skipOptions"
-                    :key="option.value"
+                    :key="option.seconds"
                     type="button"
                     class="settings-option"
-                    :class="{ active: option.value === skipSeconds }"
-                    @click="setSkipSeconds(option.value)"
+                    :class="{ active: option.seconds === skipSeconds }"
+                    @click="setSkipSeconds(option.seconds)"
                   >
                     {{ option.label }}
                   </button>
@@ -268,17 +268,17 @@ const playIconClass = computed(() => isPlaying.value ? "icon-pause" : "icon-play
 const fullscreenIconClass = computed(() => isFullscreen.value ? "icon-minimize" : "icon-maximize");
 const statusText = computed(() => isLive.value ? "LIVE" : subtitle.value);
 const rateOptions = [
-  { value: 0.75, label: "0.75x" },
-  { value: 1, label: "1x" },
-  { value: 1.25, label: "1.25x" },
-  { value: 1.5, label: "1.5x" },
-  { value: 2, label: "2x" }
+  { rate: 0.75, label: "0.75x" },
+  { rate: 1, label: "1x" },
+  { rate: 1.25, label: "1.25x" },
+  { rate: 1.5, label: "1.5x" },
+  { rate: 2, label: "2x" }
 ];
 const skipOptions = [
-  { value: 5, label: "5s" },
-  { value: 10, label: "10s" },
-  { value: 15, label: "15s" },
-  { value: 30, label: "30s" }
+  { seconds: 5, label: "5s" },
+  { seconds: 10, label: "10s" },
+  { seconds: 15, label: "15s" },
+  { seconds: 30, label: "30s" }
 ];
 const showPlayControl = computed(() => hasControl("play"));
 const showSeekControl = computed(() => hasControl("seek"));
