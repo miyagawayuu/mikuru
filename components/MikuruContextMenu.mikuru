@@ -1,0 +1,137 @@
+<template>
+  <span class="context-host" ref="rootEl" @contextmenu="openFromEvent">
+    <slot>{{ label }}</slot>
+    <Teleport to="body">
+      <div
+        m-if="isOpen"
+        class="mikuru-context-menu"
+        role="menu"
+        :style="menuStyle"
+      >
+        <button
+          m-for="item in items"
+          :key="itemKey(item)"
+          type="button"
+          role="menuitem"
+          :disabled="item.disabled"
+          @click="selectItem(item)"
+        >
+          <span>{{ item.label }}</span>
+          <small m-if="item.shortcut">{{ item.shortcut }}</small>
+        </button>
+      </div>
+    </Teleport>
+  </span>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref } from "mikuru";
+
+const {
+  label = "Right click menu",
+  items = []
+} = defineProps({
+  label: String,
+  items: Array
+});
+
+const emit = defineEmits(["select", "open", "close"]);
+const rootEl = ref(null);
+const isOpen = ref(false);
+const x = ref(0);
+const y = ref(0);
+const menuStyle = computed(() => `left: ${x.value}px; top: ${y.value}px;`);
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handlePointerDown);
+  document.addEventListener("keydown", handleKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", handlePointerDown);
+  document.removeEventListener("keydown", handleKeydown);
+});
+
+function openFromEvent(event) {
+  event.preventDefault();
+  x.value = event.clientX;
+  y.value = event.clientY;
+  isOpen.value = true;
+  emit("open");
+}
+
+function close() {
+  if (!isOpen.value) return;
+  isOpen.value = false;
+  emit("close");
+}
+
+function selectItem(item) {
+  if (item.disabled) return;
+  emit("select", item);
+  close();
+}
+
+function handlePointerDown(event) {
+  if (!isOpen.value) return;
+  if (rootEl.value?.contains(event.target)) return;
+  close();
+}
+
+function handleKeydown(event) {
+  if (event.key === "Escape") close();
+}
+
+function itemKey(item) {
+  return item.id || item.value || item.label;
+}
+</script>
+
+<style scoped>
+.context-host {
+  display: inline-block;
+}
+
+.mikuru-context-menu {
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  gap: 3px;
+  min-width: 180px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 18%);
+}
+
+button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #111827;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button:hover,
+button:focus-visible {
+  background: #eff6ff;
+  outline: none;
+}
+
+button:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+small {
+  color: #64748b;
+}
+</style>

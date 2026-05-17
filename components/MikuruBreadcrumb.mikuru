@@ -1,0 +1,86 @@
+<template>
+  <nav class="mikuru-breadcrumb" aria-label="Breadcrumb">
+    <ol>
+      <li m-for="item in items" :key="itemKey(item)">
+        <a
+          m-if="item.href && !item.current"
+          :href="item.href"
+          @click="selectItem(item, $event)"
+        >{{ item.label }}</a>
+        <button
+          m-else-if="!item.current"
+          type="button"
+          @click="selectItem(item, $event)"
+        >{{ item.label }}</button>
+        <span m-else aria-current="page">{{ item.label }}</span>
+      </li>
+    </ol>
+  </nav>
+</template>
+
+<script>
+const {
+  items = []
+} = defineProps({
+  items: Array
+});
+
+const emit = defineEmits(["select"]);
+
+function itemKey(item) {
+  return item.value || item.href || item.label;
+}
+
+function selectItem(item, event) {
+  emit("select", item, event);
+}
+</script>
+
+<style scoped>
+.mikuru-breadcrumb {
+  color: #64748b;
+  font: inherit;
+}
+
+ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+li:not(:last-child)::after {
+  color: #94a3b8;
+  content: "/";
+}
+
+a,
+button {
+  border: 0;
+  padding: 0;
+  color: #2563eb;
+  background: transparent;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a:hover,
+button:hover {
+  text-decoration: underline;
+}
+
+span {
+  color: #111827;
+  font-weight: 650;
+}
+</style>

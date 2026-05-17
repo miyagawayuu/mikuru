@@ -1,0 +1,259 @@
+<template>
+  <section class="mikuru-wysiwyg-editor">
+    <header class="editor-header">
+      <label>{{ label }}</label>
+      <div class="toolbar" role="toolbar" aria-label="WYSIWYG formatting">
+        <button type="button" title="Bold" @click="format('bold')"><strong>B</strong></button>
+        <button type="button" title="Italic" @click="format('italic')"><em>I</em></button>
+        <button type="button" title="Heading" @click="toggleHeading">H</button>
+        <button type="button" title="Bulleted list" @click="format('insertUnorderedList')">•</button>
+        <button type="button" title="Link" @click="createLink">🔗</button>
+        <button type="button" title="Clear formatting" @click="format('removeFormat')">Tx</button>
+      </div>
+    </header>
+
+    <div
+      ref="editorEl"
+      class="wysiwyg-surface"
+      contenteditable="true"
+      role="textbox"
+      aria-multiline="true"
+      :aria-label="label"
+      :data-placeholder="placeholder"
+      @input="handleInput"
+      @blur="handleBlur"
+      @paste="handlePaste"
+    ></div>
+
+    <small m-if="help">{{ help }}</small>
+  </section>
+</template>
+
+<script>
+import { onMounted, ref, watch } from "mikuru";
+
+const {
+  label = "Editor",
+  modelValue = "",
+  placeholder = "Start writing...",
+  help = ""
+} = defineProps({
+  label: String,
+  modelValue: String,
+  placeholder: String,
+  help: String
+});
+
+const emit = defineEmits(["update:modelValue", "input", "change"]);
+const editorEl = ref(null);
+let internalUpdate = false;
+
+onMounted(() => {
+  syncHtml();
+});
+
+watch(modelValue, syncHtml);
+
+function syncHtml() {
+  if (internalUpdate) return;
+  const editor = editorEl.value;
+  if (!editor) return;
+  const nextHtml = sanitizeHtml(modelValue.value || "");
+  if (editor.innerHTML !== nextHtml) {
+    editor.innerHTML = nextHtml;
+  }
+}
+
+function emitInputHtml() {
+  const editor = editorEl.value;
+  if (!editor) return;
+  const nextHtml = sanitizeHtml(editor.innerHTML);
+  if (editor.innerHTML !== nextHtml) {
+    editor.innerHTML = nextHtml;
+  }
+  internalUpdate = true;
+  emit("update:modelValue", nextHtml);
+  emit("input", nextHtml);
+  internalUpdate = false;
+}
+
+function handleInput() {
+  emitInputHtml();
+}
+
+function handleBlur() {
+  emitChangeHtml();
+}
+
+function emitChangeHtml() {
+  const editor = editorEl.value;
+  if (!editor) return;
+  const nextHtml = sanitizeHtml(editor.innerHTML);
+  if (editor.innerHTML !== nextHtml) {
+    editor.innerHTML = nextHtml;
+  }
+  internalUpdate = true;
+  emit("update:modelValue", nextHtml);
+  emit("change", nextHtml);
+  internalUpdate = false;
+}
+
+function format(command) {
+  focusEditor();
+  document.execCommand(command, false);
+  emitInputHtml();
+}
+
+function toggleHeading() {
+  focusEditor();
+  document.execCommand("formatBlock", false, "h2");
+  emitInputHtml();
+}
+
+function createLink() {
+  focusEditor();
+  const url = window.prompt("Link URL");
+  if (!url) return;
+  const safeUrl = sanitizeUrl(url);
+  if (!safeUrl) return;
+  document.execCommand("createLink", false, safeUrl);
+  emitInputHtml();
+}
+
+function handlePaste(event) {
+  event.preventDefault();
+  const text = event.clipboardData?.getData("text/plain") || "";
+  document.execCommand("insertText", false, text);
+  emitInputHtml();
+}
+
+function focusEditor() {
+  editorEl.value?.focus();
+}
+
+function sanitizeHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = String(html || "");
+  template.content.querySelectorAll("script, style, iframe, object, embed").forEach((node) => node.remove());
+  template.content.querySelectorAll("*").forEach((node) => {
+    for (const attribute of [...node.attributes]) {
+      const name = attribute.name.toLowerCase();
+      if (name.startsWith("on")) {
+        node.removeAttribute(attribute.name);
+        continue;
+      }
+      if ((name === "href" || name === "src") && !sanitizeUrl(attribute.value)) {
+        node.removeAttribute(attribute.name);
+      }
+    }
+    if (node.tagName === "A") {
+      node.setAttribute("rel", "noreferrer");
+      node.setAttribute("target", "_blank");
+    }
+  });
+  return template.innerHTML;
+}
+
+function sanitizeUrl(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("#") || trimmed.startsWith("/")) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:"
+      ? parsed.toString()
+      : "";
+  } catch {
+    return "";
+  }
+}
+</script>
+
+<style scoped>
+.mikuru-wysiwyg-editor {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  font: inherit;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+label {
+  font-weight: 650;
+}
+
+.toolbar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover,
+button:focus-visible {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 16%);
+}
+
+.wysiwyg-surface {
+  min-height: 220px;
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+  color: #111827;
+  background: #ffffff;
+  line-height: 1.6;
+  outline: none;
+}
+
+.wysiwyg-surface:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+.wysiwyg-surface:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+}
+
+small {
+  color: #64748b;
+}
+
+:deep(.wysiwyg-surface h2),
+:deep(.wysiwyg-surface p),
+:deep(.wysiwyg-surface ul) {
+  margin: 0 0 10px;
+}
+
+:deep(.wysiwyg-surface a) {
+  color: #2563eb;
+}
+
+@media (max-width: 760px) {
+  .editor-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+</style>

@@ -1,0 +1,161 @@
+<template>
+  <section class="mikuru-file-upload" :data-dragging="dragging ? 'true' : 'false'">
+    <label :for="inputId">{{ label }}</label>
+    <div
+      class="drop-zone"
+      @dragover="handleDragOver"
+      @dragleave="handleDragLeave"
+      @drop="handleDrop"
+    >
+      <input
+        :id="inputId"
+        type="file"
+        :accept="accept"
+        :multiple="multiple"
+        :disabled="disabled"
+        @change="handleInput"
+      />
+      <span>{{ prompt }}</span>
+      <small m-if="help">{{ help }}</small>
+    </div>
+    <ul m-if="fileItems.length">
+      <li m-for="file in fileItems" :key="file.name">
+        <span>{{ file.name }}</span>
+        <small>{{ file.size }}</small>
+      </li>
+    </ul>
+    <button m-if="fileItems.length" type="button" @click="clear">Clear files</button>
+  </section>
+</template>
+
+<script>
+import { ref } from "mikuru";
+
+const {
+  label = "Upload files",
+  prompt = "Choose files or drop them here",
+  help = "",
+  accept = "",
+  multiple = false,
+  disabled = false
+} = defineProps({
+  label: String,
+  prompt: String,
+  help: String,
+  accept: String,
+  multiple: Boolean,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["change", "clear"]);
+const inputId = `mikuru-file-${Math.random().toString(36).slice(2)}`;
+const dragging = ref(false);
+const fileItems = ref([]);
+
+function handleInput(event) {
+  setFiles(event.target.files || []);
+}
+
+function handleDragOver(event) {
+  if (disabled.value) return;
+  event.preventDefault();
+  dragging.value = true;
+}
+
+function handleDragLeave() {
+  dragging.value = false;
+}
+
+function handleDrop(event) {
+  if (disabled.value) return;
+  event.preventDefault();
+  dragging.value = false;
+  setFiles(event.dataTransfer?.files || []);
+}
+
+function setFiles(fileList) {
+  const files = Array.from(fileList);
+  fileItems.value = files.map((file) => ({
+    name: file.name,
+    size: formatSize(file.size)
+  }));
+  emit("change", files);
+}
+
+function clear() {
+  fileItems.value = [];
+  emit("clear");
+}
+
+function formatSize(size) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`;
+  return `${Math.round(size / 1024 / 102.4) / 10} MB`;
+}
+</script>
+
+<style scoped>
+.mikuru-file-upload {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  font: inherit;
+}
+
+label {
+  font-weight: 650;
+}
+
+.drop-zone {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  padding: 18px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.mikuru-file-upload[data-dragging="true"] .drop-zone {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+input {
+  max-width: 100%;
+}
+
+small {
+  color: #64748b;
+}
+
+ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+button {
+  width: fit-content;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+</style>

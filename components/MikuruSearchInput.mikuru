@@ -1,0 +1,97 @@
+<template>
+  <form class="mikuru-search-input" role="search" @submit="submitSearch">
+    <label :for="inputId">{{ label }}</label>
+    <div class="search-control">
+      <span aria-hidden="true">⌕</span>
+      <input
+        :id="inputId"
+        type="search"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :disabled="disabled"
+        @input="updateValue($event)"
+      />
+      <button m-if="modelValue" type="button" @click="clear">Clear</button>
+    </div>
+  </form>
+</template>
+
+<script>
+const {
+  label = "Search",
+  modelValue = "",
+  placeholder = "Search...",
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: String,
+  placeholder: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "input", "submit", "clear"]);
+const inputId = `mikuru-search-${Math.random().toString(36).slice(2)}`;
+
+function updateValue(event) {
+  emit("update:modelValue", event.target.value);
+  emit("input", event.target.value);
+}
+
+function submitSearch(event) {
+  event.preventDefault();
+  emit("submit", modelValue.value);
+}
+
+function clear() {
+  emit("update:modelValue", "");
+  emit("input", "");
+  emit("clear");
+}
+</script>
+
+<style scoped>
+.mikuru-search-input {
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font: inherit;
+}
+
+label {
+  font-weight: 650;
+}
+
+.search-control {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.search-control:focus-within {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+input {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  color: #111827;
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+
+button {
+  border: 0;
+  color: #2563eb;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+</style>

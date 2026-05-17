@@ -1,0 +1,60 @@
+<template>
+  <span class="mikuru-avatar" :data-size="size" :aria-label="alt || name">
+    <img m-if="src" :src="src" :alt="alt || name" />
+    <span m-else>{{ initials }}</span>
+  </span>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  src = "",
+  name = "User",
+  alt = "",
+  size = "md"
+} = defineProps({
+  src: String,
+  name: String,
+  alt: String,
+  size: String
+});
+
+const initials = computed(() => {
+  const words = String(name.value || "User").trim().split(/\s+/).slice(0, 2);
+  return words.map((word) => word[0]?.toUpperCase() || "").join("") || "U";
+});
+</script>
+
+<style scoped>
+.mikuru-avatar {
+  --avatar-size: 40px;
+  display: inline-grid;
+  place-items: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  color: #1e3a8a;
+  background: #dbeafe;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mikuru-avatar[data-size="sm"] {
+  --avatar-size: 28px;
+  font-size: 0.78rem;
+}
+
+.mikuru-avatar[data-size="lg"] {
+  --avatar-size: 56px;
+  font-size: 1.1rem;
+}
+
+img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+</style>

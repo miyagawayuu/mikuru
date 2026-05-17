@@ -1,0 +1,293 @@
+<template>
+  <div class="mikuru-date-picker" ref="rootEl" @keydown="handleKeydown">
+    <label>
+      <span>{{ label }}</span>
+      <button
+        class="date-trigger"
+        type="button"
+        :aria-expanded="isOpen ? 'true' : 'false'"
+        aria-haspopup="dialog"
+        @click="toggle"
+      >
+        {{ displayValue }}
+      </button>
+    </label>
+
+    <section m-if="isOpen" class="calendar-panel" role="dialog" :aria-label="label">
+      <header>
+        <button type="button" aria-label="Previous month" @click="previousMonth">‹</button>
+        <strong>{{ monthLabel }}</strong>
+        <button type="button" aria-label="Next month" @click="nextMonth">›</button>
+      </header>
+
+      <div class="weekday-row" aria-hidden="true">
+        <span m-for="day in weekdays" :key="day">{{ day }}</span>
+      </div>
+
+      <div class="day-grid">
+        <button
+          m-for="day in calendarDays"
+          :key="day.key"
+          type="button"
+          class="day-button"
+          :class="{ muted: !day.inMonth, selected: day.value === selectedValue, today: day.value === todayValue }"
+          @click="selectDate(day)"
+        >
+          {{ day.label }}
+        </button>
+      </div>
+    </section>
+  </div>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref, watch } from "mikuru";
+
+const {
+  label = "Date",
+  modelValue = "",
+  placeholder = "Select date",
+  locale = "en-US"
+} = defineProps({
+  label: String,
+  modelValue: String,
+  placeholder: String,
+  locale: String
+});
+
+const emit = defineEmits(["update:modelValue", "change", "open", "close"]);
+const rootEl = ref(null);
+const isOpen = ref(false);
+const selectedValue = ref("");
+const viewYear = ref(new Date().getFullYear());
+const viewMonth = ref(new Date().getMonth());
+const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const todayValue = formatDateValue(new Date());
+
+watch(modelValue, syncSelectedDate, { immediate: true });
+
+const displayValue = computed(() => {
+  if (!selectedValue.value) return placeholder.value;
+  return formatDateLabel(parseDateValue(selectedValue.value));
+});
+
+const monthLabel = computed(() => {
+  const date = new Date(viewYear.value, viewMonth.value, 1);
+  return date.toLocaleDateString(locale.value || "en-US", { month: "long", year: "numeric" });
+});
+
+const calendarDays = computed(() => {
+  const firstDay = new Date(viewYear.value, viewMonth.value, 1);
+  const startOffset = firstDay.getDay();
+  const startDate = new Date(viewYear.value, viewMonth.value, 1 - startOffset);
+  const days = [];
+  for (let index = 0; index < 42; index += 1) {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    const value = formatDateValue(date);
+    days.push({
+      key: value,
+      value,
+      label: String(date.getDate()),
+      inMonth: date.getMonth() === viewMonth.value
+    });
+  }
+  return days;
+});
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointer);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointer);
+});
+
+function syncSelectedDate() {
+  selectedValue.value = normalizeDateValue(modelValue.value);
+  const selected = parseDateValue(selectedValue.value);
+  if (!selected) return;
+  viewYear.value = selected.getFullYear();
+  viewMonth.value = selected.getMonth();
+}
+
+function open() {
+  if (isOpen.value) return;
+  isOpen.value = true;
+  emit("open");
+}
+
+function close() {
+  if (!isOpen.value) return;
+  isOpen.value = false;
+  emit("close");
+}
+
+function toggle() {
+  if (isOpen.value) {
+    close();
+    return;
+  }
+  open();
+}
+
+function selectDate(day) {
+  selectedValue.value = day.value;
+  emit("update:modelValue", day.value);
+  emit("change", day.value);
+  close();
+}
+
+function previousMonth() {
+  const date = new Date(viewYear.value, viewMonth.value - 1, 1);
+  viewYear.value = date.getFullYear();
+  viewMonth.value = date.getMonth();
+}
+
+function nextMonth() {
+  const date = new Date(viewYear.value, viewMonth.value + 1, 1);
+  viewYear.value = date.getFullYear();
+  viewMonth.value = date.getMonth();
+}
+
+function handleDocumentPointer(event) {
+  const root = rootEl.value;
+  if (!root || root.contains(event.target)) return;
+  close();
+}
+
+function handleKeydown(event) {
+  if (event.key === "Escape") {
+    close();
+  }
+}
+
+function normalizeDateValue(value) {
+  const parsed = parseDateValue(value);
+  return parsed ? formatDateValue(parsed) : "";
+}
+
+function parseDateValue(value) {
+  if (!value || typeof value !== "string") return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateLabel(date) {
+  if (!date) return placeholder.value;
+  return date.toLocaleDateString(locale.value || "en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+}
+</script>
+
+<style scoped>
+.mikuru-date-picker {
+  position: relative;
+  display: inline-block;
+  color: #111827;
+  font: inherit;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-weight: 650;
+}
+
+.date-trigger {
+  min-width: 190px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #111827;
+  background: #ffffff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.calendar-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 45;
+  display: grid;
+  gap: 10px;
+  width: 286px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 16%);
+}
+
+header,
+.weekday-row,
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+header {
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+}
+
+header strong {
+  text-align: center;
+}
+
+button {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+header button,
+.day-button {
+  min-height: 34px;
+}
+
+.weekday-row span {
+  color: #64748b;
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.day-button:hover,
+.day-button:focus-visible,
+.date-trigger:focus-visible {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 16%);
+}
+
+.day-button.muted {
+  color: #94a3b8;
+}
+
+.day-button.today {
+  border-color: #93c5fd;
+}
+
+.day-button.selected {
+  border-color: #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+}
+</style>

@@ -1,0 +1,66 @@
+<template>
+  <div class="mikuru-avatar-group" :aria-label="label">
+    <MikuruAvatar
+      m-for="avatar in visibleAvatars"
+      :key="avatarKey(avatar)"
+      :src="avatar.src"
+      :name="avatar.name"
+      :alt="avatar.alt"
+      :size="size"
+    />
+    <span m-if="overflowCount > 0" class="avatar-overflow">+{{ overflowCount }}</span>
+  </div>
+</template>
+
+<script>
+import { computed } from "mikuru";
+import MikuruAvatar from "./MikuruAvatar.mikuru";
+
+const {
+  avatars = [],
+  max = 4,
+  size = "md",
+  label = "Avatar group"
+} = defineProps({
+  avatars: Array,
+  max: Number,
+  size: String,
+  label: String
+});
+
+const visibleAvatars = computed(() => avatars.value.slice(0, Math.max(0, max.value)));
+const overflowCount = computed(() => Math.max(0, avatars.value.length - max.value));
+
+function avatarKey(avatar) {
+  return avatar.id || avatar.src || avatar.name;
+}
+</script>
+
+<style scoped>
+.mikuru-avatar-group {
+  display: inline-flex;
+  align-items: center;
+}
+
+:deep(.mikuru-avatar),
+.avatar-overflow {
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+:deep(.mikuru-avatar:not(:first-child)),
+.avatar-overflow {
+  margin-left: -8px;
+}
+
+.avatar-overflow {
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: #334155;
+  background: #f1f5f9;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+</style>

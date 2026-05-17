@@ -1,0 +1,64 @@
+<template>
+  <span class="mikuru-chip" :data-tone="tone">
+    <slot>{{ label }}</slot>
+    <button m-if="removable" type="button" :aria-label="removeLabel" @click="remove">Remove</button>
+  </span>
+</template>
+
+<script>
+const {
+  label = "Chip",
+  tone = "neutral",
+  removable = false,
+  removeLabel = "Remove chip"
+} = defineProps({
+  label: String,
+  tone: String,
+  removable: Boolean,
+  removeLabel: String
+});
+
+const emit = defineEmits(["remove"]);
+
+function remove() {
+  emit("remove");
+}
+</script>
+
+<style scoped>
+.mikuru-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 26px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: #334155;
+  background: #f8fafc;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.mikuru-chip[data-tone="info"] {
+  border-color: #bfdbfe;
+  color: #1e40af;
+  background: #eff6ff;
+}
+
+.mikuru-chip[data-tone="success"] {
+  border-color: #bbf7d0;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+button {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+</style>

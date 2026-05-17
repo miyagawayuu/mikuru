@@ -1,0 +1,63 @@
+<template>
+  <article class="mikuru-stat-card" :data-tone="tone">
+    <span>{{ label }}</span>
+    <strong>{{ value }}</strong>
+    <small m-if="detail">{{ detail }}</small>
+  </article>
+</template>
+
+<script>
+const {
+  label = "Metric",
+  value = "0",
+  detail = "",
+  tone = "neutral"
+} = defineProps({
+  label: String,
+  value: String,
+  detail: String,
+  tone: String
+});
+</script>
+
+<style scoped>
+.mikuru-stat-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+  color: #334155;
+  background: #ffffff;
+}
+
+span {
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+strong {
+  color: #111827;
+  font-size: 1.65rem;
+  line-height: 1.1;
+}
+
+small {
+  color: #64748b;
+}
+
+.mikuru-stat-card[data-tone="success"] {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.mikuru-stat-card[data-tone="info"] {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.mikuru-stat-card[data-tone="warning"] {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+</style>

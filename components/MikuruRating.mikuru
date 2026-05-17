@@ -1,0 +1,72 @@
+<template>
+  <div class="mikuru-rating" role="radiogroup" :aria-label="label">
+    <button
+      m-for="item in ratingItems"
+      :key="item"
+      type="button"
+      role="radio"
+      :aria-checked="item === modelValue ? 'true' : 'false'"
+      :data-active="item <= modelValue ? 'true' : 'false'"
+      :disabled="disabled"
+      @click="setRating(item)"
+    >{{ symbol }}</button>
+  </div>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  label = "Rating",
+  modelValue = 0,
+  max = 5,
+  symbol = "★",
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: Number,
+  max: Number,
+  symbol: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const ratingItems = computed(() => Array.from({ length: Math.max(1, max.value) }, (_, index) => index + 1));
+
+function setRating(value) {
+  if (disabled.value) return;
+  emit("update:modelValue", value);
+  emit("change", value);
+}
+</script>
+
+<style scoped>
+.mikuru-rating {
+  display: inline-flex;
+  gap: 2px;
+}
+
+button {
+  border: 0;
+  padding: 2px;
+  color: #cbd5e1;
+  background: transparent;
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+button[data-active="true"] {
+  color: #f59e0b;
+}
+
+button:focus-visible {
+  border-radius: 6px;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+</style>

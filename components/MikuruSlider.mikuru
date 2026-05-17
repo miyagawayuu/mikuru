@@ -1,0 +1,77 @@
+<template>
+  <label class="mikuru-slider">
+    <span class="slider-header">
+      <span>{{ label }}</span>
+      <output>{{ modelValue }}</output>
+    </span>
+    <input
+      type="range"
+      :min="min"
+      :max="max"
+      :step="step"
+      :value="modelValue"
+      :disabled="disabled"
+      @input="updateValue($event)"
+    />
+    <small m-if="help">{{ help }}</small>
+  </label>
+</template>
+
+<script>
+const {
+  label = "Slider",
+  modelValue = 0,
+  min = 0,
+  max = 100,
+  step = 1,
+  help = "",
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: Number,
+  min: Number,
+  max: Number,
+  step: Number,
+  help: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change", "input"]);
+
+function updateValue(event) {
+  const nextValue = Number(event.target.value);
+  emit("update:modelValue", nextValue);
+  emit("input", nextValue);
+  emit("change", nextValue);
+}
+</script>
+
+<style scoped>
+.mikuru-slider {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  font: inherit;
+}
+
+.slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 650;
+}
+
+output {
+  color: #2563eb;
+}
+
+input {
+  width: 100%;
+  accent-color: #2563eb;
+}
+
+small {
+  color: #64748b;
+}
+</style>

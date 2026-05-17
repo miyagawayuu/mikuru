@@ -1,0 +1,109 @@
+<template>
+  <nav class="mikuru-pagination" :aria-label="label">
+    <button type="button" :disabled="currentPage <= 1" @click="goPrevious">Previous</button>
+    <button
+      m-for="pageNumber in visiblePages"
+      :key="pageNumber"
+      type="button"
+      :class="{ active: pageNumber === currentPage }"
+      :aria-current="pageNumber === currentPage ? 'page' : undefined"
+      @click="goTo(pageNumber)"
+    >
+      {{ pageNumber }}
+    </button>
+    <button type="button" :disabled="currentPage >= totalPages" @click="goNext">Next</button>
+  </nav>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  page = 1,
+  total = 1,
+  siblingCount = 1,
+  label = "Pagination"
+} = defineProps({
+  page: Number,
+  total: Number,
+  siblingCount: Number,
+  label: String
+});
+
+const emit = defineEmits(["update:page", "change"]);
+
+const totalPages = computed(() => Math.max(1, Number(total.value) || 1));
+const currentPage = computed(() => clampPage(page.value));
+const visiblePages = computed(() => {
+  const radius = Math.max(0, Number(siblingCount.value) || 0);
+  const start = Math.max(1, currentPage.value - radius);
+  const end = Math.min(totalPages.value, currentPage.value + radius);
+  const pages = [];
+  for (let index = start; index <= end; index += 1) {
+    pages.push(index);
+  }
+  if (!pages.includes(1)) pages.unshift(1);
+  if (!pages.includes(totalPages.value)) pages.push(totalPages.value);
+  return pages;
+});
+
+function clampPage(value) {
+  const nextPage = Number(value) || 1;
+  return Math.min(Math.max(Math.round(nextPage), 1), totalPages.value);
+}
+
+function emitPage(nextPage) {
+  const clamped = clampPage(nextPage);
+  emit("update:page", clamped);
+  emit("change", clamped);
+}
+
+function goTo(nextPage) {
+  emitPage(nextPage);
+}
+
+function goPrevious() {
+  emitPage(currentPage.value - 1);
+}
+
+function goNext() {
+  emitPage(currentPage.value + 1);
+}
+</script>
+
+<style scoped>
+.mikuru-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+button {
+  min-width: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+button:focus-visible {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 16%);
+}
+
+button.active {
+  border-color: #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+}
+
+button:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+</style>

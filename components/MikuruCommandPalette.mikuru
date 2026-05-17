@@ -1,0 +1,197 @@
+<template>
+  <Teleport to="body">
+    <section m-if="isOpen" class="command-layer" role="dialog" aria-modal="true" aria-label="Command palette">
+      <button class="command-backdrop" type="button" aria-label="Close command palette" @click="close"></button>
+      <div class="mikuru-command-palette">
+        <input
+          ref="inputEl"
+          :placeholder="placeholder"
+          :value="query"
+          @input="updateQuery($event)"
+          @keydown="handleInputKeydown"
+        />
+        <ul>
+          <li m-for="command in filteredCommands" :key="command.id || command.label">
+            <button type="button" @click="selectCommand(command)">
+              <span>{{ command.label }}</span>
+              <small m-if="command.description">{{ command.description }}</small>
+            </button>
+          </li>
+        </ul>
+        <p m-if="!filteredCommands.length">{{ emptyText }}</p>
+      </div>
+    </section>
+  </Teleport>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, queueJob, ref, watch } from "mikuru";
+
+const {
+  open = false,
+  commands = [],
+  placeholder = "Search commands...",
+  emptyText = "No commands found",
+  shortcut = true
+} = defineProps({
+  open: Boolean,
+  commands: Array,
+  placeholder: String,
+  emptyText: String,
+  shortcut: Boolean
+});
+
+const emit = defineEmits(["open", "close", "select", "update:open"]);
+const internalOpen = ref(false);
+const query = ref("");
+const inputEl = ref(null);
+const isOpen = computed(() => open.value || internalOpen.value);
+const filteredCommands = computed(() => {
+  const term = query.value.trim().toLowerCase();
+  if (!term) return commands.value;
+  return commands.value.filter((command) => {
+    return `${command.label || ""} ${command.description || ""} ${command.keywords || ""}`.toLowerCase().includes(term);
+  });
+});
+
+watch(open, () => {
+  if (open.value) focusInput();
+});
+
+onMounted(() => {
+  document.addEventListener("keydown", handleDocumentKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleDocumentKeydown);
+});
+
+function openPalette() {
+  internalOpen.value = true;
+  emit("update:open", true);
+  emit("open");
+  focusInput();
+}
+
+function close() {
+  internalOpen.value = false;
+  query.value = "";
+  emit("update:open", false);
+  emit("close");
+}
+
+function focusInput() {
+  queueJob(() => {
+    inputEl.value?.focus();
+  });
+}
+
+function updateQuery(event) {
+  query.value = event.target.value;
+}
+
+function handleDocumentKeydown(event) {
+  if (!shortcut.value) return;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    if (isOpen.value) {
+      close();
+    } else {
+      openPalette();
+    }
+  }
+}
+
+function handleInputKeydown(event) {
+  if (event.key === "Escape") close();
+  if (event.key === "Enter" && filteredCommands.value[0]) selectCommand(filteredCommands.value[0]);
+}
+
+function selectCommand(command) {
+  emit("select", command);
+  close();
+}
+</script>
+
+<style scoped>
+.command-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: start center;
+  padding-top: 12vh;
+}
+
+.command-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(15 23 42 / 42%);
+}
+
+.mikuru-command-palette {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  width: min(560px, calc(100vw - 32px));
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 24%);
+}
+
+input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: #111827;
+  font: inherit;
+}
+
+input:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+ul {
+  display: grid;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px;
+  color: #111827;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+li button:hover,
+li button:focus-visible {
+  background: #eff6ff;
+  outline: none;
+}
+
+small,
+p {
+  margin: 0;
+  color: #64748b;
+}
+</style>

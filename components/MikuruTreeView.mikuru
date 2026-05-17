@@ -1,0 +1,72 @@
+<template>
+  <nav class="mikuru-tree-view" :aria-label="label">
+    <ul>
+      <li m-for="node in nodes" :key="nodeKey(node)">
+        <button type="button" @click="selectNode(node)">{{ node.label }}</button>
+        <ul m-if="node.children && node.children.length">
+          <li m-for="child in node.children" :key="nodeKey(child)">
+            <button type="button" @click="selectNode(child)">{{ child.label }}</button>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </nav>
+</template>
+
+<script>
+const {
+  label = "Tree view",
+  nodes = []
+} = defineProps({
+  label: String,
+  nodes: Array
+});
+
+const emit = defineEmits(["select"]);
+
+function nodeKey(node) {
+  return node.id || node.value || node.label;
+}
+
+function selectNode(node) {
+  emit("select", node);
+}
+</script>
+
+<style scoped>
+.mikuru-tree-view {
+  color: #111827;
+  font: inherit;
+}
+
+ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+ul ul {
+  margin-top: 4px;
+  padding-left: 18px;
+}
+
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: #334155;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button:hover,
+button:focus-visible {
+  background: #eff6ff;
+  outline: none;
+}
+</style>

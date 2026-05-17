@@ -1,0 +1,96 @@
+<template>
+  <section class="mikuru-range-slider">
+    <header>
+      <span>{{ label }}</span>
+      <output>{{ minValue }} - {{ maxValue }}</output>
+    </header>
+    <div class="range-controls">
+      <input type="range" :min="min" :max="max" :step="step" :value="minValue" @input="updateMin($event)" />
+      <input type="range" :min="min" :max="max" :step="step" :value="maxValue" @input="updateMax($event)" />
+    </div>
+    <small m-if="help">{{ help }}</small>
+  </section>
+</template>
+
+<script>
+import { ref, watch } from "mikuru";
+
+const {
+  label = "Range",
+  minValue: initialMinValue = 0,
+  maxValue: initialMaxValue = 100,
+  min = 0,
+  max = 100,
+  step = 1,
+  help = ""
+} = defineProps({
+  label: String,
+  minValue: Number,
+  maxValue: Number,
+  min: Number,
+  max: Number,
+  step: Number,
+  help: String
+});
+
+const emit = defineEmits(["change", "update:minValue", "update:maxValue"]);
+const minValue = ref(initialMinValue.value);
+const maxValue = ref(initialMaxValue.value);
+
+watch([initialMinValue, initialMaxValue], () => {
+  minValue.value = initialMinValue.value;
+  maxValue.value = initialMaxValue.value;
+});
+
+function updateMin(event) {
+  const nextValue = Math.min(Number(event.target.value), maxValue.value);
+  minValue.value = nextValue;
+  emitValues();
+}
+
+function updateMax(event) {
+  const nextValue = Math.max(Number(event.target.value), minValue.value);
+  maxValue.value = nextValue;
+  emitValues();
+}
+
+function emitValues() {
+  emit("update:minValue", minValue.value);
+  emit("update:maxValue", maxValue.value);
+  emit("change", { min: minValue.value, max: maxValue.value });
+}
+</script>
+
+<style scoped>
+.mikuru-range-slider {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  font: inherit;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 650;
+}
+
+output {
+  color: #2563eb;
+}
+
+.range-controls {
+  display: grid;
+  gap: 4px;
+}
+
+input {
+  width: 100%;
+  accent-color: #2563eb;
+}
+
+small {
+  color: #64748b;
+}
+</style>

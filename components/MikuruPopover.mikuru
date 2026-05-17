@@ -1,0 +1,152 @@
+<template>
+  <span class="mikuru-popover" ref="rootEl" @keydown="handleKeydown">
+    <button
+      class="popover-trigger"
+      type="button"
+      :aria-expanded="isOpen ? 'true' : 'false'"
+      aria-haspopup="dialog"
+      @click="toggle"
+    >
+      {{ label }}
+    </button>
+
+    <span
+      m-if="isOpen"
+      class="popover-panel"
+      role="dialog"
+      :aria-label="title || label"
+      :data-side="side"
+    >
+      <strong m-if="title">{{ title }}</strong>
+      <slot>{{ body }}</slot>
+    </span>
+  </span>
+</template>
+
+<script>
+import { onMounted, onUnmounted, ref } from "mikuru";
+
+const {
+  label = "Open popover",
+  title = "",
+  body = "",
+  side = "bottom",
+  closeOnOutside = true
+} = defineProps({
+  label: String,
+  title: String,
+  body: String,
+  side: String,
+  closeOnOutside: Boolean
+});
+
+const emit = defineEmits(["open", "close"]);
+const rootEl = ref(null);
+const isOpen = ref(false);
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointer);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointer);
+});
+
+function open() {
+  if (isOpen.value) return;
+  isOpen.value = true;
+  emit("open");
+}
+
+function close() {
+  if (!isOpen.value) return;
+  isOpen.value = false;
+  emit("close");
+}
+
+function toggle() {
+  if (isOpen.value) {
+    close();
+    return;
+  }
+  open();
+}
+
+function handleDocumentPointer(event) {
+  if (!closeOnOutside.value || !isOpen.value) return;
+  const root = rootEl.value;
+  if (!root || root.contains(event.target)) return;
+  close();
+}
+
+function handleKeydown(event) {
+  if (event.key === "Escape") {
+    close();
+  }
+}
+</script>
+
+<style scoped>
+.mikuru-popover {
+  position: relative;
+  display: inline-block;
+}
+
+.popover-trigger {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.popover-trigger:hover,
+.popover-trigger:focus-visible {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 16%);
+}
+
+.popover-panel {
+  position: absolute;
+  z-index: 45;
+  display: grid;
+  gap: 8px;
+  width: max-content;
+  max-width: min(280px, 82vw);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  color: #334155;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 16%);
+}
+
+.popover-panel,
+.popover-panel[data-side="bottom"] {
+  top: calc(100% + 8px);
+  left: 0;
+}
+
+.popover-panel[data-side="top"] {
+  top: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+}
+
+.popover-panel[data-side="right"] {
+  top: 0;
+  left: calc(100% + 8px);
+}
+
+.popover-panel[data-side="left"] {
+  top: 0;
+  left: auto;
+  right: calc(100% + 8px);
+}
+
+.popover-panel strong {
+  color: #111827;
+}
+</style>

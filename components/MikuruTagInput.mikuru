@@ -1,0 +1,127 @@
+<template>
+  <section class="mikuru-tag-input">
+    <label :for="inputId">{{ label }}</label>
+    <div class="tag-box">
+      <MikuruChip
+        m-for="tag in tags"
+        :key="tag"
+        :label="tag"
+        tone="info"
+        removable
+        @remove="removeTag(tag)"
+      />
+      <input
+        :id="inputId"
+        :value="draft"
+        :placeholder="placeholder"
+        :disabled="disabled"
+        @input="updateDraft($event)"
+        @keydown="handleKeydown"
+      />
+    </div>
+    <small m-if="help">{{ help }}</small>
+  </section>
+</template>
+
+<script>
+import { ref, watch } from "mikuru";
+import MikuruChip from "./MikuruChip.mikuru";
+
+const {
+  label = "Tags",
+  modelValue = [],
+  placeholder = "Add tag...",
+  help = "",
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: Array,
+  placeholder: String,
+  help: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const inputId = `mikuru-tags-${Math.random().toString(36).slice(2)}`;
+const tags = ref([]);
+const draft = ref("");
+
+watch(modelValue, () => {
+  tags.value = Array.from(modelValue.value || []);
+}, { immediate: true });
+
+function updateDraft(event) {
+  draft.value = event.target.value;
+}
+
+function handleKeydown(event) {
+  if (event.key === "Enter" || event.key === ",") {
+    event.preventDefault();
+    addTag();
+  }
+  if (event.key === "Backspace" && !draft.value && tags.value.length) {
+    removeTag(tags.value[tags.value.length - 1]);
+  }
+}
+
+function addTag() {
+  const nextTag = draft.value.trim().replace(/,$/, "");
+  if (!nextTag || tags.value.includes(nextTag)) return;
+  updateTags([...tags.value, nextTag]);
+  draft.value = "";
+}
+
+function removeTag(tag) {
+  updateTags(tags.value.filter((item) => item !== tag));
+}
+
+function updateTags(nextTags) {
+  tags.value = nextTags;
+  emit("update:modelValue", nextTags);
+  emit("change", nextTags);
+}
+</script>
+
+<style scoped>
+.mikuru-tag-input {
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font: inherit;
+}
+
+label {
+  font-weight: 650;
+}
+
+.tag-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px;
+  background: #ffffff;
+}
+
+.tag-box:focus-within {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+input {
+  min-width: 120px;
+  flex: 1 1 120px;
+  border: 0;
+  padding: 5px;
+  color: #111827;
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+
+small {
+  color: #64748b;
+}
+</style>

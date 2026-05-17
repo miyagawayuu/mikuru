@@ -1,0 +1,62 @@
+<template>
+  <span class="mikuru-badge" :data-tone="tone" :data-variant="variant">
+    <slot>{{ label }}</slot>
+  </span>
+</template>
+
+<script>
+const {
+  label = "Badge",
+  tone = "neutral",
+  variant = "soft"
+} = defineProps({
+  label: String,
+  tone: String,
+  variant: String
+});
+</script>
+
+<style scoped>
+.mikuru-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 22px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.mikuru-badge[data-tone="neutral"] {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.mikuru-badge[data-tone="success"] {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.mikuru-badge[data-tone="warning"] {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.mikuru-badge[data-tone="danger"] {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.mikuru-badge[data-tone="info"] {
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.mikuru-badge[data-variant="outline"] {
+  background: transparent;
+  border-color: currentColor;
+}
+</style>

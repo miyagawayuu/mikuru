@@ -1,0 +1,21 @@
+<template>
+  <MikuruCodeBlock
+    :code="code"
+    :language="language"
+    :showLineNumbers="showLineNumbers"
+  />
+</template>
+
+<script>
+import MikuruCodeBlock from "./MikuruCodeBlock.mikuru";
+
+const {
+  code = "",
+  language = "text",
+  showLineNumbers = true
+} = defineProps({
+  code: String,
+  language: String,
+  showLineNumbers: Boolean
+});
+</script>

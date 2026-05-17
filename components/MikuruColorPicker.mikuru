@@ -1,0 +1,63 @@
+<template>
+  <label class="mikuru-color-picker">
+    <span>{{ label }}</span>
+    <span class="color-row">
+      <input type="color" :value="modelValue" :disabled="disabled" @input="updateValue($event)" />
+      <code>{{ modelValue }}</code>
+    </span>
+  </label>
+</template>
+
+<script>
+const {
+  label = "Color",
+  modelValue = "#2563eb",
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+
+function updateValue(event) {
+  emit("update:modelValue", event.target.value);
+  emit("change", event.target.value);
+}
+</script>
+
+<style scoped>
+.mikuru-color-picker {
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font: inherit;
+}
+
+.mikuru-color-picker > span:first-child {
+  font-weight: 650;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input {
+  width: 44px;
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 2px;
+  background: #ffffff;
+}
+
+code {
+  border-radius: 6px;
+  padding: 3px 7px;
+  color: #334155;
+  background: #f1f5f9;
+}
+</style>

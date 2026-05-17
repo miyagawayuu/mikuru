@@ -1,0 +1,561 @@
+<template>
+  <section class="mikuru-markdown-editor">
+    <header class="editor-header">
+      <label :for="editorId">{{ label }}</label>
+      <div class="editor-actions" role="group" aria-label="Markdown editor view">
+        <button type="button" :class="{ active: mode === 'write' }" @click="setMode('write')">Write</button>
+        <button type="button" :class="{ active: mode === 'preview' }" @click="setMode('preview')">Preview</button>
+        <button type="button" :class="{ active: mode === 'split' }" @click="setMode('split')">Split</button>
+      </div>
+    </header>
+
+    <div class="editor-body" :class="bodyClass">
+      <textarea
+        m-if="mode !== 'preview'"
+        :id="editorId"
+        class="markdown-input"
+        :value="textValue"
+        :placeholder="placeholder"
+        :rows="rows"
+        :disabled="disabled"
+        @input="updateValue($event)"
+      ></textarea>
+      <article m-if="mode !== 'write'" class="markdown-preview">
+        <template m-for="block in previewBlocks" :key="block.key">
+          <MikuruCodeView
+            m-if="block.type === 'code'"
+            class="markdown-code-view"
+            :code="block.code"
+            :language="block.language"
+          />
+          <div
+            m-else
+            class="markdown-html-block"
+            m-html="block.html"
+          ></div>
+        </template>
+      </article>
+    </div>
+
+    <small m-if="help">{{ help }}</small>
+  </section>
+</template>
+
+<script>
+import { computed, ref, watch } from "mikuru";
+import MikuruCodeView from "./MikuruCodeBlock.mikuru";
+
+const {
+  label = "Markdown",
+  modelValue = "",
+  placeholder = "Write markdown...",
+  rows = 8,
+  help = "",
+  preview = true,
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: String,
+  placeholder: String,
+  rows: Number,
+  help: String,
+  preview: Boolean,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "input", "change"]);
+const editorId = `mikuru-markdown-${Math.random().toString(36).slice(2)}`;
+const mode = ref(preview.value ? "split" : "write");
+const textValue = ref("");
+
+watch(modelValue, () => {
+  textValue.value = String(modelValue.value ?? "");
+}, { immediate: true });
+
+const previewBlocks = computed(() => renderMarkdown(textValue.value));
+const bodyClass = computed(() => mode.value === "split" ? "split" : "single");
+
+function setMode(nextMode) {
+  mode.value = nextMode;
+}
+
+function updateValue(event) {
+  const nextValue = event.target.value;
+  textValue.value = nextValue;
+  emit("update:modelValue", nextValue);
+  emit("input", nextValue);
+  emit("change", nextValue);
+}
+
+function renderMarkdown(source) {
+  const lines = String(source || "").split("\n");
+  const blocks = [];
+  let html = [];
+  let listType = "";
+  let paragraph = [];
+  let index = 0;
+  let blockIndex = 0;
+
+  const pushHtml = (value) => {
+    html.push(value);
+  };
+  const flushHtml = () => {
+    if (html.length === 0) return;
+    blocks.push({
+      key: `html-${blockIndex}`,
+      type: "html",
+      html: html.join("")
+    });
+    blockIndex += 1;
+    html = [];
+  };
+  const pushCode = (language, code) => {
+    flushHtml();
+    blocks.push({
+      key: `code-${blockIndex}`,
+      type: "code",
+      language,
+      code
+    });
+    blockIndex += 1;
+  };
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    pushHtml(`<p>${inlineMarkdown(paragraph.join("\n"))}</p>`);
+    paragraph = [];
+  };
+  const closeList = (nextType = "") => {
+    if (!listType || listType === nextType) return;
+    pushHtml(`</${listType}>`);
+    listType = "";
+  };
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      closeList();
+      index += 1;
+      continue;
+    }
+
+    const fence = trimmed.match(/^```(\w+)?\s*$/);
+    if (fence) {
+      flushParagraph();
+      closeList();
+      const language = fence[1] || "text";
+      const codeLines = [];
+      index += 1;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      pushCode(language, codeLines.join("\n"));
+      index += 1;
+      continue;
+    }
+
+    if (trimmed === "$$") {
+      flushParagraph();
+      closeList();
+      const mathLines = [];
+      index += 1;
+      while (index < lines.length && lines[index].trim() !== "$$") {
+        mathLines.push(lines[index]);
+        index += 1;
+      }
+      pushHtml(`<div class="math-block">${escapeHtml(mathLines.join("\n"))}</div>`);
+      index += 1;
+      continue;
+    }
+
+    if (trimmed === "@startuml") {
+      flushParagraph();
+      closeList();
+      const umlLines = [trimmed];
+      index += 1;
+      while (index < lines.length) {
+        umlLines.push(lines[index]);
+        if (lines[index].trim() === "@enduml") break;
+        index += 1;
+      }
+      pushHtml(`<pre class="diagram-block plantuml"><code>${escapeHtml(umlLines.join("\n"))}</code></pre>`);
+      index += 1;
+      continue;
+    }
+
+    if (/^---+$|^\*\*\*+$|^___+$/.test(trimmed)) {
+      flushParagraph();
+      closeList();
+      pushHtml("<hr>");
+      index += 1;
+      continue;
+    }
+
+    if (isTableStart(lines, index)) {
+      flushParagraph();
+      closeList();
+      const table = collectTable(lines, index);
+      pushHtml(renderTable(table.rows, table.alignments));
+      index = table.nextIndex;
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = heading[1].length;
+      pushHtml(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+      index += 1;
+      continue;
+    }
+
+    const quote = trimmed.match(/^(>+)\s*(.+)$/);
+    if (quote) {
+      flushParagraph();
+      closeList();
+      const level = Math.min(quote[1].length, 3);
+      pushHtml(`${"<blockquote>".repeat(level)}${inlineMarkdown(quote[2])}${"</blockquote>".repeat(level)}`);
+      index += 1;
+      continue;
+    }
+
+    const task = trimmed.match(/^[-+*]\s+\[([ xX])\]\s+(.+)$/);
+    if (task) {
+      flushParagraph();
+      closeList("ul");
+      if (!listType) {
+        pushHtml('<ul class="task-list">');
+        listType = "ul";
+      }
+      const checked = task[1].toLowerCase() === "x" ? " checked" : "";
+      pushHtml(`<li class="task-list-item"><input type="checkbox" disabled${checked}> ${inlineMarkdown(task[2])}</li>`);
+      index += 1;
+      continue;
+    }
+
+    const unorderedList = trimmed.match(/^[-+*]\s+(.+)$/);
+    if (unorderedList) {
+      flushParagraph();
+      closeList("ul");
+      if (!listType) {
+        pushHtml("<ul>");
+        listType = "ul";
+      }
+      pushHtml(`<li>${inlineMarkdown(unorderedList[1])}</li>`);
+      index += 1;
+      continue;
+    }
+
+    const orderedList = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (orderedList) {
+      flushParagraph();
+      closeList("ol");
+      if (!listType) {
+        pushHtml("<ol>");
+        listType = "ol";
+      }
+      pushHtml(`<li>${inlineMarkdown(orderedList[1])}</li>`);
+      index += 1;
+      continue;
+    }
+
+    paragraph.push(line);
+    index += 1;
+  }
+
+  flushParagraph();
+  closeList();
+  flushHtml();
+  return blocks;
+}
+
+function isTableStart(lines, index) {
+  const current = lines[index]?.trim() || "";
+  const next = lines[index + 1]?.trim() || "";
+  return current.includes("|") && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(next);
+}
+
+function collectTable(lines, startIndex) {
+  const rows = [splitTableRow(lines[startIndex])];
+  const alignments = splitTableRow(lines[startIndex + 1]).map((cell) => {
+    const trimmed = cell.trim();
+    if (trimmed.startsWith(":") && trimmed.endsWith(":")) return "center";
+    if (trimmed.endsWith(":")) return "right";
+    return "left";
+  });
+  let index = startIndex + 2;
+  while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+    rows.push(splitTableRow(lines[index]));
+    index += 1;
+  }
+  return { rows, alignments, nextIndex: index };
+}
+
+function splitTableRow(line) {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+}
+
+function renderTable(rows, alignments) {
+  const [head, ...body] = rows;
+  const headers = head.map((cell, index) => `<th style="text-align: ${alignments[index] || "left"}">${inlineMarkdown(cell)}</th>`).join("");
+  const bodyRows = body.map((row) => {
+    const cells = row.map((cell, index) => `<td style="text-align: ${alignments[index] || "left"}">${inlineMarkdown(cell)}</td>`).join("");
+    return `<tr>${cells}</tr>`;
+  }).join("");
+  return `<table><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+}
+
+function inlineMarkdown(value) {
+  return restoreSafeHtml(escapeHtml(value))
+    .replace(/ {2}\n/g, "<br>")
+    .replace(/\n/g, " ")
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+=([0-9]+)x([0-9]+)?)?\)/g, (_, alt, src, width, height) => imageHtml(alt, src, width, height))
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\$\$?([^$]+)\$\$?/g, '<span class="math-inline">$1</span>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_]+)_/g, "<em>$1</em>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+    .replace(/:(sparkles|smile|tada|rocket):/g, (_, name) => emoji(name));
+}
+
+function imageHtml(alt, src, width, height) {
+  if (!isSafeAssetUrl(src)) return "";
+  const size = width ? ` width="${escapeAttribute(width)}"${height ? ` height="${escapeAttribute(height)}"` : ""}` : "";
+  return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(alt)}"${size}>`;
+}
+
+function emoji(name) {
+  const map = {
+    rocket: "🚀",
+    smile: "😄",
+    sparkles: "✨",
+    tada: "🎉"
+  };
+  return map[name] || `:${name}:`;
+}
+
+function restoreSafeHtml(value) {
+  return value
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>")
+    .replace(/&lt;(\/?)(b|i)&gt;/gi, "<$1$2>")
+    .replace(/&lt;div\s+style=&quot;color:\s*([#\w\s(),.-]+);?&quot;&gt;/gi, (_, color) => `<div style="color: ${escapeAttribute(color.trim())}">`)
+    .replace(/&lt;\/div&gt;/gi, "</div>");
+}
+
+function isSafeAssetUrl(value) {
+  const trimmed = String(value || "").trim();
+  if (trimmed.startsWith("/") || trimmed.startsWith("./") || trimmed.startsWith("../")) return true;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function escapeAttribute(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+</script>
+
+<style scoped>
+.mikuru-markdown-editor {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  font: inherit;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+label {
+  font-weight: 650;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 4px;
+}
+
+button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.active {
+  border-color: #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.editor-body {
+  display: grid;
+  gap: 10px;
+}
+
+.editor-body.split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.markdown-input,
+.markdown-preview {
+  min-height: 220px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.markdown-input {
+  resize: vertical;
+  color: #111827;
+  font: 0.95rem/1.55 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.markdown-input:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+.markdown-preview {
+  overflow: auto;
+  color: #334155;
+  line-height: 1.6;
+}
+
+small {
+  color: #64748b;
+}
+
+:deep(.markdown-preview h1),
+:deep(.markdown-preview h2),
+:deep(.markdown-preview h3),
+:deep(.markdown-preview p),
+:deep(.markdown-preview ul),
+:deep(.markdown-preview blockquote) {
+  margin: 0 0 10px;
+}
+
+:deep(.markdown-preview blockquote) {
+  border-left: 3px solid #93c5fd;
+  padding-left: 10px;
+  color: #475569;
+}
+
+:deep(.markdown-preview hr) {
+  border: 0;
+  border-top: 1px solid #cbd5e1;
+  margin: 14px 0;
+}
+
+:deep(.markdown-preview table) {
+  width: 100%;
+  margin: 0 0 12px;
+  border-collapse: collapse;
+}
+
+:deep(.markdown-preview th),
+:deep(.markdown-preview td) {
+  border: 1px solid #cbd5e1;
+  padding: 7px 9px;
+}
+
+:deep(.markdown-preview th) {
+  background: #f8fafc;
+}
+
+:deep(.markdown-preview img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.markdown-html-block {
+  display: contents;
+}
+
+.markdown-code-view {
+  margin: 0 0 12px;
+}
+
+:deep(.markdown-preview code) {
+  border-radius: 6px;
+  padding: 2px 5px;
+  background: #f1f5f9;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+:deep(.markdown-preview pre),
+:deep(.markdown-preview .math-block),
+:deep(.markdown-preview .diagram-block) {
+  overflow: auto;
+  margin: 0 0 12px;
+  border-radius: 8px;
+  padding: 12px;
+  color: #e2e8f0;
+  background: #0f172a;
+  white-space: pre;
+}
+
+:deep(.markdown-preview .math-inline) {
+  border-radius: 6px;
+  padding: 2px 5px;
+  color: #1e3a8a;
+  background: #dbeafe;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+:deep(.markdown-preview .task-list) {
+  padding-left: 0;
+  list-style: none;
+}
+
+:deep(.markdown-preview .task-list-item input) {
+  margin-right: 6px;
+}
+
+:deep(.markdown-preview a) {
+  color: #2563eb;
+}
+
+@media (max-width: 760px) {
+  .editor-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .editor-body.split {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

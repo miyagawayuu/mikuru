@@ -1,0 +1,93 @@
+<template>
+  <ol class="mikuru-timeline">
+    <li m-for="item in items" :key="itemKey(item)" :data-tone="item.tone || 'neutral'">
+      <span class="timeline-dot" aria-hidden="true"></span>
+      <div class="timeline-content">
+        <time m-if="item.time">{{ item.time }}</time>
+        <strong>{{ item.title }}</strong>
+        <p m-if="item.description">{{ item.description }}</p>
+      </div>
+    </li>
+  </ol>
+</template>
+
+<script>
+const {
+  items = []
+} = defineProps({
+  items: Array
+});
+
+function itemKey(item) {
+  return item.id || item.title;
+}
+</script>
+
+<style scoped>
+.mikuru-timeline {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+li:not(:last-child)::before {
+  position: absolute;
+  top: 16px;
+  bottom: 0;
+  left: 6px;
+  width: 2px;
+  background: #e2e8f0;
+  content: "";
+}
+
+.timeline-dot {
+  position: relative;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: #64748b;
+}
+
+li[data-tone="success"] .timeline-dot {
+  background: #16a34a;
+}
+
+li[data-tone="info"] .timeline-dot {
+  background: #2563eb;
+}
+
+li[data-tone="warning"] .timeline-dot {
+  background: #f59e0b;
+}
+
+.timeline-content {
+  display: grid;
+  gap: 2px;
+}
+
+time {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+strong {
+  color: #111827;
+}
+
+p {
+  margin: 0;
+  color: #475569;
+}
+</style>

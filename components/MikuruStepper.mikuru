@@ -1,0 +1,123 @@
+<template>
+  <ol class="mikuru-stepper" :data-orientation="orientation">
+    <li
+      m-for="step in steps"
+      :key="stepKey(step)"
+      :data-state="stepState(step)"
+    >
+      <button type="button" @click="selectStep(step)">
+        <span class="step-index">{{ step.index || stepNumber(step) }}</span>
+        <span class="step-copy">
+          <strong>{{ step.label }}</strong>
+          <small m-if="step.description">{{ step.description }}</small>
+        </span>
+      </button>
+    </li>
+  </ol>
+</template>
+
+<script>
+const {
+  steps = [],
+  current = "",
+  orientation = "horizontal"
+} = defineProps({
+  steps: Array,
+  current: String,
+  orientation: String
+});
+
+const emit = defineEmits(["change"]);
+
+function stepKey(step) {
+  return step.value || step.label;
+}
+
+function stepNumber(step) {
+  return steps.value.indexOf(step) + 1;
+}
+
+function stepState(step) {
+  if (step.value === current.value) return "current";
+  if (step.completed) return "complete";
+  return "pending";
+}
+
+function selectStep(step) {
+  emit("change", step.value, step);
+}
+</script>
+
+<style scoped>
+.mikuru-stepper {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mikuru-stepper[data-orientation="vertical"] {
+  flex-direction: column;
+}
+
+li {
+  flex: 1 1 0;
+}
+
+button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px;
+  color: #334155;
+  background: #ffffff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+li[data-state="current"] button {
+  border-color: #2563eb;
+  color: #1e3a8a;
+  background: #eff6ff;
+}
+
+li[data-state="complete"] button {
+  border-color: #86efac;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.step-index {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #64748b;
+  font-weight: 800;
+}
+
+li[data-state="current"] .step-index {
+  background: #2563eb;
+}
+
+li[data-state="complete"] .step-index {
+  background: #16a34a;
+}
+
+.step-copy {
+  display: grid;
+  gap: 2px;
+}
+
+small {
+  color: #64748b;
+}
+</style>

@@ -1,0 +1,111 @@
+<template>
+  <fieldset class="mikuru-radio-group">
+    <legend>{{ label }}</legend>
+    <label
+      m-for="option in options"
+      :key="option.value"
+      class="radio-option"
+      :data-checked="isChecked(option) ? 'true' : 'false'"
+      :data-disabled="option.disabled || disabled ? 'true' : 'false'"
+    >
+      <input
+        type="radio"
+        :name="groupName"
+        :value="option.value"
+        :checked="isChecked(option)"
+        :disabled="option.disabled || disabled"
+        @change="selectOption(option)"
+      />
+      <span>
+        <strong>{{ option.label }}</strong>
+        <small m-if="option.description">{{ option.description }}</small>
+      </span>
+    </label>
+    <small m-if="help" class="group-help">{{ help }}</small>
+  </fieldset>
+</template>
+
+<script>
+const {
+  label = "Options",
+  modelValue = "",
+  options = [],
+  name = "",
+  help = "",
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: String,
+  options: Array,
+  name: String,
+  help: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const groupName = name.value || `mikuru-radio-${Math.random().toString(36).slice(2)}`;
+
+function isChecked(option) {
+  return option.value === modelValue.value;
+}
+
+function selectOption(option) {
+  if (disabled.value || option.disabled) return;
+  emit("update:modelValue", option.value);
+  emit("change", option.value, option);
+}
+</script>
+
+<style scoped>
+.mikuru-radio-group {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  color: #111827;
+  font: inherit;
+}
+
+legend {
+  margin-bottom: 2px;
+  padding: 0;
+  font-weight: 650;
+}
+
+.radio-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.radio-option[data-checked="true"] {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.radio-option[data-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+input {
+  margin-top: 3px;
+  accent-color: #2563eb;
+}
+
+.radio-option span {
+  display: grid;
+  gap: 2px;
+}
+
+small {
+  color: #64748b;
+}
+</style>

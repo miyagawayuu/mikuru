@@ -4,13 +4,12 @@
       <span>{{ languageLabel }}</span>
       <button type="button" @click="copyCode">{{ copyLabel }}</button>
     </figcaption>
-    <pre><code><span m-for="line in lines" :key="line.number" class="code-line"><span m-if="showLineNumbers" class="line-number">{{ line.number }}</span><span m-html="line.html"></span>
-</span></code></pre>
+    <pre><code m-html="codeHtml"></code></pre>
   </figure>
 </template>
 
 <script>
-import { computed, ref, watch } from "mikuru";
+import { computed, ref } from "mikuru";
 
 const {
   code = "",
@@ -23,16 +22,9 @@ const {
 });
 
 const copied = ref(false);
-const lines = ref([]);
 const languageLabel = computed(() => language.value || "text");
 const copyLabel = computed(() => copied.value ? "Copied" : "Copy");
-
-watch([code, language], () => {
-  lines.value = code.value.split("\n").map((text, index) => ({
-    number: index + 1,
-    html: highlightLine(text, language.value)
-  }));
-}, { immediate: true });
+const codeHtml = computed(() => renderCodeHtml(code.value, language.value, showLineNumbers.value));
 
 async function copyCode() {
   if (!navigator.clipboard) return;
@@ -58,6 +50,13 @@ function highlightLine(line, lang) {
     return highlightScript(line);
   }
   return escapeHtml(line);
+}
+
+function renderCodeHtml(source, lang, withLineNumbers) {
+  return String(source || "").split("\n").map((text, index) => {
+    const lineNumber = withLineNumbers ? `<span class="line-number">${index + 1}</span>` : "";
+    return `<span class="code-line">${lineNumber}<span>${highlightLine(text, lang)}</span></span>`;
+  }).join("");
 }
 
 function highlightScript(line) {
@@ -283,7 +282,15 @@ pre {
   font: 0.9rem/1.55 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
-.code-line {
+.mikuru-code-block pre code {
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+:deep(.code-line) {
   display: grid;
   grid-template-columns: auto 1fr;
   min-width: max-content;
@@ -291,7 +298,7 @@ pre {
   white-space: pre;
 }
 
-.line-number {
+:deep(.line-number) {
   min-width: 3ch;
   margin-right: 14px;
   color: #64748b;

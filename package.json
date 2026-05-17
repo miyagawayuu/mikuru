@@ -1,6 +1,6 @@
 {
   "name": "mikuru",
-  "version": "1.0.38",
+  "version": "1.0.39",
   "private": false,
   "type": "module",
   "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",
@@ -117,6 +117,238 @@
       "types": "./types/components/MikuruCodeBlock.d.ts",
       "default": "./components/MikuruCodeBlock.mikuru"
     },
+    "./components/MikuruCodeView": {
+      "types": "./types/components/MikuruCodeView.d.ts",
+      "default": "./components/MikuruCodeView.mikuru"
+    },
+    "./components/MikuruCodeView.mikuru": {
+      "types": "./types/components/MikuruCodeView.d.ts",
+      "default": "./components/MikuruCodeView.mikuru"
+    },
+    "./components/MikuruDrawer": {
+      "types": "./types/components/MikuruDrawer.d.ts",
+      "default": "./components/MikuruDrawer.mikuru"
+    },
+    "./components/MikuruDrawer.mikuru": {
+      "types": "./types/components/MikuruDrawer.d.ts",
+      "default": "./components/MikuruDrawer.mikuru"
+    },
+    "./components/MikuruBreadcrumb": {
+      "types": "./types/components/MikuruBreadcrumb.d.ts",
+      "default": "./components/MikuruBreadcrumb.mikuru"
+    },
+    "./components/MikuruBreadcrumb.mikuru": {
+      "types": "./types/components/MikuruBreadcrumb.d.ts",
+      "default": "./components/MikuruBreadcrumb.mikuru"
+    },
+    "./components/MikuruSwitch": {
+      "types": "./types/components/MikuruSwitch.d.ts",
+      "default": "./components/MikuruSwitch.mikuru"
+    },
+    "./components/MikuruSwitch.mikuru": {
+      "types": "./types/components/MikuruSwitch.d.ts",
+      "default": "./components/MikuruSwitch.mikuru"
+    },
+    "./components/MikuruRadioGroup": {
+      "types": "./types/components/MikuruRadioGroup.d.ts",
+      "default": "./components/MikuruRadioGroup.mikuru"
+    },
+    "./components/MikuruRadioGroup.mikuru": {
+      "types": "./types/components/MikuruRadioGroup.d.ts",
+      "default": "./components/MikuruRadioGroup.mikuru"
+    },
+    "./components/MikuruFileUpload": {
+      "types": "./types/components/MikuruFileUpload.d.ts",
+      "default": "./components/MikuruFileUpload.mikuru"
+    },
+    "./components/MikuruFileUpload.mikuru": {
+      "types": "./types/components/MikuruFileUpload.d.ts",
+      "default": "./components/MikuruFileUpload.mikuru"
+    },
+    "./components/MikuruEmptyState": {
+      "types": "./types/components/MikuruEmptyState.d.ts",
+      "default": "./components/MikuruEmptyState.mikuru"
+    },
+    "./components/MikuruEmptyState.mikuru": {
+      "types": "./types/components/MikuruEmptyState.d.ts",
+      "default": "./components/MikuruEmptyState.mikuru"
+    },
+    "./components/MikuruSkeleton": {
+      "types": "./types/components/MikuruSkeleton.d.ts",
+      "default": "./components/MikuruSkeleton.mikuru"
+    },
+    "./components/MikuruSkeleton.mikuru": {
+      "types": "./types/components/MikuruSkeleton.d.ts",
+      "default": "./components/MikuruSkeleton.mikuru"
+    },
+    "./components/MikuruBadge": {
+      "types": "./types/components/MikuruBadge.d.ts",
+      "default": "./components/MikuruBadge.mikuru"
+    },
+    "./components/MikuruBadge.mikuru": {
+      "types": "./types/components/MikuruBadge.d.ts",
+      "default": "./components/MikuruBadge.mikuru"
+    },
+    "./components/MikuruCommandPalette": {
+      "types": "./types/components/MikuruCommandPalette.d.ts",
+      "default": "./components/MikuruCommandPalette.mikuru"
+    },
+    "./components/MikuruCommandPalette.mikuru": {
+      "types": "./types/components/MikuruCommandPalette.d.ts",
+      "default": "./components/MikuruCommandPalette.mikuru"
+    },
+    "./components/MikuruAvatar": {
+      "types": "./types/components/MikuruAvatar.d.ts",
+      "default": "./components/MikuruAvatar.mikuru"
+    },
+    "./components/MikuruAvatar.mikuru": {
+      "types": "./types/components/MikuruAvatar.d.ts",
+      "default": "./components/MikuruAvatar.mikuru"
+    },
+    "./components/MikuruAvatarGroup": {
+      "types": "./types/components/MikuruAvatarGroup.d.ts",
+      "default": "./components/MikuruAvatarGroup.mikuru"
+    },
+    "./components/MikuruAvatarGroup.mikuru": {
+      "types": "./types/components/MikuruAvatarGroup.d.ts",
+      "default": "./components/MikuruAvatarGroup.mikuru"
+    },
+    "./components/MikuruContextMenu": {
+      "types": "./types/components/MikuruContextMenu.d.ts",
+      "default": "./components/MikuruContextMenu.mikuru"
+    },
+    "./components/MikuruContextMenu.mikuru": {
+      "types": "./types/components/MikuruContextMenu.d.ts",
+      "default": "./components/MikuruContextMenu.mikuru"
+    },
+    "./components/MikuruStepper": {
+      "types": "./types/components/MikuruStepper.d.ts",
+      "default": "./components/MikuruStepper.mikuru"
+    },
+    "./components/MikuruStepper.mikuru": {
+      "types": "./types/components/MikuruStepper.d.ts",
+      "default": "./components/MikuruStepper.mikuru"
+    },
+    "./components/MikuruSlider": {
+      "types": "./types/components/MikuruSlider.d.ts",
+      "default": "./components/MikuruSlider.mikuru"
+    },
+    "./components/MikuruSlider.mikuru": {
+      "types": "./types/components/MikuruSlider.d.ts",
+      "default": "./components/MikuruSlider.mikuru"
+    },
+    "./components/MikuruRating": {
+      "types": "./types/components/MikuruRating.d.ts",
+      "default": "./components/MikuruRating.mikuru"
+    },
+    "./components/MikuruRating.mikuru": {
+      "types": "./types/components/MikuruRating.d.ts",
+      "default": "./components/MikuruRating.mikuru"
+    },
+    "./components/MikuruTimeline": {
+      "types": "./types/components/MikuruTimeline.d.ts",
+      "default": "./components/MikuruTimeline.mikuru"
+    },
+    "./components/MikuruTimeline.mikuru": {
+      "types": "./types/components/MikuruTimeline.d.ts",
+      "default": "./components/MikuruTimeline.mikuru"
+    },
+    "./components/MikuruStatCard": {
+      "types": "./types/components/MikuruStatCard.d.ts",
+      "default": "./components/MikuruStatCard.mikuru"
+    },
+    "./components/MikuruStatCard.mikuru": {
+      "types": "./types/components/MikuruStatCard.d.ts",
+      "default": "./components/MikuruStatCard.mikuru"
+    },
+    "./components/MikuruKbd": {
+      "types": "./types/components/MikuruKbd.d.ts",
+      "default": "./components/MikuruKbd.mikuru"
+    },
+    "./components/MikuruKbd.mikuru": {
+      "types": "./types/components/MikuruKbd.d.ts",
+      "default": "./components/MikuruKbd.mikuru"
+    },
+    "./components/MikuruSearchInput": {
+      "types": "./types/components/MikuruSearchInput.d.ts",
+      "default": "./components/MikuruSearchInput.mikuru"
+    },
+    "./components/MikuruSearchInput.mikuru": {
+      "types": "./types/components/MikuruSearchInput.d.ts",
+      "default": "./components/MikuruSearchInput.mikuru"
+    },
+    "./components/MikuruSegmentedControl": {
+      "types": "./types/components/MikuruSegmentedControl.d.ts",
+      "default": "./components/MikuruSegmentedControl.mikuru"
+    },
+    "./components/MikuruSegmentedControl.mikuru": {
+      "types": "./types/components/MikuruSegmentedControl.d.ts",
+      "default": "./components/MikuruSegmentedControl.mikuru"
+    },
+    "./components/MikuruChip": {
+      "types": "./types/components/MikuruChip.d.ts",
+      "default": "./components/MikuruChip.mikuru"
+    },
+    "./components/MikuruChip.mikuru": {
+      "types": "./types/components/MikuruChip.d.ts",
+      "default": "./components/MikuruChip.mikuru"
+    },
+    "./components/MikuruTagInput": {
+      "types": "./types/components/MikuruTagInput.d.ts",
+      "default": "./components/MikuruTagInput.mikuru"
+    },
+    "./components/MikuruTagInput.mikuru": {
+      "types": "./types/components/MikuruTagInput.d.ts",
+      "default": "./components/MikuruTagInput.mikuru"
+    },
+    "./components/MikuruRangeSlider": {
+      "types": "./types/components/MikuruRangeSlider.d.ts",
+      "default": "./components/MikuruRangeSlider.mikuru"
+    },
+    "./components/MikuruRangeSlider.mikuru": {
+      "types": "./types/components/MikuruRangeSlider.d.ts",
+      "default": "./components/MikuruRangeSlider.mikuru"
+    },
+    "./components/MikuruColorPicker": {
+      "types": "./types/components/MikuruColorPicker.d.ts",
+      "default": "./components/MikuruColorPicker.mikuru"
+    },
+    "./components/MikuruColorPicker.mikuru": {
+      "types": "./types/components/MikuruColorPicker.d.ts",
+      "default": "./components/MikuruColorPicker.mikuru"
+    },
+    "./components/MikuruTimePicker": {
+      "types": "./types/components/MikuruTimePicker.d.ts",
+      "default": "./components/MikuruTimePicker.mikuru"
+    },
+    "./components/MikuruTimePicker.mikuru": {
+      "types": "./types/components/MikuruTimePicker.d.ts",
+      "default": "./components/MikuruTimePicker.mikuru"
+    },
+    "./components/MikuruCalendar": {
+      "types": "./types/components/MikuruCalendar.d.ts",
+      "default": "./components/MikuruCalendar.mikuru"
+    },
+    "./components/MikuruCalendar.mikuru": {
+      "types": "./types/components/MikuruCalendar.d.ts",
+      "default": "./components/MikuruCalendar.mikuru"
+    },
+    "./components/MikuruDataList": {
+      "types": "./types/components/MikuruDataList.d.ts",
+      "default": "./components/MikuruDataList.mikuru"
+    },
+    "./components/MikuruDataList.mikuru": {
+      "types": "./types/components/MikuruDataList.d.ts",
+      "default": "./components/MikuruDataList.mikuru"
+    },
+    "./components/MikuruTreeView": {
+      "types": "./types/components/MikuruTreeView.d.ts",
+      "default": "./components/MikuruTreeView.mikuru"
+    },
+    "./components/MikuruTreeView.mikuru": {
+      "types": "./types/components/MikuruTreeView.d.ts",
+      "default": "./components/MikuruTreeView.mikuru"
+    },
     "./components/MikuruTabs": {
       "types": "./types/components/MikuruTabs.d.ts",
       "default": "./components/MikuruTabs.mikuru"
@@ -172,6 +404,62 @@
     "./components/MikuruCombobox.mikuru": {
       "types": "./types/components/MikuruCombobox.d.ts",
       "default": "./components/MikuruCombobox.mikuru"
+    },
+    "./components/MikuruPopover": {
+      "types": "./types/components/MikuruPopover.d.ts",
+      "default": "./components/MikuruPopover.mikuru"
+    },
+    "./components/MikuruPopover.mikuru": {
+      "types": "./types/components/MikuruPopover.d.ts",
+      "default": "./components/MikuruPopover.mikuru"
+    },
+    "./components/MikuruAlertDialog": {
+      "types": "./types/components/MikuruAlertDialog.d.ts",
+      "default": "./components/MikuruAlertDialog.mikuru"
+    },
+    "./components/MikuruAlertDialog.mikuru": {
+      "types": "./types/components/MikuruAlertDialog.d.ts",
+      "default": "./components/MikuruAlertDialog.mikuru"
+    },
+    "./components/MikuruTable": {
+      "types": "./types/components/MikuruTable.d.ts",
+      "default": "./components/MikuruTable.mikuru"
+    },
+    "./components/MikuruTable.mikuru": {
+      "types": "./types/components/MikuruTable.d.ts",
+      "default": "./components/MikuruTable.mikuru"
+    },
+    "./components/MikuruPagination": {
+      "types": "./types/components/MikuruPagination.d.ts",
+      "default": "./components/MikuruPagination.mikuru"
+    },
+    "./components/MikuruPagination.mikuru": {
+      "types": "./types/components/MikuruPagination.d.ts",
+      "default": "./components/MikuruPagination.mikuru"
+    },
+    "./components/MikuruDatePicker": {
+      "types": "./types/components/MikuruDatePicker.d.ts",
+      "default": "./components/MikuruDatePicker.mikuru"
+    },
+    "./components/MikuruDatePicker.mikuru": {
+      "types": "./types/components/MikuruDatePicker.d.ts",
+      "default": "./components/MikuruDatePicker.mikuru"
+    },
+    "./components/MikuruMarkdownEditor": {
+      "types": "./types/components/MikuruMarkdownEditor.d.ts",
+      "default": "./components/MikuruMarkdownEditor.mikuru"
+    },
+    "./components/MikuruMarkdownEditor.mikuru": {
+      "types": "./types/components/MikuruMarkdownEditor.d.ts",
+      "default": "./components/MikuruMarkdownEditor.mikuru"
+    },
+    "./components/MikuruWysiwygEditor": {
+      "types": "./types/components/MikuruWysiwygEditor.d.ts",
+      "default": "./components/MikuruWysiwygEditor.mikuru"
+    },
+    "./components/MikuruWysiwygEditor.mikuru": {
+      "types": "./types/components/MikuruWysiwygEditor.d.ts",
+      "default": "./components/MikuruWysiwygEditor.mikuru"
     },
     "./components/MikuruHeader": {
       "types": "./types/components/MikuruHeader.d.ts",

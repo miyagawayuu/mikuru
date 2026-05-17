@@ -1,0 +1,28 @@
+<template>
+  <kbd class="mikuru-kbd"><slot>{{ label }}</slot></kbd>
+</template>
+
+<script>
+const {
+  label = "Ctrl"
+} = defineProps({
+  label: String
+});
+</script>
+
+<style scoped>
+.mikuru-kbd {
+  display: inline-flex;
+  align-items: center;
+  min-width: 1.6em;
+  min-height: 1.55em;
+  border: 1px solid #cbd5e1;
+  border-bottom-color: #94a3b8;
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: #111827;
+  background: #f8fafc;
+  box-shadow: inset 0 -1px 0 #cbd5e1;
+  font: 0.82em/1.2 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+</style>

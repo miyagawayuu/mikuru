@@ -1,0 +1,115 @@
+<template>
+  <Teleport to="body">
+    <div m-if="open" class="drawer-layer" :data-side="side">
+      <button
+        class="drawer-backdrop"
+        type="button"
+        aria-label="Close drawer"
+        @click="handleBackdrop"
+      ></button>
+      <aside class="mikuru-drawer" role="dialog" aria-modal="true" :aria-label="title || 'Drawer'">
+        <header class="drawer-header">
+          <strong>{{ title }}</strong>
+          <button type="button" class="drawer-close" @click="close">{{ closeLabel }}</button>
+        </header>
+        <div class="drawer-body">
+          <slot>{{ body }}</slot>
+        </div>
+      </aside>
+    </div>
+  </Teleport>
+</template>
+
+<script>
+const {
+  open = false,
+  title = "Drawer",
+  body = "",
+  side = "right",
+  closeLabel = "Close",
+  closeOnBackdrop = true
+} = defineProps({
+  open: Boolean,
+  title: String,
+  body: String,
+  side: String,
+  closeLabel: String,
+  closeOnBackdrop: Boolean
+});
+
+const emit = defineEmits(["close"]);
+
+function close() {
+  emit("close");
+}
+
+function handleBackdrop() {
+  if (closeOnBackdrop.value) close();
+}
+</script>
+
+<style scoped>
+.drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+}
+
+.drawer-layer[data-side="right"] {
+  justify-content: flex-end;
+}
+
+.drawer-layer[data-side="left"] {
+  justify-content: flex-start;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(15 23 42 / 46%);
+  cursor: pointer;
+}
+
+.mikuru-drawer {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: min(420px, 92vw);
+  height: 100%;
+  color: #111827;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 24%);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 16px;
+}
+
+.drawer-close {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.drawer-close:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+.drawer-body {
+  overflow: auto;
+  padding: 16px;
+  line-height: 1.6;
+}
+</style>

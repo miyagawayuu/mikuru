@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.39 - 2026-05-18
+
+- Added package-exported `MikuruPopover`, `MikuruAlertDialog`, `MikuruTable`, `MikuruPagination`, `MikuruDatePicker`, `MikuruMarkdownEditor`, and `MikuruWysiwygEditor` components with typed exports and dogfood coverage.
+- Added package-exported `MikuruCodeView` and render `MikuruMarkdownEditor` fenced code blocks through it.
+- Added package-exported `MikuruDrawer`, `MikuruBreadcrumb`, `MikuruSwitch`, `MikuruRadioGroup`, `MikuruFileUpload`, `MikuruEmptyState`, `MikuruSkeleton`, `MikuruBadge`, and `MikuruCommandPalette` components with typed exports and dogfood coverage.
+- Added package-exported `MikuruAvatar`, `MikuruAvatarGroup`, `MikuruContextMenu`, `MikuruStepper`, `MikuruSlider`, `MikuruRating`, `MikuruTimeline`, `MikuruStatCard`, and `MikuruKbd` components with typed exports and dogfood coverage.
+- Added package-exported `MikuruSearchInput`, `MikuruSegmentedControl`, `MikuruChip`, `MikuruTagInput`, `MikuruRangeSlider`, `MikuruColorPicker`, `MikuruTimePicker`, `MikuruCalendar`, `MikuruDataList`, and `MikuruTreeView` components with typed exports and dogfood coverage.
+
 ## 1.0.38 - 2026-05-17
 
 - Fixed `MikuruVideoPlayer` speed and skip settings so option active states follow the selected value without reactive menu churn, preventing settings menu crashes in consuming apps while keeping speed highlights and skip actions in sync.

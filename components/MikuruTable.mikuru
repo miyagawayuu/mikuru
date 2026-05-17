@@ -1,0 +1,242 @@
+<template>
+  <div class="mikuru-table-wrap">
+    <table class="mikuru-table">
+      <caption m-if="caption">{{ caption }}</caption>
+      <thead>
+        <tr>
+          <th
+            m-for="column in normalizedColumns"
+            :key="column.key"
+            :style="columnStyle(column)"
+            :aria-sort="ariaSort(column)"
+          >
+            <button
+              m-if="column.sortable"
+              type="button"
+              class="sort-button"
+              @click="sortBy(column)"
+            >
+              <span>{{ column.label }}</span>
+              <span aria-hidden="true">{{ sortMark(column) }}</span>
+            </button>
+            <span m-else>{{ column.label }}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr m-if="loading">
+          <td :colspan="columnCount()">Loading...</td>
+        </tr>
+        <tr m-else-if="sortedRows.length === 0">
+          <td :colspan="columnCount()">{{ emptyText }}</td>
+        </tr>
+        <tr
+          m-for="row in sortedRows"
+          :key="rowKeyValue(row)"
+          @click="selectRow(row)"
+        >
+          <td
+            m-for="column in normalizedColumns"
+            :key="column.key"
+            :style="columnStyle(column)"
+          >
+            {{ cellValue(row, column) }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</template>
+
+<script>
+import { computed, ref, watch } from "mikuru";
+
+const {
+  columns = [],
+  rows = [],
+  caption = "",
+  emptyText = "No rows",
+  loading = false,
+  rowKey = "id",
+  sortKey = "",
+  sortDirection = "asc"
+} = defineProps({
+  columns: Array,
+  rows: Array,
+  caption: String,
+  emptyText: String,
+  loading: Boolean,
+  rowKey: String,
+  sortKey: String,
+  sortDirection: String
+});
+
+const emit = defineEmits(["row-click", "sort"]);
+const activeSortKey = ref("");
+const activeSortDirection = ref("asc");
+const normalizedColumns = ref([]);
+let columnsSignature = "";
+
+watch(columns, syncColumns, { immediate: true });
+watch(sortKey, syncSort, { immediate: true });
+watch(sortDirection, syncSort, { immediate: true });
+
+const sortedRows = computed(() => {
+  const source = Array.isArray(rows.value) ? rows.value.slice() : [];
+  const key = activeSortKey.value;
+  if (!key) return source;
+  const direction = activeSortDirection.value === "desc" ? -1 : 1;
+  return source.sort((left, right) => compareValues(left?.[key], right?.[key]) * direction);
+});
+
+function syncColumns() {
+  const source = Array.isArray(columns.value) ? columns.value : [];
+  const nextColumns = source.map((column, index) => {
+    if (typeof column === "string") {
+      return { key: column, label: column, sortable: false, align: "left", width: "" };
+    }
+    const key = String(column.key ?? column.value ?? index);
+    return {
+      key,
+      label: column.label || key,
+      sortable: Boolean(column.sortable),
+      align: column.align || "left",
+      width: column.width || ""
+    };
+  });
+  const nextSignature = nextColumns
+    .map((column) => `${column.key}\u0000${column.label}\u0000${column.sortable}\u0000${column.align}\u0000${column.width}`)
+    .join("\u0001");
+  if (nextSignature === columnsSignature) return;
+  columnsSignature = nextSignature;
+  normalizedColumns.value = nextColumns;
+}
+
+function syncSort() {
+  activeSortKey.value = sortKey.value || "";
+  activeSortDirection.value = sortDirection.value === "desc" ? "desc" : "asc";
+}
+
+function compareValues(left, right) {
+  if (left === right) return 0;
+  if (left == null) return -1;
+  if (right == null) return 1;
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+  return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" });
+}
+
+function sortBy(column) {
+  if (!column.sortable) return;
+  const nextDirection =
+    activeSortKey.value === column.key && activeSortDirection.value === "asc"
+      ? "desc"
+      : "asc";
+  activeSortKey.value = column.key;
+  activeSortDirection.value = nextDirection;
+  emit("sort", { key: column.key, direction: nextDirection });
+}
+
+function selectRow(row) {
+  emit("row-click", row);
+}
+
+function rowKeyValue(row) {
+  return row?.[rowKey.value] ?? JSON.stringify(row);
+}
+
+function cellValue(row, column) {
+  const value = row?.[column.key];
+  return value == null ? "" : String(value);
+}
+
+function columnStyle(column) {
+  const declarations = [];
+  if (column.align) declarations.push(`text-align: ${column.align}`);
+  if (column.width) declarations.push(`width: ${column.width}`);
+  return declarations.join("; ");
+}
+
+function columnCount() {
+  return Math.max(normalizedColumns.value.length, 1);
+}
+
+function sortMark(column) {
+  if (activeSortKey.value !== column.key) return "↕";
+  return activeSortDirection.value === "desc" ? "↓" : "↑";
+}
+
+function ariaSort(column) {
+  if (activeSortKey.value !== column.key) return "none";
+  return activeSortDirection.value === "desc" ? "descending" : "ascending";
+}
+</script>
+
+<style scoped>
+.mikuru-table-wrap {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mikuru-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #111827;
+  font: inherit;
+}
+
+caption {
+  padding: 12px;
+  color: #475569;
+  text-align: left;
+  font-weight: 650;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 11px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: #475569;
+  background: #f8fafc;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+tbody tr {
+  cursor: pointer;
+}
+
+tbody tr:hover {
+  background: #f8fafc;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sort-button:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+</style>

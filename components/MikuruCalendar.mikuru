@@ -1,0 +1,142 @@
+<template>
+  <section class="mikuru-calendar" :aria-label="label">
+    <header>
+      <button type="button" @click="previousMonth">Prev</button>
+      <strong>{{ monthLabel }}</strong>
+      <button type="button" @click="nextMonth">Next</button>
+    </header>
+    <div class="weekday-grid">
+      <span m-for="day in weekdays" :key="day">{{ day }}</span>
+    </div>
+    <div class="day-grid">
+      <button
+        m-for="day in days"
+        :key="day.key"
+        type="button"
+        :data-muted="day.currentMonth ? 'false' : 'true'"
+        :data-selected="day.date === modelValue ? 'true' : 'false'"
+        @click="selectDay(day)"
+      >{{ day.day }}</button>
+    </div>
+  </section>
+</template>
+
+<script>
+import { computed, ref, watch } from "mikuru";
+
+const {
+  label = "Calendar",
+  modelValue = "",
+  locale = "en-US"
+} = defineProps({
+  label: String,
+  modelValue: String,
+  locale: String
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const viewDate = ref(new Date());
+const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+watch(modelValue, () => {
+  if (!modelValue.value) return;
+  const parsed = new Date(`${modelValue.value}T00:00:00`);
+  if (!Number.isNaN(parsed.getTime())) viewDate.value = parsed;
+}, { immediate: true });
+
+const monthLabel = computed(() => {
+  return viewDate.value.toLocaleDateString(locale.value, { month: "long", year: "numeric" });
+});
+
+const days = computed(() => {
+  const year = viewDate.value.getFullYear();
+  const month = viewDate.value.getMonth();
+  const first = new Date(year, month, 1);
+  const start = new Date(year, month, 1 - first.getDay());
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      key: date.toISOString(),
+      day: date.getDate(),
+      date: toDateValue(date),
+      currentMonth: date.getMonth() === month
+    };
+  });
+});
+
+function previousMonth() {
+  viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() - 1, 1);
+}
+
+function nextMonth() {
+  viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() + 1, 1);
+}
+
+function selectDay(day) {
+  emit("update:modelValue", day.date);
+  emit("change", day.date, day);
+}
+
+function toDateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+</script>
+
+<style scoped>
+.mikuru-calendar {
+  display: grid;
+  gap: 8px;
+  width: min(320px, 100%);
+  color: #111827;
+  font: inherit;
+}
+
+header,
+.weekday-grid,
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+header {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+
+strong {
+  text-align: center;
+}
+
+button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.weekday-grid span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.day-grid button[data-muted="true"] {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.day-grid button[data-selected="true"] {
+  border-color: #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+}
+</style>

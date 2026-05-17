@@ -1,0 +1,61 @@
+<template>
+  <section class="mikuru-data-list" :aria-label="label">
+    <article m-for="item in items" :key="itemKey(item)" class="data-row">
+      <div>
+        <strong>{{ item.title }}</strong>
+        <p m-if="item.description">{{ item.description }}</p>
+      </div>
+      <span m-if="item.meta">{{ item.meta }}</span>
+    </article>
+  </section>
+</template>
+
+<script>
+const {
+  label = "Data list",
+  items = []
+} = defineProps({
+  label: String,
+  items: Array
+});
+
+function itemKey(item) {
+  return item.id || item.title;
+}
+</script>
+
+<style scoped>
+.mikuru-data-list {
+  display: grid;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+
+.data-row + .data-row {
+  border-top: 1px solid #e5e7eb;
+}
+
+strong {
+  color: #111827;
+}
+
+p {
+  margin: 3px 0 0;
+  color: #64748b;
+}
+
+.data-row > span {
+  flex: 0 0 auto;
+  color: #2563eb;
+  font-weight: 650;
+}
+</style>

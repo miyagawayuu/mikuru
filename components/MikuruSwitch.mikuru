@@ -1,0 +1,104 @@
+<template>
+  <label class="mikuru-switch" :data-disabled="disabled ? 'true' : 'false'">
+    <span class="switch-copy">
+      <span class="switch-label">{{ label }}</span>
+      <small m-if="help">{{ help }}</small>
+    </span>
+    <button
+      type="button"
+      role="switch"
+      class="switch-control"
+      :aria-checked="modelValue ? 'true' : 'false'"
+      :disabled="disabled"
+      @click="toggle"
+    >
+      <span></span>
+    </button>
+  </label>
+</template>
+
+<script>
+const {
+  label = "Switch",
+  modelValue = false,
+  help = "",
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: Boolean,
+  help: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+
+function toggle() {
+  if (disabled.value) return;
+  const nextValue = !modelValue.value;
+  emit("update:modelValue", nextValue);
+  emit("change", nextValue);
+}
+</script>
+
+<style scoped>
+.mikuru-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: #111827;
+  font: inherit;
+}
+
+.switch-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.switch-label {
+  font-weight: 650;
+}
+
+small {
+  color: #64748b;
+}
+
+.switch-control {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  flex: 0 0 auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 2px;
+  background: #e2e8f0;
+  cursor: pointer;
+}
+
+.switch-control span {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 24%);
+  transition: transform 140ms ease;
+}
+
+.switch-control[aria-checked="true"] {
+  border-color: #2563eb;
+  background: #2563eb;
+}
+
+.switch-control[aria-checked="true"] span {
+  transform: translateX(20px);
+}
+
+.switch-control:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+.mikuru-switch[data-disabled="true"] {
+  opacity: 0.58;
+}
+</style>

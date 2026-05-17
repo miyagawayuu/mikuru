@@ -1,0 +1,70 @@
+<template>
+  <div class="mikuru-segmented-control" role="radiogroup" :aria-label="label">
+    <button
+      m-for="option in options"
+      :key="option.value"
+      type="button"
+      role="radio"
+      :aria-checked="isSelected(option) ? 'true' : 'false'"
+      :disabled="option.disabled || disabled"
+      @click="selectOption(option)"
+    >{{ option.label }}</button>
+  </div>
+</template>
+
+<script>
+const {
+  label = "Segmented control",
+  modelValue = "",
+  options = [],
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: String,
+  options: Array,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+
+function isSelected(option) {
+  return option.value === modelValue.value;
+}
+
+function selectOption(option) {
+  if (disabled.value || option.disabled) return;
+  emit("update:modelValue", option.value);
+  emit("change", option.value, option);
+}
+</script>
+
+<style scoped>
+.mikuru-segmented-control {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 3px;
+  background: #f8fafc;
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 11px;
+  color: #334155;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+button[aria-checked="true"] {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+button:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+</style>

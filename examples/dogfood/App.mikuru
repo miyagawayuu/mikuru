@@ -18,6 +18,257 @@
 
     <ModelLab />
 
+    <section class="component-lab" aria-label="Component lab">
+      <div class="component-lab-header">
+        <div>
+          <h2>Component lab</h2>
+          <p>Popover, AlertDialog, Table, Pagination, and DatePicker primitives.</p>
+        </div>
+        <MikuruPopover
+          label="Release notes"
+          title="Mikuru components"
+          body="New primitives compose into forms, dashboards, and workflow screens."
+          side="left"
+        />
+      </div>
+
+      <div class="component-grid">
+        <div class="component-panel">
+          <h3>AlertDialog</h3>
+          <button class="danger-action" @click="openAlertDialog">Archive selected note</button>
+          <p>{{ alertStatus }}</p>
+        </div>
+
+        <div class="component-panel">
+          <h3>DatePicker</h3>
+          <MikuruDatePicker
+            label="Review date"
+            :modelValue="reviewDate"
+            locale="en-US"
+            @change="setReviewDate"
+          />
+          <p>Selected: {{ reviewDate }}</p>
+        </div>
+      </div>
+
+      <MikuruTable
+        caption="Release readiness"
+        :columns="tableColumns"
+        :rows="pagedRows"
+        rowKey="id"
+        @sort="handleTableSort"
+        @row-click="handleTableRowClick"
+      />
+
+      <div class="table-footer">
+        <span>{{ tableStatus }}</span>
+        <MikuruPagination
+          :page="tablePage"
+          :total="tableTotalPages"
+          @change="setTablePage"
+        />
+      </div>
+    </section>
+
+    <section class="navigation-lab" aria-label="Navigation and action components lab">
+      <div class="lab-heading">
+        <div>
+          <h2>Navigation lab</h2>
+          <p>Drawer, Breadcrumb, Badge, EmptyState, Skeleton, and CommandPalette primitives.</p>
+        </div>
+        <div class="lab-actions">
+          <button @click="openDrawer">Open drawer</button>
+          <button @click="openCommandPalette">Open command palette</button>
+        </div>
+      </div>
+
+      <MikuruBreadcrumb :items="breadcrumbItems" @select="handleBreadcrumbSelect" />
+
+      <div class="badge-row">
+        <MikuruBadge label="Ready" tone="success" />
+        <MikuruBadge label="Review" tone="warning" />
+        <MikuruBadge label="Blocked" tone="danger" variant="outline" />
+        <span>{{ navigationStatus }}</span>
+      </div>
+
+      <div class="component-grid">
+        <MikuruEmptyState
+          title="No filtered notes"
+          description="EmptyState keeps quiet screens intentional."
+          actionLabel="Seed note"
+          @action="seedMore"
+        />
+        <div class="component-panel">
+          <h3>Skeleton</h3>
+          <MikuruSkeleton :lines="4" height="14px" />
+        </div>
+      </div>
+    </section>
+
+    <section class="form-lab" aria-label="Form components lab">
+      <div>
+        <h2>Form lab</h2>
+        <p>Switch, RadioGroup, and FileUpload components.</p>
+      </div>
+      <div class="component-grid">
+        <div class="component-panel">
+          <MikuruSwitch
+            label="Enable release checklist"
+            :modelValue="releaseChecklistEnabled"
+            help="Switch emits update:modelValue and change."
+            @change="setReleaseChecklistEnabled"
+          />
+          <MikuruRadioGroup
+            label="Release channel"
+            :modelValue="releaseChannel"
+            :options="releaseChannelOptions"
+            help="RadioGroup supports descriptions and disabled options."
+            @change="setReleaseChannel"
+          />
+        </div>
+        <div class="component-panel">
+          <MikuruFileUpload
+            label="Attach release files"
+            multiple
+            help="Drop files or use the native file picker."
+            @change="setUploadedFiles"
+            @clear="clearUploadedFiles"
+          />
+          <p>{{ uploadStatus }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="utility-lab" aria-label="Search and data input components lab">
+      <div class="lab-heading">
+        <div>
+          <h2>Search and data lab</h2>
+          <p>SearchInput, SegmentedControl, Chip, TagInput, RangeSlider, ColorPicker, TimePicker, Calendar, DataList, and TreeView primitives.</p>
+        </div>
+        <MikuruChip label="Utility batch" tone="success" />
+      </div>
+
+      <div class="component-grid">
+        <div class="component-panel">
+          <MikuruSearchInput
+            label="Component search"
+            :modelValue="utilitySearch"
+            placeholder="Search components"
+            @input="setUtilitySearch"
+            @submit="submitUtilitySearch"
+            @clear="clearUtilitySearch"
+          />
+          <MikuruSegmentedControl
+            label="Display mode"
+            :modelValue="segmentMode"
+            :options="segmentOptions"
+            @change="setSegmentMode"
+          />
+          <MikuruTagInput
+            label="Release tags"
+            :modelValue="tagValues"
+            help="Press Enter or comma to add tags."
+            @change="setTagValues"
+          />
+          <p>{{ utilityStatus }}</p>
+        </div>
+
+        <div class="component-panel">
+          <MikuruRangeSlider
+            label="Score range"
+            :minValue="rangeMin"
+            :maxValue="rangeMax"
+            :min="0"
+            :max="100"
+            :step="5"
+            @change="setRangeValue"
+          />
+          <MikuruColorPicker label="Accent color" :modelValue="themeColor" @change="setThemeColor" />
+          <MikuruTimePicker label="Review time" :modelValue="eventTime" @change="setEventTime" />
+        </div>
+      </div>
+
+      <div class="component-grid">
+        <MikuruCalendar :modelValue="calendarDate" locale="en-US" @change="setCalendarDate" />
+        <div class="component-panel">
+          <MikuruDataList label="Release tasks" :items="dataListItems" />
+          <MikuruTreeView label="Component tree" :nodes="treeNodes" @select="handleTreeSelect" />
+        </div>
+      </div>
+    </section>
+
+    <section class="identity-lab" aria-label="Identity and workflow components lab">
+      <div class="lab-heading">
+        <div>
+          <h2>Identity and workflow lab</h2>
+          <p>Avatar, ContextMenu, Stepper, Slider, Rating, Timeline, StatCard, and Kbd primitives.</p>
+        </div>
+        <div class="kbd-row">
+          <MikuruKbd label="Ctrl" />
+          <MikuruKbd label="K" />
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <MikuruStatCard label="Components" value="46" detail="Package exported primitives" tone="info" />
+        <MikuruStatCard label="Readiness" :value="`${ratingValue}/5`" detail="Interactive rating state" tone="success" />
+        <MikuruStatCard label="Coverage" :value="`${sliderValue}%`" detail="Slider-controlled value" tone="warning" />
+      </div>
+
+      <div class="component-grid">
+        <div class="component-panel">
+          <h3>Avatars</h3>
+          <div class="avatar-row">
+            <MikuruAvatar name="Mikuru User" size="lg" />
+            <MikuruAvatarGroup :avatars="avatarItems" :max="3" />
+          </div>
+          <MikuruContextMenu :items="contextMenuItems" @select="handleContextMenuSelect">
+            <button class="context-target" type="button">Right click actions</button>
+          </MikuruContextMenu>
+          <p>{{ workflowStatus }}</p>
+        </div>
+
+        <div class="component-panel">
+          <h3>Workflow controls</h3>
+          <MikuruStepper :steps="workflowSteps" :current="currentStep" @change="setCurrentStep" />
+          <MikuruSlider
+            label="Release confidence"
+            :modelValue="sliderValue"
+            :min="0"
+            :max="100"
+            :step="5"
+            @change="setSliderValue"
+          />
+          <MikuruRating :modelValue="ratingValue" @change="setRatingValue" />
+        </div>
+      </div>
+
+      <MikuruTimeline :items="timelineItems" />
+    </section>
+
+    <section class="editor-lab" aria-label="Editor lab">
+      <div>
+        <h2>Editor lab</h2>
+        <p>Markdown and WYSIWYG editors with model updates.</p>
+      </div>
+      <div class="editor-grid">
+        <MikuruMarkdownEditor
+          label="Markdown brief"
+          :modelValue="markdownDraft"
+          help="Markdown supports headings, lists, quotes, emphasis, code, and links."
+          @change="setMarkdownDraft"
+        />
+        <MikuruWysiwygEditor
+          label="WYSIWYG brief"
+          :modelValue="wysiwygDraft"
+          help="Toolbar changes emit sanitized HTML."
+          @change="setWysiwygDraft"
+          @input="setWysiwygDraft"
+        />
+      </div>
+      <p class="editor-status">Markdown length: {{ markdownDraft.length }} · HTML length: {{ wysiwygDraft.length }}</p>
+    </section>
+
     <MediaLab />
 
     <TransitionGroupLab />
@@ -79,11 +330,77 @@
         </div>
       </section>
     </Teleport>
+
+    <MikuruAlertDialog
+      :open="alertOpen"
+      title="Archive selected note?"
+      description="This checks the AlertDialog confirm and cancel events."
+      body="The dogfood data will update only in memory."
+      confirmLabel="Archive"
+      cancelLabel="Keep note"
+      @confirm="confirmAlertDialog"
+      @cancel="cancelAlertDialog"
+      @close="closeAlertDialog"
+    />
+
+    <MikuruDrawer
+      :open="drawerOpen"
+      title="Release drawer"
+      side="right"
+      closeLabel="Done"
+      @close="closeDrawer"
+    >
+      <p>Drawer content can hold settings, details, filters, or secondary workflows.</p>
+      <MikuruBadge label="Dogfood" tone="info" />
+    </MikuruDrawer>
+
+    <MikuruCommandPalette
+      :open="commandPaletteOpen"
+      :commands="commandPaletteCommands"
+      placeholder="Search dogfood actions..."
+      @close="closeCommandPalette"
+      @select="handleCommandSelect"
+    />
   </main>
 </template>
 
 <script>
 import { computed, defineAsyncComponent, ref } from "mikuru";
+import MikuruAlertDialog from "../../components/MikuruAlertDialog.mikuru";
+import MikuruAvatar from "../../components/MikuruAvatar.mikuru";
+import MikuruAvatarGroup from "../../components/MikuruAvatarGroup.mikuru";
+import MikuruBadge from "../../components/MikuruBadge.mikuru";
+import MikuruBreadcrumb from "../../components/MikuruBreadcrumb.mikuru";
+import MikuruCalendar from "../../components/MikuruCalendar.mikuru";
+import MikuruChip from "../../components/MikuruChip.mikuru";
+import MikuruColorPicker from "../../components/MikuruColorPicker.mikuru";
+import MikuruCommandPalette from "../../components/MikuruCommandPalette.mikuru";
+import MikuruContextMenu from "../../components/MikuruContextMenu.mikuru";
+import MikuruDataList from "../../components/MikuruDataList.mikuru";
+import MikuruDatePicker from "../../components/MikuruDatePicker.mikuru";
+import MikuruDrawer from "../../components/MikuruDrawer.mikuru";
+import MikuruEmptyState from "../../components/MikuruEmptyState.mikuru";
+import MikuruFileUpload from "../../components/MikuruFileUpload.mikuru";
+import MikuruKbd from "../../components/MikuruKbd.mikuru";
+import MikuruMarkdownEditor from "../../components/MikuruMarkdownEditor.mikuru";
+import MikuruPagination from "../../components/MikuruPagination.mikuru";
+import MikuruPopover from "../../components/MikuruPopover.mikuru";
+import MikuruRadioGroup from "../../components/MikuruRadioGroup.mikuru";
+import MikuruRating from "../../components/MikuruRating.mikuru";
+import MikuruRangeSlider from "../../components/MikuruRangeSlider.mikuru";
+import MikuruSearchInput from "../../components/MikuruSearchInput.mikuru";
+import MikuruSegmentedControl from "../../components/MikuruSegmentedControl.mikuru";
+import MikuruSkeleton from "../../components/MikuruSkeleton.mikuru";
+import MikuruSlider from "../../components/MikuruSlider.mikuru";
+import MikuruStatCard from "../../components/MikuruStatCard.mikuru";
+import MikuruStepper from "../../components/MikuruStepper.mikuru";
+import MikuruSwitch from "../../components/MikuruSwitch.mikuru";
+import MikuruTable from "../../components/MikuruTable.mikuru";
+import MikuruTagInput from "../../components/MikuruTagInput.mikuru";
+import MikuruTimePicker from "../../components/MikuruTimePicker.mikuru";
+import MikuruTimeline from "../../components/MikuruTimeline.mikuru";
+import MikuruTreeView from "../../components/MikuruTreeView.mikuru";
+import MikuruWysiwygEditor from "../../components/MikuruWysiwygEditor.mikuru";
 import DebugPanel from "./DebugPanel.mikuru";
 import KeepAliveLab from "./KeepAliveLab.mikuru";
 import MediaLab from "./MediaLab.mikuru";
@@ -150,6 +467,109 @@ const search = ref("");
 const filter = ref("all");
 const summaryOpen = ref(false);
 const boundaryVersion = ref(0);
+const alertOpen = ref(false);
+const alertStatus = ref("No dialog action yet.");
+const drawerOpen = ref(false);
+const commandPaletteOpen = ref(false);
+const navigationStatus = ref("Breadcrumb and command actions appear here.");
+const releaseChecklistEnabled = ref(true);
+const releaseChannel = ref("beta");
+const uploadStatus = ref("No files selected.");
+const workflowStatus = ref("Context menu and workflow actions appear here.");
+const currentStep = ref("build");
+const sliderValue = ref(75);
+const ratingValue = ref(4);
+const utilitySearch = ref("");
+const utilityStatus = ref("Search and data actions appear here.");
+const segmentMode = ref("list");
+const tagValues = ref(["ui", "dogfood"]);
+const rangeMin = ref(20);
+const rangeMax = ref(80);
+const themeColor = ref("#2563eb");
+const eventTime = ref("10:30");
+const calendarDate = ref("2026-05-18");
+const reviewDate = ref("2026-05-17");
+const markdownDraft = ref("# Release brief\n\n## Markdown coverage\n\n- Ship editor components\n+ Support plus lists\n1. Ordered item\n2. Another item\n- [x] Task done\n- [ ] Task open\n\n> Dogfood should stay honest.\n>> Nested quote\n\n| Syntax | Status |\n|---|---:|\n| Table | Ready |\n| Emoji :rocket: | Ready |\n\n**Bold** _italic_ ~~deleted~~ and `inline code`.\n\n$E = mc^2$\n\n```js\nconst ready = true;\n```\n\n---\n\n![Sample](https://interactive-examples.mdn.mozilla.net/media/cc0-images/grapefruit-slice-332-332.jpg =120x)\n\n<br>\n<b>Inline HTML</b>");
+const wysiwygDraft = ref("<h2>Release brief</h2><p><strong>WYSIWYG</strong> output is sanitized HTML.</p>");
+const tablePage = ref(1);
+const tableStatus = ref("No table row selected.");
+const tableColumns = [
+  { key: "name", label: "Item", sortable: true },
+  { key: "owner", label: "Owner", sortable: true },
+  { key: "status", label: "Status" },
+  { key: "score", label: "Score", sortable: true, align: "right", width: "86px" }
+];
+const tableRows = ref([
+  { id: "popover", name: "Popover", owner: "UI", status: "Ready", score: 94 },
+  { id: "alert", name: "AlertDialog", owner: "UI", status: "Ready", score: 91 },
+  { id: "table", name: "Table", owner: "Data", status: "Review", score: 88 },
+  { id: "pagination", name: "Pagination", owner: "Data", status: "Ready", score: 90 },
+  { id: "date", name: "DatePicker", owner: "Forms", status: "Review", score: 86 }
+]);
+const breadcrumbItems = [
+  { label: "Components", value: "components" },
+  { label: "Dogfood", value: "dogfood" },
+  { label: "Release lab", value: "release", current: true }
+];
+const releaseChannelOptions = [
+  { label: "Stable", value: "stable", description: "Only tested components." },
+  { label: "Beta", value: "beta", description: "Includes dogfood primitives." },
+  { label: "Nightly", value: "nightly", description: "Disabled example.", disabled: true }
+];
+const commandPaletteCommands = [
+  { id: "seed", label: "Seed note", description: "Add one extra dogfood note.", keywords: "notes add" },
+  { id: "drawer", label: "Open drawer", description: "Show the Drawer component.", keywords: "panel settings" },
+  { id: "archive", label: "Open archive dialog", description: "Show the AlertDialog component.", keywords: "modal confirm" }
+];
+const avatarItems = [
+  { id: "mk", name: "Mikuru Kit" },
+  { id: "ui", name: "UI Team" },
+  { id: "qa", name: "QA Lead" },
+  { id: "docs", name: "Docs Owner" }
+];
+const contextMenuItems = [
+  { id: "copy", label: "Copy component name", shortcut: "Ctrl+C" },
+  { id: "pin", label: "Pin to lab" },
+  { id: "disabled", label: "Disabled item", disabled: true }
+];
+const workflowSteps = [
+  { label: "Design", value: "design", description: "API shape", completed: true },
+  { label: "Build", value: "build", description: "Component code" },
+  { label: "Verify", value: "verify", description: "Dogfood checks" }
+];
+const timelineItems = [
+  { id: "api", title: "API drafted", time: "09:00", description: "Props and events are aligned.", tone: "success" },
+  { id: "dogfood", title: "Dogfood wired", time: "10:15", description: "Interactions run in the browser.", tone: "info" },
+  { id: "release", title: "Release prep", time: "Next", description: "Package checks before publishing.", tone: "warning" }
+];
+const segmentOptions = [
+  { label: "List", value: "list" },
+  { label: "Grid", value: "grid" },
+  { label: "Compact", value: "compact" }
+];
+const dataListItems = [
+  { id: "exports", title: "Export components", description: "Expose package entrypoints.", meta: "Ready" },
+  { id: "types", title: "Ship types", description: "Typed component props.", meta: "Ready" },
+  { id: "dogfood", title: "Dogfood examples", description: "Interactive coverage.", meta: "Review" }
+];
+const treeNodes = [
+  {
+    id: "inputs",
+    label: "Inputs",
+    children: [
+      { id: "search", label: "SearchInput" },
+      { id: "tags", label: "TagInput" }
+    ]
+  },
+  {
+    id: "data",
+    label: "Data",
+    children: [
+      { id: "list", label: "DataList" },
+      { id: "tree", label: "TreeView" }
+    ]
+  }
+];
 const notes = ref([
   {
     id: "parser",
@@ -250,6 +670,11 @@ const filteredNotes = computed(() => {
 
 const activeCount = computed(() => notes.value.filter((note) => !note.archived).length);
 const archivedCount = computed(() => notes.value.filter((note) => note.archived).length);
+const tableTotalPages = computed(() => Math.max(1, Math.ceil(tableRows.value.length / 3)));
+const pagedRows = computed(() => {
+  const start = (tablePage.value - 1) * 3;
+  return tableRows.value.slice(start, start + 3);
+});
 
 function setArchived(id, archived) {
   notes.value = notes.value.map((note) =>
@@ -303,6 +728,152 @@ function triggerBoundaryError() {
 
 function resetBoundaryKey() {
   boundaryVersion.value += 1;
+}
+
+function openAlertDialog() {
+  alertOpen.value = true;
+}
+
+function closeAlertDialog() {
+  alertOpen.value = false;
+}
+
+function openDrawer() {
+  drawerOpen.value = true;
+}
+
+function closeDrawer() {
+  drawerOpen.value = false;
+}
+
+function openCommandPalette() {
+  commandPaletteOpen.value = true;
+}
+
+function closeCommandPalette() {
+  commandPaletteOpen.value = false;
+}
+
+function confirmAlertDialog() {
+  alertStatus.value = "Confirmed archive action.";
+}
+
+function cancelAlertDialog() {
+  alertStatus.value = "Canceled archive action.";
+}
+
+function setReviewDate(value) {
+  reviewDate.value = value;
+}
+
+function setMarkdownDraft(value) {
+  markdownDraft.value = value;
+}
+
+function setWysiwygDraft(value) {
+  wysiwygDraft.value = value;
+}
+
+function setReleaseChecklistEnabled(value) {
+  releaseChecklistEnabled.value = value;
+}
+
+function setReleaseChannel(value) {
+  releaseChannel.value = value;
+}
+
+function setUploadedFiles(files) {
+  uploadStatus.value = files.length ? `${files.length} file(s) selected.` : "No files selected.";
+}
+
+function clearUploadedFiles() {
+  uploadStatus.value = "No files selected.";
+}
+
+function handleContextMenuSelect(item) {
+  workflowStatus.value = `Context action selected: ${item.label}.`;
+}
+
+function setCurrentStep(value) {
+  currentStep.value = value;
+  workflowStatus.value = `Stepper moved to ${value}.`;
+}
+
+function setSliderValue(value) {
+  sliderValue.value = value;
+}
+
+function setRatingValue(value) {
+  ratingValue.value = value;
+}
+
+function setUtilitySearch(value) {
+  utilitySearch.value = value;
+}
+
+function submitUtilitySearch(value) {
+  utilityStatus.value = `Search submitted: ${value || "empty"}.`;
+}
+
+function clearUtilitySearch() {
+  utilitySearch.value = "";
+  utilityStatus.value = "Search cleared.";
+}
+
+function setSegmentMode(value) {
+  segmentMode.value = value;
+  utilityStatus.value = `Segment selected: ${value}.`;
+}
+
+function setTagValues(values) {
+  tagValues.value = values;
+  utilityStatus.value = `${values.length} tag(s) selected.`;
+}
+
+function setRangeValue(range) {
+  rangeMin.value = range.min;
+  rangeMax.value = range.max;
+  utilityStatus.value = `Range selected: ${range.min}-${range.max}.`;
+}
+
+function setThemeColor(value) {
+  themeColor.value = value;
+}
+
+function setEventTime(value) {
+  eventTime.value = value;
+}
+
+function setCalendarDate(value) {
+  calendarDate.value = value;
+  utilityStatus.value = `Calendar selected: ${value}.`;
+}
+
+function handleTreeSelect(node) {
+  utilityStatus.value = `Tree node selected: ${node.label}.`;
+}
+
+function setTablePage(page) {
+  tablePage.value = page;
+}
+
+function handleTableSort(sort) {
+  tableStatus.value = `Sorted by ${sort.key} ${sort.direction}.`;
+}
+
+function handleTableRowClick(row) {
+  tableStatus.value = `Selected ${row.name}.`;
+}
+
+function handleBreadcrumbSelect(item) {
+  navigationStatus.value = `Selected breadcrumb: ${item.label}.`;
+}
+
+function handleCommandSelect(command) {
+  navigationStatus.value = `Command selected: ${command.label}.`;
+  if (command.id === "seed") seedMore();
+  if (command.id === "drawer") openDrawer();
+  if (command.id === "archive") openAlertDialog();
 }
 
 function showAll() {
@@ -399,6 +970,156 @@ header,
   margin: 0;
 }
 
+.component-lab {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  background: #eff6ff;
+}
+
+.editor-lab {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  color: #4c1d95;
+  background: #f5f3ff;
+}
+
+.navigation-lab,
+.form-lab,
+.utility-lab,
+.identity-lab {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  color: #0c4a6e;
+  background: #f0f9ff;
+}
+
+.form-lab {
+  border-color: #bbf7d0;
+  color: #14532d;
+  background: #f0fdf4;
+}
+
+.utility-lab {
+  border-color: #fde68a;
+  color: #713f12;
+  background: #fffbeb;
+}
+
+.identity-lab {
+  border-color: #fecdd3;
+  color: #881337;
+  background: #fff1f2;
+}
+
+.lab-heading,
+.lab-actions,
+.badge-row,
+.avatar-row,
+.kbd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.lab-actions,
+.badge-row,
+.avatar-row,
+.kbd-row {
+  justify-content: flex-start;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.context-target {
+  justify-self: start;
+}
+
+.badge-row > span:last-child {
+  color: #0f172a;
+  font-weight: 650;
+}
+
+.navigation-lab h2,
+.navigation-lab h3,
+.navigation-lab p,
+.form-lab h2,
+.form-lab h3,
+.form-lab p,
+.utility-lab h2,
+.utility-lab h3,
+.utility-lab p,
+.identity-lab h2,
+.identity-lab h3,
+.identity-lab p {
+  margin: 0;
+}
+
+.editor-lab h2,
+.editor-lab p {
+  margin: 0;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.editor-status {
+  color: #6d28d9;
+  font-weight: 650;
+}
+
+.component-lab h2,
+.component-lab h3,
+.component-lab p {
+  margin: 0;
+}
+
+.component-lab-header,
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.component-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.component-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.table-footer {
+  flex-wrap: wrap;
+}
+
 .danger-action {
   justify-self: start;
 }
@@ -420,5 +1141,26 @@ header,
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22);
+}
+
+@media (max-width: 720px) {
+  .component-lab-header,
+  .table-footer,
+  .lab-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .component-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

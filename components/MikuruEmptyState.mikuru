@@ -1,0 +1,72 @@
+<template>
+  <section class="mikuru-empty-state">
+    <div class="empty-icon" aria-hidden="true">{{ icon }}</div>
+    <h3>{{ title }}</h3>
+    <p>{{ description }}</p>
+    <button m-if="actionLabel" type="button" @click="emitAction">{{ actionLabel }}</button>
+  </section>
+</template>
+
+<script>
+const {
+  icon = "∅",
+  title = "No results",
+  description = "There is nothing to show yet.",
+  actionLabel = ""
+} = defineProps({
+  icon: String,
+  title: String,
+  description: String,
+  actionLabel: String
+});
+
+const emit = defineEmits(["action"]);
+
+function emitAction() {
+  emit("action");
+}
+</script>
+
+<style scoped>
+.mikuru-empty-state {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 24px;
+  color: #334155;
+  background: #ffffff;
+  text-align: center;
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: #2563eb;
+  background: #eff6ff;
+  font-weight: 800;
+}
+
+h3,
+p {
+  margin: 0;
+}
+
+h3 {
+  color: #111827;
+}
+
+button {
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #ffffff;
+  background: #2563eb;
+  font: inherit;
+  cursor: pointer;
+}
+</style>

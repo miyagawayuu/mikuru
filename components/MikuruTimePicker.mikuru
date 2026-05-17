@@ -1,0 +1,61 @@
+<template>
+  <label class="mikuru-time-picker">
+    <span>{{ label }}</span>
+    <input
+      type="time"
+      :value="modelValue"
+      :step="step"
+      :disabled="disabled"
+      @input="updateValue($event)"
+    />
+  </label>
+</template>
+
+<script>
+const {
+  label = "Time",
+  modelValue = "09:00",
+  step = 60,
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: String,
+  step: Number,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+
+function updateValue(event) {
+  emit("update:modelValue", event.target.value);
+  emit("change", event.target.value);
+}
+</script>
+
+<style scoped>
+.mikuru-time-picker {
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font: inherit;
+}
+
+span {
+  font-weight: 650;
+}
+
+input {
+  width: fit-content;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+}
+
+input:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+</style>
