@@ -111,8 +111,8 @@
                     :key="rate.rate"
                     type="button"
                     class="settings-option"
-                    :class="{ active: rate.rate === playbackRateValue }"
-                    @click="setPlaybackRate(rate.rate)"
+                    :class="{ active: isPlaybackRateActive(rate.rate) }"
+                    @click="setPlaybackRate($event, rate.rate)"
                   >
                     {{ rate.label }}
                   </button>
@@ -125,8 +125,8 @@
                     :key="option.seconds"
                     type="button"
                     class="settings-option"
-                    :class="{ active: option.seconds === skipSeconds }"
-                    @click="setSkipSeconds(option.seconds)"
+                    :class="{ active: isSkipSecondsActive(option.seconds) }"
+                    @click="setSkipSeconds($event, option.seconds)"
                   >
                     {{ option.label }}
                   </button>
@@ -195,8 +195,6 @@ const isFullscreen = ref(false);
 const isSeeking = ref(false);
 const settingsOpen = ref(false);
 const selectedQualityId = ref("auto");
-const playbackRateValue = ref(1);
-const skipSeconds = ref(5);
 const pointerInside = ref(false);
 const controlsVisible = ref(true);
 const settingsEl = ref(null);
@@ -206,6 +204,8 @@ const activeControls = ref(new Set(allControls));
 const normalizedQualityOptions = ref([]);
 let controlsSignature = "";
 let qualityOptionsSignature = "";
+let playbackRateValue = 1;
+let skipSeconds = 5;
 
 watch(controls, syncControls, { immediate: true });
 watch([qualityOptions, src, poster], syncQualityOptions, { immediate: true });
@@ -436,7 +436,7 @@ function applyAudioSettings() {
   if (!media) return;
   media.volume = volume.value;
   media.muted = muted.value;
-  media.playbackRate = playbackRateValue.value;
+  media.playbackRate = playbackRateValue;
 }
 
 function markPlaying(event) {
@@ -497,6 +497,17 @@ function seekTo(nextTime) {
   }
 }
 
+function skipBy(seconds) {
+  if (isDisposed) return;
+  const media = getMedia();
+  const baseTime = media?.currentTime ?? currentTime.value;
+  const maxTime = Number.isFinite(media?.duration) && media.duration > 0 ? media.duration : safeDuration.value;
+  const nextTime = maxTime > 0
+    ? Math.min(Math.max(baseTime + seconds, 0), maxTime)
+    : Math.max(baseTime + seconds, 0);
+  seekTo(nextTime);
+}
+
 function seekFromPointer(event) {
   seekTo(getPointerTime(event));
 }
@@ -552,7 +563,7 @@ function seekWithKeyboard(event) {
     return;
   }
 
-  const offset = event.key === "ArrowRight" ? skipSeconds.value : -skipSeconds.value;
+  const offset = event.key === "ArrowRight" ? skipSeconds : -skipSeconds;
   const nextTime = Math.min(Math.max(currentTime.value + offset, 0), safeDuration.value);
   seekTo(nextTime);
 }
@@ -606,7 +617,7 @@ function selectQuality(id) {
       nextMedia.currentTime = Math.min(previousTime, safeDuration.value);
       currentTime.value = nextMedia.currentTime;
     }
-    nextMedia.playbackRate = playbackRateValue.value;
+    nextMedia.playbackRate = playbackRateValue;
     if (wasPlaying) {
       nextMedia.play().catch((error) => {
         if (error?.name !== "AbortError") {
@@ -617,11 +628,13 @@ function selectQuality(id) {
   }, 0);
 }
 
-function setPlaybackRate(nextRate) {
+function setPlaybackRate(event, nextRate) {
   if (isDisposed) return;
+  playbackRateValue = nextRate;
+  const button = event.currentTarget;
+  markSettingsOptionActive(button);
   window.setTimeout(() => {
     if (isDisposed) return;
-    playbackRateValue.value = nextRate;
     settingsOpen.value = false;
     const media = getMedia();
     if (!media) return;
@@ -630,13 +643,31 @@ function setPlaybackRate(nextRate) {
   }, 0);
 }
 
-function setSkipSeconds(nextSeconds) {
+function setSkipSeconds(event, nextSeconds) {
   if (isDisposed) return;
+  skipSeconds = nextSeconds;
+  const button = event.currentTarget;
+  markSettingsOptionActive(button);
   window.setTimeout(() => {
     if (isDisposed) return;
-    skipSeconds.value = nextSeconds;
+    skipBy(nextSeconds);
     settingsOpen.value = false;
   }, 0);
+}
+
+function isPlaybackRateActive(rate) {
+  return rate === playbackRateValue;
+}
+
+function isSkipSecondsActive(seconds) {
+  return seconds === skipSeconds;
+}
+
+function markSettingsOptionActive(button) {
+  const group = button?.closest?.(".settings-group");
+  group?.querySelectorAll?.(".settings-option").forEach((optionButton) => {
+    optionButton.classList.toggle("active", optionButton === button);
+  });
 }
 
 function handleDocumentPointerDown(event) {

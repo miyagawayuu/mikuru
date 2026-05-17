@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.38 - 2026-05-17
+
+- Fixed `MikuruVideoPlayer` speed and skip settings so option active states follow the selected value without reactive menu churn, preventing settings menu crashes in consuming apps while keeping speed highlights and skip actions in sync.
+
 ## 1.0.37 - 2026-05-17
 
 - Fixed `MikuruVideoPlayer` speed and skip settings so option records avoid `.value` template access, preventing crashes in consuming apps when selecting playback rate or keyboard skip seconds.
