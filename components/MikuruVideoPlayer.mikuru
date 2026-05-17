@@ -619,20 +619,24 @@ function selectQuality(id) {
 
 function setPlaybackRate(nextRate) {
   if (isDisposed) return;
-  playbackRateValue.value = nextRate;
-  settingsOpen.value = false;
   window.setTimeout(() => {
     if (isDisposed) return;
+    playbackRateValue.value = nextRate;
+    settingsOpen.value = false;
     const media = getMedia();
     if (!media) return;
+    ignoreMediaEventsFor(80);
     media.playbackRate = nextRate;
   }, 0);
 }
 
 function setSkipSeconds(nextSeconds) {
   if (isDisposed) return;
-  skipSeconds.value = nextSeconds;
-  settingsOpen.value = false;
+  window.setTimeout(() => {
+    if (isDisposed) return;
+    skipSeconds.value = nextSeconds;
+    settingsOpen.value = false;
+  }, 0);
 }
 
 function handleDocumentPointerDown(event) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.36 - 2026-05-17
+
+- Stabilized `MikuruVideoPlayer` settings interactions so playback speed and keyboard skip selections defer UI updates out of the click stack, matching the other media controls and avoiding recursive update freezes.
+
 ## 1.0.35 - 2026-05-17
 
 - Added package-exported tabs, accordion, form controls, select, combobox, header, footer, and side menu components with typed exports and dogfood coverage.
