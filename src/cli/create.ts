@@ -50,7 +50,7 @@ export async function handleCreateCommand(createArgs: string[], packageVersion: 
 
 function printCreateHelp(): void {
   console.log(`Usage:
-  mikuru create [project-name] [--template starter|basic]
+  mikuru create [project-name] [--template starter|basic|video-player]
 
 Options:
   -t, --template <name>  Template to use. Available: ${availableTemplates.join(", ")}.
@@ -68,6 +68,11 @@ function printTemplates(): void {
 function printTemplateNextStep(templateName: TemplateName): void {
   if (templateName === "basic") {
     console.log("  edit src/App.mikuru and src/MoodBadge.mikuru");
+    return;
+  }
+
+  if (templateName === "video-player") {
+    console.log("  edit src/App.mikuru and replace the sample video sources");
     return;
   }
 

@@ -101,27 +101,76 @@ mount(app);
     <MikuruToolTip text="Packed tooltip" label="?" />
     <MikuruProgress label="Packed progress" :value="count" :max="10" />
     <MikuruCodeBlock language="js" code="const fromPackage = true;" />
+    <MikuruTabs :items="tabs" m-model="activeTab" />
+    <MikuruAccordion :items="sections" m-model="openSection" />
+    <MikuruTextInput label="Packed title" m-model="title" />
+    <MikuruTextarea label="Packed notes" m-model="notes" />
+    <MikuruCheckbox label="Packed checkbox" m-model="checked" />
+    <MikuruSelect label="Packed owner" :options="owners" m-model="owner" />
+    <MikuruCombobox label="Packed assignee" :options="owners" m-model="assignee" />
+    <MikuruHeader title="Packed shell" logo="M" :items="navItems" m-model="activeShell" />
+    <MikuruSideMenu title="Packed menu" :items="navItems" m-model="activeShell" m-model:collapsed="menuCollapsed" />
+    <MikuruFooter title="Packed footer" :links="footerLinks" note="Packed layout components" />
   </div>
 </template>
 <script>
 import { ref } from "mikuru";
+import MikuruAccordion from "mikuru/components/MikuruAccordion";
 import MikuruAudioPlayer from "mikuru/components/MikuruAudioPlayer";
+import MikuruCheckbox from "mikuru/components/MikuruCheckbox";
 import MikuruCodeBlock from "mikuru/components/MikuruCodeBlock";
 import MikuruCarousel from "mikuru/components/MikuruCarousel";
+import MikuruCombobox from "mikuru/components/MikuruCombobox";
 import MikuruDropdown from "mikuru/components/MikuruDropdown";
+import MikuruFooter from "mikuru/components/MikuruFooter";
+import MikuruHeader from "mikuru/components/MikuruHeader";
 import MikuruImageViewer from "mikuru/components/MikuruImageViewer";
 import MikuruModal from "mikuru/components/MikuruModal";
 import MikuruProgress from "mikuru/components/MikuruProgress";
+import MikuruSelect from "mikuru/components/MikuruSelect";
+import MikuruSideMenu from "mikuru/components/MikuruSideMenu";
+import MikuruTabs from "mikuru/components/MikuruTabs";
+import MikuruTextarea from "mikuru/components/MikuruTextarea";
+import MikuruTextInput from "mikuru/components/MikuruTextInput";
 import MikuruToast from "mikuru/components/MikuruToast";
 import MikuruToolTip from "mikuru/components/MikuruToolTip";
 import MikuruVideoPlayer from "mikuru/components/MikuruVideoPlayer";
 const count = ref(1);
 const modalOpen = ref(false);
+const activeTab = ref("one");
+const openSection = ref("compile");
+const title = ref("Packed title");
+const notes = ref("Packed notes");
+const checked = ref(true);
+const owner = ref("compiler");
+const assignee = ref("runtime");
+const activeShell = ref("overview");
+const menuCollapsed = ref(false);
 const toasts = [{ id: "pack", title: "Packed", message: "Toast package export", tone: "success" }];
 const menuItems = [{ label: "Open", value: "open", description: "Package dropdown item" }];
 const slides = [
   { src: "/slide-one.jpg", alt: "Slide one", title: "Slide one", caption: "First packed slide" },
   { src: "/slide-two.jpg", alt: "Slide two", title: "Slide two", caption: "Second packed slide" }
+];
+const tabs = [
+  { label: "One", value: "one", panel: "Packed first tab" },
+  { label: "Two", value: "two", panel: "Packed second tab" }
+];
+const sections = [
+  { label: "Compile", value: "compile", panel: "Packed accordion panel" },
+  { label: "Runtime", value: "runtime", panel: "Packed runtime panel" }
+];
+const owners = [
+  { label: "Compiler", value: "compiler" },
+  { label: "Runtime", value: "runtime", description: "Runtime package option" }
+];
+const navItems = [
+  { label: "Overview", value: "overview", icon: "O" },
+  { label: "Settings", value: "settings", icon: "S" }
+];
+const footerLinks = [
+  { label: "Docs", value: "docs" },
+  { label: "Release notes", value: "release-notes" }
 ];
 function increment() {
   count.value += 1;

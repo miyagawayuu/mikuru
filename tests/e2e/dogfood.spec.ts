@@ -143,6 +143,49 @@ test("dogfood app syncs practical m-model forms", async ({ page }) => {
   await expect(lab.getByText("shipped:7:1:Release notes:true:Writable:Computed:Mikuru Runtime -> Writable Computed:effect:Writable Computed:queued:Writable Computed")).toBeVisible();
 });
 
+test("dogfood app mounts package tabs accordion and form controls", async ({ page }) => {
+  await page.goto("/");
+
+  const lab = page.getByRole("region", { name: "Mikuru package components" });
+  await expect(lab.getByRole("heading", { name: "Tabs and accordion" })).toBeVisible();
+  await expect(lab.getByText("Tabs render controlled panels without a router.")).toBeVisible();
+
+  await lab.getByRole("tab", { name: "Runtime" }).click();
+  await expect(lab.getByText("Keyboard navigation emits model updates.")).toBeVisible();
+
+  await lab.getByText("Models", { exact: true }).click();
+  await expect(lab.getByText("The open panel is controlled through component m-model.")).toBeVisible();
+
+  await lab.getByLabel("Package title").fill("Release UI");
+  await lab.getByLabel("Owner").selectOption("router");
+  await lab.getByLabel("Assignee").fill("Compiler");
+  await lab.getByRole("option", { name: "Compiler Template and style generation" }).click();
+  await lab.getByLabel("Ready for release").check();
+  await expect(lab.getByText("Release UI:router:compiler:ready")).toBeVisible();
+});
+
+test("dogfood app mounts package layout primitives", async ({ page }) => {
+  await page.goto("/");
+
+  const lab = page.getByRole("region", { name: "Mikuru package components" });
+  await expect(lab.getByText("Mikuru Console")).toBeVisible();
+  await expect(lab.getByText("layout:overview:expanded")).toBeVisible();
+
+  await lab.getByRole("button", { name: "Builds 3" }).click();
+  await expect(lab.getByText("Build queue")).toBeVisible();
+  await expect(lab.getByText("layout:builds:expanded")).toBeVisible();
+
+  await lab.getByRole("button", { name: "Collapse menu" }).click();
+  await expect(lab.getByText("layout:builds:collapsed")).toBeVisible();
+
+  await lab.getByRole("link", { name: "Settings" }).click();
+  await expect(lab.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(lab.getByText("layout:settings:collapsed")).toBeVisible();
+
+  await lab.getByRole("link", { name: "Docs" }).click();
+  await expect(lab.getByText("Footer selected docs.")).toBeVisible();
+});
+
 test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -213,7 +256,7 @@ test("dogfood app exposes debug inspector panel", async ({ page }) => {
   await panel.getByRole("button", { name: "Clear events" }).click();
   await expect(panel.getByText("No matching debug events.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("region", { name: "Router lab" }).getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByText("Current route: /settings")).toBeVisible();
   await panel.locator(".debug-filters").getByRole("button", { name: /Router/ }).click();
   await expect(panel.getByText("route:navigate").first()).toBeVisible();

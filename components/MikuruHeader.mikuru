@@ -1,0 +1,165 @@
+<template>
+  <header class="mikuru-header">
+    <div class="header-brand">
+      <span m-if="logo" class="header-logo" aria-hidden="true">{{ logo }}</span>
+      <div>
+        <strong>{{ title }}</strong>
+        <small m-if="subtitle">{{ subtitle }}</small>
+      </div>
+    </div>
+
+    <nav m-if="normalizedItems.length > 0" class="header-nav" :aria-label="navLabel">
+      <a
+        m-for="item in normalizedItems"
+        :key="item.value"
+        class="header-link"
+        :class="{ active: Object.is(item.value, modelValue) }"
+        :href="item.href"
+        :aria-current="Object.is(item.value, modelValue) ? 'page' : undefined"
+        @click="selectItem(item, $event)"
+      >
+        {{ item.label }}
+      </a>
+    </nav>
+
+    <div class="header-actions">
+      <slot name="actions">{{ actionLabel }}</slot>
+    </div>
+  </header>
+</template>
+
+<script>
+import { ref, watch } from "mikuru";
+
+const {
+  title = "Mikuru",
+  subtitle = "",
+  logo = "",
+  navLabel = "Primary navigation",
+  items = [],
+  modelValue = "",
+  actionLabel = ""
+} = defineProps();
+
+const emit = defineEmits(["update:modelValue", "select"]);
+const normalizedItems = ref([]);
+let itemsSignature = "";
+
+watch(items, syncItems, { immediate: true });
+
+function syncItems() {
+  const source = Array.isArray(items.value) ? items.value : [];
+  const nextItems = source.map((item, index) => {
+    if (typeof item === "string") {
+      return { label: item, value: item, href: "#", disabled: false };
+    }
+    return {
+      label: item.label || `Item ${index + 1}`,
+      value: item.value ?? item.label ?? index,
+      href: item.href || "#",
+      disabled: Boolean(item.disabled)
+    };
+  });
+  const nextSignature = nextItems
+    .map((item) => `${item.value}\u0000${item.label}\u0000${item.href}\u0000${item.disabled}`)
+    .join("\u0001");
+  if (nextSignature === itemsSignature) return;
+  itemsSignature = nextSignature;
+  normalizedItems.value = nextItems;
+}
+
+function selectItem(item, event) {
+  if (item.disabled) {
+    event.preventDefault();
+    return;
+  }
+  if (item.href === "#") {
+    event.preventDefault();
+  }
+  emit("update:modelValue", item.value);
+  emit("select", item.value);
+}
+</script>
+
+<style scoped>
+.mikuru-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.header-brand {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-logo {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #0f172a;
+  font-weight: 700;
+}
+
+.header-brand strong,
+.header-brand small {
+  display: block;
+}
+
+.header-brand small {
+  color: #64748b;
+}
+
+.header-nav {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.header-link {
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #475569;
+  text-decoration: none;
+}
+
+.header-link:hover,
+.header-link:focus-visible,
+.header-link.active {
+  color: #1d4ed8;
+  background: #eff6ff;
+  outline: none;
+}
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .mikuru-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header-nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}
+</style>

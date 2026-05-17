@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.35 - 2026-05-17
+
+- Added package-exported tabs, accordion, form controls, select, combobox, header, footer, and side menu components with typed exports and dogfood coverage.
+- Added a `video-player` create template that imports `MikuruVideoPlayer` from the package and demonstrates quality options, controls, and media events.
+- Improved `MikuruCarousel` with CSS-mask arrow icons, optional thumbnail navigation, hidden thumbnail scrollbars, centered active thumbnails, and a 20-image dogfood gallery case.
+- Updated `MikuruSideMenu` collapse controls to use icon buttons.
+- Added lightweight VS Code-style syntax highlighting to `MikuruCodeBlock` for Mikuru/markup, JavaScript/TypeScript, JSON, and CSS snippets.
+
 ## 1.0.34 - 2026-05-16
 
 - Stabilized package component internals so repeated mounts and parent rerenders no longer recreate equivalent derived arrays, Sets, or style objects unnecessarily.

@@ -1,0 +1,106 @@
+<template>
+  <label class="mikuru-field">
+    <span class="field-label">{{ label }}</span>
+    <select
+      class="field-control"
+      :value="modelValue"
+      :disabled="disabled"
+      :required="required"
+      @change="updateValue($event)"
+    >
+      <option m-if="placeholder" value="" :disabled="required">{{ placeholder }}</option>
+      <option
+        m-for="item in normalizedOptions"
+        :key="item.value"
+        :value="item.value"
+        :disabled="item.disabled"
+      >
+        {{ item.label }}
+      </option>
+    </select>
+    <small m-if="help">{{ help }}</small>
+  </label>
+</template>
+
+<script>
+import { ref, watch } from "mikuru";
+
+const {
+  label = "Select",
+  modelValue = "",
+  options = [],
+  placeholder = "",
+  help = "",
+  disabled = false,
+  required = false
+} = defineProps();
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const normalizedOptions = ref([]);
+let optionsSignature = "";
+
+watch(options, syncOptions, { immediate: true });
+
+function syncOptions() {
+  const source = Array.isArray(options.value) ? options.value : [];
+  const nextOptions = source.map((item, index) => {
+    if (typeof item === "string") {
+      return { label: item, value: item, disabled: false };
+    }
+    return {
+      label: item.label || `Option ${index + 1}`,
+      value: item.value ?? item.label ?? index,
+      disabled: Boolean(item.disabled)
+    };
+  });
+  const nextSignature = nextOptions
+    .map((item) => `${item.value}\u0000${item.label}\u0000${item.disabled}`)
+    .join("\u0001");
+  if (nextSignature === optionsSignature) return;
+  optionsSignature = nextSignature;
+  normalizedOptions.value = nextOptions;
+}
+
+function updateValue(event) {
+  emit("update:modelValue", event.target.value);
+  emit("change", event.target.value);
+}
+</script>
+
+<style scoped>
+.mikuru-field {
+  display: grid;
+  gap: 6px;
+  color: #0f172a;
+  font: inherit;
+}
+
+.field-label {
+  font-weight: 650;
+}
+
+.field-control {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+}
+
+.field-control:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+.field-control:disabled {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+small {
+  color: #64748b;
+}
+</style>

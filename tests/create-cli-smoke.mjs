@@ -20,17 +20,23 @@ try {
 
   assert.equal(versionOutput.trim(), rootPackageJson.version);
   assert.match(rootHelpOutput, /mikuru create \[project-name\]/);
-  assert.match(rootHelpOutput, /starter\|basic/);
+  assert.match(rootHelpOutput, /starter\|basic\|video-player/);
   assert.match(rootHelpOutput, /--list-templates/);
   assert.match(createHelpOutput, /--template <name>/);
   assert.match(createHelpOutput, /-t, --template <name>/);
-  assert.match(createHelpOutput, /starter, basic/);
+  assert.match(createHelpOutput, /starter, basic, video-player/);
   assert.match(createHelpOutput, /--list-templates/);
   assert.match(createHelpOutput, /--dry-run/);
   assert.match(createHelpOutput, /--force/);
   assert.match(createHelpOutput, /skip interactive prompts/);
-  assert.equal(rootTemplateListOutput.trim(), "starter - minimal Vite app\nbasic - component composition example");
-  assert.equal(createTemplateListOutput.trim(), "starter - minimal Vite app\nbasic - component composition example");
+  assert.equal(
+    rootTemplateListOutput.trim(),
+    "starter - minimal Vite app\nbasic - component composition example\nvideo-player - MikuruVideoPlayer media app"
+  );
+  assert.equal(
+    createTemplateListOutput.trim(),
+    "starter - minimal Vite app\nbasic - component composition example\nvideo-player - MikuruVideoPlayer media app"
+  );
 
   const defaultCreateOutput = runCli(cliPath, ["create", "--yes"], tempRoot);
   assert.match(defaultCreateOutput, /Created mikuru-app/);
@@ -95,6 +101,12 @@ try {
   assert.match(basicTsconfig, /DOM\.Iterable/);
   assert.match(basicAppSource, /Mikuru Counter/);
   assert.match(basicMoodBadgeSource, /defineProps/);
+
+  const videoCreateOutput = runCli(cliPath, ["create", "video-app", "--template=video-player", "--yes"], tempRoot);
+  assert.match(videoCreateOutput, /edit src\/App\.mikuru and replace the sample video sources/);
+  const videoAppSource = readFileSync(join(tempRoot, "video-app", "src", "App.mikuru"), "utf8");
+  assert.match(videoAppSource, /MikuruVideoPlayer/);
+  assert.match(videoAppSource, /qualityOptions/);
 
   const nonEmptyRoot = join(tempRoot, "non-empty");
   mkdirSync(nonEmptyRoot);

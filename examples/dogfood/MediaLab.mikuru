@@ -42,7 +42,7 @@
         caption="Zoom, pan, rotate, and fullscreen image viewer"
       />
 
-      <MikuruCarousel title="Mikuru gallery" :images="slides" />
+      <MikuruCarousel title="Mikuru gallery" :images="slides" thumbnails />
     </div>
 
     <div class="ui-lab">
@@ -65,6 +65,63 @@
       </div>
     </div>
 
+    <div class="ui-lab">
+      <div class="ui-panel">
+        <h3>Tabs and accordion</h3>
+        <MikuruTabs label="Dogfood UI tabs" :items="tabs" m-model="activeTab">
+          <template #default="{ panel }">
+            <p>{{ panel }}</p>
+          </template>
+        </MikuruTabs>
+        <MikuruAccordion :items="sections" m-model="openSection" />
+      </div>
+
+      <div class="ui-panel">
+        <h3>Form controls</h3>
+        <MikuruTextInput label="Package title" placeholder="Write a title" m-model="packageTitle" />
+        <MikuruTextarea label="Package notes" :rows="3" m-model="packageNotes" />
+        <MikuruCheckbox label="Ready for release" description="Uses component m-model." m-model="releaseReady" />
+        <MikuruSelect label="Owner" :options="owners" m-model="owner" />
+        <MikuruCombobox label="Assignee" :options="owners" m-model="assignee" />
+        <p>{{ packageSummary }}</p>
+      </div>
+    </div>
+
+    <div class="layout-demo">
+      <MikuruHeader
+        title="Mikuru Console"
+        subtitle="Package shell primitives"
+        logo="M"
+        :items="layoutNav"
+        m-model="layoutSection"
+      >
+        <template #actions>
+          <button class="layout-action" type="button" @click="addToast">Notify</button>
+        </template>
+      </MikuruHeader>
+
+      <div class="layout-shell">
+        <MikuruSideMenu
+          title="Workspace"
+          :items="layoutMenu"
+          m-model="layoutSection"
+          m-model:collapsed="sideMenuCollapsed"
+        />
+        <section class="layout-content" aria-label="Layout demo content">
+          <h3>{{ layoutTitle }}</h3>
+          <p>{{ layoutSummary }}</p>
+        </section>
+      </div>
+
+      <MikuruFooter
+        title="Mikuru package shell"
+        description="Header, footer, and side menu components share the same selected section."
+        note="Layout components keep navigation state in the caller."
+        :links="layoutLinks"
+        @select="selectFooterLink"
+      />
+    </div>
+
     <MikuruToast :toasts="toasts" position="bottom-right" :duration="4500" @dismiss="dismissToast" />
 
     <MikuruModal :open="modalOpen" title="Package modal" footer="Esc, backdrop, or Close can dismiss." @close="closeModal">
@@ -76,12 +133,22 @@
 
 <script>
 import { computed, ref } from "mikuru";
+import MikuruAccordion from "../../components/MikuruAccordion.mikuru";
 import MikuruCarousel from "../../components/MikuruCarousel.mikuru";
+import MikuruCheckbox from "../../components/MikuruCheckbox.mikuru";
 import MikuruCodeBlock from "../../components/MikuruCodeBlock.mikuru";
+import MikuruCombobox from "../../components/MikuruCombobox.mikuru";
 import MikuruDropdown from "../../components/MikuruDropdown.mikuru";
+import MikuruFooter from "../../components/MikuruFooter.mikuru";
+import MikuruHeader from "../../components/MikuruHeader.mikuru";
 import MikuruImageViewer from "../../components/MikuruImageViewer.mikuru";
 import MikuruModal from "../../components/MikuruModal.mikuru";
 import MikuruProgress from "../../components/MikuruProgress.mikuru";
+import MikuruSelect from "../../components/MikuruSelect.mikuru";
+import MikuruSideMenu from "../../components/MikuruSideMenu.mikuru";
+import MikuruTabs from "../../components/MikuruTabs.mikuru";
+import MikuruTextarea from "../../components/MikuruTextarea.mikuru";
+import MikuruTextInput from "../../components/MikuruTextInput.mikuru";
 import MikuruToast from "../../components/MikuruToast.mikuru";
 import MikuruToolTip from "../../components/MikuruToolTip.mikuru";
 import MikuruAudioPlayer from "./MikuruAudioPlayer.mikuru";
@@ -91,27 +158,186 @@ const modalOpen = ref(false);
 const toastCount = ref(1);
 const progress = ref(64);
 const lastAction = ref("No action selected yet.");
+const activeTab = ref("compile");
+const openSection = ref("slots");
+const packageTitle = ref("Component lab");
+const packageNotes = ref("Tabs, accordion, forms, select, and combobox are mounted from package components.");
+const releaseReady = ref(false);
+const owner = ref("compiler");
+const assignee = ref("runtime");
+const layoutSection = ref("overview");
+const sideMenuCollapsed = ref(false);
 const toasts = ref([
   { id: "welcome", title: "Dogfood ready", message: "Package components are mounted.", tone: "success" }
 ]);
+const tabs = [
+  { label: "Compile", value: "compile", panel: "Tabs render controlled panels without a router." },
+  { label: "Runtime", value: "runtime", panel: "Keyboard navigation emits model updates." },
+  { label: "Disabled", value: "disabled", panel: "This tab is disabled.", disabled: true }
+];
+const sections = [
+  { label: "Slots", value: "slots", panel: "Accordion panels accept fallback text or scoped slot content." },
+  { label: "Models", value: "models", panel: "The open panel is controlled through component m-model." }
+];
+const owners = [
+  { label: "Compiler", value: "compiler", description: "Template and style generation" },
+  { label: "Runtime", value: "runtime", description: "Reactivity and DOM helpers" },
+  { label: "Router", value: "router", description: "Navigation primitives" }
+];
+const layoutNav = [
+  { label: "Overview", value: "overview" },
+  { label: "Builds", value: "builds" },
+  { label: "Settings", value: "settings" }
+];
+const layoutMenu = [
+  { label: "Overview", value: "overview", icon: "O" },
+  { label: "Builds", value: "builds", icon: "B", badge: "3" },
+  { label: "Settings", value: "settings", icon: "S" }
+];
+const layoutLinks = [
+  { label: "Docs", value: "docs" },
+  { label: "Changelog", value: "changelog" }
+];
 const slides = [
   {
-    src: "https://images.unsplash.com/photo-1496307042754-b4aa456c4a2d?auto=format&fit=crop&w=1200&q=80",
-    alt: "Colorful night buildings",
-    title: "Neon state",
-    caption: "Carousel slide with caption"
+    src: "https://picsum.photos/id/10/1200/720",
+    thumbnail: "https://picsum.photos/id/10/240/150",
+    alt: "Forest reflected on water",
+    title: "Frame 01",
+    caption: "Twenty-image carousel stress case"
   },
   {
-    src: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80",
-    alt: "Mountain landscape",
-    title: "Route preview",
-    caption: "Keyboard arrows and dots are enabled"
+    src: "https://picsum.photos/id/11/1200/720",
+    thumbnail: "https://picsum.photos/id/11/240/150",
+    alt: "Mountain lake",
+    title: "Frame 02",
+    caption: "Thumbnail navigation scrolls horizontally"
   },
   {
-    src: "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
-    alt: "Starry mountain sky",
-    title: "Night build",
-    caption: "Autoplay is optional for package users"
+    src: "https://picsum.photos/id/12/1200/720",
+    thumbnail: "https://picsum.photos/id/12/240/150",
+    alt: "Foggy coastline",
+    title: "Frame 03",
+    caption: "Dots and thumbnails stay in sync"
+  },
+  {
+    src: "https://picsum.photos/id/13/1200/720",
+    thumbnail: "https://picsum.photos/id/13/240/150",
+    alt: "Beach and ocean",
+    title: "Frame 04",
+    caption: "Click a thumbnail to jump directly"
+  },
+  {
+    src: "https://picsum.photos/id/14/1200/720",
+    thumbnail: "https://picsum.photos/id/14/240/150",
+    alt: "Mountain path",
+    title: "Frame 05",
+    caption: "Keyboard arrows remain enabled"
+  },
+  {
+    src: "https://picsum.photos/id/15/1200/720",
+    thumbnail: "https://picsum.photos/id/15/240/150",
+    alt: "Rocky landscape",
+    title: "Frame 06",
+    caption: "Long galleries keep the viewport stable"
+  },
+  {
+    src: "https://picsum.photos/id/16/1200/720",
+    thumbnail: "https://picsum.photos/id/16/240/150",
+    alt: "Tree branches",
+    title: "Frame 07",
+    caption: "Active thumbnail gets a strong border"
+  },
+  {
+    src: "https://picsum.photos/id/17/1200/720",
+    thumbnail: "https://picsum.photos/id/17/240/150",
+    alt: "Dirt road through hills",
+    title: "Frame 08",
+    caption: "The slide counter reflects twenty entries"
+  },
+  {
+    src: "https://picsum.photos/id/18/1200/720",
+    thumbnail: "https://picsum.photos/id/18/240/150",
+    alt: "City skyline",
+    title: "Frame 09",
+    caption: "Images can provide separate thumbnails"
+  },
+  {
+    src: "https://picsum.photos/id/19/1200/720",
+    thumbnail: "https://picsum.photos/id/19/240/150",
+    alt: "Forest stream",
+    title: "Frame 10",
+    caption: "Captions continue to render per slide"
+  },
+  {
+    src: "https://picsum.photos/id/20/1200/720",
+    thumbnail: "https://picsum.photos/id/20/240/150",
+    alt: "Desk with laptop",
+    title: "Frame 11",
+    caption: "Second row of thumbnails is avoided"
+  },
+  {
+    src: "https://picsum.photos/id/21/1200/720",
+    thumbnail: "https://picsum.photos/id/21/240/150",
+    alt: "Snowy mountain",
+    title: "Frame 12",
+    caption: "Horizontal overflow handles the density"
+  },
+  {
+    src: "https://picsum.photos/id/22/1200/720",
+    thumbnail: "https://picsum.photos/id/22/240/150",
+    alt: "Stone bridge",
+    title: "Frame 13",
+    caption: "Each thumbnail is still a button"
+  },
+  {
+    src: "https://picsum.photos/id/23/1200/720",
+    thumbnail: "https://picsum.photos/id/23/240/150",
+    alt: "Wooden building",
+    title: "Frame 14",
+    caption: "ARIA labels come from slide labels"
+  },
+  {
+    src: "https://picsum.photos/id/24/1200/720",
+    thumbnail: "https://picsum.photos/id/24/240/150",
+    alt: "Open field",
+    title: "Frame 15",
+    caption: "Slide data remains ordinary objects"
+  },
+  {
+    src: "https://picsum.photos/id/25/1200/720",
+    thumbnail: "https://picsum.photos/id/25/240/150",
+    alt: "Sunset over trees",
+    title: "Frame 16",
+    caption: "The component API stays compact"
+  },
+  {
+    src: "https://picsum.photos/id/26/1200/720",
+    thumbnail: "https://picsum.photos/id/26/240/150",
+    alt: "Forest trail",
+    title: "Frame 17",
+    caption: "Large image sets exercise rendering"
+  },
+  {
+    src: "https://picsum.photos/id/27/1200/720",
+    thumbnail: "https://picsum.photos/id/27/240/150",
+    alt: "City at night",
+    title: "Frame 18",
+    caption: "Clicking late thumbnails jumps far ahead"
+  },
+  {
+    src: "https://picsum.photos/id/28/1200/720",
+    thumbnail: "https://picsum.photos/id/28/240/150",
+    alt: "Hills and clouds",
+    title: "Frame 19",
+    caption: "Previous and next still wrap around"
+  },
+  {
+    src: "https://picsum.photos/id/29/1200/720",
+    thumbnail: "https://picsum.photos/id/29/240/150",
+    alt: "Waterfall",
+    title: "Frame 20",
+    caption: "End of the twenty-image gallery"
   }
 ];
 const videoQualityOptions = [
@@ -142,6 +368,17 @@ const codeSample = `<template>
   </MikuruModal>
 </template>`;
 const actionMessage = computed(() => lastAction.value);
+const packageSummary = computed(() => {
+  return `${packageTitle.value}:${owner.value}:${assignee.value}:${releaseReady.value ? "ready" : "draft"}`;
+});
+const layoutTitle = computed(() => {
+  if (layoutSection.value === "builds") return "Build queue";
+  if (layoutSection.value === "settings") return "Settings";
+  return "Overview";
+});
+const layoutSummary = computed(() => {
+  return `layout:${layoutSection.value}:${sideMenuCollapsed.value ? "collapsed" : "expanded"}`;
+});
 
 function openModal() {
   modalOpen.value = true;
@@ -182,6 +419,10 @@ function selectMenuItem(value) {
   } else if (value === "toast") {
     addToast();
   }
+}
+
+function selectFooterLink(value) {
+  lastAction.value = `Footer selected ${value}.`;
 }
 </script>
 
@@ -249,8 +490,51 @@ function selectMenuItem(value) {
   cursor: pointer;
 }
 
+.layout-demo {
+  display: grid;
+  gap: 12px;
+}
+
+.layout-shell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.layout-content {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 160px;
+  border: 1px solid #ccfbf1;
+  border-radius: 8px;
+  padding: 16px;
+  color: #134e4a;
+  background: #ffffff;
+}
+
+.layout-content h3,
+.layout-content p {
+  margin: 0;
+}
+
+.layout-action {
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 11px;
+  color: #ffffff;
+  background: #0f766e;
+  font: inherit;
+  cursor: pointer;
+}
+
 @media (max-width: 800px) {
   .ui-lab {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-shell {
     grid-template-columns: 1fr;
   }
 }

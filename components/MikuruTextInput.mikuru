@@ -1,0 +1,83 @@
+<template>
+  <label class="mikuru-field">
+    <span class="field-label">{{ label }}</span>
+    <input
+      class="field-control"
+      :type="type"
+      :value="modelValue"
+      :placeholder="placeholder"
+      :disabled="disabled"
+      :required="required"
+      :aria-invalid="error ? 'true' : 'false'"
+      @input="updateValue($event)"
+    />
+    <small m-if="help && !error" class="field-help">{{ help }}</small>
+    <small m-if="error" class="field-error">{{ error }}</small>
+  </label>
+</template>
+
+<script>
+const {
+  label = "Text input",
+  modelValue = "",
+  placeholder = "",
+  type = "text",
+  help = "",
+  error = "",
+  disabled = false,
+  required = false
+} = defineProps();
+
+const emit = defineEmits(["update:modelValue", "input"]);
+
+function updateValue(event) {
+  emit("update:modelValue", event.target.value);
+  emit("input", event.target.value);
+}
+</script>
+
+<style scoped>
+.mikuru-field {
+  display: grid;
+  gap: 6px;
+  color: #0f172a;
+  font: inherit;
+}
+
+.field-label {
+  font-weight: 650;
+}
+
+.field-control {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+}
+
+.field-control:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+.field-control[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+.field-control:disabled {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.field-help {
+  color: #64748b;
+}
+
+.field-error {
+  color: #b91c1c;
+}
+</style>

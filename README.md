@@ -29,12 +29,19 @@ Use the `basic` template when you want a small component composition example:
 npx mikuru create my-basic-app -t basic
 ```
 
+Use the `video-player` template when you want a Vite app that imports the package-provided `MikuruVideoPlayer` component:
+
+```sh
+npx mikuru create my-video-app -t video-player
+```
+
 List available templates:
 
 ```sh
 npx mikuru --list-templates
 starter - minimal Vite app
 basic - component composition example
+video-player - MikuruVideoPlayer media app
 ```
 
 Run a dry-run to preview the target, template, and files without writing them:
@@ -197,6 +204,7 @@ The package also provides the `mikuru` binary:
 ```sh
 npx mikuru create my-app
 npx mikuru create my-basic-app -t basic
+npx mikuru create my-video-app -t video-player
 npx mikuru --list-templates
 ```
 
@@ -274,12 +282,18 @@ The package also includes original Mikuru components:
 - `MikuruAudioPlayer.mikuru`: audio playback with configurable control visibility, live mode, seeking, skip controls, volume, and mute.
 - `MikuruImageViewer.mikuru`: image zoom, pan, rotate, reset, and fullscreen controls.
 - `MikuruModal.mikuru`: accessible modal shell with backdrop, Escape close, slots, and close events.
-- `MikuruCarousel.mikuru`: image carousel with arrows, dots, keyboard navigation, and optional autoplay.
+- `MikuruCarousel.mikuru`: image carousel with arrows, dots, keyboard navigation, optional autoplay, and optional thumbnail navigation.
 - `MikuruToast.mikuru`: fixed notification stack with timed auto-dismiss, dismiss events, and tone variants.
 - `MikuruDropdown.mikuru`: menu button with outside-click close, Escape handling, and select events.
 - `MikuruToolTip.mikuru`: hover/focus tooltip with configurable placement.
 - `MikuruProgress.mikuru`: determinate and indeterminate progress indicator.
 - `MikuruCodeBlock.mikuru`: code display with language label, line numbers, and copy action.
+- `MikuruTabs.mikuru`: accessible tab list with controlled `m-model`, keyboard navigation, and slot/fallback panels.
+- `MikuruAccordion.mikuru`: single or multiple disclosure panels with controlled `m-model` and slot/fallback content.
+- `MikuruTextInput.mikuru`, `MikuruTextarea.mikuru`, and `MikuruCheckbox.mikuru`: form controls that emit `update:modelValue`.
+- `MikuruSelect.mikuru`: labeled select control with normalized string/object options.
+- `MikuruCombobox.mikuru`: searchable single-select combobox with outside-click and Escape close.
+- `MikuruHeader.mikuru`, `MikuruFooter.mikuru`, and `MikuruSideMenu.mikuru`: app shell layout primitives with normalized navigation items and selection events.
 
 They can be imported from the package:
 
@@ -295,6 +309,16 @@ import MikuruDropdown from "mikuru/components/MikuruDropdown";
 import MikuruToolTip from "mikuru/components/MikuruToolTip";
 import MikuruProgress from "mikuru/components/MikuruProgress";
 import MikuruCodeBlock from "mikuru/components/MikuruCodeBlock";
+import MikuruTabs from "mikuru/components/MikuruTabs";
+import MikuruAccordion from "mikuru/components/MikuruAccordion";
+import MikuruTextInput from "mikuru/components/MikuruTextInput";
+import MikuruTextarea from "mikuru/components/MikuruTextarea";
+import MikuruCheckbox from "mikuru/components/MikuruCheckbox";
+import MikuruSelect from "mikuru/components/MikuruSelect";
+import MikuruCombobox from "mikuru/components/MikuruCombobox";
+import MikuruHeader from "mikuru/components/MikuruHeader";
+import MikuruFooter from "mikuru/components/MikuruFooter";
+import MikuruSideMenu from "mikuru/components/MikuruSideMenu";
 </script>
 ```
 

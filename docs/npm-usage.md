@@ -24,12 +24,19 @@ For a small component composition example, use the `basic` template:
 npx mikuru create my-basic-app -t basic
 ```
 
+For a media app that imports `MikuruVideoPlayer` from the package, use the `video-player` template:
+
+```sh
+npx mikuru create my-video-app -t video-player
+```
+
 List available templates:
 
 ```sh
 npx mikuru --list-templates
 starter - minimal Vite app
 basic - component composition example
+video-player - MikuruVideoPlayer media app
 ```
 
 Preview a create run without writing files:

@@ -1,0 +1,121 @@
+<template>
+  <footer class="mikuru-footer">
+    <div>
+      <strong>{{ title }}</strong>
+      <p m-if="description">{{ description }}</p>
+    </div>
+
+    <nav m-if="normalizedLinks.length > 0" class="footer-links" :aria-label="navLabel">
+      <a
+        m-for="link in normalizedLinks"
+        :key="link.value"
+        :href="link.href"
+        @click="selectLink(link, $event)"
+      >
+        {{ link.label }}
+      </a>
+    </nav>
+
+    <small>{{ note }}</small>
+  </footer>
+</template>
+
+<script>
+import { ref, watch } from "mikuru";
+
+const {
+  title = "Mikuru",
+  description = "",
+  note = "",
+  navLabel = "Footer navigation",
+  links = []
+} = defineProps();
+
+const emit = defineEmits(["select"]);
+const normalizedLinks = ref([]);
+let linksSignature = "";
+
+watch(links, syncLinks, { immediate: true });
+
+function syncLinks() {
+  const source = Array.isArray(links.value) ? links.value : [];
+  const nextLinks = source.map((link, index) => {
+    if (typeof link === "string") {
+      return { label: link, value: link, href: "#" };
+    }
+    return {
+      label: link.label || `Link ${index + 1}`,
+      value: link.value ?? link.label ?? index,
+      href: link.href || "#"
+    };
+  });
+  const nextSignature = nextLinks
+    .map((link) => `${link.value}\u0000${link.label}\u0000${link.href}`)
+    .join("\u0001");
+  if (nextSignature === linksSignature) return;
+  linksSignature = nextSignature;
+  normalizedLinks.value = nextLinks;
+}
+
+function selectLink(link, event) {
+  if (link.href === "#") {
+    event.preventDefault();
+  }
+  emit("select", link.value);
+}
+</script>
+
+<style scoped>
+.mikuru-footer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px 18px;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  color: #334155;
+  background: #ffffff;
+}
+
+.mikuru-footer strong {
+  color: #0f172a;
+}
+
+.mikuru-footer p {
+  margin: 4px 0 0;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+
+.footer-links a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.footer-links a:hover,
+.footer-links a:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
+.mikuru-footer small {
+  grid-column: 1 / -1;
+  color: #64748b;
+}
+
+@media (max-width: 720px) {
+  .mikuru-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-links {
+    justify-content: flex-start;
+  }
+}
+</style>

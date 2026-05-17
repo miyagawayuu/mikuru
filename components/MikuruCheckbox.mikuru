@@ -1,0 +1,84 @@
+<template>
+  <label class="mikuru-checkbox">
+    <input
+      type="checkbox"
+      :checked="checked"
+      :value="value"
+      :disabled="disabled"
+      @change="updateChecked($event)"
+    />
+    <span>
+      <span class="checkbox-label">{{ label }}</span>
+      <small m-if="description">{{ description }}</small>
+    </span>
+  </label>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  label = "Checkbox",
+  description = "",
+  modelValue = false,
+  value = "on",
+  disabled = false
+} = defineProps();
+
+const emit = defineEmits(["update:modelValue", "change"]);
+
+const checked = computed(() => {
+  if (Array.isArray(modelValue.value)) {
+    return modelValue.value.some((item) => Object.is(item, value.value));
+  }
+  return Boolean(modelValue.value);
+});
+
+function updateChecked(event) {
+  let nextValue;
+  if (Array.isArray(modelValue.value)) {
+    nextValue = event.target.checked
+      ? [...modelValue.value, value.value]
+      : modelValue.value.filter((item) => !Object.is(item, value.value));
+  } else {
+    nextValue = event.target.checked;
+  }
+  emit("update:modelValue", nextValue);
+  emit("change", nextValue);
+}
+</script>
+
+<style scoped>
+.mikuru-checkbox {
+  display: inline-grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  align-items: start;
+  color: #0f172a;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mikuru-checkbox input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: #2563eb;
+}
+
+.mikuru-checkbox input:disabled {
+  cursor: not-allowed;
+}
+
+.checkbox-label {
+  display: block;
+  font-weight: 650;
+}
+
+.mikuru-checkbox small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  line-height: 1.35;
+}
+</style>

@@ -1,10 +1,11 @@
-export const availableTemplates = ["starter", "basic"] as const;
+export const availableTemplates = ["starter", "basic", "video-player"] as const;
 
 export type TemplateName = (typeof availableTemplates)[number];
 
 export const templateDescriptions: Record<TemplateName, string> = {
   starter: "minimal Vite app",
-  basic: "component composition example"
+  basic: "component composition example",
+  "video-player": "MikuruVideoPlayer media app"
 };
 
 export function formatTemplateList(): string {

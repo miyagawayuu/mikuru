@@ -1,0 +1,156 @@
+<template>
+  <section class="mikuru-accordion">
+    <details
+      m-for="item in normalizedItems"
+      :key="item.value"
+      class="accordion-item"
+      :class="{ open: isOpen(item.value) }"
+      @toggle="handleToggle(item, $event)"
+    >
+      <summary
+        class="accordion-trigger"
+        :aria-disabled="item.disabled ? 'true' : 'false'"
+        @click="handleSummaryClick(item, $event)"
+      >
+        <span>{{ item.label }}</span>
+        <span aria-hidden="true">{{ isOpen(item.value) ? "-" : "+" }}</span>
+      </summary>
+      <div class="accordion-panel">
+        <slot :item="item">{{ item.panel }}</slot>
+      </div>
+    </details>
+  </section>
+</template>
+
+<script>
+import { ref, watch } from "mikuru";
+
+const {
+  items = [],
+  modelValue = "",
+  multiple = false
+} = defineProps();
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const normalizedItems = ref([]);
+const openValues = ref([]);
+let itemsSignature = "";
+
+watch(items, syncItems, { immediate: true });
+watch(modelValue, syncOpenValues, { immediate: true });
+
+function syncItems() {
+  const source = Array.isArray(items.value) ? items.value : [];
+  const nextItems = source.map((item, index) => {
+    if (typeof item === "string") {
+      return { label: item, value: item, panel: "", disabled: false };
+    }
+    return {
+      label: item.label || `Item ${index + 1}`,
+      value: item.value ?? item.label ?? index,
+      panel: item.panel || "",
+      disabled: Boolean(item.disabled)
+    };
+  });
+  const nextSignature = nextItems
+    .map((item) => `${item.value}\u0000${item.label}\u0000${item.panel}\u0000${item.disabled}`)
+    .join("\u0001");
+  if (nextSignature === itemsSignature) return;
+  itemsSignature = nextSignature;
+  normalizedItems.value = nextItems;
+  syncOpenValues();
+}
+
+function syncOpenValues() {
+  const source = multiple.value
+    ? (Array.isArray(modelValue.value) ? modelValue.value : [])
+    : (modelValue.value === "" || modelValue.value == null ? [] : [modelValue.value]);
+  const availableValues = normalizedItems.value.map((item) => item.value);
+  openValues.value = source.filter((value) => availableValues.some((itemValue) => Object.is(itemValue, value)));
+}
+
+function isOpen(value) {
+  return openValues.value.some((itemValue) => Object.is(itemValue, value));
+}
+
+function handleSummaryClick(item, event) {
+  if (!item.disabled) return;
+  event.preventDefault();
+}
+
+function handleToggle(item, event) {
+  if (item.disabled) {
+    event.target.open = false;
+    return;
+  }
+  if (event.target.open === isOpen(item.value)) return;
+  toggleItem(item);
+}
+
+function toggleItem(item) {
+  let nextValues;
+  if (multiple.value) {
+    nextValues = isOpen(item.value)
+      ? openValues.value.filter((value) => !Object.is(value, item.value))
+      : [...openValues.value, item.value];
+  } else {
+    nextValues = isOpen(item.value) ? [] : [item.value];
+  }
+  openValues.value = nextValues;
+  const payload = multiple.value ? nextValues : nextValues[0] ?? "";
+  emit("update:modelValue", payload);
+  emit("change", payload);
+}
+</script>
+
+<style scoped>
+.mikuru-accordion {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.accordion-item + .accordion-item {
+  border-top: 1px solid #e2e8f0;
+}
+
+.accordion-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  padding: 12px 14px;
+  color: #0f172a;
+  background: #ffffff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  list-style: none;
+}
+
+.accordion-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.accordion-trigger:hover,
+.accordion-trigger:focus-visible,
+.accordion-item.open .accordion-trigger {
+  background: #f8fafc;
+  outline: none;
+}
+
+.accordion-trigger[aria-disabled="true"] {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.accordion-panel {
+  padding: 0 14px 14px;
+  color: #475569;
+  line-height: 1.5;
+}
+</style>

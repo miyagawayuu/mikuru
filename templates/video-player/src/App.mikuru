@@ -1,0 +1,92 @@
+<template>
+  <main class="video-app">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Mikuru media template</p>
+        <h1>Ship a polished video experience with package components.</h1>
+        <p class="summary">
+          This template imports <code>MikuruVideoPlayer</code> from the Mikuru package and wires up quality, playback, and event feedback.
+        </p>
+      </div>
+
+      <MikuruVideoPlayer
+        class="featured-player"
+        title="Big Buck Bunny"
+        subtitle="Adaptive preview"
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+        poster="https://peach.blender.org/wp-content/uploads/title_anouncement.jpg?x11217"
+        aspect-ratio="16 / 9"
+        :quality-options="qualityOptions"
+        :controls="controls"
+        @play="recordMediaEvent"
+        @pause="recordMediaEvent"
+        @timeupdate="recordMediaEvent"
+        @volumechange="recordMediaEvent"
+      />
+    </section>
+
+    <section class="panel-grid" aria-label="Player details">
+      <article class="panel">
+        <span class="label">Now playing</span>
+        <strong>{{ currentStatus }}</strong>
+        <p>{{ timeLabel }}</p>
+      </article>
+      <article class="panel">
+        <span class="label">Controls</span>
+        <strong>{{ controls.length }} enabled</strong>
+        <p>Play, seek, time, mute, volume, settings, and fullscreen are all active.</p>
+      </article>
+      <article class="panel event-log">
+        <span class="label">Latest event</span>
+        <strong>{{ latestEvent }}</strong>
+        <p>{{ volumeLabel }}</p>
+      </article>
+    </section>
+  </main>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+import MikuruVideoPlayer from "mikuru/components/MikuruVideoPlayer";
+
+const lastEvent = ref("ready");
+const currentTime = ref(0);
+const duration = ref(0);
+const volume = ref(80);
+
+const controls = ["play", "seek", "time", "mute", "volume", "settings", "fullscreen"];
+const qualityOptions = [
+  {
+    id: "flower",
+    label: "Flower 720p",
+    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+    poster: "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg?x11217"
+  },
+  {
+    id: "bunny",
+    label: "Bunny 480p",
+    src: "https://media.w3.org/2010/05/sintel/trailer.mp4",
+    poster: "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg?x11217"
+  }
+];
+
+const latestEvent = computed(() => lastEvent.value);
+const currentStatus = computed(() => lastEvent.value === "play" ? "Playing" : "Ready to preview");
+const timeLabel = computed(() => `${formatTime(currentTime.value)} / ${formatTime(duration.value)}`);
+const volumeLabel = computed(() => `Volume ${volume.value}%`);
+
+function recordMediaEvent(payload) {
+  const eventType = payload?.nativeEvent?.type || "media";
+  lastEvent.value = eventType;
+  currentTime.value = payload?.currentTime || currentTime.value;
+  duration.value = payload?.duration || duration.value;
+  volume.value = Math.round((payload?.volume ?? 0.8) * 100);
+}
+
+function formatTime(seconds) {
+  const safeSeconds = Number.isFinite(seconds) ? Math.floor(seconds) : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = String(safeSeconds % 60).padStart(2, "0");
+  return `${minutes}:${remainder}`;
+}
+</script>

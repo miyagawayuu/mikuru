@@ -37,7 +37,7 @@ async function main(): Promise<void> {
 
 function printHelp(): void {
   console.log(`Usage:
-  mikuru create [project-name] [--template starter|basic]
+  mikuru create [project-name] [--template starter|basic|video-player]
   mikuru --version
   mikuru --help
   mikuru --list-templates

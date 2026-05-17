@@ -2,6 +2,7 @@ import type { MikuruComponent } from "../env";
 
 export type MikuruCarouselImage = string | {
   src: string;
+  thumbnail?: string;
   alt?: string;
   title?: string;
   caption?: string;
@@ -12,6 +13,7 @@ export type MikuruCarouselProps = {
   title?: string;
   autoplay?: boolean;
   interval?: number;
+  thumbnails?: boolean;
   emptyTitle?: string;
   emptyMessage?: string;
 };

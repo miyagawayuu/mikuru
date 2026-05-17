@@ -1,6 +1,6 @@
 {
   "name": "mikuru",
-  "version": "1.0.34",
+  "version": "1.0.35",
   "private": false,
   "type": "module",
   "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",
@@ -116,6 +116,86 @@
     "./components/MikuruCodeBlock.mikuru": {
       "types": "./types/components/MikuruCodeBlock.d.ts",
       "default": "./components/MikuruCodeBlock.mikuru"
+    },
+    "./components/MikuruTabs": {
+      "types": "./types/components/MikuruTabs.d.ts",
+      "default": "./components/MikuruTabs.mikuru"
+    },
+    "./components/MikuruTabs.mikuru": {
+      "types": "./types/components/MikuruTabs.d.ts",
+      "default": "./components/MikuruTabs.mikuru"
+    },
+    "./components/MikuruAccordion": {
+      "types": "./types/components/MikuruAccordion.d.ts",
+      "default": "./components/MikuruAccordion.mikuru"
+    },
+    "./components/MikuruAccordion.mikuru": {
+      "types": "./types/components/MikuruAccordion.d.ts",
+      "default": "./components/MikuruAccordion.mikuru"
+    },
+    "./components/MikuruTextInput": {
+      "types": "./types/components/MikuruTextInput.d.ts",
+      "default": "./components/MikuruTextInput.mikuru"
+    },
+    "./components/MikuruTextInput.mikuru": {
+      "types": "./types/components/MikuruTextInput.d.ts",
+      "default": "./components/MikuruTextInput.mikuru"
+    },
+    "./components/MikuruTextarea": {
+      "types": "./types/components/MikuruTextarea.d.ts",
+      "default": "./components/MikuruTextarea.mikuru"
+    },
+    "./components/MikuruTextarea.mikuru": {
+      "types": "./types/components/MikuruTextarea.d.ts",
+      "default": "./components/MikuruTextarea.mikuru"
+    },
+    "./components/MikuruCheckbox": {
+      "types": "./types/components/MikuruCheckbox.d.ts",
+      "default": "./components/MikuruCheckbox.mikuru"
+    },
+    "./components/MikuruCheckbox.mikuru": {
+      "types": "./types/components/MikuruCheckbox.d.ts",
+      "default": "./components/MikuruCheckbox.mikuru"
+    },
+    "./components/MikuruSelect": {
+      "types": "./types/components/MikuruSelect.d.ts",
+      "default": "./components/MikuruSelect.mikuru"
+    },
+    "./components/MikuruSelect.mikuru": {
+      "types": "./types/components/MikuruSelect.d.ts",
+      "default": "./components/MikuruSelect.mikuru"
+    },
+    "./components/MikuruCombobox": {
+      "types": "./types/components/MikuruCombobox.d.ts",
+      "default": "./components/MikuruCombobox.mikuru"
+    },
+    "./components/MikuruCombobox.mikuru": {
+      "types": "./types/components/MikuruCombobox.d.ts",
+      "default": "./components/MikuruCombobox.mikuru"
+    },
+    "./components/MikuruHeader": {
+      "types": "./types/components/MikuruHeader.d.ts",
+      "default": "./components/MikuruHeader.mikuru"
+    },
+    "./components/MikuruHeader.mikuru": {
+      "types": "./types/components/MikuruHeader.d.ts",
+      "default": "./components/MikuruHeader.mikuru"
+    },
+    "./components/MikuruFooter": {
+      "types": "./types/components/MikuruFooter.d.ts",
+      "default": "./components/MikuruFooter.mikuru"
+    },
+    "./components/MikuruFooter.mikuru": {
+      "types": "./types/components/MikuruFooter.d.ts",
+      "default": "./components/MikuruFooter.mikuru"
+    },
+    "./components/MikuruSideMenu": {
+      "types": "./types/components/MikuruSideMenu.d.ts",
+      "default": "./components/MikuruSideMenu.mikuru"
+    },
+    "./components/MikuruSideMenu.mikuru": {
+      "types": "./types/components/MikuruSideMenu.d.ts",
+      "default": "./components/MikuruSideMenu.mikuru"
     },
     "./vite": {
       "types": "./dist/vite.d.ts",

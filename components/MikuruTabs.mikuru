@@ -1,0 +1,163 @@
+<template>
+  <section class="mikuru-tabs">
+    <div class="tabs-list" role="tablist" :aria-label="label" @keydown="handleKeydown">
+      <button
+        m-for="item in normalizedItems"
+        :key="item.value"
+        class="tab-button"
+        :class="{ active: isActive(item.value) }"
+        type="button"
+        role="tab"
+        :aria-selected="isActive(item.value) ? 'true' : 'false'"
+        :disabled="item.disabled"
+        @click="selectTab(item)"
+      >
+        {{ item.label }}
+      </button>
+    </div>
+
+    <section class="tab-panel" role="tabpanel">
+      <slot :item="activeItem" :value="activeValue" :label="activeItem.label" :panel="activeItem.panel">{{ activeItem.panel }}</slot>
+    </section>
+  </section>
+</template>
+
+<script>
+import { computed, ref, watch } from "mikuru";
+
+const {
+  label = "Tabs",
+  items = [],
+  modelValue = ""
+} = defineProps();
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const normalizedItems = ref([]);
+const activeValue = ref("");
+let itemsSignature = "";
+
+watch(items, syncItems, { immediate: true });
+watch(modelValue, syncActive, { immediate: true });
+
+const activeItem = computed(() => {
+  return normalizedItems.value.find((item) => Object.is(item.value, activeValue.value)) || normalizedItems.value[0] || {
+    label: "",
+    value: "",
+    panel: "",
+    disabled: false
+  };
+});
+
+function syncItems() {
+  const source = Array.isArray(items.value) ? items.value : [];
+  const nextItems = source.map((item, index) => {
+    if (typeof item === "string") {
+      return { label: item, value: item, panel: "", disabled: false };
+    }
+    return {
+      label: item.label || `Tab ${index + 1}`,
+      value: item.value ?? item.label ?? index,
+      panel: item.panel || "",
+      disabled: Boolean(item.disabled)
+    };
+  });
+  const nextSignature = nextItems
+    .map((item) => `${item.value}\u0000${item.label}\u0000${item.panel}\u0000${item.disabled}`)
+    .join("\u0001");
+  if (nextSignature === itemsSignature) return;
+  itemsSignature = nextSignature;
+  normalizedItems.value = nextItems;
+  syncActive();
+}
+
+function syncActive() {
+  const available = normalizedItems.value.filter((item) => !item.disabled);
+  if (available.some((item) => Object.is(item.value, modelValue.value))) {
+    activeValue.value = modelValue.value;
+    return;
+  }
+  if (!available.some((item) => Object.is(item.value, activeValue.value))) {
+    activeValue.value = available[0]?.value ?? "";
+  }
+}
+
+function isActive(value) {
+  return Object.is(activeValue.value, value);
+}
+
+function selectTab(item) {
+  if (item.disabled || isActive(item.value)) return;
+  activeValue.value = item.value;
+  emit("update:modelValue", item.value);
+  emit("change", item.value);
+}
+
+function handleKeydown(event) {
+  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft" && event.key !== "Home" && event.key !== "End") {
+    return;
+  }
+
+  const available = normalizedItems.value.filter((item) => !item.disabled);
+  if (available.length === 0) return;
+  event.preventDefault();
+
+  const currentIndex = Math.max(0, available.findIndex((item) => isActive(item.value)));
+  if (event.key === "Home") {
+    selectTab(available[0]);
+    return;
+  }
+  if (event.key === "End") {
+    selectTab(available[available.length - 1]);
+    return;
+  }
+  const offset = event.key === "ArrowRight" ? 1 : -1;
+  const nextIndex = (currentIndex + offset + available.length) % available.length;
+  selectTab(available[nextIndex]);
+}
+</script>
+
+<style scoped>
+.mikuru-tabs {
+  display: grid;
+  gap: 12px;
+}
+
+.tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tab-button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 9px 12px;
+  color: #475569;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab-button:hover,
+.tab-button:focus-visible {
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+}
+
+.tab-button.active {
+  border-bottom-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.tab-button:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.tab-panel {
+  min-height: 64px;
+  color: #334155;
+}
+</style>

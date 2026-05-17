@@ -4,7 +4,7 @@
       <span>{{ languageLabel }}</span>
       <button type="button" @click="copyCode">{{ copyLabel }}</button>
     </figcaption>
-    <pre><code><span m-for="line in lines" :key="line.number" class="code-line"><span m-if="showLineNumbers" class="line-number">{{ line.number }}</span><span>{{ line.text }}</span>
+    <pre><code><span m-for="line in lines" :key="line.number" class="code-line"><span m-if="showLineNumbers" class="line-number">{{ line.number }}</span><span m-html="line.html"></span>
 </span></code></pre>
   </figure>
 </template>
@@ -27,10 +27,10 @@ const lines = ref([]);
 const languageLabel = computed(() => language.value || "text");
 const copyLabel = computed(() => copied.value ? "Copied" : "Copy");
 
-watch(code, () => {
+watch([code, language], () => {
   lines.value = code.value.split("\n").map((text, index) => ({
     number: index + 1,
-    text
+    html: highlightLine(text, language.value)
   }));
 }, { immediate: true });
 
@@ -41,6 +41,207 @@ async function copyCode() {
   window.setTimeout(() => {
     copied.value = false;
   }, 1400);
+}
+
+function highlightLine(line, lang) {
+  const normalizedLanguage = String(lang || "text").toLowerCase();
+  if (["mikuru", "html", "xml", "svg"].includes(normalizedLanguage)) {
+    return highlightMarkup(line);
+  }
+  if (["css", "scss"].includes(normalizedLanguage)) {
+    return highlightCss(line);
+  }
+  if (["json"].includes(normalizedLanguage)) {
+    return highlightJson(line);
+  }
+  if (["js", "jsx", "javascript", "ts", "tsx", "typescript"].includes(normalizedLanguage)) {
+    return highlightScript(line);
+  }
+  return escapeHtml(line);
+}
+
+function highlightScript(line) {
+  const keywords = new Set([
+    "async", "await", "break", "case", "catch", "class", "const", "continue", "default", "do", "else",
+    "export", "extends", "finally", "for", "from", "function", "if", "import", "in", "let", "new",
+    "of", "return", "switch", "throw", "try", "typeof", "var", "while"
+  ]);
+  const literals = new Set(["false", "null", "true", "undefined"]);
+  let output = "";
+  let index = 0;
+
+  while (index < line.length) {
+    const rest = line.slice(index);
+    const comment = rest.match(/^\/\/.*/);
+    if (comment) {
+      output += token("comment", comment[0]);
+      break;
+    }
+    const blockComment = rest.match(/^\/\*.*?\*\//);
+    if (blockComment) {
+      output += token("comment", blockComment[0]);
+      index += blockComment[0].length;
+      continue;
+    }
+    const string = readString(line, index);
+    if (string) {
+      output += token("string", string);
+      index += string.length;
+      continue;
+    }
+    const number = rest.match(/^\b\d+(?:\.\d+)?\b/);
+    if (number) {
+      output += token("number", number[0]);
+      index += number[0].length;
+      continue;
+    }
+    const word = rest.match(/^[A-Za-z_$][\w$]*/);
+    if (word) {
+      const value = word[0];
+      const after = line.slice(index + value.length).trimStart();
+      if (keywords.has(value)) {
+        output += token("keyword", value);
+      } else if (literals.has(value)) {
+        output += token("literal", value);
+      } else if (after.startsWith("(")) {
+        output += token("function", value);
+      } else {
+        output += escapeHtml(value);
+      }
+      index += value.length;
+      continue;
+    }
+    const operator = rest.match(/^[{}()[\].,;:+\-*/%=!<>?&|]+/);
+    if (operator) {
+      output += token("operator", operator[0]);
+      index += operator[0].length;
+      continue;
+    }
+    output += escapeHtml(line[index]);
+    index += 1;
+  }
+
+  return output;
+}
+
+function highlightJson(line) {
+  return escapeHtml(line)
+    .replace(/(&quot;[^&]*?&quot;)(\s*:)?/g, (_, value, colon) => {
+      return colon ? `${tokenEscaped("property", value)}${colon}` : tokenEscaped("string", value);
+    })
+    .replace(/\b(true|false|null)\b/g, (_, value) => token("literal", value))
+    .replace(/\b\d+(?:\.\d+)?\b/g, (_, value) => token("number", value));
+}
+
+function highlightCss(line) {
+  return escapeHtml(line)
+    .replace(/\/\*.*?\*\//g, (_, value) => token("comment", value))
+    .replace(/(@[\w-]+)/g, (_, value) => token("keyword", value))
+    .replace(/(#(?:[0-9a-fA-F]{3}){1,2})\b/g, (_, value) => token("number", value))
+    .replace(/([\w-]+)(\s*:)/g, (_, name, colon) => `${token("property", name)}${colon}`)
+    .replace(/(&quot;[^&]*?&quot;|'[^']*?')/g, (_, value) => tokenEscaped("string", value));
+}
+
+function highlightMarkup(line) {
+  let output = "";
+  let index = 0;
+  const tagPattern = /<!--.*?-->|<\/?[A-Za-z][^>]*?>/g;
+  let match;
+
+  while ((match = tagPattern.exec(line)) !== null) {
+    output += highlightScript(line.slice(index, match.index));
+    output += match[0].startsWith("<!--") ? token("comment", match[0]) : highlightTag(match[0]);
+    index = match.index + match[0].length;
+  }
+
+  output += highlightScript(line.slice(index));
+  return output;
+}
+
+function highlightTag(tagSource) {
+  let output = "";
+  let index = 0;
+  const open = tagSource.match(/^<\/?/);
+  if (open) {
+    output += token("operator", open[0]);
+    index += open[0].length;
+  }
+
+  const tagName = tagSource.slice(index).match(/^[A-Za-z][\w:-]*/);
+  if (tagName) {
+    output += token("tag", tagName[0]);
+    index += tagName[0].length;
+  }
+
+  while (index < tagSource.length) {
+    const rest = tagSource.slice(index);
+    const close = rest.match(/^\/?>/);
+    if (close) {
+      output += token("operator", close[0]);
+      index += close[0].length;
+      continue;
+    }
+    const whitespace = rest.match(/^\s+/);
+    if (whitespace) {
+      output += escapeHtml(whitespace[0]);
+      index += whitespace[0].length;
+      continue;
+    }
+    const attribute = rest.match(/^[:@#]?[A-Za-z_][\w:.-]*/);
+    if (attribute) {
+      output += token("property", attribute[0]);
+      index += attribute[0].length;
+      continue;
+    }
+    if (tagSource[index] === "=") {
+      output += token("operator", "=");
+      index += 1;
+      continue;
+    }
+    const string = readString(tagSource, index);
+    if (string) {
+      output += token("string", string);
+      index += string.length;
+      continue;
+    }
+    output += escapeHtml(tagSource[index]);
+    index += 1;
+  }
+
+  return output;
+}
+
+function readString(line, start) {
+  const quote = line[start];
+  if (quote !== "\"" && quote !== "'" && quote !== "`") return "";
+  let index = start + 1;
+  while (index < line.length) {
+    if (line[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    if (line[index] === quote) {
+      return line.slice(start, index + 1);
+    }
+    index += 1;
+  }
+  return line.slice(start);
+}
+
+function token(kind, value) {
+  return `<span class="syntax-${kind}">${escapeHtml(value)}</span>`;
+}
+
+function tokenEscaped(kind, value) {
+  return `<span class="syntax-${kind}">${value}</span>`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 </script>
 
@@ -78,7 +279,7 @@ pre {
   margin: 0;
   overflow: auto;
   padding: 12px 0;
-  color: #e5e7eb;
+  color: #d4d4d4;
   font: 0.9rem/1.55 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
@@ -96,5 +297,38 @@ pre {
   color: #64748b;
   text-align: right;
   user-select: none;
+}
+
+:deep(.syntax-comment) {
+  color: #6a9955;
+}
+
+:deep(.syntax-function) {
+  color: #dcdcaa;
+}
+
+:deep(.syntax-keyword) {
+  color: #c586c0;
+}
+
+:deep(.syntax-literal),
+:deep(.syntax-number) {
+  color: #b5cea8;
+}
+
+:deep(.syntax-operator) {
+  color: #d4d4d4;
+}
+
+:deep(.syntax-property) {
+  color: #9cdcfe;
+}
+
+:deep(.syntax-string) {
+  color: #ce9178;
+}
+
+:deep(.syntax-tag) {
+  color: #569cd6;
 }
 </style>

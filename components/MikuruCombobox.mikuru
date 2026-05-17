@@ -1,0 +1,226 @@
+<template>
+  <div class="mikuru-combobox" ref="rootEl" @keydown="handleKeydown">
+    <label class="field-label">{{ label }}</label>
+    <input
+      class="combo-input"
+      type="text"
+      :value="query"
+      :placeholder="placeholder"
+      :disabled="disabled"
+      role="combobox"
+      aria-autocomplete="list"
+      :aria-label="label"
+      :aria-expanded="open ? 'true' : 'false'"
+      @focus="openList"
+      @input="updateQuery($event)"
+    />
+    <div m-if="open" class="combo-list" role="listbox">
+      <button
+        m-for="item in filteredOptions"
+        :key="item.value"
+        class="combo-option"
+        :class="{ active: Object.is(item.value, modelValue) }"
+        type="button"
+        role="option"
+        :aria-selected="Object.is(item.value, modelValue) ? 'true' : 'false'"
+        :disabled="item.disabled"
+        @click="selectOption(item)"
+      >
+        <span>{{ item.label }}</span>
+        <small>{{ item.description }}</small>
+      </button>
+      <p m-if="filteredOptions.length === 0" class="combo-empty">{{ emptyText }}</p>
+    </div>
+  </div>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref, watch } from "mikuru";
+
+const {
+  label = "Combobox",
+  modelValue = "",
+  options = [],
+  placeholder = "Search...",
+  emptyText = "No options",
+  disabled = false
+} = defineProps();
+
+const emit = defineEmits(["update:modelValue", "change", "query"]);
+const rootEl = ref(null);
+const open = ref(false);
+const query = ref("");
+const normalizedOptions = ref([]);
+let optionsSignature = "";
+
+watch(options, syncOptions, { immediate: true });
+watch(modelValue, syncQuery, { immediate: true });
+
+const filteredOptions = computed(() => {
+  const needle = query.value.trim().toLowerCase();
+  if (!needle) return normalizedOptions.value;
+  return normalizedOptions.value.filter((item) => {
+    return item.label.toLowerCase().includes(needle) || item.description.toLowerCase().includes(needle);
+  });
+});
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointer);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointer);
+});
+
+function syncOptions() {
+  const source = Array.isArray(options.value) ? options.value : [];
+  const nextOptions = source.map((item, index) => {
+    if (typeof item === "string") {
+      return { label: item, value: item, description: "", disabled: false };
+    }
+    return {
+      label: item.label || `Option ${index + 1}`,
+      value: item.value ?? item.label ?? index,
+      description: item.description || "",
+      disabled: Boolean(item.disabled)
+    };
+  });
+  const nextSignature = nextOptions
+    .map((item) => `${item.value}\u0000${item.label}\u0000${item.description}\u0000${item.disabled}`)
+    .join("\u0001");
+  if (nextSignature === optionsSignature) return;
+  optionsSignature = nextSignature;
+  normalizedOptions.value = nextOptions;
+  syncQuery();
+}
+
+function syncQuery() {
+  const selected = normalizedOptions.value.find((item) => Object.is(item.value, modelValue.value));
+  if (selected) {
+    query.value = selected.label;
+  }
+}
+
+function openList() {
+  if (!disabled.value) {
+    open.value = true;
+  }
+}
+
+function closeList() {
+  open.value = false;
+}
+
+function updateQuery(event) {
+  query.value = event.target.value;
+  emit("query", query.value);
+  openList();
+}
+
+function selectOption(item) {
+  if (item.disabled) return;
+  query.value = item.label;
+  emit("update:modelValue", item.value);
+  emit("change", item.value);
+  closeList();
+}
+
+function handleDocumentPointer(event) {
+  const root = rootEl.value;
+  if (!root || root.contains(event.target)) return;
+  closeList();
+}
+
+function handleKeydown(event) {
+  if (event.key === "Escape") {
+    closeList();
+    return;
+  }
+  if (event.key !== "Enter") return;
+  if (!open.value || filteredOptions.value.length === 0) return;
+  event.preventDefault();
+  const firstEnabled = filteredOptions.value.find((item) => !item.disabled);
+  if (firstEnabled) {
+    selectOption(firstEnabled);
+  }
+}
+</script>
+
+<style scoped>
+.mikuru-combobox {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  color: #0f172a;
+  font: inherit;
+}
+
+.field-label {
+  font-weight: 650;
+}
+
+.combo-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+}
+
+.combo-input:focus {
+  border-color: #2563eb;
+  outline: 3px solid rgb(37 99 235 / 18%);
+}
+
+.combo-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: grid;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 16%);
+}
+
+.combo-option {
+  display: grid;
+  gap: 2px;
+  border: 0;
+  padding: 10px 12px;
+  color: #0f172a;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.combo-option:hover,
+.combo-option:focus-visible,
+.combo-option.active {
+  background: #eff6ff;
+  outline: none;
+}
+
+.combo-option:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.combo-option small {
+  color: #64748b;
+}
+
+.combo-empty {
+  margin: 0;
+  padding: 12px;
+  color: #64748b;
+}
+</style>
