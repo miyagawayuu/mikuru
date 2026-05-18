@@ -1,0 +1,67 @@
+<template>
+  <form class="mikuru-form" :aria-label="label" @submit="submitForm" @reset="resetForm">
+    <header m-if="title || description">
+      <h3 m-if="title">{{ title }}</h3>
+      <p m-if="description">{{ description }}</p>
+    </header>
+    <fieldset :disabled="disabled">
+      <slot></slot>
+    </fieldset>
+  </form>
+</template>
+
+<script>
+const {
+  label = "Form",
+  title = "",
+  description = "",
+  disabled = false
+} = defineProps({
+  label: String,
+  title: String,
+  description: String,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["submit", "reset"]);
+
+function submitForm(event) {
+  event.preventDefault();
+  emit("submit", event);
+}
+
+function resetForm(event) {
+  emit("reset", event);
+}
+</script>
+
+<style scoped>
+.mikuru-form {
+  display: grid;
+  gap: 12px;
+  color: #111827;
+  font: inherit;
+}
+
+header {
+  display: grid;
+  gap: 4px;
+}
+
+h3,
+p {
+  margin: 0;
+}
+
+p {
+  color: #64748b;
+}
+
+fieldset {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+</style>

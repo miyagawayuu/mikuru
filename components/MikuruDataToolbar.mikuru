@@ -1,0 +1,75 @@
+<template>
+  <header class="mikuru-data-toolbar">
+    <div>
+      <strong>{{ title }}</strong>
+      <small m-if="description">{{ description }}</small>
+    </div>
+    <div class="toolbar-actions">
+      <button
+        m-for="action in actions"
+        :key="action.id || action.label"
+        type="button"
+        :disabled="action.disabled"
+        @click="selectAction(action)"
+      >{{ action.label }}</button>
+      <slot></slot>
+    </div>
+  </header>
+</template>
+
+<script>
+const {
+  title = "Data",
+  description = "",
+  actions = []
+} = defineProps({
+  title: String,
+  description: String,
+  actions: Array
+});
+
+const emit = defineEmits(["action"]);
+
+function selectAction(action) {
+  if (action.disabled) return;
+  emit("action", action);
+}
+</script>
+
+<style scoped>
+.mikuru-data-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.mikuru-data-toolbar > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+small {
+  color: #64748b;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+</style>

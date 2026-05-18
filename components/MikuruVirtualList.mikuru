@@ -1,0 +1,75 @@
+<template>
+  <section class="mikuru-virtual-list" :style="listStyle" @scroll="handleScroll">
+    <div :style="spacerStyle">
+      <article
+        m-for="item in visibleItems"
+        :key="item.key"
+        class="virtual-row"
+        :style="item.style"
+      >
+        <strong>{{ item.data.title || item.data.label || item.data.id }}</strong>
+        <span m-if="item.data.description">{{ item.data.description }}</span>
+      </article>
+    </div>
+  </section>
+</template>
+
+<script>
+import { computed, ref } from "mikuru";
+
+const {
+  items = [],
+  itemHeight = 48,
+  height = 240
+} = defineProps({
+  items: Array,
+  itemHeight: Number,
+  height: Number
+});
+
+const scrollTop = ref(0);
+const listStyle = computed(() => `height: ${height.value}px;`);
+const spacerStyle = computed(() => `height: ${items.value.length * itemHeight.value}px; position: relative;`);
+const visibleItems = computed(() => {
+  const start = Math.max(0, Math.floor(scrollTop.value / itemHeight.value) - 2);
+  const count = Math.ceil(height.value / itemHeight.value) + 5;
+  return items.value.slice(start, start + count).map((item, offset) => {
+    const index = start + offset;
+    return {
+      key: item.id || item.value || index,
+      data: item,
+      style: `height: ${itemHeight.value}px; transform: translateY(${index * itemHeight.value}px);`
+    };
+  });
+});
+
+function handleScroll(event) {
+  scrollTop.value = event.target.scrollTop;
+}
+</script>
+
+<style scoped>
+.mikuru-virtual-list {
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.virtual-row {
+  position: absolute;
+  inset-inline: 0;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 7px 12px;
+  color: #111827;
+}
+
+span {
+  color: #64748b;
+  font-size: 0.86rem;
+}
+</style>

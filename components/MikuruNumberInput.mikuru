@@ -1,0 +1,103 @@
+<template>
+  <label class="mikuru-number-input">
+    <span>{{ label }}</span>
+    <span class="number-control">
+      <button type="button" :disabled="disabled" @click="stepDown">−</button>
+      <input
+        type="number"
+        :value="modelValue"
+        :min="min"
+        :max="max"
+        :step="step"
+        :disabled="disabled"
+        @input="updateValue($event)"
+      />
+      <button type="button" :disabled="disabled" @click="stepUp">+</button>
+    </span>
+  </label>
+</template>
+
+<script>
+const {
+  label = "Number",
+  modelValue = 0,
+  min = 0,
+  max = 100,
+  step = 1,
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: Number,
+  min: Number,
+  max: Number,
+  step: Number,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "input", "change"]);
+
+function clamp(value) {
+  return Math.min(max.value, Math.max(min.value, value));
+}
+
+function emitValue(value) {
+  const nextValue = clamp(Number(value));
+  emit("update:modelValue", nextValue);
+  emit("input", nextValue);
+  emit("change", nextValue);
+}
+
+function updateValue(event) {
+  emitValue(event.target.value);
+}
+
+function stepDown() {
+  emitValue(modelValue.value - step.value);
+}
+
+function stepUp() {
+  emitValue(modelValue.value + step.value);
+}
+</script>
+
+<style scoped>
+.mikuru-number-input {
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font: inherit;
+}
+
+.mikuru-number-input > span:first-child {
+  font-weight: 650;
+}
+
+.number-control {
+  display: inline-grid;
+  grid-template-columns: auto minmax(72px, 1fr) auto;
+  width: fit-content;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+input,
+button {
+  border: 0;
+  padding: 9px 11px;
+  color: #111827;
+  background: #ffffff;
+  font: inherit;
+}
+
+input {
+  width: 82px;
+  border-inline: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+button {
+  cursor: pointer;
+}
+</style>

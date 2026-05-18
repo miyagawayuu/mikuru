@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+## 1.0.40 - 2026-05-18
+
+- Added package-exported `MikuruForm`, `MikuruField`, `MikuruFormMessage`, `MikuruPasswordInput`, `MikuruNumberInput`, `MikuruInputOtp`, `MikuruComboboxMulti`, `MikuruFilterBar`, `MikuruDataToolbar`, and `MikuruVirtualList` components with typed exports and dogfood coverage.
+- Added package-exported `MikuruEmbedPlayer` for iframe-based hosted video embeds across YouTube, Vimeo, Dailymotion, Twitch, Niconico, TikTok, Bilibili, Wistia, and generic embed URLs.
+
 ## 1.0.39 - 2026-05-18
 
 - Added package-exported `MikuruPopover`, `MikuruAlertDialog`, `MikuruTable`, `MikuruPagination`, `MikuruDatePicker`, `MikuruMarkdownEditor`, and `MikuruWysiwygEditor` components with typed exports and dogfood coverage.

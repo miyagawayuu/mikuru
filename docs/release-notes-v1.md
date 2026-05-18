@@ -1,4 +1,14 @@
-# Mikuru v1.0.0 Release Notes
+# Mikuru v1 Release Notes
+
+## 1.0.40 - 2026-05-18
+
+Mikuru 1.0.40 expands the package component library with more typed UI primitives and a hosted video embed component.
+
+- Added package-exported form and data components: `MikuruForm`, `MikuruField`, `MikuruFormMessage`, `MikuruPasswordInput`, `MikuruNumberInput`, `MikuruInputOtp`, `MikuruComboboxMulti`, `MikuruFilterBar`, `MikuruDataToolbar`, and `MikuruVirtualList`.
+- Added package-exported `MikuruEmbedPlayer` for iframe-based hosted video embeds across YouTube, Vimeo, Dailymotion, Twitch, Niconico, TikTok, Bilibili, Wistia, and generic embed URLs.
+- Added typed exports, package usage smoke coverage, and dogfood coverage for the new components.
+
+## 1.0.0 - Initial stable validation release
 
 Mikuru v1 is the first stable validation release of the compile-first Vue-like SFC framework. It keeps authoring familiar while compiling templates into direct DOM update code instead of relying on a virtual DOM.
 

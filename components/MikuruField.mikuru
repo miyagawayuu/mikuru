@@ -1,0 +1,46 @@
+<template>
+  <label class="mikuru-field-shell" :data-required="required ? 'true' : 'false'">
+    <span class="field-heading">
+      <span>{{ label }}</span>
+      <span m-if="required" aria-hidden="true">*</span>
+    </span>
+    <slot></slot>
+    <MikuruFormMessage m-if="error" tone="error" :message="error" />
+    <MikuruFormMessage m-else-if="help" tone="neutral" :message="help" />
+  </label>
+</template>
+
+<script>
+import MikuruFormMessage from "./MikuruFormMessage.mikuru";
+
+const {
+  label = "Field",
+  help = "",
+  error = "",
+  required = false
+} = defineProps({
+  label: String,
+  help: String,
+  error: String,
+  required: Boolean
+});
+</script>
+
+<style scoped>
+.mikuru-field-shell {
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font: inherit;
+}
+
+.field-heading {
+  display: inline-flex;
+  gap: 4px;
+  font-weight: 650;
+}
+
+.field-heading span:last-child {
+  color: #dc2626;
+}
+</style>

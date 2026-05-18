@@ -28,6 +28,13 @@
         :controls="['play', 'mute', 'volume', 'fullscreen']"
       />
 
+      <MikuruEmbedPlayer
+        url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        title="Hosted Embed"
+        caption="Provider URL detection with YouTube privacy mode"
+        privacy
+      />
+
       <MikuruAudioPlayer
         title="Roar Radio"
         artist="Live mode audio sample"
@@ -141,6 +148,7 @@ import MikuruCombobox from "../../components/MikuruCombobox.mikuru";
 import MikuruDropdown from "../../components/MikuruDropdown.mikuru";
 import MikuruFooter from "../../components/MikuruFooter.mikuru";
 import MikuruHeader from "../../components/MikuruHeader.mikuru";
+import MikuruEmbedPlayer from "../../components/MikuruEmbedPlayer.mikuru";
 import MikuruImageViewer from "../../components/MikuruImageViewer.mikuru";
 import MikuruModal from "../../components/MikuruModal.mikuru";
 import MikuruProgress from "../../components/MikuruProgress.mikuru";

@@ -13,6 +13,7 @@ import MikuruCombobox from "mikuru/components/MikuruCombobox";
 import MikuruDropdown from "mikuru/components/MikuruDropdown";
 import MikuruFooter from "mikuru/components/MikuruFooter";
 import MikuruHeader from "mikuru/components/MikuruHeader";
+import MikuruEmbedPlayer from "mikuru/components/MikuruEmbedPlayer";
 import MikuruImageViewer from "mikuru/components/MikuruImageViewer";
 import MikuruModal from "mikuru/components/MikuruModal";
 import MikuruProgress from "mikuru/components/MikuruProgress";
@@ -32,6 +33,68 @@ Explicit `.mikuru` subpaths are also exported:
 ```js
 import MikuruModal from "mikuru/components/MikuruModal.mikuru";
 ```
+
+## Embed Player
+
+`MikuruEmbedPlayer` renders iframe-based players for hosted video platforms. Use `MikuruVideoPlayer` for direct media files such as `.mp4`; use `MikuruEmbedPlayer` for provider URLs.
+
+```mikuru
+<template>
+  <MikuruEmbedPlayer
+    url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    title="Release demo"
+    caption="YouTube embed with privacy mode"
+    privacy
+  />
+</template>
+
+<script>
+import MikuruEmbedPlayer from "mikuru/components/MikuruEmbedPlayer";
+</script>
+```
+
+You can also bypass URL detection by passing `provider` and `videoId`:
+
+```mikuru
+<MikuruEmbedPlayer provider="vimeo" video-id="76979871" title="Vimeo demo" />
+```
+
+Supported providers: YouTube, Vimeo, Dailymotion, Twitch, Niconico, TikTok, Bilibili, Wistia, and generic iframe embed URLs.
+
+Props:
+
+| Prop | Type | Required | Description |
+| --- | --- | --- | --- |
+| `url` | `string` | No | Provider video URL or iframe embed URL. |
+| `provider` | `string` | No | `auto`, `youtube`, `vimeo`, `dailymotion`, `twitch`, `niconico`, `tiktok`, `bilibili`, `wistia`, or `generic`. Defaults to `auto`. |
+| `videoId` | `string` | No | Explicit provider video id. Useful when no canonical URL is available. |
+| `title` | `string` | No | iframe title and caption heading. Defaults to `Embedded video`. |
+| `caption` | `string` | No | Caption text below the player. |
+| `width` | `string \| number` | No | Player width. Defaults to `100%`. Numbers are treated as pixels. |
+| `height` | `string \| number` | No | Optional fixed height. Numbers are treated as pixels. |
+| `aspectRatio` | `string \| number` | No | CSS aspect ratio for the frame. Defaults to `16 / 9`. |
+| `autoplay` | `boolean` | No | Requests provider autoplay. |
+| `muted` | `boolean` | No | Requests muted playback where supported. |
+| `controls` | `boolean` | No | Requests provider controls. Defaults to `true`. |
+| `loop` | `boolean` | No | Requests looping where supported. |
+| `privacy` | `boolean` | No | Uses YouTube's `youtube-nocookie.com` embed domain. |
+| `start` | `number` | No | Start time in seconds where supported. |
+| `end` | `number` | No | End time in seconds where supported. |
+| `playlist` | `string` | No | Provider playlist id or loop playlist hint where supported. |
+| `parent` | `string` | No | Twitch parent domain. Defaults to the current hostname in the browser. |
+| `loading` | `string` | No | iframe loading mode. Defaults to `lazy`. |
+| `allow` | `string` | No | iframe allow policy override. |
+| `referrerPolicy` | `string` | No | iframe referrer policy. Defaults to `strict-origin-when-cross-origin`. |
+| `sandbox` | `string` | No | Optional iframe sandbox policy. Omitted by default. |
+| `emptyTitle` | `string` | No | Fallback title when the URL is unsupported. |
+| `emptyMessage` | `string` | No | Fallback message when the URL is unsupported. |
+
+Events:
+
+| Event | Description |
+| --- | --- |
+| `load` | Emitted when the iframe load event fires. |
+| `unsupported` | Emitted when URL detection cannot produce an embed source. |
 
 ## Image Viewer
 

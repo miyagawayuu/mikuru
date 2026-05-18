@@ -91,6 +91,7 @@ mount(app);
     `<template>
   <div>
     <button @click="increment">packed: {{ count }}</button>
+    <MikuruEmbedPlayer url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Packed embed" privacy />
     <MikuruVideoPlayer title="Packed video" src="/sample.mp4" />
     <MikuruAudioPlayer title="Packed audio" src="/sample.mp3" />
     <MikuruImageViewer src="/sample.jpg" alt="Packed image" caption="Packed image" />
@@ -122,6 +123,7 @@ import MikuruCodeBlock from "mikuru/components/MikuruCodeBlock";
 import MikuruCarousel from "mikuru/components/MikuruCarousel";
 import MikuruCombobox from "mikuru/components/MikuruCombobox";
 import MikuruDropdown from "mikuru/components/MikuruDropdown";
+import MikuruEmbedPlayer from "mikuru/components/MikuruEmbedPlayer";
 import MikuruFooter from "mikuru/components/MikuruFooter";
 import MikuruHeader from "mikuru/components/MikuruHeader";
 import MikuruImageViewer from "mikuru/components/MikuruImageViewer";

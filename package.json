@@ -1,6 +1,6 @@
 {
   "name": "mikuru",
-  "version": "1.0.39",
+  "version": "1.0.40",
   "private": false,
   "type": "module",
   "description": "A compile-first JavaScript framework with Vue-like authoring and Svelte-like generated DOM updates.",
@@ -36,6 +36,14 @@
     "./env": {
       "types": "./types/env.d.ts",
       "default": "./dist/env.js"
+    },
+    "./components/MikuruEmbedPlayer": {
+      "types": "./types/components/MikuruEmbedPlayer.d.ts",
+      "default": "./components/MikuruEmbedPlayer.mikuru"
+    },
+    "./components/MikuruEmbedPlayer.mikuru": {
+      "types": "./types/components/MikuruEmbedPlayer.d.ts",
+      "default": "./components/MikuruEmbedPlayer.mikuru"
     },
     "./components/MikuruVideoPlayer": {
       "types": "./types/components/MikuruVideoPlayer.d.ts",
@@ -348,6 +356,86 @@
     "./components/MikuruTreeView.mikuru": {
       "types": "./types/components/MikuruTreeView.d.ts",
       "default": "./components/MikuruTreeView.mikuru"
+    },
+    "./components/MikuruForm": {
+      "types": "./types/components/MikuruForm.d.ts",
+      "default": "./components/MikuruForm.mikuru"
+    },
+    "./components/MikuruForm.mikuru": {
+      "types": "./types/components/MikuruForm.d.ts",
+      "default": "./components/MikuruForm.mikuru"
+    },
+    "./components/MikuruField": {
+      "types": "./types/components/MikuruField.d.ts",
+      "default": "./components/MikuruField.mikuru"
+    },
+    "./components/MikuruField.mikuru": {
+      "types": "./types/components/MikuruField.d.ts",
+      "default": "./components/MikuruField.mikuru"
+    },
+    "./components/MikuruFormMessage": {
+      "types": "./types/components/MikuruFormMessage.d.ts",
+      "default": "./components/MikuruFormMessage.mikuru"
+    },
+    "./components/MikuruFormMessage.mikuru": {
+      "types": "./types/components/MikuruFormMessage.d.ts",
+      "default": "./components/MikuruFormMessage.mikuru"
+    },
+    "./components/MikuruPasswordInput": {
+      "types": "./types/components/MikuruPasswordInput.d.ts",
+      "default": "./components/MikuruPasswordInput.mikuru"
+    },
+    "./components/MikuruPasswordInput.mikuru": {
+      "types": "./types/components/MikuruPasswordInput.d.ts",
+      "default": "./components/MikuruPasswordInput.mikuru"
+    },
+    "./components/MikuruNumberInput": {
+      "types": "./types/components/MikuruNumberInput.d.ts",
+      "default": "./components/MikuruNumberInput.mikuru"
+    },
+    "./components/MikuruNumberInput.mikuru": {
+      "types": "./types/components/MikuruNumberInput.d.ts",
+      "default": "./components/MikuruNumberInput.mikuru"
+    },
+    "./components/MikuruInputOtp": {
+      "types": "./types/components/MikuruInputOtp.d.ts",
+      "default": "./components/MikuruInputOtp.mikuru"
+    },
+    "./components/MikuruInputOtp.mikuru": {
+      "types": "./types/components/MikuruInputOtp.d.ts",
+      "default": "./components/MikuruInputOtp.mikuru"
+    },
+    "./components/MikuruComboboxMulti": {
+      "types": "./types/components/MikuruComboboxMulti.d.ts",
+      "default": "./components/MikuruComboboxMulti.mikuru"
+    },
+    "./components/MikuruComboboxMulti.mikuru": {
+      "types": "./types/components/MikuruComboboxMulti.d.ts",
+      "default": "./components/MikuruComboboxMulti.mikuru"
+    },
+    "./components/MikuruFilterBar": {
+      "types": "./types/components/MikuruFilterBar.d.ts",
+      "default": "./components/MikuruFilterBar.mikuru"
+    },
+    "./components/MikuruFilterBar.mikuru": {
+      "types": "./types/components/MikuruFilterBar.d.ts",
+      "default": "./components/MikuruFilterBar.mikuru"
+    },
+    "./components/MikuruDataToolbar": {
+      "types": "./types/components/MikuruDataToolbar.d.ts",
+      "default": "./components/MikuruDataToolbar.mikuru"
+    },
+    "./components/MikuruDataToolbar.mikuru": {
+      "types": "./types/components/MikuruDataToolbar.d.ts",
+      "default": "./components/MikuruDataToolbar.mikuru"
+    },
+    "./components/MikuruVirtualList": {
+      "types": "./types/components/MikuruVirtualList.d.ts",
+      "default": "./components/MikuruVirtualList.mikuru"
+    },
+    "./components/MikuruVirtualList.mikuru": {
+      "types": "./types/components/MikuruVirtualList.d.ts",
+      "default": "./components/MikuruVirtualList.mikuru"
     },
     "./components/MikuruTabs": {
       "types": "./types/components/MikuruTabs.d.ts",

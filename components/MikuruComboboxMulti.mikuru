@@ -1,0 +1,160 @@
+<template>
+  <section class="mikuru-combobox-multi" ref="rootEl">
+    <label :for="inputId">{{ label }}</label>
+    <div class="combo-box">
+      <MikuruChip
+        m-for="item in selectedItems"
+        :key="item.value"
+        :label="item.label"
+        tone="info"
+        removable
+        @remove="removeItem(item)"
+      />
+      <input
+        :id="inputId"
+        :value="query"
+        :placeholder="placeholder"
+        @focus="openList"
+        @input="updateQuery($event)"
+      />
+    </div>
+    <ul m-if="isOpen && filteredOptions.length" role="listbox">
+      <li m-for="option in filteredOptions" :key="option.value">
+        <button type="button" @click="selectOption(option)">{{ option.label }}</button>
+      </li>
+    </ul>
+  </section>
+</template>
+
+<script>
+import { computed, onMounted, onUnmounted, ref, watch } from "mikuru";
+import MikuruChip from "./MikuruChip.mikuru";
+
+const {
+  label = "Multi select",
+  modelValue = [],
+  options = [],
+  placeholder = "Search options..."
+} = defineProps({
+  label: String,
+  modelValue: Array,
+  options: Array,
+  placeholder: String
+});
+
+const emit = defineEmits(["update:modelValue", "change"]);
+const inputId = `mikuru-combobox-multi-${Math.random().toString(36).slice(2)}`;
+const rootEl = ref(null);
+const isOpen = ref(false);
+const query = ref("");
+const values = ref([]);
+
+watch(modelValue, () => {
+  values.value = Array.from(modelValue.value || []);
+}, { immediate: true });
+
+onMounted(() => document.addEventListener("pointerdown", handlePointerDown));
+onUnmounted(() => document.removeEventListener("pointerdown", handlePointerDown));
+
+const selectedItems = computed(() => options.value.filter((option) => values.value.includes(option.value)));
+const filteredOptions = computed(() => {
+  const term = query.value.trim().toLowerCase();
+  return options.value.filter((option) => {
+    return !values.value.includes(option.value) && (!term || option.label.toLowerCase().includes(term));
+  });
+});
+
+function openList() {
+  isOpen.value = true;
+}
+
+function updateQuery(event) {
+  query.value = event.target.value;
+  openList();
+}
+
+function selectOption(option) {
+  updateValues([...values.value, option.value]);
+  query.value = "";
+}
+
+function removeItem(item) {
+  updateValues(values.value.filter((value) => value !== item.value));
+}
+
+function updateValues(nextValues) {
+  values.value = nextValues;
+  emit("update:modelValue", nextValues);
+  emit("change", nextValues);
+}
+
+function handlePointerDown(event) {
+  if (!rootEl.value?.contains(event.target)) isOpen.value = false;
+}
+</script>
+
+<style scoped>
+.mikuru-combobox-multi {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  color: #111827;
+  font: inherit;
+}
+
+label {
+  font-weight: 650;
+}
+
+.combo-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px;
+  background: #ffffff;
+}
+
+input {
+  min-width: 120px;
+  flex: 1 1 120px;
+  border: 0;
+  padding: 5px;
+  outline: none;
+  font: inherit;
+}
+
+ul {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 16%);
+  list-style: none;
+}
+
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #eff6ff;
+}
+</style>

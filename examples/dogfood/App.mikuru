@@ -197,6 +197,83 @@
       </div>
     </section>
 
+    <section class="foundation-lab" aria-label="Form and data foundation components lab">
+      <div class="lab-heading">
+        <div>
+          <h2>Form and data foundation lab</h2>
+          <p>Form, Field, FormMessage, PasswordInput, NumberInput, InputOtp, ComboboxMulti, FilterBar, DataToolbar, and VirtualList primitives.</p>
+        </div>
+        <MikuruFormMessage tone="success" :message="foundationStatus" />
+      </div>
+
+      <MikuruForm
+        title="Release form"
+        description="Composable form shell with reusable field rows."
+        @submit="submitFoundationForm"
+        @reset="resetFoundationForm"
+      >
+        <div class="component-grid">
+          <div class="component-panel">
+            <MikuruField label="Password" help="Toggle visibility and strength text." required>
+              <MikuruPasswordInput
+                label="Account password"
+                :modelValue="foundationPassword"
+                placeholder="Enter password"
+                @input="setFoundationPassword"
+              />
+            </MikuruField>
+            <MikuruField label="Quantity" help="Stepper-based number input.">
+              <MikuruNumberInput
+                label="Package count"
+                :modelValue="foundationCount"
+                :min="1"
+                :max="9"
+                @change="setFoundationCount"
+              />
+            </MikuruField>
+            <MikuruInputOtp
+              label="Release OTP"
+              :modelValue="foundationOtp"
+              :length="6"
+              @input="setFoundationOtp"
+              @complete="completeFoundationOtp"
+            />
+          </div>
+
+          <div class="component-panel">
+            <MikuruComboboxMulti
+              label="Release owners"
+              :modelValue="foundationOwners"
+              :options="ownerOptions"
+              @change="setFoundationOwners"
+            />
+            <MikuruFilterBar
+              :search="foundationSearch"
+              :filters="foundationFilters"
+              :activeFilter="foundationFilter"
+              searchPlaceholder="Filter releases"
+              @search="setFoundationSearch"
+              @filter="setFoundationFilter"
+              @clear="clearFoundationSearch"
+            />
+          </div>
+        </div>
+
+        <div class="foundation-actions">
+          <button type="submit">Submit foundation form</button>
+          <button type="reset">Reset</button>
+        </div>
+      </MikuruForm>
+
+      <MikuruDataToolbar
+        title="Virtual release list"
+        description="Toolbar actions and a virtualized list for large data."
+        :actions="toolbarActions"
+        @action="handleToolbarAction"
+      />
+      <MikuruVirtualList :items="virtualRows" :height="220" :itemHeight="54" />
+    </section>
+
     <section class="identity-lab" aria-label="Identity and workflow components lab">
       <div class="lab-heading">
         <div>
@@ -381,9 +458,18 @@ import MikuruDatePicker from "../../components/MikuruDatePicker.mikuru";
 import MikuruDrawer from "../../components/MikuruDrawer.mikuru";
 import MikuruEmptyState from "../../components/MikuruEmptyState.mikuru";
 import MikuruFileUpload from "../../components/MikuruFileUpload.mikuru";
+import MikuruComboboxMulti from "../../components/MikuruComboboxMulti.mikuru";
+import MikuruDataToolbar from "../../components/MikuruDataToolbar.mikuru";
+import MikuruField from "../../components/MikuruField.mikuru";
+import MikuruFilterBar from "../../components/MikuruFilterBar.mikuru";
+import MikuruForm from "../../components/MikuruForm.mikuru";
+import MikuruFormMessage from "../../components/MikuruFormMessage.mikuru";
+import MikuruInputOtp from "../../components/MikuruInputOtp.mikuru";
 import MikuruKbd from "../../components/MikuruKbd.mikuru";
 import MikuruMarkdownEditor from "../../components/MikuruMarkdownEditor.mikuru";
+import MikuruNumberInput from "../../components/MikuruNumberInput.mikuru";
 import MikuruPagination from "../../components/MikuruPagination.mikuru";
+import MikuruPasswordInput from "../../components/MikuruPasswordInput.mikuru";
 import MikuruPopover from "../../components/MikuruPopover.mikuru";
 import MikuruRadioGroup from "../../components/MikuruRadioGroup.mikuru";
 import MikuruRating from "../../components/MikuruRating.mikuru";
@@ -400,6 +486,7 @@ import MikuruTagInput from "../../components/MikuruTagInput.mikuru";
 import MikuruTimePicker from "../../components/MikuruTimePicker.mikuru";
 import MikuruTimeline from "../../components/MikuruTimeline.mikuru";
 import MikuruTreeView from "../../components/MikuruTreeView.mikuru";
+import MikuruVirtualList from "../../components/MikuruVirtualList.mikuru";
 import MikuruWysiwygEditor from "../../components/MikuruWysiwygEditor.mikuru";
 import DebugPanel from "./DebugPanel.mikuru";
 import KeepAliveLab from "./KeepAliveLab.mikuru";
@@ -488,6 +575,13 @@ const rangeMax = ref(80);
 const themeColor = ref("#2563eb");
 const eventTime = ref("10:30");
 const calendarDate = ref("2026-05-18");
+const foundationStatus = ref("Foundation components are ready.");
+const foundationPassword = ref("mikuru123");
+const foundationCount = ref(2);
+const foundationOtp = ref("");
+const foundationOwners = ref(["ui", "docs"]);
+const foundationSearch = ref("");
+const foundationFilter = ref("all");
 const reviewDate = ref("2026-05-17");
 const markdownDraft = ref("# Release brief\n\n## Markdown coverage\n\n- Ship editor components\n+ Support plus lists\n1. Ordered item\n2. Another item\n- [x] Task done\n- [ ] Task open\n\n> Dogfood should stay honest.\n>> Nested quote\n\n| Syntax | Status |\n|---|---:|\n| Table | Ready |\n| Emoji :rocket: | Ready |\n\n**Bold** _italic_ ~~deleted~~ and `inline code`.\n\n$E = mc^2$\n\n```js\nconst ready = true;\n```\n\n---\n\n![Sample](https://interactive-examples.mdn.mozilla.net/media/cc0-images/grapefruit-slice-332-332.jpg =120x)\n\n<br>\n<b>Inline HTML</b>");
 const wysiwygDraft = ref("<h2>Release brief</h2><p><strong>WYSIWYG</strong> output is sanitized HTML.</p>");
@@ -570,6 +664,26 @@ const treeNodes = [
     ]
   }
 ];
+const ownerOptions = [
+  { label: "UI Team", value: "ui" },
+  { label: "Docs Owner", value: "docs" },
+  { label: "QA Lead", value: "qa" },
+  { label: "Release Manager", value: "release" }
+];
+const foundationFilters = [
+  { label: "All", value: "all" },
+  { label: "Ready", value: "ready" },
+  { label: "Review", value: "review" }
+];
+const toolbarActions = [
+  { id: "refresh", label: "Refresh" },
+  { id: "export", label: "Export" }
+];
+const virtualRows = Array.from({ length: 80 }, (_, index) => ({
+  id: `virtual-${index + 1}`,
+  title: `Virtual row ${index + 1}`,
+  description: index % 2 === 0 ? "Ready for release" : "Needs review"
+}));
 const notes = ref([
   {
     id: "parser",
@@ -853,6 +967,54 @@ function handleTreeSelect(node) {
   utilityStatus.value = `Tree node selected: ${node.label}.`;
 }
 
+function setFoundationPassword(value) {
+  foundationPassword.value = value;
+}
+
+function setFoundationCount(value) {
+  foundationCount.value = value;
+}
+
+function setFoundationOtp(value) {
+  foundationOtp.value = value;
+}
+
+function completeFoundationOtp(value) {
+  foundationStatus.value = `OTP complete: ${value}.`;
+}
+
+function setFoundationOwners(values) {
+  foundationOwners.value = values;
+  foundationStatus.value = `${values.length} owner(s) selected.`;
+}
+
+function setFoundationSearch(value) {
+  foundationSearch.value = value;
+  foundationStatus.value = `Filter search: ${value || "empty"}.`;
+}
+
+function clearFoundationSearch() {
+  foundationSearch.value = "";
+  foundationStatus.value = "Filter search cleared.";
+}
+
+function setFoundationFilter(value) {
+  foundationFilter.value = value;
+  foundationStatus.value = `Filter selected: ${value}.`;
+}
+
+function submitFoundationForm() {
+  foundationStatus.value = `Submitted ${foundationOwners.value.length} owner(s), count ${foundationCount.value}.`;
+}
+
+function resetFoundationForm() {
+  foundationStatus.value = "Foundation form reset.";
+}
+
+function handleToolbarAction(action) {
+  foundationStatus.value = `Toolbar action: ${action.label}.`;
+}
+
 function setTablePage(page) {
   tablePage.value = page;
 }
@@ -993,6 +1155,7 @@ header,
 .navigation-lab,
 .form-lab,
 .utility-lab,
+.foundation-lab,
 .identity-lab {
   display: grid;
   gap: 14px;
@@ -1019,6 +1182,18 @@ header,
   border-color: #fecdd3;
   color: #881337;
   background: #fff1f2;
+}
+
+.foundation-lab {
+  border-color: #c7d2fe;
+  color: #312e81;
+  background: #eef2ff;
+}
+
+.foundation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .lab-heading,
@@ -1064,6 +1239,9 @@ header,
 .utility-lab h2,
 .utility-lab h3,
 .utility-lab p,
+.foundation-lab h2,
+.foundation-lab h3,
+.foundation-lab p,
 .identity-lab h2,
 .identity-lab h3,
 .identity-lab p {

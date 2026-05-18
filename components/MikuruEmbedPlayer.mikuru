@@ -1,0 +1,429 @@
+<template>
+  <figure class="mikuru-embed-player" :style="playerStyle" :data-provider="resolvedProvider">
+    <div class="embed-frame" :style="frameStyle">
+      <iframe
+        m-if="embedSrc"
+        class="embed-iframe"
+        :src="embedSrc"
+        :title="resolvedTitle"
+        :loading="loading"
+        :allow="allowText"
+        :referrerpolicy="referrerPolicy"
+        :sandbox="sandboxValue"
+        allowfullscreen
+        @load="handleLoad"
+      ></iframe>
+      <div m-else class="embed-empty" role="status">
+        <strong>{{ emptyTitle }}</strong>
+        <span>{{ emptyMessage }}</span>
+      </div>
+    </div>
+
+    <figcaption m-if="showCaption" class="embed-caption">
+      <strong>{{ resolvedTitle }}</strong>
+      <span>{{ captionText }}</span>
+    </figcaption>
+  </figure>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  url = "",
+  provider = "auto",
+  videoId = "",
+  title = "Embedded video",
+  caption = "",
+  width = "100%",
+  height = "",
+  aspectRatio = "16 / 9",
+  autoplay = false,
+  muted = false,
+  controls = true,
+  loop = false,
+  privacy = false,
+  start = 0,
+  end = 0,
+  playlist = "",
+  parent = "",
+  loading = "lazy",
+  allow = "",
+  referrerPolicy = "strict-origin-when-cross-origin",
+  sandbox = "",
+  emptyTitle = "Unsupported video URL",
+  emptyMessage = "Provide a supported video URL, or pass provider and videoId explicitly."
+} = defineProps();
+
+const emit = defineEmits(["load", "unsupported"]);
+
+const detected = computed(() => resolveVideo(url.value, provider.value, videoId.value));
+const resolvedProvider = computed(() => detected.value.provider || normalizeProvider(provider.value));
+const resolvedTitle = computed(() => title.value || providerLabel(resolvedProvider.value));
+const captionText = computed(() => caption.value || providerLabel(resolvedProvider.value));
+const showCaption = computed(() => Boolean(title.value || caption.value));
+const sandboxValue = computed(() => sandbox.value || null);
+
+const playerStyle = computed(() => {
+  return [
+    width.value ? `width: ${formatSize(width.value)}` : "",
+    height.value ? `height: ${formatSize(height.value)}` : ""
+  ].filter(Boolean).join("; ");
+});
+
+const frameStyle = computed(() => {
+  return [
+    `aspect-ratio: ${aspectRatio.value}`,
+    height.value ? "height: 100%" : ""
+  ].filter(Boolean).join("; ");
+});
+
+const allowText = computed(() => {
+  return allow.value || "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture; web-share";
+});
+
+const embedSrc = computed(() => {
+  const info = detected.value;
+  if (!info.provider || !info.id) {
+    if (info.src) return info.src;
+    emit("unsupported", { url: url.value, provider: provider.value, videoId: videoId.value });
+    return "";
+  }
+  return buildEmbedSrc(info.provider, info.id, info);
+});
+
+function handleLoad(event) {
+  emit("load", {
+    provider: resolvedProvider.value,
+    videoId: detected.value.id || "",
+    src: embedSrc.value,
+    nativeEvent: event
+  });
+}
+
+function resolveVideo(sourceUrl, sourceProvider, sourceVideoId) {
+  const explicitProvider = normalizeProvider(sourceProvider);
+  if (sourceVideoId) {
+    return { provider: explicitProvider === "auto" ? "" : explicitProvider, id: sourceVideoId };
+  }
+
+  const parsed = parseUrl(sourceUrl);
+  if (!parsed) {
+    return explicitProvider && explicitProvider !== "auto"
+      ? { provider: explicitProvider, id: sourceUrl }
+      : { provider: "", id: "", src: "" };
+  }
+
+  if (explicitProvider && explicitProvider !== "auto" && explicitProvider !== "generic") {
+    return { provider: explicitProvider, id: idFromProvider(explicitProvider, parsed) || sourceUrl };
+  }
+
+  if (explicitProvider === "generic") return { provider: "generic", id: "", src: sourceUrl };
+
+  const host = parsed.hostname.replace(/^www\./, "");
+  if (host === "youtu.be" || host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+    return { provider: "youtube", id: youtubeId(parsed) };
+  }
+  if (host === "vimeo.com" || host === "player.vimeo.com") {
+    return { provider: "vimeo", id: vimeoId(parsed) };
+  }
+  if (host === "dai.ly" || host.endsWith("dailymotion.com")) {
+    return { provider: "dailymotion", id: dailymotionId(parsed) };
+  }
+  if (host.endsWith("twitch.tv")) {
+    return twitchInfo(parsed);
+  }
+  if (host.endsWith("nicovideo.jp") || host.endsWith("nico.ms")) {
+    return { provider: "niconico", id: niconicoId(parsed) };
+  }
+  if (host.endsWith("tiktok.com")) {
+    return { provider: "tiktok", id: tiktokId(parsed) };
+  }
+  if (host.endsWith("bilibili.com") || host === "b23.tv") {
+    return { provider: "bilibili", id: bilibiliId(parsed) };
+  }
+  if (host.endsWith("wistia.com") || host.endsWith("wistia.net")) {
+    return { provider: "wistia", id: wistiaId(parsed) };
+  }
+  if (parsed.pathname.includes("/embed/")) {
+    return { provider: "generic", id: "", src: sourceUrl };
+  }
+  return { provider: "", id: "", src: "" };
+}
+
+function buildEmbedSrc(sourceProvider, id, info) {
+  if (sourceProvider === "generic") return info.src || url.value;
+
+  if (sourceProvider === "youtube") {
+    const base = privacy.value ? "https://www.youtube-nocookie.com/embed/" : "https://www.youtube.com/embed/";
+    const params = createParams({
+      autoplay: autoplay.value ? "1" : "",
+      mute: muted.value ? "1" : "",
+      controls: controls.value ? "" : "0",
+      start: start.value > 0 ? start.value : "",
+      end: end.value > 0 ? end.value : "",
+      loop: loop.value ? "1" : "",
+      playlist: loop.value ? playlist.value || id : playlist.value
+    });
+    return `${base}${encodeURIComponent(id)}${params}`;
+  }
+
+  if (sourceProvider === "vimeo") {
+    const params = createParams({
+      autoplay: autoplay.value ? "1" : "",
+      muted: muted.value ? "1" : "",
+      controls: controls.value ? "" : "0",
+      loop: loop.value ? "1" : ""
+    });
+    const hash = start.value > 0 ? `#t=${Math.floor(start.value)}s` : "";
+    return `https://player.vimeo.com/video/${encodeURIComponent(id)}${params}${hash}`;
+  }
+
+  if (sourceProvider === "dailymotion") {
+    const params = createParams({
+      autoplay: autoplay.value ? "1" : "",
+      mute: muted.value ? "1" : "",
+      controls: controls.value ? "" : "0",
+      start: start.value > 0 ? start.value : "",
+      "queue-enable": playlist.value ? "1" : ""
+    });
+    return `https://www.dailymotion.com/embed/video/${encodeURIComponent(id)}${params}`;
+  }
+
+  if (sourceProvider === "twitch") {
+    const twitchParent = parent.value || currentHost();
+    const params = createParams({
+      parent: twitchParent,
+      autoplay: autoplay.value ? "true" : "false",
+      muted: muted.value ? "true" : "",
+      time: start.value > 0 ? `${Math.floor(start.value)}s` : ""
+    });
+    if (info.kind === "clip") return `https://clips.twitch.tv/embed?clip=${encodeURIComponent(id)}${params ? `&${params.slice(1)}` : ""}`;
+    if (info.kind === "video") return `https://player.twitch.tv/?video=${encodeURIComponent(id)}${params ? `&${params.slice(1)}` : ""}`;
+    return `https://player.twitch.tv/?channel=${encodeURIComponent(id)}${params ? `&${params.slice(1)}` : ""}`;
+  }
+
+  if (sourceProvider === "niconico") {
+    const params = createParams({
+      autoplay: autoplay.value ? "1" : "",
+      start: start.value > 0 ? start.value : ""
+    });
+    return `https://embed.nicovideo.jp/watch/${encodeURIComponent(id)}${params}`;
+  }
+
+  if (sourceProvider === "tiktok") {
+    return `https://www.tiktok.com/embed/v2/${encodeURIComponent(id)}`;
+  }
+
+  if (sourceProvider === "bilibili") {
+    const key = /^av\d+$/i.test(id) ? "aid" : "bvid";
+    const params = createParams({
+      [key]: id,
+      autoplay: autoplay.value ? "1" : "0",
+      muted: muted.value ? "1" : "",
+      t: start.value > 0 ? start.value : ""
+    });
+    return `https://player.bilibili.com/player.html${params}`;
+  }
+
+  if (sourceProvider === "wistia") {
+    const params = createParams({
+      videoFoam: "true",
+      autoPlay: autoplay.value ? "true" : "",
+      muted: muted.value ? "true" : ""
+    });
+    return `https://fast.wistia.net/embed/iframe/${encodeURIComponent(id)}${params}`;
+  }
+
+  return "";
+}
+
+function normalizeProvider(value) {
+  return String(value || "auto").trim().toLowerCase();
+}
+
+function parseUrl(value) {
+  if (!value) return null;
+  try {
+    return new URL(value);
+  } catch {
+    try {
+      return new URL(`https://${value}`);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function pathSegments(parsed) {
+  return parsed.pathname.split("/").filter(Boolean);
+}
+
+function idFromProvider(sourceProvider, parsed) {
+  const extractors = {
+    youtube: youtubeId,
+    vimeo: vimeoId,
+    dailymotion: dailymotionId,
+    niconico: niconicoId,
+    tiktok: tiktokId,
+    bilibili: bilibiliId,
+    wistia: wistiaId
+  };
+  return extractors[sourceProvider] ? extractors[sourceProvider](parsed) : "";
+}
+
+function youtubeId(parsed) {
+  const parts = pathSegments(parsed);
+  if (parsed.hostname.replace(/^www\./, "") === "youtu.be") return parts[0] || "";
+  if (parts[0] === "embed" || parts[0] === "shorts" || parts[0] === "live") return parts[1] || "";
+  return parsed.searchParams.get("v") || "";
+}
+
+function vimeoId(parsed) {
+  const parts = pathSegments(parsed);
+  if (parts[0] === "video") return parts[1] || "";
+  return parts.find((part) => /^\d+$/.test(part)) || "";
+}
+
+function dailymotionId(parsed) {
+  const parts = pathSegments(parsed);
+  if (parsed.hostname.replace(/^www\./, "") === "dai.ly") return parts[0] || "";
+  if (parts[0] === "embed" && parts[1] === "video") return parts[2] || "";
+  if (parts[0] === "video") return parts[1] || "";
+  return "";
+}
+
+function twitchInfo(parsed) {
+  const parts = pathSegments(parsed);
+  if (parsed.hostname === "clips.twitch.tv") return { provider: "twitch", id: parts[0] || "", kind: "clip" };
+  if (parts[0] === "videos") return { provider: "twitch", id: parts[1] || "", kind: "video" };
+  if (parts[0] === "clip") return { provider: "twitch", id: parts[1] || "", kind: "clip" };
+  return { provider: "twitch", id: parts[0] || "", kind: "channel" };
+}
+
+function niconicoId(parsed) {
+  const parts = pathSegments(parsed);
+  if (parsed.hostname.endsWith("nico.ms")) return parts[0] || "";
+  if (parts[0] === "watch") return parts[1] || "";
+  return "";
+}
+
+function tiktokId(parsed) {
+  const parts = pathSegments(parsed);
+  const videoIndex = parts.indexOf("video");
+  return videoIndex >= 0 ? parts[videoIndex + 1] || "" : "";
+}
+
+function bilibiliId(parsed) {
+  const parts = pathSegments(parsed);
+  return parts.find((part) => /^BV/i.test(part) || /^av\d+/i.test(part)) || "";
+}
+
+function wistiaId(parsed) {
+  const parts = pathSegments(parsed);
+  const iframeIndex = parts.indexOf("iframe");
+  if (iframeIndex >= 0) return parts[iframeIndex + 1] || "";
+  return parts[parts.length - 1] || "";
+}
+
+function createParams(values) {
+  const params = new URLSearchParams();
+  Object.entries(values).forEach(([key, value]) => {
+    if (value === "" || value === false || value === null || value === undefined) return;
+    params.set(key, String(value));
+  });
+  const serialized = params.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
+function currentHost() {
+  if (typeof window !== "undefined" && window.location && window.location.hostname) {
+    return window.location.hostname;
+  }
+  return "localhost";
+}
+
+function formatSize(value) {
+  return typeof value === "number" ? `${value}px` : value;
+}
+
+function providerLabel(value) {
+  const labels = {
+    youtube: "YouTube",
+    vimeo: "Vimeo",
+    dailymotion: "Dailymotion",
+    twitch: "Twitch",
+    niconico: "Niconico",
+    tiktok: "TikTok",
+    bilibili: "Bilibili",
+    wistia: "Wistia",
+    generic: "Embedded video"
+  };
+  return labels[value] || "Embedded video";
+}
+</script>
+
+<style scoped>
+.mikuru-embed-player {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  color: #0f172a;
+  font: inherit;
+}
+
+.embed-frame {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 160px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #020617;
+}
+
+.embed-iframe,
+.embed-empty {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.embed-iframe {
+  border: 0;
+  background: #020617;
+}
+
+.embed-empty {
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  padding: 18px;
+  color: #e2e8f0;
+  text-align: center;
+}
+
+.embed-empty strong {
+  color: #ffffff;
+  font-size: 0.98rem;
+}
+
+.embed-empty span {
+  max-width: 34rem;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.embed-caption {
+  display: grid;
+  gap: 2px;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.embed-caption strong {
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+</style>

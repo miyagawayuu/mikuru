@@ -1,0 +1,91 @@
+<template>
+  <label class="mikuru-input-otp">
+    <span>{{ label }}</span>
+    <input
+      inputmode="numeric"
+      autocomplete="one-time-code"
+      :maxlength="length"
+      :value="modelValue"
+      :placeholder="placeholder"
+      :disabled="disabled"
+      @input="updateValue($event)"
+    />
+    <span class="otp-slots" aria-hidden="true">
+      <span m-for="slot in slots" :key="slot.index" :data-filled="slot.value ? 'true' : 'false'">{{ slot.value }}</span>
+    </span>
+  </label>
+</template>
+
+<script>
+import { computed } from "mikuru";
+
+const {
+  label = "One-time code",
+  modelValue = "",
+  length = 6,
+  disabled = false
+} = defineProps({
+  label: String,
+  modelValue: String,
+  length: Number,
+  disabled: Boolean
+});
+
+const emit = defineEmits(["update:modelValue", "input", "complete"]);
+const placeholder = computed(() => "0".repeat(length.value));
+const slots = computed(() => {
+  return Array.from({ length: length.value }, (_, index) => ({
+    index,
+    value: modelValue.value[index] || ""
+  }));
+});
+
+function updateValue(event) {
+  const nextValue = event.target.value.replace(/\D/g, "").slice(0, length.value);
+  emit("update:modelValue", nextValue);
+  emit("input", nextValue);
+  if (nextValue.length === length.value) emit("complete", nextValue);
+}
+</script>
+
+<style scoped>
+.mikuru-input-otp {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  font: inherit;
+}
+
+.mikuru-input-otp > span:first-child {
+  font-weight: 650;
+}
+
+input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.otp-slots {
+  display: flex;
+  gap: 8px;
+}
+
+.otp-slots span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #111827;
+  background: #ffffff;
+  font-weight: 800;
+}
+
+.otp-slots span[data-filled="true"] {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+</style>

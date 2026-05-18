@@ -1,0 +1,80 @@
+<template>
+  <section class="mikuru-filter-bar" :aria-label="label">
+    <MikuruSearchInput
+      :label="searchLabel"
+      :modelValue="search"
+      :placeholder="searchPlaceholder"
+      @input="setSearch"
+      @submit="submitSearch"
+      @clear="clearSearch"
+    />
+    <div class="filter-actions">
+      <MikuruChip
+        m-for="filter in filters"
+        :key="filter.value"
+        :label="filter.label"
+        :tone="filter.value === activeFilter ? 'info' : 'neutral'"
+        @click="selectFilter(filter)"
+      />
+      <slot></slot>
+    </div>
+  </section>
+</template>
+
+<script>
+import MikuruChip from "./MikuruChip.mikuru";
+import MikuruSearchInput from "./MikuruSearchInput.mikuru";
+
+const {
+  label = "Filter bar",
+  search = "",
+  searchLabel = "Search",
+  searchPlaceholder = "Search...",
+  filters = [],
+  activeFilter = ""
+} = defineProps({
+  label: String,
+  search: String,
+  searchLabel: String,
+  searchPlaceholder: String,
+  filters: Array,
+  activeFilter: String
+});
+
+const emit = defineEmits(["update:search", "search", "filter", "clear"]);
+
+function setSearch(value) {
+  emit("update:search", value);
+  emit("search", value);
+}
+
+function submitSearch(value) {
+  emit("search", value);
+}
+
+function clearSearch() {
+  emit("update:search", "");
+  emit("clear");
+}
+
+function selectFilter(filter) {
+  emit("filter", filter.value, filter);
+}
+</script>
+
+<style scoped>
+.mikuru-filter-bar {
+  display: grid;
+  gap: 10px;
+}
+
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+:deep(.mikuru-chip) {
+  cursor: pointer;
+}
+</style>
