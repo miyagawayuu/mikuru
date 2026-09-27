@@ -1,4 +1,4 @@
-import type { ElementNode, TemplateAttribute, TemplateNode } from "./types.js";
+import type { ElementNode, TemplateAttribute, TemplateNode, TemplateRoot } from "./types.js";
 import { emitDebugDiagnostic } from "../runtime/devtools.js";
 
 type CompatDirectiveDiagnosticOptions = {
@@ -7,12 +7,12 @@ type CompatDirectiveDiagnosticOptions = {
   phase: string;
 };
 
-export function emitCompatDirectiveDiagnostics(ast: ElementNode, options: CompatDirectiveDiagnosticOptions): void {
+export function emitCompatDirectiveDiagnostics(ast: TemplateRoot, options: CompatDirectiveDiagnosticOptions): void {
   if (options.debug !== true) {
     return;
   }
 
-  walkElement(ast, (node) => {
+  const visit = (node: ElementNode) => {
     for (const attr of node.attrs) {
       if (!isLegacyDirectiveAttr(attr)) {
         continue;
@@ -34,7 +34,9 @@ export function emitCompatDirectiveDiagnostics(ast: ElementNode, options: Compat
         }
       );
     }
-  });
+  };
+  if (ast.type === "fragment") ast.children.forEach((node) => { if (node.type === "element") walkElement(node, visit); });
+  else walkElement(ast, visit);
 }
 
 function walkElement(node: ElementNode, visit: (node: ElementNode) => void): void {

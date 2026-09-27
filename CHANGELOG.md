@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 1.0.41 - 2026-10-24
+
+- Rejected inline event handler attributes and malformed attribute names in DOM bindings and SSR, and blocked prototype-changing DOM property bindings. Use event directives for event listeners.
+- Preserved prototype-like router query keys as own data properties without changing the query object's prototype or including inherited values.
+- Updated Happy DOM, Vite, Vitest, and transitive dependencies to address the six dependency audit findings.
+- Restricted embed player iframe URLs to HTTP(S), and limited WYSIWYG HTML to allowed formatting elements, attributes, and safe links.
+- Preserved less-than signs in template text and comparison expressions, and included automatic fallthrough attributes on compiled plain-element roots in initial SSR HTML.
+- Kept hydrated child component props, object bindings/listeners, and fallthrough attributes reactive after SSR node reuse, including keyed and dynamic children.
+- Preserved hydrated keyed list rows and template fragments across source updates, including `TransitionGroup` changes, with cleanup limited to removed keys.
+- Stabilized hydrated conditional and list ranges with internal DOM boundaries, cleaned up initial unkeyed list rows before replacement, and applied Transition enter/leave classes and out-in mode after hydration.
+- Kept hydrated `m-if` chains reactive after the initial SSR DOM is reused, including fragment and Transition child branches, with branch-owned cleanup on switches.
+- Applied `batchedUpdates` to generated hydration effects so hydrated components use the same queued update mode as mounted components.
+- Updated the public documentation to match the implemented SSR, hydration, and `m-html` surface.
+
 ## 1.0.40 - 2026-05-18
 
 - Added package-exported `MikuruForm`, `MikuruField`, `MikuruFormMessage`, `MikuruPasswordInput`, `MikuruNumberInput`, `MikuruInputOtp`, `MikuruComboboxMulti`, `MikuruFilterBar`, `MikuruDataToolbar`, and `MikuruVirtualList` components with typed exports and dogfood coverage.

@@ -13,8 +13,9 @@ Mikuru v1 is usable for experiments, demos, and small app validation. Before ado
 
 ## Parser Limits
 
-- A template must have exactly one root element.
-- The parser supports an HTML-like subset, not the full HTML parsing algorithm.
+- Templates may have multiple or empty roots. Fragment roots use comment boundaries in SSR and hydration; `element` points to the first current node or the start boundary when empty.
+- Child component display, transitions, dynamic switching, KeepAlive caching, and RouterView placement use the full fragment range. CSS visibility and transition classes apply to direct element roots; text and comment roots remain in the range.
+- Template HTML uses fragment parsing and browser tree-building repairs, including implicit closing tags and `<tbody>`. Debug builds report repairs. Literal `<` in ordinary text and comparisons inside interpolation remain text or expressions.
 - `m-for` supports `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
 - `m-html` renders raw HTML and should only receive trusted or sanitized content.
 - Unsupported constructs should fail at compile time instead of being ignored.
@@ -22,7 +23,7 @@ Mikuru v1 is usable for experiments, demos, and small app validation. Before ado
 ## Performance Envelope
 
 - v1 favors correctness over fine-grained diffing.
-- `m-for` refreshes the rendered range when no key is provided. With `:key` / `m-bind:key`, generated code reuses keyed DOM records and cleans up removed keys.
+- Unkeyed `m-for` retains rows by position, updates their item/index references, and creates or cleans up only changed tail rows, including after hydration. Use `:key` / `m-bind:key` when rows must retain identity across reorders.
 - CI includes a medium-list performance smoke test to catch pathological regressions, not to guarantee production latency.
 
 ## Package Usage

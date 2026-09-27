@@ -85,12 +85,21 @@ const allowText = computed(() => {
 const embedSrc = computed(() => {
   const info = detected.value;
   if (!info.provider || !info.id) {
-    if (info.src) return info.src;
+    if (info.src) return safeEmbedUrl(info.src);
     emit("unsupported", { url: url.value, provider: provider.value, videoId: videoId.value });
     return "";
   }
-  return buildEmbedSrc(info.provider, info.id, info);
+  return safeEmbedUrl(buildEmbedSrc(info.provider, info.id, info));
 });
+
+function safeEmbedUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
+}
 
 function handleLoad(event) {
   emit("load", {

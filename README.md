@@ -136,7 +136,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 
 ## Supported v1 Surface
 
-- `.mikuru` SFCs with `<template>`, `<script>`, and `<style>`
+- `.mikuru` SFCs with `<template>`, optional TypeScript `<script lang="ts">`, and `<style>`; templates may have multiple or empty roots
 - Vite plugin support through `mikuru/vite`
 - Template interpolation with `{{ value }}`
 - DOM events with `@click`, `m-on:click`, inline handlers, object-form option modifiers, `.prevent`, `.stop`, `.self`, `.once`, `.capture`, `.passive`, key, mouse button, system, and `.exact` modifiers
@@ -145,7 +145,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - `m-if`, `m-else-if`, `m-else`, `m-show`, `m-for`, `m-html`, `m-text`, `m-pre`, `m-cloak`, `m-once`, and `m-memo`
 - `m-model` for common form controls, checkbox arrays, radio groups, multiple selects, modifiers, and named child component models
 - `v-*` directive spellings remain available as compatibility aliases for existing components and Vue-oriented migrations
-- Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, dynamic `<component :is>`, `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
+- Component props, events, DOM attribute fallthrough, `useAttrs`, template refs, dynamic `<component :is>`, typed and runtime-validated `defineProps`, `defineEmits`, default slots, named/dynamic slots, and slot props with simple defaults
 - CSS class transitions with built-in `<Transition name="fade">`, `m-if` chains, dynamic components, class overrides, `appear`, `mode="out-in"`, and `<TransitionGroup>` for keyed lists
 - Built-in `<Teleport to="#target">` for rendering content outside the current DOM position
 - Built-in `<AsyncBoundary :loading :fallback :delay :timeout>` for grouped async loading, delayed loading UI, boundary timeouts, and retryable async failures with aggregated fallback errors
@@ -154,7 +154,7 @@ declare const Greeting: MikuruComponent<GreetingProps>;
 - Runtime helpers including `ref`, `isRef`, `unref`, `toRef`, `toRefs`, `reactive`, `readonly`, lazy cached read-only and writable `computed`, `effect` with optional scheduling, `queueJob`/`flushJobs`, `watch`, `watchEffect` with cleanup callbacks, `nextTick`, lifecycle callbacks including KeepAlive activation hooks, `provide`, `inject`, and `defineAsyncComponent` with ErrorBoundary handoff and SSR loader resolution
 - Routing through `mikuru/router` with route matching, history/hash/memory histories, guards, router context helpers, and `RouterView` / `RouterLink` across mount, SSR, and hydration
 - SSR through `compileSsr()` and `mikuru/server`, covering escaped text, static and bound attributes, content directives, `m-pre`, `m-cloak`, `m-if` chains, `m-for`, async child components, props, named/default slots, scoped slot props, component tree context, Teleport collection, string and async iterable stream rendering, and router route rendering with context propagation
-- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `m-show`, DOM and component `m-model`, `m-pre`, `m-cloak`, initial `m-if` / `m-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
+- Hydration through `compileHydration()` and `hydrateRoute()`, reusing existing SSR DOM while attaching events, syncing text/attributes, recovering structural mismatches with an opt-out remount fallback, hydrating component context/lifecycle hooks, `m-show`, DOM and component `m-model`, `m-pre`, `m-cloak`, reactive `m-if` branches and `m-for` DOM, Teleport target and disabled inline content, delegating child and route components to `hydrate()` when available, and optionally starting router history listening after route hydration
 - Style injection and `<style scoped>` selector rewriting for common selectors, native CSS nesting, `:global(...)`, `:deep(...)`, nested at-rules, and malformed CSS diagnostics
 - Vite-routed component CSS for CSS Modules with `<style module>`, preprocessor languages such as `<style lang="scss">`, and project-level CSS transforms such as PostCSS when using `mikuru/vite`
 - Content-keyed Vite style requests so `.mikuru` scoped CSS updates reload reliably during development instead of reusing stale virtual style modules
@@ -198,6 +198,8 @@ import type { MikuruAsyncBoundaryFallbackProps, MikuruErrorBoundaryFallbackProps
 ```
 
 `compileStyle()` returns scoped CSS code plus non-throwing diagnostics. Malformed scoped CSS diagnostics include `offset`, `line`, `column`, and a one-line `frame`, and debug builds emit the same fields in `compiler:warning` style diagnostic events.
+
+`parseTemplate()` returns an element AST for a single element root and a fragment AST otherwise. Integrations that inspect `.tag` or `.attrs` should narrow on `ast.type === "element"`; fragment ASTs expose `children`. Generated component instances expose `roots` and a live `element` getter for fragment roots. Unkeyed lists reuse rows by position, while keyed lists follow item keys across reorders.
 
 The package also provides the `mikuru` binary:
 

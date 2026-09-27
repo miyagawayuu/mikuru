@@ -4,10 +4,235 @@ import { describe, expect, it, vi } from "vitest";
 import { compileHydration, compileSsr } from "../src/compiler/index.js";
 import { createMemoryHistory, createRouter, RouterLink, RouterView } from "../src/router/index.js";
 import type { RouterHistory } from "../src/router/index.js";
-import { defineAsyncComponent, effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap } from "../src/runtime/index.js";
+import { createDebugDiagnostic, defineAsyncComponent, effect, emitDebugEvent, inject, nextTick, onMounted, onUnmounted, provide, queueJob, ref, registerDebugComponent, setAttribute, unwrap } from "../src/runtime/index.js";
 import { escapeHtml, hydrateRoute, renderAttr, renderAttrs, renderComponentToString, renderRouteToString, renderToStream } from "../src/server.js";
 
 describe("hydration compiler", () => {
+  it("reuses multiple SSR roots and exposes the live fragment range", async () => {
+    const source = `<template><p>{{ label }}</p><button @click="change">Change</button></template><script>const label = ref("one"); function change() { label.value = "two"; }</script>`;
+    const render = loadSsrRender(compileSsr(source).code);
+    const component = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const container = window.document.createElement("div");
+    container.innerHTML = await render();
+    const paragraph = container.querySelector("p");
+    const button = container.querySelector("button");
+    const instance = component.hydrate(container as unknown as Element);
+    expect(instance.element).toBe(paragraph);
+    expect(instance.roots).toEqual([paragraph, button]);
+    button?.dispatchEvent(new window.Event("click"));
+    expect(paragraph?.textContent).toBe("two");
+    instance.unmount();
+    expect(container.childNodes).toHaveLength(0);
+  });
+
+  it("uses the start boundary as element for an empty fragment", async () => {
+    const source = `<template></template>`;
+    const render = loadSsrRender(compileSsr(source).code);
+    expect(await render()).toBe("<!--mikuru-fragment--><!--/mikuru-fragment-->");
+    const window = new Window();
+    const container = window.document.createElement("div");
+    container.innerHTML = await render();
+    const instance = loadHydrationModule(compileHydration(source).code).hydrate(container as unknown as Element);
+    expect(instance.roots).toEqual([]);
+    expect(instance.element).toBe(container.firstChild);
+    instance.unmount();
+    expect(container.childNodes).toHaveLength(0);
+  });
+
+  it("matches repaired table structure and decoded HTML entities", async () => {
+    const source = `<template><table data-note="Tom &amp; Jerry"><tr><td>Fish &amp; Chips</td></tr></table></template>`;
+    const html = await loadSsrRender(compileSsr(source).code)();
+    expect(html).toBe('<table data-note="Tom &amp; Jerry"><tbody><tr><td>Fish &amp; Chips</td></tr></tbody></table>');
+    const window = new Window();
+    const container = window.document.createElement("div");
+    container.innerHTML = html;
+    const table = container.querySelector("table");
+    const row = container.querySelector("tr");
+    const instance = loadHydrationModule(compileHydration(source).code).hydrate(container as unknown as Element);
+    expect(instance.element).toBe(table);
+    expect(container.querySelector("tr")).toBe(row);
+    expect(table?.getAttribute("data-note")).toBe("Tom & Jerry");
+    instance.unmount();
+  });
+
+  it("hydrates a fragment child without shifting following siblings", async () => {
+    const childSource = `<template><p>first</p><span>second</span></template>`;
+    const parentSource = `<template><section><Child /><footer>tail</footer></section></template><script>const Child = globalThis.__mikuruFragmentChild;</script>`;
+    const window = new Window();
+    const childModule = loadHydrationModule(compileHydration(childSource).code, window.document as unknown as Document);
+    const childRender = loadSsrRender(compileSsr(childSource).code);
+    const previous = (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild;
+    (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild = { ...childModule, renderToString: childRender };
+    try {
+      const container = window.document.createElement("div");
+      container.innerHTML = await loadSsrRender(compileSsr(parentSource).code)();
+      const paragraph = container.querySelector("p");
+      const span = container.querySelector("span");
+      const footer = container.querySelector("footer");
+      const instance = loadHydrationModule(compileHydration(parentSource).code, window.document as unknown as Document).hydrate(container as unknown as Element);
+      expect(container.querySelector("p")).toBe(paragraph);
+      expect(container.querySelector("span")).toBe(span);
+      expect(container.querySelector("footer")).toBe(footer);
+      instance.unmount();
+    } finally {
+      if (previous === undefined) delete (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild;
+      else (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild = previous;
+    }
+  });
+
+  it("keeps hydrated fragment roots through KeepAlive switches and m-show", async () => {
+    const window = new Window();
+    const aSource = `<template><p style="display: inline">A</p><span>A2</span></template>`;
+    const bSource = `<template><p>B</p><span>B2</span></template>`;
+    const parentSource = `<template><section><button @click="swap">Swap</button><button @click="toggle">Toggle</button><KeepAlive><component :is="current" m-show="visible" /></KeepAlive><footer>tail</footer></section></template><script>const A = globalThis.__mikuruFragmentA; const B = globalThis.__mikuruFragmentB; const current = ref(A); const visible = ref(true); function swap() { current.value = current.value === A ? B : A; } function toggle() { visible.value = !visible.value; }</script>`;
+    const a = { ...loadHydrationModule(compileHydration(aSource).code, window.document as unknown as Document), renderToString: loadSsrRender(compileSsr(aSource).code) };
+    const b = { ...loadHydrationModule(compileHydration(bSource).code, window.document as unknown as Document), renderToString: loadSsrRender(compileSsr(bSource).code) };
+    const global = globalThis as { __mikuruFragmentA?: unknown; __mikuruFragmentB?: unknown };
+    const previousA = global.__mikuruFragmentA;
+    const previousB = global.__mikuruFragmentB;
+    global.__mikuruFragmentA = a;
+    global.__mikuruFragmentB = b;
+    try {
+      const container = window.document.createElement("div");
+      container.innerHTML = await loadSsrRender(compileSsr(parentSource).code)();
+      const original = [...container.querySelectorAll("p, span")];
+      const footer = container.querySelector("footer");
+      const instance = loadHydrationModule(compileHydration(parentSource).code, window.document as unknown as Document).hydrate(container as unknown as Element);
+      const [swap, toggle] = container.querySelectorAll("button");
+      expect([...container.querySelectorAll("p, span")]).toEqual(original);
+      toggle?.dispatchEvent(new window.Event("click"));
+      expect(original.map((node) => (node as unknown as HTMLElement).style.display)).toEqual(["none", "none"]);
+      swap?.dispatchEvent(new window.Event("click"));
+      expect([...container.querySelectorAll("p, span")].map((node) => node.textContent)).toEqual(["B", "B2"]);
+      toggle?.dispatchEvent(new window.Event("click"));
+      swap?.dispatchEvent(new window.Event("click"));
+      expect([...container.querySelectorAll("p, span")]).toEqual(original);
+      expect((original[0] as unknown as HTMLElement).style.display).toBe("inline");
+      expect((original[1] as unknown as HTMLElement).style.display).toBe("");
+      expect(container.querySelector("footer")).toBe(footer);
+      instance.unmount();
+    } finally {
+      if (previousA === undefined) delete global.__mikuruFragmentA;
+      else global.__mikuruFragmentA = previousA;
+      if (previousB === undefined) delete global.__mikuruFragmentB;
+      else global.__mikuruFragmentB = previousB;
+    }
+  });
+
+  it("moves all roots of retained keyed fragment children together", async () => {
+    const childSource = `<template><p>{{ label }}</p><span>!</span></template><script>const { label } = defineProps();</script>`;
+    const parentSource = `<template><section><Child m-for="item in items" :key="item" :label="item" /><button @click="reverse">Reverse</button></section></template><script>const Child = globalThis.__mikuruFragmentChild; const items = ref(["a", "b"]); function reverse() { items.value = [...items.value].reverse(); }</script>`;
+    const window = new Window();
+    const childModule = loadHydrationModule(compileHydration(childSource).code, window.document as unknown as Document);
+    const childRender = loadSsrRender(compileSsr(childSource).code);
+    const previous = (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild;
+    (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild = { ...childModule, renderToString: childRender };
+    try {
+      const container = window.document.createElement("div");
+      container.innerHTML = await loadSsrRender(compileSsr(parentSource).code)();
+      const paragraphs = [...container.querySelectorAll("p")];
+      const instance = loadHydrationModule(compileHydration(parentSource).code, window.document as unknown as Document).hydrate(container as unknown as Element);
+      container.querySelector("button")?.dispatchEvent(new window.Event("click"));
+      expect([...container.querySelectorAll("p")]).toEqual([paragraphs[1], paragraphs[0]]);
+      expect(container.querySelector("section")?.textContent).toBe("b!a!Reverse");
+      instance.unmount();
+    } finally {
+      if (previous === undefined) delete (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild;
+      else (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild = previous;
+    }
+  });
+
+  it("recovers a mismatched fragment child and keeps its sibling", async () => {
+    const childSource = `<template><p>first</p><span>second</span></template>`;
+    const parentSource = `<template><section><Child /><footer>tail</footer></section></template><script>const Child = globalThis.__mikuruFragmentChild;</script>`;
+    const window = new Window();
+    const childModule = loadHydrationModule(compileHydration(childSource).code, window.document as unknown as Document);
+    const childRender = loadSsrRender(compileSsr(childSource).code);
+    const previous = (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild;
+    (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild = { ...childModule, renderToString: childRender };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const container = window.document.createElement("div");
+      container.innerHTML = await loadSsrRender(compileSsr(parentSource).code)();
+      container.querySelector("p")?.replaceWith(window.document.createElement("div"));
+      const footer = container.querySelector("footer");
+      const instance = loadHydrationModule(compileHydration(parentSource).code, window.document as unknown as Document).hydrate(container as unknown as Element);
+      expect(container.querySelector("p")?.textContent).toBe("first");
+      expect(container.querySelector("span")?.textContent).toBe("second");
+      expect(container.querySelector("footer")).toBe(footer);
+      instance.unmount();
+    } finally {
+      warn.mockRestore();
+      if (previous === undefined) delete (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild;
+      else (globalThis as { __mikuruFragmentChild?: unknown }).__mikuruFragmentChild = previous;
+    }
+  });
+
+  it("keeps unkeyed hydrated rows at their positions across updates", async () => {
+    const source = `<template><section><button @click="replace">Replace</button><button @click="shrink">Shrink</button><ul><li m-for="(item, index) in items">{{ index }}:{{ item }}</li></ul></section></template><script>const items = ref(["a", "b"]); function replace() { items.value = ["c", "d", "e"]; } function shrink() { items.value = ["z"]; }</script>`;
+    const render = loadSsrRender(compileSsr(source).code);
+    const component = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const container = window.document.createElement("div");
+    container.innerHTML = await render();
+    const first = container.querySelectorAll("li")[0];
+    const second = container.querySelectorAll("li")[1];
+    const instance = component.hydrate(container as unknown as Element);
+    expect(instance.element).toBe(container.querySelector("section"));
+    container.querySelectorAll("button")[0]?.dispatchEvent(new window.Event("click"));
+    expect(container.querySelectorAll("li")).toHaveLength(3);
+    expect(container.querySelectorAll("li")[0]).toBe(first);
+    expect(container.querySelectorAll("li")[1]).toBe(second);
+    expect(first?.textContent).toBe("0:c");
+    container.querySelectorAll("button")[1]?.dispatchEvent(new window.Event("click"));
+    expect(container.querySelectorAll("li")).toHaveLength(1);
+    expect(container.querySelector("li")).toBe(first);
+    expect(first?.textContent).toBe("0:z");
+    instance.unmount();
+  });
+
+  it("reads typed nested and rest props after hydration updates", async () => {
+    const source = `<template><p>{{ name }}:{{ rest.title }}</p></template><script lang="ts">const { user: { name }, ...rest } = defineProps<{ user: { name: string }; title: string }>();</script>`;
+    const render = loadSsrRender(compileSsr(source).code);
+    const component = loadHydrationModule(compileHydration(source, { templateTypeCheck: true }).code);
+    const window = new Window();
+    const container = window.document.createElement("div");
+    container.innerHTML = await render({ user: { name: "Ada" }, title: "first" });
+    const paragraph = container.querySelector("p");
+    const state = ref({ user: { name: "Ada" }, title: "first" });
+    const props = { get user() { return state.value.user; }, get title() { return state.value.title; } };
+    const instance = component.hydrate(container as unknown as Element, props);
+    state.value = { user: { name: "Grace" }, title: "second" };
+    expect(paragraph?.textContent).toBe("Grace:second");
+    expect(container.querySelector("p")).toBe(paragraph);
+    instance.unmount();
+  });
+
+  it("applies runtime prop defaults per instance and warns in debug mode", () => {
+    const source = `<template><p>{{ title }}:{{ detail.id }}</p></template><script>const { title, detail } = defineProps({ title: { type: String, required: true, default: "Untitled", validator: (value) => value.length > 0 }, detail: { type: Object, default: () => ({ id: ++globalThis.__mikuruDefaultId }) } });</script>`;
+    const component = loadHydrationModule(compileHydration(source, { debug: true }).code);
+    const window = new Window();
+    const first = window.document.createElement("div");
+    const second = window.document.createElement("div");
+    const previous = (globalThis as { __mikuruDefaultId?: number }).__mikuruDefaultId;
+    (globalThis as { __mikuruDefaultId?: number }).__mikuruDefaultId = 0;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const firstInstance = component.mount(first as unknown as Element);
+      const secondInstance = component.mount(second as unknown as Element);
+      expect(first.querySelector("p")?.textContent).toBe("Untitled:1");
+      expect(second.querySelector("p")?.textContent).toBe("Untitled:2");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("title is required"));
+      firstInstance.unmount();
+      secondInstance.unmount();
+    } finally {
+      warn.mockRestore();
+      if (previous === undefined) delete (globalThis as { __mikuruDefaultId?: number }).__mikuruDefaultId;
+      else (globalThis as { __mikuruDefaultId?: number }).__mikuruDefaultId = previous;
+    }
+  });
+
   it("reuses SSR DOM, attaches events, and syncs text and attributes", async () => {
     const source = `<template>
   <section class="card" :data-count="count">
@@ -42,6 +267,24 @@ function increment() {
     instance.unmount();
     root.querySelector("button")?.dispatchEvent(new window.Event("click"));
     expect(root.innerHTML).toBe('<section class="card" data-count="2"><button>Count: 2</button></section>');
+  });
+
+  it("hydrates text containing comparisons and literal less-than signs", async () => {
+    const source = `<template><section><p>{{ left<right ? "lower" : "higher" }} and 1 < 2</p><button @click="advance">Advance</button></section></template>
+      <script>const left = ref(1); const right = 2; function advance() { left.value = 3; }</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const paragraph = root.querySelector("p");
+    expect(paragraph?.textContent).toBe("lower and 1 < 2");
+
+    const instance = module.hydrate(root as unknown as Element);
+    expect(root.querySelector("p")).toBe(paragraph);
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(paragraph?.textContent).toBe("higher and 1 < 2");
+    instance.unmount();
   });
 
   it("hydrates DOM event modifiers and object-form listener options", async () => {
@@ -413,7 +656,7 @@ const items = ["one", "two"];
     const instance = module.hydrate(root as unknown as Element);
 
     expect(instance.element).toBe(section);
-    expect(root.innerHTML).toBe('<section><p>Ready</p><ul><li data-index="0">one</li><li data-index="1">two</li></ul></section>');
+    expect(root.innerHTML).toBe('<section><!--if--><p>Ready</p><!--/if--><ul><!--for--><li data-index="0">one</li><li data-index="1">two</li><!--/for--></ul></section>');
   });
 
   it("hydrates template v-if branches as fragments", async () => {
@@ -453,10 +696,10 @@ function loadMore() {
 
     expect(instance.element).toBe(section);
     expect(root.querySelector("template")).toBeNull();
-    expect(root.innerHTML).toBe('<section><p>Items</p><button>Load more 1</button><span data-sentinel="list">sentinel</span></section>');
+    expect(root.innerHTML).toBe('<section><!--if--><p>Items</p><button>Load more 1</button><span data-sentinel="list">sentinel</span><!--/if--></section>');
     root.querySelector("button")?.dispatchEvent(new window.Event("click"));
     await Promise.resolve();
-    expect(root.innerHTML).toBe('<section><p>Items</p><button>Load more 2</button><span data-sentinel="list">sentinel</span></section>');
+    expect(root.innerHTML).toBe('<section><!--if--><p>Items</p><button>Load more 2</button><span data-sentinel="list">sentinel</span><!--/if--></section>');
   });
 
   it("hydrates template v-for rows as fragments", async () => {
@@ -492,10 +735,541 @@ function select(id) {
 
     expect(instance.element).toBe(section);
     expect(root.querySelector("template")).toBeNull();
-    expect(root.innerHTML).toBe('<section><p data-row="a">0:Alpha</p><button>Select a</button><span data-sentinel="a">sentinel a</span><p data-row="b">1:Beta</p><button>Select b</button><span data-sentinel="b">sentinel b</span><output>none</output></section>');
+    expect(root.innerHTML).toBe('<section><!--for--><!--for item--><p data-row="a">0:Alpha</p><button>Select a</button><span data-sentinel="a">sentinel a</span><!--/for item--><!--for item--><p data-row="b">1:Beta</p><button>Select b</button><span data-sentinel="b">sentinel b</span><!--/for item--><!--/for--><output>none</output></section>');
     root.querySelector("button")?.dispatchEvent(new window.Event("click"));
     await Promise.resolve();
     expect(root.querySelector("output")?.textContent).toBe("a");
+  });
+
+  it("reuses keyed SSR elements across reorder, replacement, addition, and removal", async () => {
+    const source = `<template><section>
+      <header>before</header>
+      <button m-for="(item, index) in items" :key="item.id" :data-row="item.id" :data-tick="tick" @click="select(item.id)">{{ index }}:{{ item.label }}</button>
+      <footer>after</footer><button data-action="reorder" @click="reorder">Reorder</button>
+      <button data-action="replace" @click="replace">Replace</button><button data-action="add" @click="add">Add</button>
+      <button data-action="remove" @click="remove">Remove</button><button data-action="bump" @click="bump">Bump</button><output>{{ selected }}</output>
+    </section></template><script>
+      const items = ref([{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }]);
+      const selected = ref("none");
+      const tick = ref(0);
+      function select(id) { selected.value = id; }
+      function reorder() { items.value = [items.value[1], items.value[0]]; }
+      function replace() { items.value = items.value.map(item => item.id === "b" ? { id: "b", label: "Bee" } : item); }
+      function add() { items.value = [...items.value, { id: "c", label: "Gamma" }]; }
+      function remove() { items.value = items.value.filter(item => item.id !== "b"); }
+      function bump() { tick.value += 1; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const a = root.querySelector("[data-row='a']");
+    const b = root.querySelector("[data-row='b']");
+    const header = root.querySelector("header");
+    const footer = root.querySelector("footer");
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("[data-row='a']")).toBe(a);
+    root.querySelector("[data-action='reorder']")?.dispatchEvent(new window.Event("click"));
+    expect(Array.from(root.querySelectorAll("[data-row]")).map(node => node.getAttribute("data-row"))).toEqual(["b", "a"]);
+    expect(root.querySelector("[data-row='a']")).toBe(a);
+    expect(root.querySelector("[data-row='b']")).toBe(b);
+    expect(a?.textContent).toBe("1:Alpha");
+    root.querySelector("[data-action='replace']")?.dispatchEvent(new window.Event("click"));
+    expect(b?.textContent).toBe("0:Bee");
+    root.querySelector("[data-action='add']")?.dispatchEvent(new window.Event("click"));
+    expect(Array.from(root.querySelectorAll("[data-row]")).map(node => node.getAttribute("data-row"))).toEqual(["b", "a", "c"]);
+    root.querySelector("[data-action='remove']")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("[data-row='b']")).toBeNull();
+    b?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("output")?.textContent).toBe("none");
+    root.querySelector("[data-action='bump']")?.dispatchEvent(new window.Event("click"));
+    expect(b?.getAttribute("data-tick")).toBe("0");
+    expect(a?.getAttribute("data-tick")).toBe("1");
+    a?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("output")?.textContent).toBe("a");
+    expect(root.querySelector("header")).toBe(header);
+    expect(root.querySelector("footer")).toBe(footer);
+    instance.unmount();
+  });
+
+  it("moves hydrated keyed template fragments without replacing their nodes", async () => {
+    const source = `<template><section><header>before</header>
+      <template m-for="(item, index) in items" :key="item.id">
+        <h2 :data-row="item.id">{{ index }}:{{ item.label }}</h2><span :data-tail="item.id">tail</span>
+      </template>
+      <footer>after</footer><button @click="update">Update</button>
+    </section></template><script>
+      const items = ref([{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }]);
+      function update() { items.value = [{ id: "b", label: "Bee" }, { id: "c", label: "Gamma" }, { id: "a", label: "Alpha" }]; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const a = root.querySelector("[data-row='a']");
+    const aTail = root.querySelector("[data-tail='a']");
+    const b = root.querySelector("[data-row='b']");
+    const bTail = root.querySelector("[data-tail='b']");
+    const footer = root.querySelector("footer");
+    const instance = module.hydrate(root as unknown as Element);
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(Array.from(root.querySelectorAll("h2")).map(node => node.textContent)).toEqual(["0:Bee", "1:Gamma", "2:Alpha"]);
+    expect(root.querySelector("[data-row='a']")).toBe(a);
+    expect(root.querySelector("[data-tail='a']")).toBe(aTail);
+    expect(root.querySelector("[data-row='b']")).toBe(b);
+    expect(root.querySelector("[data-tail='b']")).toBe(bTail);
+    expect(root.querySelector("footer")).toBe(footer);
+    expect(root.querySelector("footer")?.previousElementSibling).toBe(aTail);
+    instance.unmount();
+  });
+
+  it("cleans up removed keyed components once while retaining reordered instances", async () => {
+    const source = `<template><section>
+      <Child m-for="item in items" :key="item" :label="item" />
+      <button data-action="reorder" @click="reorder">Reorder</button>
+      <button data-action="remove" @click="remove">Remove</button>
+      <button data-action="add" @click="add">Add</button>
+    </section></template><script>
+      const items = ref(["a", "b"]);
+      const Child = {
+        renderToString(props) { return '<p data-row="' + props.label + '">' + props.label + '</p>'; },
+        hydrate(target, props) { return { element: target, unmount() { globalThis.__mikuruKeyedUnmounts.push(props.label); } }; },
+        mount(target, props) {
+          const element = document.createElement("p");
+          element.setAttribute("data-row", props.label);
+          element.textContent = props.label;
+          target.appendChild(element);
+          return { element, unmount() { globalThis.__mikuruKeyedUnmounts.push(props.label); element.remove(); } };
+        }
+      };
+      function reorder() { items.value = [items.value[1], items.value[0]]; }
+      function remove() { items.value = items.value.filter(item => item !== "a"); }
+      function add() { items.value = [...items.value, "c"]; }
+    </script>`;
+    const unmounts: string[] = [];
+    (globalThis as { __mikuruKeyedUnmounts?: string[] }).__mikuruKeyedUnmounts = unmounts;
+    try {
+      const renderToString = loadSsrRender(compileSsr(source).code);
+      const module = loadHydrationModule(compileHydration(source).code);
+      const window = new Window();
+      const root = window.document.createElement("div");
+      root.innerHTML = await renderToString();
+      const a = root.querySelector("[data-row='a']");
+      const b = root.querySelector("[data-row='b']");
+      const instance = module.hydrate(root as unknown as Element);
+
+      root.querySelector("[data-action='reorder']")?.dispatchEvent(new window.Event("click"));
+      expect(root.querySelector("[data-row='a']")).toBe(a);
+      expect(root.querySelector("[data-row='b']")).toBe(b);
+      expect(unmounts).toEqual([]);
+      root.querySelector("[data-action='remove']")?.dispatchEvent(new window.Event("click"));
+      expect(unmounts).toEqual(["a"]);
+      root.querySelector("[data-action='add']")?.dispatchEvent(new window.Event("click"));
+      expect(Array.from(root.querySelectorAll("p")).map(node => node.textContent)).toEqual(["b", "c"]);
+      instance.unmount();
+      expect(unmounts.sort()).toEqual(["a", "b", "c"]);
+      instance.unmount();
+      expect(unmounts).toHaveLength(3);
+    } finally {
+      delete (globalThis as { __mikuruKeyedUnmounts?: string[] }).__mikuruKeyedUnmounts;
+    }
+  });
+
+  it("keeps keyed template refs on reorder and clears removed refs once", async () => {
+    const source = `<template><section>
+      <p m-for="item in items" :key="item" ref="track">{{ item }}</p>
+      <button data-action="reorder" @click="reorder">Reorder</button>
+      <button data-action="remove" @click="remove">Remove</button>
+    </section></template><script>
+      const items = ref(["a", "b"]);
+      function track(value) { globalThis.__mikuruKeyedRefs.push(value ? "set" : "clear"); }
+      function reorder() { items.value = [items.value[1], items.value[0]]; }
+      function remove() { items.value = ["b"]; }
+    </script>`;
+    const refs: string[] = [];
+    (globalThis as { __mikuruKeyedRefs?: string[] }).__mikuruKeyedRefs = refs;
+    try {
+      const renderToString = loadSsrRender(compileSsr(source).code);
+      const module = loadHydrationModule(compileHydration(source).code);
+      const window = new Window();
+      const root = window.document.createElement("div");
+      root.innerHTML = await renderToString();
+      const instance = module.hydrate(root as unknown as Element);
+
+      expect(refs).toEqual(["set", "set"]);
+      root.querySelector("[data-action='reorder']")?.dispatchEvent(new window.Event("click"));
+      expect(refs).toEqual(["set", "set"]);
+      root.querySelector("[data-action='remove']")?.dispatchEvent(new window.Event("click"));
+      expect(refs).toEqual(["set", "set", "clear"]);
+      instance.unmount();
+      expect(refs).toEqual(["set", "set", "clear", "clear"]);
+    } finally {
+      delete (globalThis as { __mikuruKeyedRefs?: string[] }).__mikuruKeyedRefs;
+    }
+  });
+
+  it("preserves keyed memo and once semantics after hydration", async () => {
+    const source = `<template><section>
+      <p m-for="item in memoItems" :key="item.id" m-memo="[item.version]">{{ item.label }}</p>
+      <strong m-for="item in onceItems" :key="item.id" m-once>{{ item.label }}</strong>
+      <button @click="change">Change</button><button @click="advance">Advance</button>
+    </section></template><script>
+      const memoItems = ref([{ id: "a", label: "Alpha", version: 0 }]);
+      const onceItems = ref([{ id: "b", label: "First" }]);
+      function change() {
+        memoItems.value = [{ id: "a", label: "Ignored", version: 0 }];
+        onceItems.value = [{ id: "b", label: "Ignored" }];
+      }
+      function advance() { memoItems.value = [{ id: "a", label: "Updated", version: 1 }]; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const p = root.querySelector("p");
+    const strong = root.querySelector("strong");
+    const instance = module.hydrate(root as unknown as Element);
+
+    root.querySelectorAll("button")[0]?.dispatchEvent(new window.Event("click"));
+    expect(p?.textContent).toBe("Alpha");
+    expect(strong?.textContent).toBe("First");
+    root.querySelectorAll("button")[1]?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("p")).toBe(p);
+    expect(p?.textContent).toBe("Updated");
+    expect(root.querySelector("strong")).toBe(strong);
+    instance.unmount();
+  });
+
+  it("reuses keyed rows inside hydrated Teleports in both placements", () => {
+    for (const disabled of [false, true]) {
+      const source = `<template><section><Teleport to="#target" :disabled="inline">
+        <p m-for="item in items" :key="item">{{ item }}</p>
+      </Teleport><button @click="reorder">Reorder</button></section></template><script>
+        const inline = ${disabled};
+        const items = ref(["a", "b"]);
+        function reorder() { items.value = [items.value[1], items.value[0]]; }
+      </script>`;
+      const window = new Window();
+      const app = window.document.createElement("div");
+      const target = window.document.createElement("div");
+      target.id = "target";
+      app.innerHTML = disabled
+        ? '<section><!--teleport:t0--><p>a</p><p>b</p><!--/teleport:t0--><button>Reorder</button></section>'
+        : '<section><!--teleport:t0--><!--/teleport:t0--><button>Reorder</button></section>';
+      target.innerHTML = disabled ? "" : '<!--teleport content:t0--><p>a</p><p>b</p><!--/teleport content:t0-->';
+      window.document.body.append(app, target);
+      const module = loadHydrationModule(compileHydration(source).code, window.document as unknown as Document);
+      const content = disabled ? app : target;
+      const a = content.querySelectorAll("p")[0];
+      const b = content.querySelectorAll("p")[1];
+      const instance = module.hydrate(app as unknown as Element);
+
+      app.querySelector("button")?.dispatchEvent(new window.Event("click"));
+      expect(Array.from(content.querySelectorAll("p"))).toEqual([b, a]);
+      instance.unmount();
+    }
+  });
+
+  it("updates nested branches and lists inside a reused keyed fragment", async () => {
+    const source = `<template><section>
+      <template m-for="group in groups" :key="group.id">
+        <h2 :data-group="group.id">{{ group.label }}</h2>
+        <span m-if="group.visible" :data-visible="group.id">visible</span>
+        <i m-for="tag in group.tags">{{ tag }}</i>
+      </template>
+      <footer>tail</footer><button @click="change">Change</button>
+    </section></template><script>
+      const groups = ref([
+        { id: "a", label: "Alpha", visible: true, tags: ["one"] },
+        { id: "b", label: "Beta", visible: false, tags: ["two"] }
+      ]);
+      function change() {
+        groups.value = [
+          { id: "b", label: "Bee", visible: true, tags: ["two", "three"] },
+          { id: "a", label: "Alpha", visible: false, tags: [] }
+        ];
+      }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const a = root.querySelector("[data-group='a']");
+    const b = root.querySelector("[data-group='b']");
+    const footer = root.querySelector("footer");
+    const instance = module.hydrate(root as unknown as Element);
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(Array.from(root.querySelectorAll("h2")).map(node => node.textContent)).toEqual(["Bee", "Alpha"]);
+    expect(root.querySelector("[data-group='a']")).toBe(a);
+    expect(root.querySelector("[data-group='b']")).toBe(b);
+    expect(root.querySelector("[data-visible='a']")).toBeNull();
+    expect(root.querySelector("[data-visible='b']")?.textContent).toBe("visible");
+    expect(Array.from(root.querySelectorAll("i")).map(node => node.textContent)).toEqual(["two", "three"]);
+    expect(root.querySelector("footer")).toBe(footer);
+    instance.unmount();
+  });
+
+  it("keeps initially empty keyed fragments in the correct order", async () => {
+    const source = `<template><section><header>before</header>
+      <template m-for="item in items" :key="item.id"><span m-if="item.show" :data-row="item.id">{{ item.id }}</span></template>
+      <footer>after</footer><button @click="change">Change</button>
+    </section></template><script>
+      const items = ref([{ id: "a", show: false }, { id: "b", show: true }]);
+      function change() { items.value = [{ id: "b", show: false }, { id: "a", show: true }]; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const footer = root.querySelector("footer");
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("[data-row='b']")?.textContent).toBe("b");
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("[data-row='b']")).toBeNull();
+    expect(root.querySelector("[data-row='a']")?.textContent).toBe("a");
+    expect(root.querySelector("footer")).toBe(footer);
+    instance.unmount();
+  });
+
+  it("recovers a mismatched keyed SSR row and keeps the mounted list reactive", async () => {
+    const source = `<template><section><p m-for="item in items" :key="item">{{ item }}</p><button @click="add">Add</button></section></template>
+      <script>const items = ref(["a"]); function add() { items.value = [...items.value, "b"]; }</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = (await renderToString()).replace("<p>a</p>", "<div>a</div>");
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("div")).toBeNull();
+    expect(root.querySelector("p")?.textContent).toBe("a");
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(Array.from(root.querySelectorAll("p")).map(node => node.textContent)).toEqual(["a", "b"]);
+    instance.unmount();
+  });
+
+  it("applies TransitionGroup classes only to later keyed changes", async () => {
+    const source = `<template><section>
+      <TransitionGroup tag="ul" name="rows" move-class="moving">
+        <li m-for="item in items" :key="item">{{ item }}</li>
+      </TransitionGroup>
+      <button data-action="add" @click="add">Add</button>
+      <button data-action="reorder" @click="reorder">Reorder</button>
+      <button data-action="remove" @click="remove">Remove</button>
+      <footer>tail</footer>
+    </section></template><script>
+      const items = ref(["a", "b"]);
+      function add() { items.value = [...items.value, "c"]; }
+      function reorder() { items.value = [items.value[1], items.value[0], items.value[2]]; }
+      function remove() { items.value = items.value.filter(item => item !== "a"); }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const a = root.querySelectorAll("li")[0];
+    const b = root.querySelectorAll("li")[1];
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(a?.classList.contains("rows-enter-active")).toBe(false);
+    expect(b?.classList.contains("rows-enter-active")).toBe(false);
+    root.querySelector("[data-action='add']")?.dispatchEvent(new window.Event("click"));
+    const c = root.querySelectorAll("li")[2];
+    expect(c?.classList.contains("rows-enter-active")).toBe(true);
+    root.querySelector("[data-action='reorder']")?.dispatchEvent(new window.Event("click"));
+    expect(Array.from(root.querySelectorAll("li"))).toEqual([b, a, c]);
+    expect(a?.classList.contains("moving")).toBe(true);
+    root.querySelector("[data-action='remove']")?.dispatchEvent(new window.Event("click"));
+    expect(a?.classList.contains("rows-leave-active")).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 75));
+    expect(root.querySelectorAll("li")).toHaveLength(2);
+    expect(root.querySelector("footer")?.textContent).toBe("tail");
+    instance.unmount();
+  });
+
+  it("schedules keyed hydration updates only when batching is enabled", async () => {
+    const source = `<template><section><p m-for="item in items" :key="item">{{ item }}</p><button @click="add">Add</button></section></template>
+      <script>const items = ref(["a"]); function add() { items.value = [...items.value, "b"]; }</script>`;
+    for (const batchedUpdates of [false, true]) {
+      const renderToString = loadSsrRender(compileSsr(source).code);
+      const module = loadHydrationModule(compileHydration(source, { batchedUpdates }).code);
+      const window = new Window();
+      const root = window.document.createElement("div");
+      root.innerHTML = await renderToString();
+      const a = root.querySelector("p");
+      const instance = module.hydrate(root as unknown as Element);
+
+      root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+      expect(root.querySelectorAll("p")).toHaveLength(batchedUpdates ? 1 : 2);
+      await nextTick();
+      expect(Array.from(root.querySelectorAll("p")).map(node => node.textContent)).toEqual(["a", "b"]);
+      expect(root.querySelector("p")).toBe(a);
+      instance.unmount();
+    }
+  });
+
+  it("keeps hydrated branch ranges in place after an earlier list changes", async () => {
+    const source = `<template><section>
+      <button data-action="remove" @click="remove">Remove</button>
+      <p m-for="item in items">{{ item }}</p>
+      <template m-if="show"><button data-branch @click="select">Shown</button><span>Details</span></template>
+      <em m-else>Hidden</em>
+      <footer>tail</footer>
+      <button data-action="toggle" @click="toggle">Toggle</button>
+      <output>{{ selected }}</output>
+    </section></template><script>
+      const items = ref(["a"]);
+      const show = ref(true);
+      const selected = ref("none");
+      function remove() { items.value = []; }
+      function toggle() { show.value = !show.value; }
+      function select() { selected.value = "selected"; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const section = root.firstElementChild;
+    const oldBranchButton = root.querySelector("[data-branch]");
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(instance.element).toBe(section);
+    root.querySelector("[data-action='remove']")?.dispatchEvent(new window.Event("click"));
+    root.querySelector("[data-action='toggle']")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("em")?.textContent).toBe("Hidden");
+    expect(root.querySelector("footer")?.textContent).toBe("tail");
+    oldBranchButton?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("output")?.textContent).toBe("none");
+    root.querySelector("[data-action='toggle']")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("[data-branch]")?.textContent).toBe("Shown");
+    expect(root.querySelector("footer")?.textContent).toBe("tail");
+    instance.unmount();
+  });
+
+  it("keeps an initially empty hydrated branch between its siblings", async () => {
+    const source = `<template><section><button @click="toggle">Toggle</button><p m-if="show">Shown</p><footer>tail</footer></section></template>
+      <script>const show = ref(false); function toggle() { show.value = !show.value; }</script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const section = root.firstElementChild;
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(instance.element).toBe(section);
+    expect(root.innerHTML).toContain("<!--if--><!--/if--><footer>tail</footer>");
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("p")?.textContent).toBe("Shown");
+    expect(root.querySelector("footer")?.previousElementSibling?.tagName).toBe("P");
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("p")).toBeNull();
+    expect(root.querySelector("footer")?.textContent).toBe("tail");
+    instance.unmount();
+  });
+
+  it("keeps listeners on reused hydrated unkeyed rows", async () => {
+    const source = `<template><section>
+      <button m-for="item in items" :data-item="item" @click="select(item)">{{ item }}</button>
+      <button data-action="append" @click="append">Append</button>
+      <output>{{ selected }}</output>
+    </section></template><script>
+      const items = ref(["a"]);
+      const selected = ref("none");
+      function append() { items.value = [...items.value, "b"]; }
+      function select(item) { selected.value = item; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const instance = module.hydrate(root as unknown as Element);
+    const oldButton = root.querySelector("[data-item='a']");
+
+    root.querySelector("[data-action='append']")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelectorAll("[data-item]")).toHaveLength(2);
+    expect(root.querySelector("[data-item='a']")).toBe(oldButton);
+    oldButton?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("output")?.textContent).toBe("a");
+    root.querySelector("[data-item='b']")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("output")?.textContent).toBe("b");
+    instance.unmount();
+  });
+
+  it("unmounts hydrated and added list children exactly once", async () => {
+    const source = `<template><section><Child m-for="item in items" :label="item" /><button @click="append">Append</button></section></template>
+      <script>
+        const items = ref(["a"]);
+        const Child = {
+          renderToString(props) { return "<p>" + props.label + "</p>"; },
+          hydrate(target) { globalThis.__mikuruListMounts.push("hydrated"); return { element: target, unmount() { globalThis.__mikuruListUnmounts.push("hydrated"); } }; },
+          mount(target, props) {
+            globalThis.__mikuruListMounts.push(props.label);
+            const element = document.createElement("p");
+            element.textContent = props.label;
+            target.appendChild(element);
+            return { element, unmount() { globalThis.__mikuruListUnmounts.push(props.label); element.remove(); } };
+          }
+        };
+        function append() { items.value = [...items.value, "b"]; }
+      </script>`;
+    const unmounts: string[] = [];
+    const mounts: string[] = [];
+    (globalThis as { __mikuruListUnmounts?: string[] }).__mikuruListUnmounts = unmounts;
+    (globalThis as { __mikuruListMounts?: string[] }).__mikuruListMounts = mounts;
+    try {
+      const renderToString = loadSsrRender(compileSsr(source).code);
+      const module = loadHydrationModule(compileHydration(source).code);
+      const window = new Window();
+      const root = window.document.createElement("div");
+      root.innerHTML = await renderToString();
+      const instance = module.hydrate(root as unknown as Element);
+
+      root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+      expect(mounts).toEqual(["hydrated", "b"]);
+      expect(unmounts).toEqual([]);
+      instance.unmount();
+      expect(unmounts).toEqual(["hydrated", "b"]);
+    } finally {
+      delete (globalThis as { __mikuruListUnmounts?: string[] }).__mikuruListUnmounts;
+      delete (globalThis as { __mikuruListMounts?: string[] }).__mikuruListMounts;
+    }
+  });
+
+  it("updates hydrated Teleport lists in both target and disabled inline ranges", () => {
+    for (const disabled of [false, true]) {
+      const source = `<template><section><Teleport to="#target" :disabled="inline"><p m-for="item in items">{{ item }}</p></Teleport><button @click="add">Add</button></section></template>
+        <script>const inline = ${disabled}; const items = ref(["a"]); function add() { items.value = [...items.value, "b"]; }</script>`;
+      const window = new Window();
+      const app = window.document.createElement("div");
+      const target = window.document.createElement("div");
+      target.id = "target";
+      app.innerHTML = disabled
+        ? '<section><!--teleport:t0--><p>a</p><!--/teleport:t0--><button>Add</button></section>'
+        : '<section><!--teleport:t0--><!--/teleport:t0--><button>Add</button></section>';
+      target.innerHTML = disabled ? "" : '<!--teleport content:t0--><p>a</p><!--/teleport content:t0-->';
+      window.document.body.append(app, target);
+      const module = loadHydrationModule(compileHydration(source).code, window.document as unknown as Document);
+      const instance = module.hydrate(app as unknown as Element);
+      const content = disabled ? app : target;
+
+      expect(Array.from(content.querySelectorAll("p")).map((node) => node.textContent)).toEqual(["a"]);
+      app.querySelector("button")?.dispatchEvent(new window.Event("click"));
+      expect(Array.from(content.querySelectorAll("p")).map((node) => node.textContent)).toEqual(["a", "b"]);
+      instance.unmount();
+    }
   });
 
   it("updates hydrated element v-for rows after append and remove", async () => {
@@ -1021,6 +1795,236 @@ const MountOnlyChild = {
 
     instance.unmount();
     expect(root.querySelector("p")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
+  it("updates hydrated component props and object listeners without remounting", async () => {
+    const source = `<template><section>
+      <Child :label="label" :[propName]="value" m-bind="extra" m-on="listeners" @select="select(label)" />
+      <Child :label="label" m-once />
+      <button data-action="update" @click="update">Update</button><output>{{ selected }}</output>
+    </section></template><script>
+      const label = ref("Alpha");
+      const value = ref("one");
+      const propName = "detail";
+      const extra = ref({ status: "ready" });
+      const selected = ref("none");
+      const listeners = ref({ confirm: () => { selected.value = "first"; } });
+      const Child = {
+        renderToString(props) { return '<p>' + props.label + ':' + props.detail + ':' + props.status + '</p>'; },
+        hydrate(target, props) {
+          const stop = effect(() => { target.textContent = props.label + ':' + props.detail + ':' + props.status; });
+          target.addEventListener("click", () => { props.onSelect(); props.onConfirm(); });
+          return { element: target, unmount() { stop(); globalThis.__mikuruPropUnmounts.push(target); } };
+        }
+      };
+      function select(value) { selected.value = value; }
+      function update() {
+        label.value = "Beta";
+        value.value = "two";
+        extra.value = { status: "updated" };
+        listeners.value = { confirm: () => { selected.value = "second"; } };
+      }
+    </script>`;
+    const unmounts: unknown[] = [];
+    (globalThis as { __mikuruPropUnmounts?: unknown[] }).__mikuruPropUnmounts = unmounts;
+    try {
+      const renderToString = loadSsrRender(compileSsr(source).code);
+      const module = loadHydrationModule(compileHydration(source).code);
+      const window = new Window();
+      const root = window.document.createElement("div");
+      root.innerHTML = await renderToString();
+      const first = root.querySelectorAll("p")[0];
+      const once = root.querySelectorAll("p")[1];
+      const instance = module.hydrate(root as unknown as Element);
+
+      expect(first?.textContent).toBe("Alpha:one:ready");
+      root.querySelector("[data-action='update']")?.dispatchEvent(new window.Event("click"));
+      expect(root.querySelectorAll("p")[0]).toBe(first);
+      expect(first?.textContent).toBe("Beta:two:updated");
+      expect(once?.textContent).toBe("Alpha:undefined:undefined");
+      first?.dispatchEvent(new window.Event("click"));
+      expect(root.querySelector("output")?.textContent).toBe("second");
+      expect(unmounts).toEqual([]);
+      instance.unmount();
+      expect(unmounts).toHaveLength(2);
+    } finally {
+      delete (globalThis as { __mikuruPropUnmounts?: unknown[] }).__mikuruPropUnmounts;
+    }
+  });
+
+  it("updates retained keyed, dynamic, and KeepAlive component inputs", async () => {
+    const source = `<template><section>
+      <Child m-for="item in items" :key="item.id" :label="item.label" :data-state="item.state" @select="record(item.label)" />
+      <component :is="Child" :label="label" :data-state="state" />
+      <KeepAlive><component :is="Child" :label="label" :data-state="state" /></KeepAlive>
+      <button @click="update">Update</button><output>{{ selected }}</output>
+    </section></template><script>
+      const items = ref([{ id: "a", label: "Alpha", state: "ready" }]);
+      const label = ref("First");
+      const state = ref("ready");
+      const selected = ref("none");
+      const Child = {
+        renderToString(props) { return '<p>' + props.label + '</p>'; },
+        hydrate(target, props) {
+          const stop = effect(() => { target.textContent = props.label; });
+          const select = () => props.onSelect?.();
+          target.addEventListener("click", select);
+          return { element: target, unmount() { stop(); target.removeEventListener("click", select); globalThis.__mikuruInputUnmounts.push(target); } };
+        }
+      };
+      function record(value) { selected.value = value; }
+      function update() {
+        items.value = [{ id: "a", label: "Updated", state: "changed" }];
+        label.value = "Second";
+        state.value = "changed";
+      }
+    </script>`;
+    const unmounts: unknown[] = [];
+    (globalThis as { __mikuruInputUnmounts?: unknown[] }).__mikuruInputUnmounts = unmounts;
+    try {
+      const renderToString = loadSsrRender(compileSsr(source).code);
+      const module = loadHydrationModule(compileHydration(source).code);
+      const window = new Window();
+      const root = window.document.createElement("div");
+      root.innerHTML = await renderToString();
+      const original = Array.from(root.querySelectorAll("p"));
+      const instance = module.hydrate(root as unknown as Element);
+
+      root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+      expect(Array.from(root.querySelectorAll("p"))).toEqual(original);
+      expect(original.map(node => node.textContent)).toEqual(["Updated", "Second", "Second"]);
+      expect(original.map(node => node.getAttribute("data-state"))).toEqual(["changed", "changed", "changed"]);
+      original[0]?.dispatchEvent(new window.Event("click"));
+      expect(root.querySelector("output")?.textContent).toBe("Updated");
+      expect(unmounts).toEqual([]);
+      instance.unmount();
+      expect(unmounts).toHaveLength(3);
+    } finally {
+      delete (globalThis as { __mikuruInputUnmounts?: unknown[] }).__mikuruInputUnmounts;
+    }
+  });
+
+  it("hydrates compiled child props, useAttrs, and automatic fallthrough reactively", async () => {
+    const forwardSource = `<template><button class="inner" m-bind="attrs">{{ label }}:{{ attrs["data-state"] }}</button></template>
+      <script>const { label } = defineProps(); const attrs = useAttrs(); defineOptions({ inheritAttrs: false });</script>`;
+    const autoSource = `<template><button class="inner">{{ label }}</button></template>
+      <script>const { label } = defineProps();</script>`;
+    const parentSource = `<template><section>
+      <ForwardChild :label="label" :data-state="state" />
+      <AutoChild :label="label" :data-state="state" :class="outer" m-bind="extra" />
+      <button data-action="update" @click="update">Update</button>
+    </section></template><script>
+      const ForwardChild = globalThis.__mikuruForwardChild;
+      const AutoChild = globalThis.__mikuruAutoChild;
+      const label = ref("Alpha");
+      const state = ref("ready");
+      const outer = ref("outer-one");
+      const extra = ref({ title: "first" });
+      function update() { label.value = "Beta"; state.value = "changed"; outer.value = "outer-two"; extra.value = {}; }
+    </script>`;
+    const window = new Window();
+    const forwardModule = loadHydrationModule(compileHydration(forwardSource).code, window.document as unknown as Document);
+    const autoModule = loadHydrationModule(compileHydration(autoSource).code, window.document as unknown as Document);
+    const globals = globalThis as { __mikuruForwardChild?: unknown; __mikuruAutoChild?: unknown };
+    const previousForward = globals.__mikuruForwardChild;
+    const previousAuto = globals.__mikuruAutoChild;
+    globals.__mikuruForwardChild = {
+      ...forwardModule,
+      renderToString: loadSsrRender(compileSsr(forwardSource).code),
+      inheritAttrs: false
+    };
+    globals.__mikuruAutoChild = {
+      ...autoModule,
+      renderToString: loadSsrRender(compileSsr(autoSource).code)
+    };
+    try {
+      const renderToString = loadSsrRender(compileSsr(parentSource).code);
+      const module = loadHydrationModule(compileHydration(parentSource).code, window.document as unknown as Document);
+      const root = window.document.createElement("div");
+      root.innerHTML = await renderToString();
+      const forward = root.querySelectorAll("button")[0];
+      const auto = root.querySelectorAll("button")[1];
+      expect(forward?.textContent).toBe("Alpha:ready");
+      expect(auto?.className).toBe("inner outer-one");
+      expect(auto?.getAttribute("data-state")).toBe("ready");
+      expect(auto?.getAttribute("title")).toBe("first");
+      const instance = module.hydrate(root as unknown as Element);
+
+      expect(forward?.textContent).toBe("Alpha:ready");
+      expect(auto?.className).toBe("inner outer-one");
+      expect(auto?.getAttribute("title")).toBe("first");
+      root.querySelector("[data-action='update']")?.dispatchEvent(new window.Event("click"));
+      expect(root.querySelectorAll("button")[0]).toBe(forward);
+      expect(root.querySelectorAll("button")[1]).toBe(auto);
+      expect(forward?.textContent).toBe("Beta:changed");
+      expect(forward?.getAttribute("data-state")).toBe("changed");
+      expect(auto?.textContent).toBe("Beta");
+      expect(auto?.getAttribute("data-state")).toBe("changed");
+      expect(auto?.className).toBe("inner outer-two");
+      expect(auto?.hasAttribute("title")).toBe(false);
+      instance.unmount();
+    } finally {
+      if (previousForward === undefined) delete globals.__mikuruForwardChild;
+      else globals.__mikuruForwardChild = previousForward;
+      if (previousAuto === undefined) delete globals.__mikuruAutoChild;
+      else globals.__mikuruAutoChild = previousAuto;
+    }
+  });
+
+  it("queues hydrated component fallthrough changes when batching is enabled", async () => {
+    const source = `<template><section>
+      <Child :data-state="state" /><button @click="change">Change</button>
+    </section></template><script>
+      const state = ref("ready");
+      const Child = {
+        renderToString() { return '<p data-state="ready">child</p>'; },
+        hydrate(target) { return { element: target, unmount() {} }; }
+      };
+      function change() { state.value = "changed"; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source, { batchedUpdates: true }).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const child = root.querySelector("p");
+    const instance = module.hydrate(root as unknown as Element);
+
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(child?.getAttribute("data-state")).toBe("ready");
+    await nextTick();
+    expect(root.querySelector("p")).toBe(child);
+    expect(child?.getAttribute("data-state")).toBe("changed");
+    instance.unmount();
+  });
+
+  it("replaces SSR fallthrough classes without retaining the old parent class", async () => {
+    const source = `<template><section><Child :class="outer" :style="outerStyle" /><button @click="change">Change</button></section></template>
+      <script>
+        const outer = ref("outer-one");
+        const outerStyle = ref("color: red");
+        const Child = {
+          renderToString(props) { return '<p class="inner ' + props.class + '" style="font-weight: bold; ' + props.style + '">child</p>'; },
+          hydrate(target) { return { element: target, unmount() {} }; }
+        };
+        function change() { outer.value = "outer-two"; outerStyle.value = "color: blue"; }
+      </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const child = root.querySelector("p");
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(child?.className).toBe("inner outer-one");
+    expect(child?.style.color).toBe("red");
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(root.querySelector("p")).toBe(child);
+    expect(child?.className).toBe("inner outer-two");
+    expect(child?.style.fontWeight).toBe("bold");
+    expect(child?.style.color).toBe("blue");
+    instance.unmount();
   });
 
   it("hydrates component default, named, dynamic, and scoped slots", async () => {
@@ -1757,6 +2761,40 @@ const HydratableChild = {
 
     instance.unmount();
     expect(root.querySelector("article")?.hasAttribute("data-hydrated")).toBe(false);
+  });
+
+  it("applies Transition classes and out-in mode only after hydration", async () => {
+    const source = `<template><section>
+      <button @click="toggle">Toggle</button>
+      <Transition name="fade" mode="out-in" enter-from-class="custom-enter-from" enter-active-class="custom-enter-active" leave-from-class="custom-leave-from" leave-active-class="custom-leave-active">
+        <p m-if="visible">Shown</p><span m-else>Hidden</span>
+      </Transition>
+      <footer>tail</footer>
+    </section></template><script>
+      const visible = ref(true);
+      function toggle() { visible.value = !visible.value; }
+    </script>`;
+    const renderToString = loadSsrRender(compileSsr(source).code);
+    const module = loadHydrationModule(compileHydration(source).code);
+    const window = new Window();
+    const root = window.document.createElement("div");
+    root.innerHTML = await renderToString();
+    const original = root.querySelector("p");
+    const instance = module.hydrate(root as unknown as Element);
+
+    expect(root.querySelector("p")).toBe(original);
+    expect(original?.className).toBe("");
+    root.querySelector("button")?.dispatchEvent(new window.Event("click"));
+    expect(original?.classList.contains("custom-leave-from")).toBe(true);
+    expect(root.querySelector("span")).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    expect(root.querySelector("span")?.textContent).toBe("Hidden");
+    expect(root.querySelector("span")?.classList.contains("custom-enter-active")).toBe(true);
+    expect(root.querySelector("footer")?.textContent).toBe("tail");
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    expect(root.querySelector("p")).toBeNull();
+    expect(root.querySelector("span")?.classList.contains("custom-enter-active")).toBe(false);
+    instance.unmount();
   });
 
   it("hydrates TransitionGroup keyed lists without shifting siblings", async () => {
@@ -2848,6 +3886,42 @@ const tab = props.tab;
     instance.unmount();
   });
 
+  it("hydrates and replaces a multi-root route inside RouterView", async () => {
+    const window = new Window();
+    const root = window.document.createElement("div");
+    const shellSource = `<template><main><RouterView /><footer>tail</footer></main></template><script>import { RouterView } from "mikuru/router";</script>`;
+    const pageSource = `<template><p>{{ label }}</p><span>second</span></template><script>const { label } = defineProps();</script>`;
+    const shellModule = loadHydrationModule(compileHydration(shellSource).code, window.document as unknown as Document);
+    const pageModule = loadHydrationModule(compileHydration(pageSource).code, window.document as unknown as Document);
+    const shell = { ...shellModule, renderToString: loadSsrRender(compileSsr(shellSource).code) };
+    const page = { ...pageModule, renderToString: loadSsrRender(compileSsr(pageSource).code) };
+    const router = createRouter({
+      history: createMemoryHistory("/a"),
+      routes: [{ path: "/", component: shell as any, children: [
+        { path: "a", component: page as any, props: { label: "A" } },
+        { path: "b", component: page as any, props: { label: "B" } }
+      ] }]
+    });
+    let routeError: unknown;
+    router.onError((error) => { routeError = error; });
+    root.innerHTML = (await renderRouteToString(router)).html;
+    const paragraph = root.querySelector("p");
+    const span = root.querySelector("span");
+    const footer = root.querySelector("footer");
+    const instance = await hydrateRoute(router, root.firstElementChild as unknown as Element);
+    expect(root.querySelector("p")).toBe(paragraph);
+    expect(root.querySelector("span")).toBe(span);
+    await router.push("/b");
+    await router.isReady();
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(routeError).toBeUndefined();
+    expect(root.querySelector("p")?.textContent, root.innerHTML).toBe("B");
+    expect(root.querySelector("p")).not.toBe(paragraph);
+    expect(root.querySelector("footer")).toBe(footer);
+    instance.unmount();
+  });
+
   it("hydrates Teleport content rendered through RouterView route components", async () => {
     const window = new Window();
     const app = window.document.createElement("div");
@@ -3064,20 +4138,24 @@ function loadHydrationModule(code: string, documentOverride?: Document): { mount
     .replace("export function mount", "function mount")
     .replace("export function hydrate", "function hydrate")
     .replace(/\n(?:export \{ hydrate \};\n)?const __mikuru_hydrationComponent = \{ \.\.\.__mikuru_component, hydrate \};\nexport default __mikuru_hydrationComponent;\n?$/, "\n");
-  const factory = new Function("defineAsyncComponent", "effect", "inject", "onMounted", "onUnmounted", "provide", "ref", "setAttribute", "unwrap", "document", "RouterLink", "RouterView", `${executable}\nreturn { mount, hydrate };`) as (
+  const factory = new Function("defineAsyncComponent", "effect", "inject", "onMounted", "onUnmounted", "provide", "queueJob", "ref", "setAttribute", "unwrap", "document", "RouterLink", "RouterView", "registerDebugComponent", "emitDebugEvent", "createDebugDiagnostic", `${executable}\nreturn { mount, hydrate };`) as (
     defineAsyncComponentArg: typeof defineAsyncComponent,
     effectArg: typeof effect,
     injectArg: typeof inject,
     onMountedArg: typeof onMounted,
     onUnmountedArg: typeof onUnmounted,
     provideArg: typeof provide,
+    queueJobArg: typeof queueJob,
     refArg: typeof ref,
     setAttributeArg: typeof setAttribute,
     unwrapArg: typeof unwrap,
     documentArg: Document,
     routerLinkArg: typeof RouterLink,
-    routerViewArg: typeof RouterView
+    routerViewArg: typeof RouterView,
+    registerDebugComponentArg: typeof registerDebugComponent,
+    emitDebugEventArg: typeof emitDebugEvent,
+    createDebugDiagnosticArg: typeof createDebugDiagnostic
   ) => { mount: (target: Element, props?: Record<string, unknown>) => any; hydrate: (target: Element, props?: Record<string, unknown>) => any };
   const window = documentOverride ? undefined : new Window();
-  return factory(defineAsyncComponent, effect, inject, onMounted, onUnmounted, provide, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document, RouterLink, RouterView);
+  return factory(defineAsyncComponent, effect, inject, onMounted, onUnmounted, provide, queueJob, ref, setAttribute, unwrap, documentOverride ?? window!.document as unknown as Document, RouterLink, RouterView, registerDebugComponent, emitDebugEvent, createDebugDiagnostic);
 }

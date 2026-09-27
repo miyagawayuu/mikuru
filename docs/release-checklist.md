@@ -8,6 +8,7 @@ Use this checklist before publishing a Mikuru v1 release.
 - If `npm run ci` is not practical locally, run the focused debug/tooling checks before release: `npm run typecheck`, `npm test`, `npm run build:dogfood`, `npm run test:e2e:dogfood`, and `npm run test:docs`.
 - Run `npm run build:mikuru-sample`.
 - Run `npm run build:mikuru-vue-like`.
+- Confirm the plain-element component SSR output includes automatic fallthrough attributes before hydration, and comparison text survives SSR and hydration.
 - Confirm `npm run test:templates` passes so generated templates use the package version placeholder.
 - Confirm `npm run test:package` passes so public package exports, including `compileStyle()`, work from the packaged entry points.
 - Run `npm pack --dry-run` and confirm the tarball only includes package files.
@@ -48,7 +49,8 @@ Confirm these exports work from the packed package:
 
 ## Known v1 Limits
 
-- SSR and hydration are supported, but dynamic branch/list reconciliation after the initial state is still future work.
+- SSR and hydration support reactive conditional branches and list updates after the initial state. Hydrated keyed lists retain SSR rows by key; unkeyed lists retain rows by position and update only added or removed tail rows.
+- Multiple roots emit SSR boundaries and expose live `element` / `roots` instance accessors. Fragment child attributes require explicit `useAttrs()` forwarding.
 - Stable devtools API is documented; debug builds expose versioned devtools events and `createDevtoolsInspector()` snapshots.
 - The dogfood Debug Panel and `examples/dogfood/debugPanelHelpers.ts` are example-only debugging aids and must not be documented or packaged as public exports.
 - No Vue compatibility guarantee.
@@ -65,10 +67,10 @@ Confirm these exports work from the packed package:
 5. Confirm the dogfood Debug Panel still covers component tree display, event filtering/search, event-to-component navigation, diagnostic detail display, diagnostic snapshot/copy fields, snapshot display/copy, and helper unit tests.
 6. Run `npm publish --dry-run`.
 7. Publish with `npm publish`.
-8. Push `master` to `origin/master`.
+8. Push `main` to `origin/main`.
 9. Create and push the release tag.
 10. Create the GitHub Release for the release tag and attach the release notes.
-11. Delete merged release or Codex work branches after `master` and the tag are confirmed.
+11. Delete merged release or Codex work branches after `main` and the tag are confirmed.
 12. Optionally verify the published package with `npx mikuru@latest create` in a disposable directory.
 
 ## Published Package Smoke

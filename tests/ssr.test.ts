@@ -243,6 +243,33 @@ const attrs = {
     await expect(render()).resolves.toBe('<section><p class="card active">classed</p><div style="border-color: black; color: red; font-size: 12px">styled</div><aside class="panel bound open" style="margin-top: 4px; background-color: yellow" data-mode="ready">bound</aside></section>');
   });
 
+  it("merges automatic fallthrough into a compiled plain-element SSR root", async () => {
+    const source = `<template><button class="inner" style="color: red" title="local" :data-state="state">Ready</button></template>
+      <script>const state = "local";</script>`;
+    const render = loadSsrRender(compileSsr(source).code);
+    const html = await render({
+      __mikuru_attrs: { class: "outer", style: "font-weight: bold", title: "parent", "data-state": "parent", "aria-label": "action" }
+    });
+
+    expect(html).toContain('class="inner outer"');
+    expect(html).toContain('style="color: red; font-weight: bold"');
+    expect(html).toContain('title="parent"');
+    expect(html).toContain('data-state="parent"');
+    expect(html).toContain('aria-label="action"');
+    expect(html.match(/\btitle=/g)).toHaveLength(1);
+    expect(html.match(/\bdata-state=/g)).toHaveLength(1);
+
+    const objectBound = loadSsrRender(compileSsr(`<template><button class="inner" m-bind="local">Ready</button></template>
+      <script>const local = { class: "local", title: "local" };</script>`).code);
+    const objectHtml = await objectBound({ __mikuru_attrs: { class: "outer", title: "parent" } });
+    expect(objectHtml).toContain('class="inner local outer"');
+    expect(objectHtml).toContain('title="parent"');
+    expect(objectHtml.match(/\btitle=/g)).toHaveLength(1);
+
+    const optOut = loadSsrRender(compileSsr(`<template><button class="inner">Ready</button></template><script>defineOptions({ inheritAttrs: false });</script>`).code);
+    await expect(optOut({ __mikuru_attrs: { title: "ignored" } })).resolves.toBe('<button class="inner">Ready</button>');
+  });
+
   it("renders serializable v-bind modifiers for SSR", async () => {
     const result = compileSsr(`<template>
   <section>

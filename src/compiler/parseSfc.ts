@@ -62,6 +62,11 @@ export function parseSfc(source: string, filename?: string): SfcDescriptor {
     descriptor[`${name}Offset` as keyof Pick<SfcDescriptor, "templateOffset" | "scriptOffset" | "styleOffset">] =
       trimmedContentStart;
 
+    if (name === "script") {
+      const lang = getAttrValue(attrs, "lang");
+      if (typeof lang === "string" && lang.trim()) descriptor.scriptLang = lang.trim().toLowerCase();
+    }
+
     if (name === "style") {
       descriptor.styleScoped = hasBooleanAttr(attrs, "scoped");
       const lang = getAttrValue(attrs, "lang");
@@ -77,7 +82,7 @@ export function parseSfc(source: string, filename?: string): SfcDescriptor {
     cursor = blockEnd.closeEnd;
   }
 
-  if (!descriptor.template) {
+  if (!seen.has("template")) {
     throw createCompileError("Missing required <template> block", source, 0, filename);
   }
 

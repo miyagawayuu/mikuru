@@ -21,6 +21,6 @@ for (const [name, content] of [
   assert.match(content, /npm run typecheck/, `${name} should document generated app typecheck`);
 }
 
-assert.match(releaseChecklist, /Push `master`/, "release checklist should mention pushing master");
+assert.match(releaseChecklist, /Push `main`/, "release checklist should mention pushing main");
 assert.match(releaseChecklist, /GitHub Release/, "release checklist should mention GitHub Release creation");
 assert.match(releaseChecklist, /Delete merged release or Codex work branches/, "release checklist should mention branch cleanup");

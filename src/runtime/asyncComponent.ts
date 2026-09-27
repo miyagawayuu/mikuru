@@ -1,7 +1,11 @@
 import { createDebugDiagnostic, emitDebugEvent } from "./devtools.js";
+import { collectDomRange, getDomRange } from "./domRange.js";
 
 export type MikuruComponentInstance = {
-  element: Element | Comment;
+  element: ChildNode;
+  roots?: readonly ChildNode[];
+  __mikuru_start?: ChildNode;
+  __mikuru_end?: ChildNode;
   activate?: () => void;
   deactivate?: () => void;
   unmount(): void;
@@ -9,7 +13,7 @@ export type MikuruComponentInstance = {
 
 export type MikuruComponent = {
   mount(target: Element | DocumentFragment, props?: Record<string, unknown>): MikuruComponentInstance;
-  hydrate?: (target: Element, props?: Record<string, unknown>) => MikuruComponentInstance | Promise<MikuruComponentInstance>;
+  hydrate?: (target: Element | Comment, props?: Record<string, unknown>) => MikuruComponentInstance | Promise<MikuruComponentInstance>;
   renderToString?: (props?: Record<string, unknown>) => string | Promise<string>;
   inheritAttrs?: boolean;
 };
@@ -154,7 +158,8 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       const context = props.__mikuru_context as MikuruComponentContext | undefined;
       let child: MikuruComponentInstance | undefined;
       let cancelled = false;
-      let currentNode: Element | Comment = target;
+      let active = false;
+      let currentNode: ChildNode = target;
       let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
       let token = 0;
 
@@ -175,7 +180,8 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       };
 
       const replaceWithMount = (component: MikuruComponent, nextProps: Record<string, unknown>) => {
-        const oldNode = currentNode;
+        const oldNode = child ? getDomRange(child).start : currentNode;
+        const oldEnd = child ? getDomRange(child).end : undefined;
         const parent = oldNode.parentNode;
         if (!parent) {
           return;
@@ -185,14 +191,14 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
         const anchor = ownerDocument.createComment("async-hydrate-component");
         const fragment = ownerDocument.createDocumentFragment();
         parent.insertBefore(anchor, oldNode);
+        const oldNodes = collectDomRange(oldNode, oldEnd);
         child?.unmount();
-        if (oldNode.parentNode) {
-          oldNode.remove();
-        }
+        for (const node of oldNodes) node.remove();
         child = component.mount(fragment, nextProps);
         parent.insertBefore(fragment, anchor);
         anchor.remove();
         currentNode = child.element;
+        if (active) child.activate?.();
       };
 
       const applyResolved = (component: MikuruComponent, currentToken: number) => {
@@ -211,6 +217,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
               }
               child = instance;
               currentNode = instance.element;
+              if (active) instance.activate?.();
             },
             (error) => reportHydrationError(error, "async-loader")
           );
@@ -261,7 +268,12 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
       startHydration();
 
       return {
-        element: target,
+        get element() { return child?.element ?? currentNode; },
+        get roots() { return child?.roots ?? [currentNode]; },
+        get __mikuru_start() { return child?.__mikuru_start ?? (currentNode.nodeType === 8 ? currentNode : undefined); },
+        get __mikuru_end() { return child?.__mikuru_end; },
+        activate() { active = true; child?.activate?.(); },
+        deactivate() { active = false; child?.deactivate?.(); },
         unmount() {
           cancelled = true;
           token += 1;
@@ -285,6 +297,7 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
       target.appendChild(start);
       target.appendChild(end);
+      (start as Comment & { __mikuru_end?: Comment }).__mikuru_end = end;
 
       const clear = () => {
         child?.unmount();
@@ -439,6 +452,9 @@ export function defineAsyncComponent(loaderOrOptions: AsyncComponentLoader | Asy
 
       return {
         element: start,
+        __mikuru_start: start,
+        __mikuru_end: end,
+        get roots() { return collectDomRange(start, end).slice(1, -1); },
         activate() {
           active = true;
           child?.activate?.();

@@ -372,7 +372,7 @@ const { active } = defineProps({ active: Boolean });
 - `const localProps = defineProps();`
 - `const { title, active } = defineProps({ title: String, active: Boolean });`
 
-分割代入したpropsはテンプレート内ではリアクティブに読み直される。宣言オブジェクトの値は `String`、`Number`、`Boolean`、`Array`、`Object` に対応する。v1ではネストした分割代入、rest props、型引数、runtime props validationは対象外。
+分割代入したpropsはテンプレート内ではリアクティブに読み直される。ネストしたオブジェクト分割代入とrest propsも親の更新を読み続ける。`<script lang="ts">` では `defineProps<T>()` の型引数を使用でき、テンプレート型チェック有効時に検査する。実行時宣言は `String`、`Number`、`Boolean`、`Array`、`Object` と、`type`、`required`、`default`、`validator` を持つオプションオブジェクトに対応する。既定値はインスタンスごとに評価し、debugビルドでは検証失敗を警告して描画を続ける。
 
 `defineProps()` はtop-levelの `const` 宣言で使う。複数行の分割代入は対応するが、通常の変数宣言と同じ `const` に混ぜる書き方は対象外。
 

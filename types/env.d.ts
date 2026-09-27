@@ -1,5 +1,6 @@
 type EnvMikuruComponentInstance = {
-  element: Element | Comment;
+  element: ChildNode;
+  roots?: readonly ChildNode[];
   unmount(): void;
 };
 
@@ -14,7 +15,7 @@ type EnvMikuruComponent<Props = Record<string, unknown>> = {
 
 type EnvMikuruHydrationComponent<Props = Record<string, unknown>> = EnvMikuruComponent<Props> & {
   hydrate(
-    target: Element,
+    target: Element | Comment,
     props?: Props
   ): EnvMikuruComponentInstance;
 };
@@ -43,7 +44,7 @@ declare module "*.mikuru?hydrate" {
   ): EnvMikuruComponentInstance;
 
   export function hydrate(
-    target: Element,
+    target: Element | Comment,
     props?: Record<string, unknown>
   ): EnvMikuruComponentInstance;
 

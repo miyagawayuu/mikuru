@@ -1,3 +1,5 @@
+import { isUnsafeAttributeName } from "./attributeSafety.js";
+
 export type ClassValue = string | number | boolean | null | undefined | ClassValue[] | Record<string, unknown>;
 export type StyleValue =
   | string
@@ -16,6 +18,9 @@ export type AttributeBindingOptions = {
 const modelValueKey = "__mikuruModelValue";
 
 export function setAttribute(element: Element, name: string, value: unknown, options: AttributeBindingOptions = {}): void {
+  if (isUnsafeAttributeName(name) || (options.property && ["__proto__", "constructor", "prototype"].includes(name))) {
+    return;
+  }
   const normalizedName = name.toLowerCase();
 
   if (normalizedName === "value" && !options.attribute) {

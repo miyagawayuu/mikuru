@@ -1,9 +1,9 @@
 import { createCompileError, type SourceLocation } from "./errors.js";
-import { createScopeAttr, generateChildren as generateDomChildren, generateNode as generateDomNode, withoutForAttrs as withoutDomForAttrs } from "./generate.js";
+import { componentPropEntries, createScopeAttr, emitComponentAttrs, emitComponentFallthrough, emitComponentProps, emitComponentPropsProxy, emitComponentRangeHelpers, emitComponentShow, emitTemplateRef, emitTransitionRegistration, eventHandlerExpression, generateChildren as generateDomChildren, generateNode as generateDomNode, getKeepAliveOptionExpression, getMemoExpression, getOnceMemoExpression, getTransitionOptionsExpression, normalizeScript, withoutForAttrs as withoutDomForAttrs } from "./generate.js";
 import type { GenerateContext } from "./generate.js";
 import { compileTemplateExpression, parseForExpression, validateAssignableExpression } from "./parseExpression.js";
 import type { ExpressionLocationContext } from "./parseExpression.js";
-import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode } from "./types.js";
+import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TemplateRoot, TextNode } from "./types.js";
 
 type HydrationContext = {
   lines: string[];
@@ -17,11 +17,6 @@ type HydrationContext = {
   once?: boolean;
   source?: string;
   filename?: string;
-};
-
-type ScriptParts = {
-  imports: string[];
-  body: string;
 };
 
 type BindDirective = {
@@ -66,32 +61,42 @@ type SlotScopeBinding =
 
 type GenerateHydrationOptions = {
   includeImports?: boolean;
+  batchedUpdates?: boolean;
+  debug?: boolean;
 };
 
-export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, options: GenerateHydrationOptions = {}): string {
+export function generateHydration(descriptor: SfcDescriptor, root: TemplateRoot, options: GenerateHydrationOptions = {}): string {
   const context: HydrationContext = {
     lines: [],
     index: 0,
     teleportIndex: 0,
+    batchedUpdates: options.batchedUpdates === true,
+    debug: options.debug === true,
     source: descriptor.source,
     filename: descriptor.filename
   };
   context.scopeAttr = descriptor.styleScoped ? createScopeAttr(descriptor) : undefined;
-  const script = splitScript(descriptor.script ?? "");
+  const script = normalizeScript(descriptor, options.debug === true);
 
   if (options.includeImports !== false) {
     for (const importLine of script.imports) {
       emit(context, 0, importLine);
     }
-    emit(context, 0, "import { effect, ref, setAttribute, unwrap } from \"mikuru/runtime\";");
+    emit(context, 0, `import { effect, ref, setAttribute, unwrap${context.batchedUpdates ? ", queueJob" : ""} } from "mikuru/runtime";`);
+    if (context.batchedUpdates) {
+      emit(context, 0, "const __mikuru_effect = (fn) => effect(fn, { scheduler: queueJob });");
+    }
     emit(context, 0, "");
   }
 
   emit(context, 0, "export function hydrate(target, props = {}) {");
   emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
   emit(context, 1, "const __mikuru_cleanup = [];");
+  emit(context, 1, "let __mikuru_activeCleanup = __mikuru_cleanup;");
   emit(context, 1, "const __mikuru_afterUnmount = [];");
   emit(context, 1, "const __mikuru_mounted = [];");
+  emit(context, 1, "const __mikuru_activated = [];");
+  emit(context, 1, "const __mikuru_deactivated = [];");
   emit(context, 1, "const __mikuru_context = { parent: props.__mikuru_context, provides: new Map(), errorHandler: props.__mikuru_context?.errorHandler, ...__mikuru_componentInfo };");
   emit(context, 1, "const __mikuru_errorInfo = (phase) => ({ ...__mikuru_componentInfo, phase });");
   emit(context, 1, "const __mikuru_reportError = (error, errorHandler = __mikuru_context.errorHandler, phase = \"runtime\") => { if (typeof errorHandler === \"function\") { Promise.resolve().then(() => errorHandler(error, __mikuru_errorInfo(phase))); return; } setTimeout(() => { throw error; }); };");
@@ -99,14 +104,20 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
   emit(context, 1, "const __mikuru_memoEqual = (previous, next) => Array.isArray(previous) && Array.isArray(next) && previous.length === next.length && previous.every((value, index) => Object.is(value, next[index]));");
   emit(context, 1, "const __mikuru_guardEventHandler = (fn, errorHandler = __mikuru_context.errorHandler) => (...args) => __mikuru_try(() => fn(...args), errorHandler, \"event\");");
   emit(context, 1, "const __mikuru_runCleanup = (cleanups) => { for (const cleanup of cleanups.splice(0).reverse()) __mikuru_try(cleanup, undefined, \"cleanup\"); };");
-  emit(context, 1, "const __mikuru_removeNode = (node) => { if (node?.parentNode) node.remove(); };");
-  emit(context, 1, "const __mikuru_applyTransitionEnter = () => {};");
-  emit(context, 1, "const __mikuru_applyTransitionMove = () => {};");
+  emit(context, 1, "const __mikuru_transitionFrame = (fn) => { const raf = globalThis.requestAnimationFrame; if (typeof raf === \"function\") { raf(() => raf(fn)); } else { setTimeout(fn, 0); } };");
+  emit(context, 1, 'const __mikuru_transitionDone = (element, cleanup) => { let done = false; const finish = (event) => { if (event && event.target !== element) return; if (done) return; done = true; element.removeEventListener("transitionend", finish); element.removeEventListener("animationend", finish); cleanup(); }; element.addEventListener("transitionend", finish); element.addEventListener("animationend", finish); const style = globalThis.getComputedStyle?.(element); const times = (value) => String(value ?? "0s").split(",").map((part) => { const n = parseFloat(part); return Number.isFinite(n) ? n * (part.trim().endsWith("ms") ? 1 : 1000) : 0; }); const maxTime = (duration, delay) => duration.reduce((max, time, index) => Math.max(max, time + (delay[index % delay.length] ?? 0)), 0); const timeout = style ? Math.max(maxTime(times(style.transitionDuration), times(style.transitionDelay)), maxTime(times(style.animationDuration), times(style.animationDelay))) : 0; setTimeout(finish, Math.max(50, timeout + 20)); };');
+  emit(context, 1, "const __mikuru_applyTransitionEnter = (element, transition) => { if (!element || element.nodeType !== 1 || !transition?.name) return; if (transition.appear === false && !transition.__mikuru_hasAppeared) { transition.__mikuru_hasAppeared = true; return; } transition.__mikuru_hasAppeared = true; const from = transition.enterFromClass || `${transition.name}-enter-from`; const active = transition.enterActiveClass || `${transition.name}-enter-active`; const to = transition.enterToClass || `${transition.name}-enter-to`; element.classList.add(from, active); __mikuru_transitionFrame(() => { element.classList.remove(from); element.classList.add(to); __mikuru_transitionDone(element, () => element.classList.remove(active, to)); }); };");
+  emit(context, 1, 'const __mikuru_applyTransitionMove = (element, transition) => { if (!element || !transition?.name) return; const move = transition.moveClass || `${transition.name}-move`; for (const root of __mikuru_rangeElements(element)) { root.classList.add(move); __mikuru_transitionFrame(() => __mikuru_transitionDone(root, () => root.classList.remove(move))); } };');
+  emit(context, 1, "const __mikuru_leavePromises = new Set();");
+  emit(context, 1, "const __mikuru_removeNode = (node) => { if (!node?.parentNode) return Promise.resolve(); if (node.__mikuru_transitionLeaving) return node.__mikuru_leavePromise ?? Promise.resolve(); if (node.nodeType !== 1 || !node.__mikuru_transition) { node.remove(); return Promise.resolve(); } node.__mikuru_transitionLeaving = true; const transition = node.__mikuru_transition; const from = transition.leaveFromClass || `${transition.name}-leave-from`; const active = transition.leaveActiveClass || `${transition.name}-leave-active`; const to = transition.leaveToClass || `${transition.name}-leave-to`; node.classList.add(from, active); const pending = new Promise((resolve) => __mikuru_transitionFrame(() => { node.classList.remove(from); node.classList.add(to); __mikuru_transitionDone(node, () => { node.classList.remove(active, to); node.remove(); resolve(); }); })); node.__mikuru_leavePromise = pending; __mikuru_leavePromises.add(pending); pending.then(() => __mikuru_leavePromises.delete(pending)); return pending; };");
+  emitComponentRangeHelpers(context as GenerateContext, 1);
   emit(context, 1, "const __mikuru_previousRegistrar = globalThis.__mikuru_currentRegistrar;");
   emit(context, 1, "globalThis.__mikuru_currentRegistrar = {");
   emit(context, 2, "registerMounted: (fn) => __mikuru_mounted.push(fn),");
   emit(context, 2, "registerBeforeUnmount: (fn) => __mikuru_cleanup.push(fn),");
   emit(context, 2, "registerUnmounted: (fn) => __mikuru_afterUnmount.push(fn),");
+  emit(context, 2, "registerActivated: (fn) => __mikuru_activated.push(fn),");
+  emit(context, 2, "registerDeactivated: (fn) => __mikuru_deactivated.push(fn),");
   emit(context, 2, "provide: (key, value) => __mikuru_context.provides.set(key, value),");
   emit(context, 2, "inject: (key) => {");
   emit(context, 3, "for (let context = __mikuru_context; context; context = context.parent) {");
@@ -131,12 +142,27 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
   emit(context, 2, "for (const cleanup of __mikuru_cleanup.splice(0).reverse()) __mikuru_try(cleanup);");
   emit(context, 2, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) __mikuru_try(cb);");
   emit(context, 2, "__mikuru_restoreRegistrar();");
-  emit(context, 2, "if (target.nodeType === 1) { target.innerHTML = \"\"; }");
-  emit(context, 2, "__mikuru_recovered = mount(target, props);");
+  emit(context, 2, 'if (target.nodeType === 8 && target.nodeValue === "mikuru-fragment") {');
+  emit(context, 3, 'const end = __mikuru_findRangeEnd(target);');
+  emit(context, 3, 'const parent = target.parentNode;');
+  emit(context, 3, 'const anchor = document.createComment("mikuru-recover-fragment");');
+  emit(context, 3, 'parent?.insertBefore(anchor, target);');
+  emit(context, 3, 'if (end) __mikuru_removeRange(target, end); else target.remove();');
+  emit(context, 3, 'const fragment = document.createDocumentFragment();');
+  emit(context, 3, '__mikuru_recovered = mount(fragment, props);');
+  emit(context, 3, 'parent?.insertBefore(fragment, anchor);');
+  emit(context, 3, 'anchor.remove();');
+  emit(context, 3, 'target.__mikuru_replacementEnd = __mikuru_recovered.__mikuru_end ?? __mikuru_recovered.element;');
+  emit(context, 2, '} else {');
+  emit(context, 3, 'if (target.nodeType === 1) target.innerHTML = "";');
+  emit(context, 3, '__mikuru_recovered = mount(target, props);');
+  emit(context, 2, '}');
   emit(context, 2, "throw __mikuru_recovery;");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_findComment = (parent, value) => Array.from(parent.childNodes ?? []).find((node) => node.nodeType === 8 && node.nodeValue === value);");
   emit(context, 1, "const __mikuru_findNextComment = (node, value) => { for (let cursor = node.nextSibling; cursor; cursor = cursor.nextSibling) { if (cursor.nodeType === 8 && cursor.nodeValue === value) return cursor; } return undefined; };");
+  emit(context, 1, 'const __mikuru_isComponentRoot = (node) => node?.nodeType === 1 || (node?.nodeType === 8 && node.nodeValue === "mikuru-fragment");');
+  emit(context, 1, 'const __mikuru_advanceComponent = (parent, index, node) => { const end = node?.__mikuru_replacementEnd ?? (node?.nodeType === 8 && node.nodeValue === "mikuru-fragment" ? __mikuru_findRangeEnd(node) : undefined); const endIndex = end ? Array.prototype.indexOf.call(parent.childNodes, end) : -1; return endIndex >= 0 ? endIndex + 1 : index + 1; };');
   emit(context, 1, "const __mikuru_setRef = (target, value, multiple = false) => {");
   emit(context, 2, "if (typeof target === \"function\") {");
   emit(context, 3, "target(value);");
@@ -155,13 +181,37 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
   emit(context, 2, "return () => { if (target.value === value) { target.value = null; } };");
   emit(context, 1, "};");
   if (script.body.trim()) {
+    if (script.usesPropsAlias) {
+      emit(context, 1, "const __mikuru_props = props;");
+    }
+    if (script.usesAttrsAlias) {
+      emit(context, 1, "const __mikuru_attrs = props.__mikuru_attrs ?? {};");
+    }
+    if (script.usesEmitAlias) {
+      emit(context, 1, "const __mikuru_emit = (name, ...args) => {");
+      emit(context, 2, "const handlerName = \"on\" + String(name).split(/[-:]/).filter(Boolean).map((part) => part[0].toUpperCase() + part.slice(1)).join(\"\");");
+      emit(context, 2, "const handler = props[handlerName];");
+      emit(context, 2, "if (handler) __mikuru_try(() => handler(...args), undefined, \"emit\");");
+      emit(context, 1, "};");
+    }
     emitRaw(context, script.body.trim(), 1);
     emit(context, 1, "");
   }
-  emit(context, 1, "const __mikuru_root = target.nodeType === 1 && target.tagName?.toLowerCase() === " + quote(root.tag.toLowerCase()) + " ? target : target.firstElementChild;");
-  emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch: expected <${root.tag.toLowerCase()}>, got " + __mikuru_describeNode(__mikuru_root) + "; falling back to mount().", { kind: "root", expected: "<${root.tag.toLowerCase()}>", actual: __mikuru_describeNode(__mikuru_root), action: "mount-fallback", node: __mikuru_root }); __mikuru_restoreRegistrar(); return mount(target, props); }`);
+  const generatedEffectsStart = context.lines.length;
+  if (root.type === "fragment") {
+    emit(context, 1, 'const __mikuru_root = target.nodeType === 8 && target.nodeValue === "mikuru-fragment" ? target : __mikuru_findComment(target, "mikuru-fragment");');
+    emit(context, 1, 'const __mikuru_rootEnd = __mikuru_root && __mikuru_findRangeEnd(__mikuru_root);');
+    emit(context, 1, 'if (__mikuru_root && __mikuru_rootEnd) __mikuru_root.__mikuru_end = __mikuru_rootEnd;');
+    emit(context, 1, 'if (!__mikuru_root || !__mikuru_rootEnd) { __mikuru_warn("Root fragment marker mismatch; falling back to mount()."); __mikuru_restoreRegistrar(); if (target.nodeType === 1) target.innerHTML = ""; return mount(target, props); }');
+    emit(context, 1, 'const __mikuru_rootParent = __mikuru_root.parentNode;');
+    emit(context, 1, 'const __mikuru_rootProxy = { get childNodes() { const nodes = []; for (let node = __mikuru_root.nextSibling; node && node !== __mikuru_rootEnd; node = node.nextSibling) nodes.push(node); return nodes; }, insertBefore(child, before) { __mikuru_rootParent.insertBefore(child, before ?? __mikuru_rootEnd); }, appendChild(child) { __mikuru_rootParent.insertBefore(child, __mikuru_rootEnd); }, __mikuru_parent: __mikuru_rootParent, __mikuru_after: __mikuru_rootEnd };');
+  } else {
+    emit(context, 1, "const __mikuru_root = target.nodeType === 1 && target.tagName?.toLowerCase() === " + quote(root.tag.toLowerCase()) + " ? target : target.firstElementChild;");
+    emit(context, 1, `if (!__mikuru_root || __mikuru_root.tagName?.toLowerCase() !== ${quote(root.tag.toLowerCase())}) { __mikuru_warn("Root mismatch: expected <${root.tag.toLowerCase()}>, got " + __mikuru_describeNode(__mikuru_root) + "; falling back to mount().", { kind: "root", expected: "<${root.tag.toLowerCase()}>", actual: __mikuru_describeNode(__mikuru_root), action: "mount-fallback", node: __mikuru_root }); __mikuru_restoreRegistrar(); return mount(target, props); }`);
+  }
   emit(context, 1, "try {");
-  hydrateElement(context, root, "__mikuru_root", 2);
+  if (root.type === "fragment") hydrateChildren(context, root.children, "__mikuru_rootProxy", 2);
+  else hydrateElement(context, root, "__mikuru_root", 2);
   emit(context, 1, "} catch (error) {");
   emit(context, 2, "if (error === __mikuru_recovery) { return __mikuru_recovered; }");
   emit(context, 2, "throw error;");
@@ -169,12 +219,24 @@ export function generateHydration(descriptor: SfcDescriptor, root: ElementNode, 
   emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb); }");
   emit(context, 1, "__mikuru_restoreRegistrar();");
   emit(context, 1, "return {");
-  emit(context, 2, "element: __mikuru_root,");
-  emit(context, 2, "unmount() { for (const cleanup of __mikuru_cleanup.splice(0).reverse()) __mikuru_try(cleanup); for (const cb of __mikuru_afterUnmount.splice(0).reverse()) __mikuru_try(cb); }");
+  if (root.type === "fragment") {
+    emit(context, 2, "__mikuru_start: __mikuru_root, __mikuru_end: __mikuru_rootEnd,");
+    emit(context, 2, "get element() { return __mikuru_root.nextSibling && __mikuru_root.nextSibling !== __mikuru_rootEnd ? __mikuru_root.nextSibling : __mikuru_root; },");
+    emit(context, 2, "get roots() { return __mikuru_rootProxy.childNodes; },");
+  } else {
+    emit(context, 2, "element: __mikuru_root,");
+    emit(context, 2, "get roots() { return [__mikuru_root]; },");
+  }
+  emit(context, 2, 'activate() { for (const cb of __mikuru_activated) __mikuru_try(cb, undefined, "activated"); },');
+  emit(context, 2, 'deactivate() { for (const cb of __mikuru_deactivated) __mikuru_try(cb, undefined, "deactivated"); },');
+  emit(context, 2, `unmount() { for (const cleanup of __mikuru_cleanup.splice(0).reverse()) __mikuru_try(cleanup); for (const cb of __mikuru_afterUnmount.splice(0).reverse()) __mikuru_try(cb); ${root.type === "fragment" ? "__mikuru_removeRange(__mikuru_root, __mikuru_rootEnd);" : ""} }`);
   emit(context, 1, "};");
   emit(context, 0, "}");
 
-  return `${context.lines.join("\n")}\n`;
+  const lines = context.batchedUpdates
+    ? context.lines.map((line, index) => index >= generatedEffectsStart ? line.replaceAll("effect(() =>", "__mikuru_effect(() =>") : line)
+    : context.lines;
+  return `${lines.join("\n")}\n`;
 }
 
 function hydrateNode(context: HydrationContext, node: TemplateNode, nodeVar: string, indent: number): void {
@@ -311,7 +373,7 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
     emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndexVar}];`);
     if (child.type === "element") {
       const elementCheck = isComponentTag(child.tag)
-        ? `!${childVar} || ${childVar}.nodeType !== 1`
+        ? `!__mikuru_isComponentRoot(${childVar})`
         : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
       emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}), { kind: "element", expected: "<${child.tag.toLowerCase()}>", actual: __mikuru_describeNode(${childVar}), node: ${childVar} }); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
@@ -321,7 +383,9 @@ function hydrateChildren(context: HydrationContext, rawChildren: TemplateNode[],
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }
-    emit(context, indent, `${domIndexVar} += 1;`);
+    emit(context, indent, child.type === "element" && isComponentTag(child.tag)
+      ? `${domIndexVar} = __mikuru_advanceComponent(${parentVar}, ${domIndexVar}, ${childVar});`
+      : `${domIndexVar} += 1;`);
   }
   emit(context, indent, `if (${parentVar}.childNodes.length > ${domIndexVar}) { __mikuru_warn("Extra DOM nodes after hydration: " + Array.from(${parentVar}.childNodes).slice(${domIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
 }
@@ -335,8 +399,6 @@ function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, pa
   const targetVar = nextName(context, "teleportTarget");
   const contentStartVar = nextName(context, "teleportContentStart");
   const contentEndVar = nextName(context, "teleportContentEnd");
-  const nodesVar = nextName(context, "teleportNodes");
-  const cursorVar = nextName(context, "teleportCursor");
   const parentProxyVar = nextName(context, "teleportParent");
   const toExpression = getTeleportToExpression(context, node);
   const disabledExpression = getTeleportDisabledExpression(context, node);
@@ -352,12 +414,14 @@ function hydrateTeleportAtIndex(context: HydrationContext, node: ElementNode, pa
   emit(context, indent + 2, `const ${contentStartVar} = ${disabledVar} ? ${startVar} : __mikuru_findComment(${targetVar}, ${quote(`teleport content:${id}`)});`);
   emit(context, indent + 2, `const ${contentEndVar} = ${disabledVar} ? ${endVar} : __mikuru_findComment(${targetVar}, ${quote(`/teleport content:${id}`)});`);
   emit(context, indent + 2, `if (!${contentStartVar} || !${contentEndVar}) { __mikuru_recover("Teleport content marker mismatch"); } else {`);
-  emit(context, indent + 3, `const ${nodesVar} = [];`);
-  emit(context, indent + 3, `let ${cursorVar} = ${contentStartVar}.nextSibling;`);
-  emit(context, indent + 3, `while (${cursorVar} && ${cursorVar} !== ${contentEndVar}) { ${nodesVar}.push(${cursorVar}); ${cursorVar} = ${cursorVar}.nextSibling; }`);
-  emit(context, indent + 3, `const ${parentProxyVar} = { childNodes: ${nodesVar} };`);
+  emit(context, indent + 3, `const ${parentProxyVar} = {`);
+  emit(context, indent + 4, `get childNodes() { const nodes = []; for (let cursor = ${contentStartVar}.nextSibling; cursor && cursor !== ${contentEndVar}; cursor = cursor.nextSibling) nodes.push(cursor); return nodes; },`);
+  emit(context, indent + 4, `insertBefore(child, before) { ${contentEndVar}.parentNode?.insertBefore(child, before ?? ${contentEndVar}); },`);
+  emit(context, indent + 4, `appendChild(child) { ${contentEndVar}.parentNode?.insertBefore(child, ${contentEndVar}); },`);
+  emit(context, indent + 4, `__mikuru_parent: ${contentEndVar}.parentNode, __mikuru_after: ${contentEndVar}`);
+  emit(context, indent + 3, `};`);
   hydrateChildren(context, node.children, parentProxyVar, indent + 3);
-  emit(context, indent + 3, `if (!${disabledVar}) __mikuru_cleanup.push(() => { ${contentStartVar}.remove(); ${contentEndVar}.remove(); });`);
+  emit(context, indent + 3, `if (!${disabledVar}) __mikuru_activeCleanup.push(() => { ${contentStartVar}.remove(); ${contentEndVar}.remove(); });`);
   emit(context, indent + 2, "}");
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `${domIndex} = Array.prototype.indexOf.call(${parentVar}.childNodes, ${endVar}) + 1;`);
@@ -374,7 +438,7 @@ function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: stri
   const condition = getAttrValue(node, "v-if");
   const childVar = nextName(context, "branch");
   const elementCheck = isComponentTag(node.tag)
-    ? `!${childVar} || ${childVar}.nodeType !== 1`
+    ? `!__mikuru_isComponentRoot(${childVar})`
     : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}`;
   emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
   emit(context, indent, `if (unwrap(${compileHydrationExpression(context, condition, "v-if")})) {`);
@@ -386,7 +450,40 @@ function hydrateIf(context: HydrationContext, node: ElementNode, parentVar: stri
   emit(context, indent, "}");
 }
 
-function hydrateIfChain(context: HydrationContext, branches: IfBranch[], parentVar: string, domIndex: string, indent: number): void {
+function hydrateIfChain(context: HydrationContext, branches: IfBranch[], parentVar: string, domIndex: string, indent: number, transitionNode?: ElementNode): void {
+  const startIndexVar = nextName(context, "ifStartIndex");
+  const firstVar = nextName(context, "ifFirst");
+  const afterVar = nextName(context, "ifAfter");
+  const startAnchorVar = nextName(context, "ifStart");
+  const endAnchorVar = nextName(context, "ifEnd");
+  const branchCleanupVar = nextName(context, "ifCleanup");
+  const ownerCleanupVar = nextName(context, "ifOwnerCleanup");
+  const selectedVar = nextName(context, "ifSelected");
+  const nextVar = nextName(context, "ifNext");
+  const parentNodeVar = nextName(context, "ifParent");
+  const stopVar = nextName(context, "stop");
+  const selectVar = nextName(context, "selectIf");
+  const updateVar = nextName(context, "updateIf");
+  const disposedVar = nextName(context, "ifDisposed");
+  const transitionVar = transitionNode ? nextName(context, "ifTransition") : undefined;
+  const renderTokenVar = transitionNode ? nextName(context, "ifRenderToken") : undefined;
+  const hadBranchVar = transitionNode ? nextName(context, "ifHadBranch") : undefined;
+  const renderVar = transitionNode ? nextName(context, "renderIf") : undefined;
+  emit(context, indent, `const ${startIndexVar} = ${domIndex};`);
+  emit(context, indent, `const ${branchCleanupVar} = [];`);
+  emit(context, indent, `const ${ownerCleanupVar} = __mikuru_activeCleanup;`);
+  emit(context, indent, `let ${startAnchorVar};`);
+  emit(context, indent, `let ${endAnchorVar};`);
+  emit(context, indent, `let ${selectedVar} = -1;`);
+  emit(context, indent, `let ${disposedVar} = false;`);
+  if (transitionVar && transitionNode && renderTokenVar) {
+    emit(context, indent, `const ${transitionVar} = ${getTransitionOptionsExpression(context as GenerateContext, transitionNode)};`);
+    emit(context, indent, `${transitionVar}.__mikuru_hasAppeared = true;`);
+    emit(context, indent, `let ${renderTokenVar} = 0;`);
+  }
+  emit(context, indent, `${ownerCleanupVar}.push(() => { ${disposedVar} = true; ${renderTokenVar ? `++${renderTokenVar}; ` : ""}${stopVar}?.(); __mikuru_runCleanup(${branchCleanupVar}); ${startAnchorVar}?.remove(); ${endAnchorVar}?.remove(); });`);
+  emit(context, indent, `let ${stopVar};`);
+  emit(context, indent, `__mikuru_activeCleanup = ${branchCleanupVar};`);
   branches.forEach((branch, index) => {
     if (index === 0) {
       emit(context, indent, `if (unwrap(${compileHydrationExpression(context, branch.condition ?? "", "v-if")})) {`);
@@ -396,9 +493,82 @@ function hydrateIfChain(context: HydrationContext, branches: IfBranch[], parentV
       emit(context, indent, "else {");
     }
 
+    emit(context, indent + 1, `${selectedVar} = ${index};`);
     hydrateFragmentChildrenAtIndex(context, ifBranchChildren(branch.node), parentVar, domIndex, indent + 1);
     emit(context, indent, "}");
   });
+  emit(context, indent, `__mikuru_activeCleanup = ${ownerCleanupVar};`);
+  emit(context, indent, `const ${firstVar} = ${parentVar}.childNodes[${startIndexVar}] ?? null;`);
+  emit(context, indent, `const ${afterVar} = ${parentVar}.childNodes[${domIndex}] ?? ${parentVar}.__mikuru_after ?? null;`);
+  emit(context, indent, `${startAnchorVar} = document.createComment("if");`);
+  emit(context, indent, `${endAnchorVar} = document.createComment("/if");`);
+  emit(context, indent, `${parentVar}.insertBefore(${startAnchorVar}, ${firstVar} ?? ${afterVar});`);
+  emit(context, indent, `${parentVar}.insertBefore(${endAnchorVar}, ${afterVar});`);
+  emit(context, indent, `${domIndex} += 2;`);
+  if (transitionVar) {
+    emit(context, indent, `if (${selectedVar} >= 0) for (let node = ${startAnchorVar}.nextSibling; node && node !== ${endAnchorVar}; node = node.nextSibling) { if (node.nodeType === 1) { node.__mikuru_transition = ${transitionVar}; node.__mikuru_transitionLeaving = false; } }`);
+  }
+  emit(context, indent, `let ${nextVar} = -1;`);
+  emit(context, indent, `const ${selectVar} = () => {`);
+  emit(context, indent + 1, `${nextVar} = -1;`);
+  branches.forEach((branch, index) => {
+    if (branch.directive === "v-else") {
+      emit(context, indent + 1, `${index === 0 ? "if (true)" : "else"} { ${nextVar} = ${index}; }`);
+    } else {
+      const condition = compileHydrationExpression(context, branch.condition ?? "", branch.directive);
+      emit(context, indent + 1, `${index === 0 ? "if" : "else if"} (unwrap(${condition})) { ${nextVar} = ${index}; }`);
+    }
+  });
+  emit(context, indent, `};`);
+  emit(context, indent, `const ${updateVar} = () => {`);
+  emit(context, indent + 1, `if (${nextVar} === ${selectedVar}) return;`);
+  emit(context, indent + 1, `const ${parentNodeVar} = ${startAnchorVar}.parentNode;`);
+  if (hadBranchVar) {
+    emit(context, indent + 1, `const ${hadBranchVar} = ${startAnchorVar}.nextSibling !== ${endAnchorVar};`);
+    emit(context, indent + 1, `const __mikuru_previousLeaves = new Set(__mikuru_leavePromises);`);
+  }
+  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  emitHydrationRemoveBetween(context, indent + 1, startAnchorVar, endAnchorVar);
+  emit(context, indent + 1, `${selectedVar} = ${nextVar};`);
+  if (renderVar && renderTokenVar) {
+    const currentTokenVar = nextName(context, "ifCurrentToken");
+    emit(context, indent + 1, `const ${currentTokenVar} = ++${renderTokenVar};`);
+    emit(context, indent + 1, `const ${renderVar} = () => {`);
+    emit(context, indent + 2, `if (${disposedVar} || ${currentTokenVar} !== ${renderTokenVar}) return;`);
+  }
+  const branchIndent = renderVar ? indent + 2 : indent + 1;
+  branches.forEach((branch, index) => {
+    emit(context, branchIndent, `if (${nextVar} === ${index}) {`);
+    const node = withoutAttrs(branch.node, ["v-if", "v-else-if", "v-else"]);
+    if (node.tag === "template") {
+      const beforeNew = transitionVar ? nextName(context, "ifPrevious") : undefined;
+      if (beforeNew) emit(context, branchIndent + 1, `const ${beforeNew} = ${endAnchorVar}.previousSibling;`);
+      generateDomChildren(context as GenerateContext, node.children, parentNodeVar, branchCleanupVar, branchIndent + 1, endAnchorVar);
+      if (beforeNew && transitionVar) {
+        emit(context, branchIndent + 1, `for (let node = ${beforeNew}?.nextSibling; node && node !== ${endAnchorVar}; node = node.nextSibling) { if (node.nodeType === 1) { node.__mikuru_transition = ${transitionVar}; node.__mikuru_transitionLeaving = false; __mikuru_applyTransitionEnter(node, ${transitionVar}); } }`);
+      }
+    } else {
+      const branchVar = generateDomNode(context as GenerateContext, node, parentNodeVar, branchCleanupVar, branchIndent + 1, endAnchorVar);
+      if (transitionVar) {
+        emitTransitionRegistration(context as GenerateContext, branchVar, transitionVar, branchIndent + 1);
+      }
+    }
+    emit(context, branchIndent, `}`);
+  });
+  if (renderVar && transitionVar && hadBranchVar) {
+    emit(context, indent + 1, `};`);
+    emit(context, indent + 1, `if (${transitionVar}.mode === "out-in" && ${hadBranchVar}) Promise.all(Array.from(__mikuru_leavePromises).filter((pending) => !__mikuru_previousLeaves.has(pending))).then(${renderVar}); else ${renderVar}();`);
+  }
+  emit(context, indent, `};`);
+  if (context.batchedUpdates) {
+    const runnerVar = nextName(context, "ifRunner");
+    const jobVar = nextName(context, "ifJob");
+    emit(context, indent, `let ${runnerVar};`);
+    emit(context, indent, `const ${jobVar} = () => { if (${disposedVar}) return; ${runnerVar}(); ${updateVar}(); };`);
+    emit(context, indent, `${stopVar} = effect(${selectVar}, { scheduler: (runner) => { ${runnerVar} = runner; queueJob(${jobVar}); } });`);
+  } else {
+    emit(context, indent, `${stopVar} = effect(${selectVar}, { scheduler: (runner) => { if (${disposedVar}) return; runner(); ${updateVar}(); } });`);
+  }
 }
 
 function ifBranchChildren(node: ElementNode): TemplateNode[] {
@@ -441,114 +611,232 @@ function collectIfBranches(children: TemplateNode[], startIndex: number): { bran
   return { branches, nextIndex: cursor };
 }
 
-function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number, advanceVar?: string): void {
+function hydrateFor(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number, _advanceVar?: string, transitionNode?: ElementNode): void {
   const attr = getAttr(node, "v-for");
   if (!attr || attr.value === true) {
     return;
   }
 
   const forExpression = parseForExpression(String(attr.value));
-  const listVar = nextName(context, "list");
-  const itemVar = nextName(context, "item");
-  const startIndexVar = nextName(context, "forStartIndex");
-  emit(context, indent, `const ${startIndexVar} = ${domIndex};`);
-  if (node.tag === "template") {
-    emit(context, indent, `const ${listVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
-    emit(context, indent, `for (const [__mikuru_index, ${itemVar}] of ${listVar}.entries()) {`);
-    emit(context, indent + 1, `const ${forExpression.item} = ${itemVar};`);
-    if (forExpression.index) {
-      emit(context, indent + 1, `const ${forExpression.index} = __mikuru_index;`);
-    }
-    withTemplateRefMode(context, "array", () => {
-      hydrateFragmentChildrenAtIndex(context, node.children, parentVar, domIndex, indent + 1);
-    });
-    emit(context, indent, "}");
-    emitHydratedForUpdate(context, node, parentVar, startIndexVar, domIndex, indent, forExpression);
+  if (getKeyExpression(node)) {
+    hydrateKeyedFor(context, node, parentVar, domIndex, indent, forExpression, transitionNode);
     return;
   }
-
-  const childVar = nextName(context, "row");
-  const elementCheck = isComponentTag(node.tag)
-    ? `!${childVar} || ${childVar}.nodeType !== 1`
-    : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}`;
-  emit(context, indent, `const ${listVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
-  emit(context, indent, `for (const [__mikuru_index, ${itemVar}] of ${listVar}.entries()) {`);
-  emit(context, indent + 1, `const ${forExpression.item} = ${itemVar};`);
-  if (forExpression.index) {
-    emit(context, indent + 1, `const ${forExpression.index} = __mikuru_index;`);
-  }
-  emit(context, indent + 1, `const ${childVar} = ${parentVar}.childNodes[${domIndex} + __mikuru_index];`);
-  emit(context, indent + 1, `if (${elementCheck}) { __mikuru_recover("List mismatch: dynamic v-for expected row, got " + __mikuru_describeNode(${childVar})); } else {`);
-  withTemplateRefMode(context, "array", () => {
-    hydrateElement(context, withoutAttrs(node, ["v-for"]), childVar, indent + 2);
-  });
-  emit(context, indent + 1, "}");
-  emit(context, indent, "}");
-  if (advanceVar) {
-    emit(context, indent, `${advanceVar} += ${listVar}.length;`);
-  }
-  emitHydratedForUpdate(context, node, parentVar, startIndexVar, domIndex, indent, forExpression);
+  const positionName = forExpression.index ?? nextName(context, "forPosition");
+  hydrateKeyedFor(context, node, parentVar, domIndex, indent, { ...forExpression, index: positionName }, transitionNode, true);
 }
 
-function emitHydratedForUpdate(
+function hydrateKeyedFor(
   context: HydrationContext,
   node: ElementNode,
   parentVar: string,
-  startIndexVar: string,
-  endIndexVar: string,
+  domIndex: string,
   indent: number,
-  forExpression: { item: string; index?: string; source: string }
+  forExpression: { item: string; index?: string; source: string },
+  transitionNode?: ElementNode,
+  positional = false
 ): void {
-  const hydratedFirstVar = nextName(context, "forHydratedFirst");
-  const hydratedAfterVar = nextName(context, "forHydratedAfter");
-  const startAnchorVar = nextName(context, "forUpdateStart");
-  const endAnchorVar = nextName(context, "forUpdateEnd");
-  const initializedVar = nextName(context, "forInitialized");
-  const branchCleanupVar = nextName(context, "forCleanup");
+  const template = node.tag === "template";
+  const compiledSource = compileHydrationExpression(context, forExpression.source, "v-for source");
+  const compiledKey = positional ? forExpression.index! : compileHydrationExpression(context, getKeyExpression(node)!, "v-for key");
+  const compiledMemo = getMemoExpression(context as GenerateContext, node) ?? getOnceMemoExpression(context as GenerateContext, node);
+  const recordsVar = nextName(context, "forRecords");
+  const ownerCleanupVar = nextName(context, "forOwnerCleanup");
+  const pendingCleanupVar = nextName(context, "forPendingCleanup");
+  const startIndexVar = nextName(context, "forStartIndex");
+  const startAnchorVar = nextName(context, "forStart");
+  const endAnchorVar = nextName(context, "forEnd");
   const stopVar = nextName(context, "stop");
-  const sourceVar = nextName(context, "forSource");
+  const listVar = nextName(context, "forList");
+  const rawItemVar = nextName(context, "forRawItem");
   const indexVar = nextName(context, "forIndex");
-  const rawItemVar = nextName(context, "forItem");
-  emit(context, indent, `const ${hydratedFirstVar} = ${parentVar}.childNodes[${startIndexVar}] ?? null;`);
-  emit(context, indent, `const ${hydratedAfterVar} = ${parentVar}.childNodes[${endIndexVar}] ?? null;`);
-  emit(context, indent, `let ${startAnchorVar};`);
-  emit(context, indent, `let ${endAnchorVar};`);
-  emit(context, indent, `let ${initializedVar} = false;`);
-  emit(context, indent, `const ${branchCleanupVar} = [];`);
-  emit(context, indent, `const ${stopVar} = effect(() => {`);
-  emit(context, indent + 1, `const ${sourceVar} = Array.from(unwrap(${compileHydrationExpression(context, forExpression.source, "v-for source")}) ?? []);`);
-  emit(context, indent + 1, `if (!${initializedVar}) { ${initializedVar} = true; return; }`);
-  emit(context, indent + 1, `if (!${startAnchorVar}) {`);
-  emit(context, indent + 2, `${startAnchorVar} = document.createComment("for");`);
-  emit(context, indent + 2, `${endAnchorVar} = document.createComment("/for");`);
-  emit(context, indent + 2, `${parentVar}.insertBefore(${startAnchorVar}, ${hydratedFirstVar}?.parentNode === ${parentVar} ? ${hydratedFirstVar} : ${hydratedAfterVar});`);
-  emit(context, indent + 2, `${parentVar}.insertBefore(${endAnchorVar}, ${hydratedAfterVar});`);
-  emit(context, indent + 1, `}`);
-  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
-  emitHydrationRemoveBetween(context, indent + 1, startAnchorVar, endAnchorVar);
-  emit(context, indent + 1, `for (let ${indexVar} = 0; ${indexVar} < ${sourceVar}.length; ${indexVar} += 1) {`);
-  emit(context, indent + 2, `const ${rawItemVar} = ${sourceVar}[${indexVar}];`);
-  emit(context, indent + 2, `const ${forExpression.item} = ${rawItemVar};`);
-  if (forExpression.index) {
-    emit(context, indent + 2, `const ${forExpression.index} = ${indexVar};`);
-  }
+  const itemRefVar = nextName(context, "forItemRef");
+  const indexRefVar = forExpression.index ? nextName(context, "forIndexRef") : undefined;
+  const keyVar = nextName(context, "forKey");
+  const memoVar = compiledMemo ? nextName(context, "forMemo") : undefined;
+  const recordCleanupVar = nextName(context, "forRecordCleanup");
+  const recordVar = nextName(context, "forRecord");
+  const transitionVar = transitionNode ? nextName(context, "forTransition") : undefined;
 
-  const previousTemplateRefMode = context.templateRefMode;
-  context.templateRefMode = "array";
-  try {
-    if (node.tag === "template") {
-      generateDomChildren(context as GenerateContext, node.children, parentVar, branchCleanupVar, indent + 2, endAnchorVar);
-    } else {
-      generateDomNode(context as GenerateContext, withoutDomForAttrs(node), parentVar, branchCleanupVar, indent + 2, endAnchorVar);
-    }
-  } finally {
-    context.templateRefMode = previousTemplateRefMode;
-  }
-  emit(context, indent + 1, `}`);
+  emit(context, indent, `const ${recordsVar} = new Map();`);
+  emit(context, indent, `const ${ownerCleanupVar} = __mikuru_activeCleanup;`);
+  emit(context, indent, `let ${pendingCleanupVar} = null;`);
+  emit(context, indent, `let ${startAnchorVar}, ${endAnchorVar}, ${stopVar};`);
+  emit(context, indent, `${ownerCleanupVar}.push(() => {`);
+  emit(context, indent + 1, `${stopVar}?.();`);
+  emit(context, indent + 1, `if (${pendingCleanupVar}) __mikuru_runCleanup(${pendingCleanupVar});`);
+  emit(context, indent + 1, `for (const ${recordVar} of ${recordsVar}.values()) __mikuru_runCleanup(${recordVar}.cleanups);`);
+  emit(context, indent + 1, `${recordsVar}.clear();`);
+  emit(context, indent + 1, `${startAnchorVar}?.remove(); ${endAnchorVar}?.remove();`);
   emit(context, indent, `});`);
-  emit(context, indent, `__mikuru_cleanup.push(() => {`);
-  emit(context, indent + 1, `${stopVar}();`);
-  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
+  if (transitionNode && transitionVar) {
+    emit(context, indent, `const ${transitionVar} = ${getTransitionOptionsExpression(context as GenerateContext, transitionNode)};`);
+    emit(context, indent, `${transitionVar}.__mikuru_hasAppeared = true;`);
+  }
+  emit(context, indent, `const ${startIndexVar} = ${domIndex};`);
+  emit(context, indent, `const ${listVar} = Array.from(unwrap(${compiledSource}) ?? []);`);
+  emit(context, indent, `for (const [${indexVar}, ${rawItemVar}] of ${listVar}.entries()) {`);
+  emit(context, indent + 1, `const ${itemRefVar} = ref(${rawItemVar});`);
+  emit(context, indent + 1, `const ${forExpression.item} = ${itemRefVar};`);
+  if (forExpression.index && indexRefVar) {
+    emit(context, indent + 1, `const ${indexRefVar} = ref(${indexVar});`);
+    emit(context, indent + 1, `const ${forExpression.index} = ${indexRefVar};`);
+  }
+  emit(context, indent + 1, `const ${keyVar} = unwrap(${compiledKey});`);
+  if (compiledMemo && memoVar) {
+    emit(context, indent + 1, `const ${memoVar} = ${compiledMemo};`);
+  }
+  emit(context, indent + 1, `const ${recordCleanupVar} = [];`);
+  emit(context, indent + 1, `${pendingCleanupVar} = ${recordCleanupVar};`);
+  emit(context, indent + 1, `__mikuru_activeCleanup = ${recordCleanupVar};`);
+  if (template) {
+    const rowIndexVar = nextName(context, "forRowIndex");
+    const rowFirstVar = nextName(context, "forRowFirst");
+    const rowAfterVar = nextName(context, "forRowAfter");
+    const rowStartVar = nextName(context, "forRowStart");
+    const rowEndVar = nextName(context, "forRowEnd");
+    emit(context, indent + 1, `const ${rowIndexVar} = ${domIndex};`);
+    withTemplateRefMode(context, "array", () => {
+      hydrateFragmentChildrenAtIndex(context, node.children, parentVar, domIndex, indent + 1);
+    });
+    emit(context, indent + 1, `const ${rowFirstVar} = ${parentVar}.childNodes[${rowIndexVar}] ?? null;`);
+    emit(context, indent + 1, `const ${rowAfterVar} = ${parentVar}.childNodes[${domIndex}] ?? null;`);
+    emit(context, indent + 1, `const ${rowStartVar} = document.createComment("for item");`);
+    emit(context, indent + 1, `const ${rowEndVar} = document.createComment("/for item");`);
+    emit(context, indent + 1, `${parentVar}.insertBefore(${rowStartVar}, ${rowFirstVar} ?? ${rowAfterVar} ?? ${parentVar}.__mikuru_after ?? null);`);
+    emit(context, indent + 1, `${parentVar}.insertBefore(${rowEndVar}, ${rowAfterVar} ?? ${parentVar}.__mikuru_after ?? null);`);
+    emit(context, indent + 1, `${domIndex} += 2;`);
+    emit(context, indent + 1, `${recordsVar}.set(${keyVar}, { start: ${rowStartVar}, end: ${rowEndVar}, cleanups: ${recordCleanupVar}, item: ${itemRefVar}${indexRefVar ? `, index: ${indexRefVar}` : ""}${memoVar ? `, memo: ${memoVar}` : ""} });`);
+  } else {
+    const rowVar = nextName(context, "forRow");
+    const actualRowVar = nextName(context, "forActualRow");
+    const elementCheck = isComponentTag(node.tag)
+      ? `!__mikuru_isComponentRoot(${rowVar})`
+      : `!${rowVar} || ${rowVar}.nodeType !== 1 || ${rowVar}.tagName?.toLowerCase() !== ${quote(node.tag.toLowerCase())}`;
+    emit(context, indent + 1, `const ${rowVar} = ${parentVar}.childNodes[${domIndex}];`);
+    emit(context, indent + 1, `if (${elementCheck}) { __mikuru_recover("List mismatch: dynamic v-for expected row, got " + __mikuru_describeNode(${rowVar})); } else {`);
+    withTemplateRefMode(context, "array", () => {
+      hydrateElement(context, withoutDomForAttrs(node), rowVar, indent + 2);
+    });
+    emit(context, indent + 1, `}`);
+    emit(context, indent + 1, `const ${actualRowVar} = ${parentVar}.childNodes[${domIndex}];`);
+    if (transitionVar) {
+      emit(context, indent + 1, `if (${actualRowVar}?.nodeType === 1) { ${actualRowVar}.__mikuru_transition = ${transitionVar}; ${actualRowVar}.__mikuru_transitionLeaving = false; }`);
+    }
+    emit(context, indent + 1, isComponentTag(node.tag)
+      ? `${domIndex} = __mikuru_advanceComponent(${parentVar}, ${domIndex}, ${rowVar});`
+      : `${domIndex} += 1;`);
+    emit(context, indent + 1, `${recordsVar}.set(${keyVar}, { element: ${actualRowVar}, cleanups: ${recordCleanupVar}, item: ${itemRefVar}${indexRefVar ? `, index: ${indexRefVar}` : ""}${memoVar ? `, memo: ${memoVar}` : ""} });`);
+  }
+  emit(context, indent + 1, `__mikuru_activeCleanup = ${ownerCleanupVar};`);
+  emit(context, indent + 1, `${pendingCleanupVar} = null;`);
+  emit(context, indent, `}`);
+
+  const firstVar = nextName(context, "forFirst");
+  const afterVar = nextName(context, "forAfter");
+  emit(context, indent, `const ${firstVar} = ${parentVar}.childNodes[${startIndexVar}] ?? null;`);
+  emit(context, indent, `const ${afterVar} = ${parentVar}.childNodes[${domIndex}] ?? null;`);
+  emit(context, indent, `${startAnchorVar} = document.createComment("for");`);
+  emit(context, indent, `${endAnchorVar} = document.createComment("/for");`);
+  emit(context, indent, `${parentVar}.insertBefore(${startAnchorVar}, ${firstVar} ?? ${afterVar} ?? ${parentVar}.__mikuru_after ?? null);`);
+  emit(context, indent, `${parentVar}.insertBefore(${endAnchorVar}, ${afterVar} ?? ${parentVar}.__mikuru_after ?? null);`);
+  emit(context, indent, `${domIndex} += 2;`);
+
+  const initializedVar = nextName(context, "forInitialized");
+  const sourceVar = nextName(context, "forSource");
+  const nextRecordsVar = nextName(context, "forNextRecords");
+  const nextIndexVar = nextName(context, "forNextIndex");
+  const nextRawItemVar = nextName(context, "forNextItem");
+  const nextKeyVar = nextName(context, "forNextKey");
+  const nextRecordVar = nextName(context, "forNextRecord");
+  const nextCleanupVar = nextName(context, "forNextCleanup");
+  const nextItemRefVar = nextName(context, "forNextItemRef");
+  const nextIndexRefVar = forExpression.index ? nextName(context, "forNextIndexRef") : undefined;
+  const nextMemoVar = compiledMemo ? nextName(context, "forNextMemo") : undefined;
+  emit(context, indent, `let ${initializedVar} = false;`);
+  emit(context, indent, `${stopVar} = effect(() => {`);
+  emit(context, indent + 1, `const ${sourceVar} = Array.from(unwrap(${compiledSource}) ?? []);`);
+  emit(context, indent + 1, `if (!${initializedVar}) { ${initializedVar} = true; return; }`);
+  emit(context, indent + 1, `const ${nextRecordsVar} = new Map();`);
+  emit(context, indent + 1, `for (let ${nextIndexVar} = 0; ${nextIndexVar} < ${sourceVar}.length; ${nextIndexVar} += 1) {`);
+  emit(context, indent + 2, `const ${nextRawItemVar} = ${sourceVar}[${nextIndexVar}];`);
+  emit(context, indent + 2, `const ${forExpression.item} = ${nextRawItemVar};`);
+  if (forExpression.index) {
+    emit(context, indent + 2, `const ${forExpression.index} = ${nextIndexVar};`);
+  }
+  emit(context, indent + 2, `const ${nextKeyVar} = unwrap(${compiledKey});`);
+  if (compiledMemo && nextMemoVar) {
+    emit(context, indent + 2, `const ${nextMemoVar} = ${compiledMemo};`);
+  }
+  emit(context, indent + 2, `let ${nextRecordVar} = ${recordsVar}.get(${nextKeyVar});`);
+  emit(context, indent + 2, `if (!${nextRecordVar}) {`);
+  emit(context, indent + 3, `const ${nextCleanupVar} = [];`);
+  emit(context, indent + 3, `const ${nextItemRefVar} = ref(${nextRawItemVar});`);
+  if (nextIndexRefVar) {
+    emit(context, indent + 3, `const ${nextIndexRefVar} = ref(${nextIndexVar});`);
+  }
+  emit(context, indent + 3, `{`);
+  emit(context, indent + 4, `const ${forExpression.item} = ${nextItemRefVar};`);
+  if (forExpression.index && nextIndexRefVar) {
+    emit(context, indent + 4, `const ${forExpression.index} = ${nextIndexRefVar};`);
+  }
+  if (template) {
+    const rowStartVar = nextName(context, "forNewRowStart");
+    const rowEndVar = nextName(context, "forNewRowEnd");
+    emit(context, indent + 4, `const ${rowStartVar} = document.createComment("for item");`);
+    emit(context, indent + 4, `const ${rowEndVar} = document.createComment("/for item");`);
+    emit(context, indent + 4, `${parentVar}.insertBefore(${rowStartVar}, ${endAnchorVar});`);
+    emit(context, indent + 4, `${parentVar}.insertBefore(${rowEndVar}, ${endAnchorVar});`);
+    withTemplateRefMode(context, "array", () => {
+      generateDomChildren(context as GenerateContext, node.children, parentVar, nextCleanupVar, indent + 4, rowEndVar);
+    });
+    emit(context, indent + 4, `${nextRecordVar} = { start: ${rowStartVar}, end: ${rowEndVar}, cleanups: ${nextCleanupVar}, item: ${nextItemRefVar}${nextIndexRefVar ? `, index: ${nextIndexRefVar}` : ""}${nextMemoVar ? `, memo: ${nextMemoVar}` : ""} };`);
+  } else {
+    const elementVar = withTemplateRefMode(context, "array", () =>
+      generateDomNode(context as GenerateContext, withoutDomForAttrs(node), parentVar, nextCleanupVar, indent + 4, endAnchorVar)
+    );
+    if (transitionVar) {
+      emitTransitionRegistration(context as GenerateContext, elementVar, transitionVar, indent + 4);
+    }
+    emit(context, indent + 4, `${nextRecordVar} = { element: ${elementVar}, cleanups: ${nextCleanupVar}, item: ${nextItemRefVar}${nextIndexRefVar ? `, index: ${nextIndexRefVar}` : ""}${nextMemoVar ? `, memo: ${nextMemoVar}` : ""} };`);
+  }
+  emit(context, indent + 3, `}`);
+  emit(context, indent + 2, `} else {`);
+  if (nextMemoVar) {
+    emit(context, indent + 3, `if (!__mikuru_memoEqual(${nextRecordVar}.memo, ${nextMemoVar})) {`);
+    emit(context, indent + 4, `${nextRecordVar}.memo = ${nextMemoVar};`);
+    emit(context, indent + 4, `${nextRecordVar}.item.value = ${nextRawItemVar};`);
+    if (nextIndexRefVar) {
+      emit(context, indent + 4, `${nextRecordVar}.index.value = ${nextIndexVar};`);
+    }
+    emit(context, indent + 3, `}`);
+  } else {
+    emit(context, indent + 3, `${nextRecordVar}.item.value = ${nextRawItemVar};`);
+    if (nextIndexRefVar) {
+      emit(context, indent + 3, `${nextRecordVar}.index.value = ${nextIndexVar};`);
+    }
+  }
+  if (template) {
+    if (!positional) emit(context, indent + 3, `__mikuru_moveRangeBefore(${nextRecordVar}.start, ${nextRecordVar}.end, ${parentVar}, ${endAnchorVar});`);
+  } else {
+    if (!positional) emit(context, indent + 3, `if (${nextRecordVar}.element?.__mikuru_end || (${nextRecordVar}.element?.nodeType === 8 && ${nextRecordVar}.element.nodeValue === "mikuru-fragment")) __mikuru_moveRangeBefore(${nextRecordVar}.element, __mikuru_rangeEnd(${nextRecordVar}.element), ${parentVar}.__mikuru_parent ?? ${parentVar}, ${endAnchorVar}); else ${parentVar}.insertBefore(${nextRecordVar}.element, ${endAnchorVar});`);
+    if (transitionVar) {
+      emit(context, indent + 3, `__mikuru_applyTransitionMove(${nextRecordVar}.element, ${transitionVar});`);
+    }
+  }
+  emit(context, indent + 2, `}`);
+  emit(context, indent + 2, `${nextRecordsVar}.set(${nextKeyVar}, ${nextRecordVar});`);
+  emit(context, indent + 1, `}`);
+  emit(context, indent + 1, `for (const [${nextKeyVar}, ${nextRecordVar}] of ${recordsVar}) {`);
+  emit(context, indent + 2, `if (!${nextRecordsVar}.has(${nextKeyVar})) {`);
+  emit(context, indent + 3, `__mikuru_runCleanup(${nextRecordVar}.cleanups);`);
+  emit(context, indent + 3, template
+    ? `__mikuru_removeRange(${nextRecordVar}.start, ${nextRecordVar}.end);`
+    : `__mikuru_removeRange(${nextRecordVar}.element);`);
+  emit(context, indent + 2, `}`);
+  emit(context, indent + 1, `}`);
+  emit(context, indent + 1, `${recordsVar}.clear();`);
+  emit(context, indent + 1, `for (const [${nextKeyVar}, ${nextRecordVar}] of ${nextRecordsVar}) ${recordsVar}.set(${nextKeyVar}, ${nextRecordVar});`);
   emit(context, indent, `});`);
 }
 
@@ -578,7 +866,7 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       const nextNameVar = nextName(context, "attrName");
       const valueVar = nextName(context, "attrValue");
       emit(context, indent, `let ${previousNameVar};`);
-      emit(context, indent, `__mikuru_cleanup.push(effect(() => {`);
+      emit(context, indent, `__mikuru_activeCleanup.push(effect(() => {`);
       emit(context, indent + 1, `const ${nextNameVar} = ${bindNameExpression(`String(unwrap(${nameExpression}) ?? "")`, dynamicArgument)};`);
       emit(context, indent + 1, `if (!${nextNameVar}) { if (${previousNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null); ${previousNameVar} = undefined; return; }`);
       emit(context, indent + 1, `if (${previousNameVar} && ${previousNameVar} !== ${nextNameVar}) setAttribute(${elementVar}, ${previousNameVar}, null);`);
@@ -599,7 +887,7 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
           : dynamicName === "style" && staticStyle
           ? `[${quote(staticStyle)}, unwrap(${expression})]`
             : `unwrap(${expression})`;
-      emit(context, indent, `__mikuru_cleanup.push(effect(() => setAttribute(${elementVar}, ${quote(dynamicName)}, ${valueExpression}${bindOptionsExpression(bindDirective)})));`);
+      emit(context, indent, `__mikuru_activeCleanup.push(effect(() => setAttribute(${elementVar}, ${quote(dynamicName)}, ${valueExpression}${bindOptionsExpression(bindDirective)})));`);
       continue;
     }
 
@@ -614,7 +902,7 @@ function hydrateAttrs(context: HydrationContext, node: ElementNode, elementVar: 
       const valueVar = nextName(context, "value");
       const staleKeyVar = nextName(context, "staleKey");
       emit(context, indent, `const ${prevKeysVar} = new Set();`);
-      emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
+      emit(context, indent, "__mikuru_activeCleanup.push(effect(() => {");
       emit(context, indent + 1, `const ${attrsVar} = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)}) ?? {};`);
       emit(context, indent + 1, `const ${nextKeysVar} = new Set();`);
       emit(context, indent + 1, `if (${attrsVar} && typeof ${attrsVar} === "object") {`);
@@ -684,26 +972,33 @@ function hydratePreElement(context: HydrationContext, node: ElementNode, element
 
 function hydrateComponent(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
   const propsVar = nextName(context, "props");
-  emit(context, indent, `const ${propsVar} = {};`);
   hydrateComponentProps(context, node, propsVar, indent);
-  emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
   emitHydrationComponentSlots(context, node, propsVar, indent);
   emitRouterViewRouteSlot(context, node, propsVar, indent);
   emit(context, indent, `if (${node.tag} && typeof ${node.tag}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${node.tag}.hydrate(${elementVar}, ${propsVar});`);
-  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_activeCleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent + 1, `if (${node.tag}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context as GenerateContext, node, "__mikuru_child", "__mikuru_activeCleanup", indent + 2, true);
+  emit(context, indent + 1, `}`);
+  emitComponentShow(context as GenerateContext, node, "__mikuru_child", "__mikuru_activeCleanup", indent + 1);
   hydrateTemplateRef(context, node, "__mikuru_child", indent + 1);
   emit(context, indent, `} else if (${node.tag} && typeof ${node.tag}.mount === "function") {`);
   emit(context, indent + 1, "__mikuru_warn(\"Component hydration fallback; child component does not expose hydrate().\");");
   emit(context, indent + 1, `const __mikuru_parent = ${elementVar}.parentNode;`);
   emit(context, indent + 1, "const __mikuru_anchor = document.createComment(\"mikuru-hydrate-component\");");
   emit(context, indent + 1, `__mikuru_parent?.insertBefore(__mikuru_anchor, ${elementVar});`);
-  emit(context, indent + 1, `${elementVar}.remove();`);
+  emit(context, indent + 1, `__mikuru_removeRange(${elementVar});`);
   emit(context, indent + 1, "const __mikuru_fragment = document.createDocumentFragment();");
   emit(context, indent + 1, `const __mikuru_child = ${node.tag}.mount(__mikuru_fragment, ${propsVar});`);
   emit(context, indent + 1, "__mikuru_parent?.insertBefore(__mikuru_fragment, __mikuru_anchor);");
   emit(context, indent + 1, "__mikuru_anchor.remove();");
-  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent + 1, `${elementVar}.__mikuru_replacementEnd = __mikuru_child.__mikuru_end ?? __mikuru_child.element;`);
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_activeCleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent + 1, `if (${node.tag}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context as GenerateContext, node, "__mikuru_child", "__mikuru_activeCleanup", indent + 2, true);
+  emit(context, indent + 1, `}`);
+  emitComponentShow(context as GenerateContext, node, "__mikuru_child", "__mikuru_activeCleanup", indent + 1);
   hydrateTemplateRef(context, node, "__mikuru_child", indent + 1);
   emit(context, indent, "} else {");
   emit(context, indent + 1, `__mikuru_recover(${quote(`Component mismatch at <${node.tag}>`)});`);
@@ -713,6 +1008,7 @@ function hydrateComponent(context: HydrationContext, node: ElementNode, elementV
 function emitRouterViewRouteSlot(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
   if (node.tag !== "RouterView") return;
   emit(context, indent, `if (typeof props.children === "function") { ${propsVar}.children = props.children; ${propsVar}.slots = { ...(${propsVar}.slots ?? {}), default: props.children }; }`);
+  emit(context, indent, `if (props.__mikuru_routeViewDepth !== undefined && ${propsVar}.depth === undefined) ${propsVar}.depth = props.__mikuru_routeViewDepth;`);
 }
 
 function emitHydrationComponentSlots(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
@@ -1032,48 +1328,177 @@ function hydrationSlotScopeLeafBindings(
   ];
 }
 
-function hydrateDynamicComponentAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
+function hydrateDynamicComponentAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number, keepAliveNode?: ElementNode, transitionNode?: ElementNode): void {
   const isAttr = getDynamicComponentIsAttr(node);
 
   if (!isAttr) {
     throw new Error("Dynamic component requires :is to resolve to a component object");
   }
 
-  const componentTypeVar = nextName(context, "dynamicComponent");
+  const dynamicNode = withoutDynamicComponentIs(node);
+  const expression = compileHydrationExpression(context, requireAttrValue(isAttr), isAttr.name);
+  const initialType = nextName(context, "dynamicType");
+  const currentType = nextName(context, "currentType");
+  const currentRecord = nextName(context, "currentRecord");
+  const startIndex = nextName(context, "dynamicIndex");
   const childVar = nextName(context, "node");
-  emit(context, indent, `const ${componentTypeVar} = unwrap(${compileHydrationExpression(context, requireAttrValue(isAttr), isAttr.name)});`);
-  emit(context, indent, `if (${componentTypeVar}) {`);
+  const start = nextName(context, "dynamicStart");
+  const end = nextName(context, "dynamicEnd");
+  const after = nextName(context, "dynamicAfter");
+  const first = nextName(context, "dynamicFirst");
+  const ownerCleanup = nextName(context, "dynamicOwnerCleanup");
+  const initialCleanup = nextName(context, "dynamicCleanup");
+  const initialInstance = nextName(context, "dynamicInstance");
+  const stop = nextName(context, "dynamicStop");
+  const nextType = nextName(context, "dynamicNextType");
+  const branchCleanup = nextName(context, "dynamicBranchCleanup");
+  const fragment = nextName(context, "dynamicFragment");
+  const attrs = nextName(context, "dynamicAttrs");
+  const componentProps = nextName(context, "dynamicProps");
+  const instance = nextName(context, "dynamicInstance");
+  const cache = keepAliveNode ? nextName(context, "keepAliveCache") : undefined;
+  const cached = keepAliveNode ? nextName(context, "keepAliveCached") : undefined;
+  const record = nextName(context, "dynamicRecord");
+  const cacheable = keepAliveNode ? nextName(context, "keepAliveCacheable") : undefined;
+  const maxVar = keepAliveNode ? nextName(context, "keepAliveMax") : undefined;
+  const transition = transitionNode ? nextName(context, "dynamicTransition") : undefined;
+  const renderToken = transitionNode ? nextName(context, "dynamicRenderToken") : undefined;
+  const renderBranch = transitionNode ? nextName(context, "dynamicRender") : undefined;
+  const include = keepAliveNode ? getKeepAliveOptionExpression(context as GenerateContext, keepAliveNode, "include") : undefined;
+  const exclude = keepAliveNode ? getKeepAliveOptionExpression(context as GenerateContext, keepAliveNode, "exclude") : undefined;
+  const max = keepAliveNode ? getKeepAliveOptionExpression(context as GenerateContext, keepAliveNode, "max") : undefined;
+  emit(context, indent, `const ${startIndex} = ${domIndex};`);
+  emit(context, indent, `const ${initialType} = unwrap(${expression});`);
+  emit(context, indent, `let ${currentType} = ${initialType};`);
+  emit(context, indent, `let ${currentRecord};`);
+  emit(context, indent, `const ${ownerCleanup} = __mikuru_activeCleanup;`);
+  emit(context, indent, `const ${initialCleanup} = [];`);
+  emit(context, indent, `let ${initialInstance};`);
+  if (transition && transitionNode && renderToken) {
+    emit(context, indent, `const ${transition} = ${getTransitionOptionsExpression(context as GenerateContext, transitionNode)};`);
+    emit(context, indent, `${transition}.__mikuru_hasAppeared = true;`);
+    emit(context, indent, `let ${renderToken} = 0;`);
+  }
+  if (cache) emit(context, indent, `const ${cache} = new Map();`);
+  emit(context, indent, `__mikuru_activeCleanup = ${initialCleanup};`);
+  emit(context, indent, `if (${initialType}) {`);
   emit(context, indent + 1, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
-  emit(context, indent + 1, `if (!${childVar} || ${childVar}.nodeType !== 1) { __mikuru_recover("Element mismatch: expected dynamic component root, got " + __mikuru_describeNode(${childVar})); } else {`);
-  hydrateDynamicComponent(context, node, childVar, componentTypeVar, indent + 2);
-  emit(context, indent + 1, "}");
-  emit(context, indent + 1, `${domIndex} += 1;`);
+  emit(context, indent + 1, `if (!__mikuru_isComponentRoot(${childVar})) __mikuru_recover("Element mismatch: expected dynamic component root, got " + __mikuru_describeNode(${childVar}));`);
+  hydrateDynamicComponent(context, node, childVar, initialType, indent + 1, initialInstance);
+  emit(context, indent + 1, `${domIndex} = __mikuru_advanceComponent(${parentVar}, ${domIndex}, ${childVar});`);
   emit(context, indent, "}");
+  emit(context, indent, `__mikuru_activeCleanup = ${ownerCleanup};`);
+  emit(context, indent, `const ${first} = ${parentVar}.childNodes[${startIndex}] ?? null;`);
+  emit(context, indent, `const ${after} = ${parentVar}.childNodes[${domIndex}] ?? ${parentVar}.__mikuru_after ?? null;`);
+  emit(context, indent, `const ${start} = document.createComment(${keepAliveNode ? '"keep-alive"' : '"component"'});`);
+  emit(context, indent, `const ${end} = document.createComment(${keepAliveNode ? '"/keep-alive"' : '"/component"'});`);
+  emit(context, indent, `${start}.__mikuru_end = ${end};`);
+  emit(context, indent, `${parentVar}.insertBefore(${start}, ${first} ?? ${after});`);
+  emit(context, indent, `${parentVar}.insertBefore(${end}, ${after});`);
+  emit(context, indent, `${domIndex} += 2;`);
+  if (transition) emit(context, indent, `for (const element of __mikuru_rangeElements(${start})) { element.__mikuru_transition = ${transition}; element.__mikuru_transitionLeaving = false; }`);
+  emit(context, indent, `if (${initialInstance}) {`);
+  emit(context, indent + 1, `${currentRecord} = { instance: ${initialInstance}, cleanups: ${initialCleanup}, nodes: [], active: true, transient: true };`);
+  if (cache) {
+    emit(context, indent + 1, `const __mikuru_initialName = ${initialType}.name ?? ${initialType}.displayName ?? ${initialType}.__name ?? ${initialType}.constructor?.name ?? "";`);
+    emit(context, indent + 1, `const __mikuru_initialMatches = (pattern) => pattern == null ? false : typeof pattern === "string" ? pattern.split(",").map((part) => part.trim()).includes(__mikuru_initialName) : Array.isArray(pattern) ? pattern.some(__mikuru_initialMatches) : pattern instanceof RegExp ? pattern.test(__mikuru_initialName) : false;`);
+    emit(context, indent + 1, `if ((unwrap(${include ?? "undefined"}) == null || __mikuru_initialMatches(unwrap(${include ?? "undefined"}))) && !__mikuru_initialMatches(unwrap(${exclude ?? "undefined"}))) { ${currentRecord}.transient = false; ${cache}.set(${initialType}, ${currentRecord}); ${initialInstance}.activate?.(); }`);
+  }
+  emit(context, indent, "}");
+  emit(context, indent, `const ${stop} = effect(() => {`);
+  emit(context, indent + 1, `const ${nextType} = unwrap(${expression});`);
+  emit(context, indent + 1, `if (${nextType} === ${currentType}) return;`);
+  if (transition) emit(context, indent + 1, `const __mikuru_hadBranch = ${start}.nextSibling !== ${end};`);
+  if (transition) emit(context, indent + 1, `const __mikuru_previousLeaves = new Set(__mikuru_leavePromises);`);
+  if (cache) {
+    emit(context, indent + 1, `if (${currentRecord}) { ${currentRecord}.nodes = Array.from((function* () { for (let node = ${start}.nextSibling; node && node !== ${end}; node = node.nextSibling) yield node; })()); if (${currentRecord}.transient) __mikuru_runCleanup(${currentRecord}.cleanups); else { ${currentRecord}.active = false; ${currentRecord}.instance.deactivate?.(); } }`);
+    emit(context, indent + 1, `for (const node of ${currentRecord}?.nodes ?? []) node.remove();`);
+  } else {
+    emit(context, indent + 1, `__mikuru_runCleanup(${currentRecord}?.cleanups ?? []);`);
+    emit(context, indent + 1, `__mikuru_removeBetween(${start}, ${end});`);
+  }
+  emit(context, indent + 1, `${currentType} = ${nextType};`);
+  emit(context, indent + 1, `${currentRecord} = undefined;`);
+  if (renderToken) emit(context, indent + 1, `++${renderToken};`);
+  emit(context, indent + 1, `if (!${nextType}) return;`);
+  emit(context, indent + 1, `if (typeof ${nextType}.mount !== "function") throw new Error("Dynamic component :is must resolve to a component object with mount()");`);
+  if (renderBranch && renderToken) {
+    emit(context, indent + 1, `const __mikuru_currentToken = ${renderToken};`);
+    emit(context, indent + 1, `const ${renderBranch} = () => {`);
+    emit(context, indent + 2, `if (__mikuru_currentToken !== ${renderToken}) return;`);
+  }
+  if (cache && cached && cacheable && keepAliveNode) {
+    const name = nextName(context, "keepAliveName");
+    const includeVar = nextName(context, "keepAliveInclude");
+    const excludeVar = nextName(context, "keepAliveExclude");
+    emit(context, indent + 1, `const ${name} = ${nextType}.name ?? ${nextType}.displayName ?? ${nextType}.__name ?? ${nextType}.constructor?.name ?? "";`);
+    emit(context, indent + 1, `const ${includeVar} = unwrap(${include ?? "undefined"});`);
+    emit(context, indent + 1, `const ${excludeVar} = unwrap(${exclude ?? "undefined"});`);
+    emit(context, indent + 1, `const ${maxVar} = Number(unwrap(${max ?? "undefined"}));`);
+    emit(context, indent + 1, `const __mikuru_matches = (pattern) => pattern == null ? false : typeof pattern === "string" ? pattern.split(",").map((part) => part.trim()).includes(${name}) : Array.isArray(pattern) ? pattern.some(__mikuru_matches) : pattern instanceof RegExp ? pattern.test(${name}) : false;`);
+    emit(context, indent + 1, `const ${cacheable} = (${includeVar} == null || __mikuru_matches(${includeVar})) && !__mikuru_matches(${excludeVar});`);
+    emit(context, indent + 1, `let ${cached} = ${cacheable} ? ${cache}.get(${nextType}) : undefined;`);
+    emit(context, indent + 1, `if (${cached}) { ${cache}.delete(${nextType}); ${cache}.set(${nextType}, ${cached}); for (const node of ${cached}.nodes) ${parentVar}.insertBefore(node, ${end}); ${cached}.active = true; ${cached}.instance.__mikuru_refreshShow?.(); ${cached}.instance.activate?.(); ${currentRecord} = ${cached}; return; }`);
+  }
+  emit(context, indent + 1, `const ${branchCleanup} = [];`);
+  emit(context, indent + 1, `const ${fragment} = document.createDocumentFragment();`);
+  emitComponentAttrs(context as GenerateContext, dynamicNode, attrs, indent + 1);
+  emitComponentProps(context as GenerateContext, dynamicNode, componentProps, attrs, indent + 1);
+  emit(context, indent + 1, `const ${instance} = ${nextType}.mount(${fragment}, ${componentProps});`);
+  emit(context, indent + 1, `${branchCleanup}.push(() => ${instance}.unmount());`);
+  if (context.scopeAttr) emit(context, indent + 1, `if (${instance}.element?.nodeType === 1) ${instance}.element.setAttribute(${JSON.stringify(context.scopeAttr)}, "");`);
+  emit(context, indent + 1, `if (${nextType}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context as GenerateContext, dynamicNode, instance, branchCleanup, indent + 2);
+  emit(context, indent + 1, "}");
+  emitComponentShow(context as GenerateContext, dynamicNode, instance, branchCleanup, indent + 1);
+  emitTemplateRef(context as GenerateContext, dynamicNode, instance, branchCleanup, indent + 1);
+  emit(context, indent + 1, `${parentVar}.insertBefore(${fragment}, ${end});`);
+  if (transition) emitTransitionRegistration(context as GenerateContext, `(${instance}.__mikuru_start ?? ${instance}.element)`, transition, indent + 1);
+  emit(context, indent + 1, `const ${record} = { instance: ${instance}, cleanups: ${branchCleanup}, nodes: [], active: true, transient: ${cacheable ? `!${cacheable}` : "true"} };`);
+  emit(context, indent + 1, `${currentRecord} = ${record};`);
+  if (cache && cacheable) {
+    emit(context, indent + 1, `if (${cacheable}) { ${cache}.set(${nextType}, ${record}); ${instance}.activate?.(); if (Number.isFinite(${maxVar}) && ${maxVar} > 0) while (${cache}.size > ${maxVar}) { const key = ${cache}.keys().next().value; if (key === ${nextType}) break; const stale = ${cache}.get(key); ${cache}.delete(key); if (stale) { if (stale.active) stale.instance.deactivate?.(); __mikuru_runCleanup(stale.cleanups); } } }`);
+  }
+  if (renderBranch && renderToken && transition) {
+    emit(context, indent + 1, "};");
+    emit(context, indent + 1, `if (${transition}.mode === "out-in" && __mikuru_hadBranch) Promise.all(Array.from(__mikuru_leavePromises).filter((pending) => !__mikuru_previousLeaves.has(pending))).then(${renderBranch}); else ${renderBranch}();`);
+  }
+  emit(context, indent, "});");
+  emit(context, indent, `${ownerCleanup}.push(() => { ${stop}(); ${renderToken ? `++${renderToken};` : ""} if (${currentRecord}?.transient) __mikuru_runCleanup(${currentRecord}.cleanups); ${cache ? `for (const record of ${cache}.values()) { if (record.active) record.instance.deactivate?.(); __mikuru_runCleanup(record.cleanups); } ${cache}.clear();` : ""} ${start}.remove(); ${end}.remove(); });`);
 }
 
-function hydrateDynamicComponent(context: HydrationContext, node: ElementNode, elementVar: string, componentType: string, indent: number): void {
+function hydrateDynamicComponent(context: HydrationContext, node: ElementNode, elementVar: string, componentType: string, indent: number, instanceVar?: string): void {
   const dynamicNode = withoutDynamicComponentIs(node);
   const propsVar = nextName(context, "props");
-  emit(context, indent, `const ${propsVar} = {};`);
   hydrateComponentProps(context, dynamicNode, propsVar, indent);
-  emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
   emitHydrationComponentSlots(context, dynamicNode, propsVar, indent);
   emitRouterViewRouteSlot(context, dynamicNode, propsVar, indent);
   emit(context, indent, `if (${componentType} && typeof ${componentType}.hydrate === "function") {`);
   emit(context, indent + 1, `const __mikuru_child = ${componentType}.hydrate(${elementVar}, ${propsVar});`);
-  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  if (instanceVar) emit(context, indent + 1, `${instanceVar} = __mikuru_child;`);
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_activeCleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent + 1, `if (${componentType}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context as GenerateContext, dynamicNode, "__mikuru_child", "__mikuru_activeCleanup", indent + 2, true);
+  emit(context, indent + 1, `}`);
+  emitComponentShow(context as GenerateContext, dynamicNode, "__mikuru_child", "__mikuru_activeCleanup", indent + 1);
   hydrateTemplateRef(context, dynamicNode, "__mikuru_child", indent + 1);
   emit(context, indent, `} else if (${componentType} && typeof ${componentType}.mount === "function") {`);
   emit(context, indent + 1, "__mikuru_warn(\"Dynamic component hydration fallback; child component does not expose hydrate().\");");
   emit(context, indent + 1, `const __mikuru_parent = ${elementVar}.parentNode;`);
   emit(context, indent + 1, "const __mikuru_anchor = document.createComment(\"mikuru-hydrate-dynamic-component\");");
   emit(context, indent + 1, `__mikuru_parent?.insertBefore(__mikuru_anchor, ${elementVar});`);
-  emit(context, indent + 1, `${elementVar}.remove();`);
+  emit(context, indent + 1, `__mikuru_removeRange(${elementVar});`);
   emit(context, indent + 1, "const __mikuru_fragment = document.createDocumentFragment();");
   emit(context, indent + 1, `const __mikuru_child = ${componentType}.mount(__mikuru_fragment, ${propsVar});`);
   emit(context, indent + 1, "__mikuru_parent?.insertBefore(__mikuru_fragment, __mikuru_anchor);");
   emit(context, indent + 1, "__mikuru_anchor.remove();");
-  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_cleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent + 1, `${elementVar}.__mikuru_replacementEnd = __mikuru_child.__mikuru_end ?? __mikuru_child.element;`);
+  if (instanceVar) emit(context, indent + 1, `${instanceVar} = __mikuru_child;`);
+  emit(context, indent + 1, `if (__mikuru_child?.unmount) __mikuru_activeCleanup.push(() => __mikuru_child.unmount());`);
+  emit(context, indent + 1, `if (${componentType}.inheritAttrs !== false) {`);
+  emitComponentFallthrough(context as GenerateContext, dynamicNode, "__mikuru_child", "__mikuru_activeCleanup", indent + 2, true);
+  emit(context, indent + 1, `}`);
+  emitComponentShow(context as GenerateContext, dynamicNode, "__mikuru_child", "__mikuru_activeCleanup", indent + 1);
   hydrateTemplateRef(context, dynamicNode, "__mikuru_child", indent + 1);
   emit(context, indent, "} else {");
   emit(context, indent + 1, "__mikuru_recover(\"Dynamic component mismatch: :is did not resolve to hydrate() or mount()\");");
@@ -1092,7 +1517,7 @@ function hydrateKeepAliveAtIndex(context: HydrationContext, node: ElementNode, p
     throw new Error("<KeepAlive> dynamic child requires :is to resolve to a component object");
   }
 
-  hydrateDynamicComponentAtIndex(context, child, parentVar, domIndex, indent);
+  hydrateDynamicComponentAtIndex(context, child, parentVar, domIndex, indent, node);
 }
 
 function hydrateKeepAliveElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -1104,10 +1529,12 @@ function hydrateKeepAliveElement(context: HydrationContext, node: ElementNode, e
     throw new Error("<KeepAlive> requires a single <component :is=\"...\" /> child in v1");
   }
 
-  const componentTypeVar = nextName(context, "dynamicComponent");
-  emit(context, indent, `const ${componentTypeVar} = unwrap(${compileHydrationExpression(context, requireAttrValue(isAttr), isAttr.name)});`);
-  emit(context, indent, `if (${componentTypeVar}) {`);
-  hydrateDynamicComponent(context, child, elementVar, componentTypeVar, indent + 1);
+  const parent = nextName(context, "keepAliveParent");
+  const index = nextName(context, "keepAliveIndex");
+  emit(context, indent, `const ${parent} = ${elementVar}.parentNode;`);
+  emit(context, indent, `let ${index} = ${parent} ? Array.prototype.indexOf.call(${parent}.childNodes, ${elementVar}) : 0;`);
+  emit(context, indent, `if (${parent}) {`);
+  hydrateDynamicComponentAtIndex(context, child, parent, index, indent + 1, node);
   emit(context, indent, "}");
 }
 
@@ -1150,11 +1577,22 @@ function hydrateTransitionAtIndex(context: HydrationContext, node: ElementNode, 
   const children = getTransitionChildren(node);
 
   if (getAttr(children[0], "v-if")) {
-    hydrateTransitionIfChainAtIndex(context, children, parentVar, domIndex, indent);
+    hydrateTransitionIfChainAtIndex(context, node, children, parentVar, domIndex, indent);
     return;
   }
 
+  if (children[0].tag === "component") {
+    hydrateDynamicComponentAtIndex(context, children[0], parentVar, domIndex, indent, undefined, node);
+    return;
+  }
+
+  const startIndex = nextName(context, "transitionIndex");
+  const transition = nextName(context, "transition");
+  emit(context, indent, `const ${startIndex} = ${domIndex};`);
+  emit(context, indent, `const ${transition} = ${getTransitionOptionsExpression(context as GenerateContext, node)};`);
+  emit(context, indent, `${transition}.__mikuru_hasAppeared = true;`);
   hydrateFragmentChildrenAtIndex(context, [children[0]], parentVar, domIndex, indent);
+  emit(context, indent, `for (let index = ${startIndex}; index < ${domIndex}; index++) { const element = ${parentVar}.childNodes[index]; if (element?.nodeType === 1) { element.__mikuru_transition = ${transition}; element.__mikuru_transitionLeaving = false; } }`);
 }
 
 function hydrateTransitionElement(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -1168,19 +1606,12 @@ function hydrateTransitionElement(context: HydrationContext, node: ElementNode, 
   emit(context, indent, "}");
 }
 
-function hydrateTransitionIfChainAtIndex(context: HydrationContext, children: ElementNode[], parentVar: string, domIndex: string, indent: number): void {
-  children.forEach((child, index) => {
-    if (index === 0) {
-      emit(context, indent, `if (unwrap(${compileHydrationExpression(context, getAttrValue(child, "v-if"), "v-if")})) {`);
-    } else if (getAttr(child, "v-else-if")) {
-      emit(context, indent, `else if (unwrap(${compileHydrationExpression(context, getAttrValue(child, "v-else-if"), "v-else-if")})) {`);
-    } else {
-      emit(context, indent, "else {");
-    }
-
-    hydrateFragmentChildrenAtIndex(context, [withoutAttrs(child, ["v-if", "v-else-if", "v-else"])], parentVar, domIndex, indent + 1);
-    emit(context, indent, "}");
-  });
+function hydrateTransitionIfChainAtIndex(context: HydrationContext, transitionNode: ElementNode, children: ElementNode[], parentVar: string, domIndex: string, indent: number): void {
+  hydrateIfChain(context, children.map((child) => ({
+    node: child,
+    directive: getAttr(child, "v-if") ? "v-if" : getAttr(child, "v-else-if") ? "v-else-if" : "v-else",
+    condition: getAttrValue(child, getAttr(child, "v-if") ? "v-if" : "v-else-if")
+  })), parentVar, domIndex, indent, transitionNode);
 }
 
 function hydrateTransitionGroupAtIndex(context: HydrationContext, node: ElementNode, parentVar: string, domIndex: string, indent: number): void {
@@ -1195,7 +1626,7 @@ function hydrateTransitionGroupAtIndex(context: HydrationContext, node: ElementN
   emit(context, indent + 1, `__mikuru_recover("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${groupVar}));`);
   emit(context, indent, "} else {");
   emit(context, indent + 1, `let ${groupIndexVar} = 0;`);
-  hydrateFor(context, withoutAttrs(child, [":key", "v-bind:key"]), groupVar, groupIndexVar, indent + 1, groupIndexVar);
+  hydrateFor(context, child, groupVar, groupIndexVar, indent + 1, groupIndexVar, node);
   emit(context, indent + 1, `if (${groupVar}.childNodes.length > ${groupIndexVar}) { __mikuru_warn("Extra DOM nodes after TransitionGroup hydration: " + Array.from(${groupVar}.childNodes).slice(${groupIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
   emit(context, indent, "}");
   emit(context, indent, `${domIndex} += 1;`);
@@ -1209,7 +1640,7 @@ function hydrateTransitionGroupElement(context: HydrationContext, node: ElementN
   emit(context, indent, `const ${expectedTagVar} = String(unwrap(${getTransitionGroupTagExpression(context, node)}) ?? "span").toLowerCase();`);
   emit(context, indent, `if (${elementVar}.tagName?.toLowerCase() !== ${expectedTagVar}) { __mikuru_recover("TransitionGroup mismatch: expected <" + ${expectedTagVar} + ">, got " + __mikuru_describeNode(${elementVar})); }`);
   emit(context, indent, `let ${groupIndexVar} = 0;`);
-  hydrateFor(context, withoutAttrs(child, [":key", "v-bind:key"]), elementVar, groupIndexVar, indent, groupIndexVar);
+  hydrateFor(context, child, elementVar, groupIndexVar, indent, groupIndexVar, node);
   emit(context, indent, `if (${elementVar}.childNodes.length > ${groupIndexVar}) { __mikuru_warn("Extra DOM nodes after TransitionGroup hydration: " + Array.from(${elementVar}.childNodes).slice(${groupIndexVar}).map(__mikuru_describeNode).join(", ") + "."); }`);
 }
 
@@ -1277,7 +1708,7 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
     emit(context, indent, `const ${childVar} = ${parentVar}.childNodes[${domIndex}];`);
     if (child.type === "element") {
       const elementCheck = isComponentTag(child.tag)
-        ? `!${childVar} || ${childVar}.nodeType !== 1`
+        ? `!__mikuru_isComponentRoot(${childVar})`
         : `!${childVar} || ${childVar}.nodeType !== 1 || ${childVar}.tagName?.toLowerCase() !== ${quote(child.tag.toLowerCase())}`;
       emit(context, indent, `if (${elementCheck}) { __mikuru_recover(${quote(`Element mismatch: expected <${child.tag.toLowerCase()}>, got `)} + __mikuru_describeNode(${childVar}), { kind: "element", expected: "<${child.tag.toLowerCase()}>", actual: __mikuru_describeNode(${childVar}), node: ${childVar} }); } else {`);
       hydrateNode(context, child, childVar, indent + 1);
@@ -1287,83 +1718,38 @@ function hydrateFragmentChildrenAtIndex(context: HydrationContext, rawChildren: 
       hydrateNode(context, child, childVar, indent + 1);
       emit(context, indent, "}");
     }
-    emit(context, indent, `${domIndex} += 1;`);
+    emit(context, indent, child.type === "element" && isComponentTag(child.tag)
+      ? `${domIndex} = __mikuru_advanceComponent(${parentVar}, ${domIndex}, ${childVar});`
+      : `${domIndex} += 1;`);
   }
 }
 
 function hydrateComponentProps(context: HydrationContext, node: ElementNode, propsVar: string, indent: number): void {
-  for (const attr of node.attrs) {
-    const modelDirective = parseModelDirective(attr.name);
-    if (modelDirective) {
-      const expression = validateAssignableExpression(getAttrValueFromDirective(attr), attr.name, {
-        source: context.source ?? String(attr.value),
-        offset: attr.valueLoc?.offset ?? attr.loc?.offset ?? 0,
-        filename: context.filename
-      });
-      const valueExpression = compileHydrationExpression(context, expression, attr.name);
-      const propName = modelDirective.argument ?? "modelValue";
-      const updatePropName = toComponentEventProp(`update:${propName}`);
-      const modifiersPropName = modelDirective.argument ? `${propName}Modifiers` : "modelModifiers";
-      emit(context, indent, `Object.defineProperty(${propsVar}, ${quote(propName)}, { enumerable: true, get() { return unwrap(${valueExpression}); } });`);
-      emit(context, indent, `${propsVar}[${quote(updatePropName)}] = ($value) => { ${expression}.value = $value; };`);
-      if (modelDirective.modifiers.length > 0) {
-        emit(context, indent, `${propsVar}[${quote(modifiersPropName)}] = { ${modelDirective.modifiers.map((modifier) => `${quote(modifier)}: true`).join(", ")} };`);
-      }
-      continue;
-    }
-
-    const objectEvent = parseObjectOnDirective(attr.name);
-    if (objectEvent && attr.value !== true) {
-      validateObjectOnModifiers(objectEvent, attr, "component");
-      const listenersVar = nextName(context, "listeners");
-      const eventNameVar = nextName(context, "eventName");
-      const handlerVar = nextName(context, "handler");
-      const propNameVar = nextName(context, "propName");
-      emit(context, indent, `{`);
-      emit(context, indent + 1, `const ${listenersVar} = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)}) ?? {};`);
-      emit(context, indent + 1, `if (${listenersVar} && typeof ${listenersVar} === "object") {`);
-      emit(context, indent + 2, `for (const [${eventNameVar}, ${handlerVar}] of Object.entries(${listenersVar})) {`);
-      emit(context, indent + 3, `const ${propNameVar} = ${componentEventPropRuntimeExpression(`String(${eventNameVar})`)};`);
-      emit(context, indent + 3, `if (typeof ${handlerVar} === "function") { ${propsVar}[${propNameVar}] = ${handlerVar}; }`);
-      emit(context, indent + 2, "}");
-      emit(context, indent + 1, "}");
-      emit(context, indent, `}`);
-      continue;
-    }
-
-    const event = parseEventDirective(attr.name);
-    if (event && attr.value !== true) {
-      validateComponentEventModifiers(event, attr);
-      const handlerExpression = `($value) => ${String(attr.value).trim()}($value)`;
-      const propName = event.nameExpression
-        ? componentEventPropRuntimeExpression(`String(unwrap(${compileHydrationExpression(context, event.nameExpression, attr.name)}) ?? "")`)
-        : quote(toComponentEventProp(event.name ?? ""));
-      emit(context, indent, `${propsVar}[${propName}] = ${componentEventHandlerExpression(event, handlerExpression, context)};`);
-      continue;
-    }
-
-    if (shouldSkipAttr(attr)) {
-      continue;
-    }
-
-    if (parseObjectBindDirective(attr.name) && attr.value !== true) {
-      emit(context, indent, `Object.assign(${propsVar}, unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)}) ?? {});`);
-      continue;
-    }
-
-    const dynamicArgument = getDynamicAttrArgument(attr.name);
-    if (dynamicArgument && attr.value !== true) {
-      emit(context, indent, `${propsVar}[String(unwrap(${compileHydrationExpression(context, dynamicArgument.expression, attr.name)}) ?? "")] = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)});`);
-      continue;
-    }
-
-    const dynamicName = getDynamicAttrName(attr.name);
-    if (dynamicName && attr.value !== true) {
-      emit(context, indent, `${propsVar}[${quote(dynamicName)}] = unwrap(${compileHydrationExpression(context, String(attr.value), attr.name)});`);
-      continue;
-    }
-
-    emit(context, indent, `${propsVar}[${quote(attr.name)}] = ${attr.value === true ? "true" : quote(attr.value)};`);
+  const attrsVar = nextName(context, "attrs");
+  emitComponentAttrs(context as GenerateContext, node, attrsVar, indent);
+  const objectBindAttrs = node.attrs.filter((attr) => Boolean(parseObjectBindDirective(attr.name)));
+  const objectOnAttrs = node.attrs.filter((attr) => Boolean(parseObjectOnDirective(attr.name)));
+  const needsProxy = objectBindAttrs.length > 0 || objectOnAttrs.length > 0;
+  const propsTargetVar = needsProxy ? nextName(context, "propsBase") : propsVar;
+  const previousOnce = context.once;
+  context.once = context.once || Boolean(getAttr(node, "v-once") && !getAttr(node, "v-for"));
+  let entries: string[];
+  try {
+    entries = node.attrs
+      .filter((attr) => !["v-if", "v-else-if", "v-else", "v-for", "v-once", "v-memo"].includes(attr.name))
+      .flatMap((attr) => componentPropEntries(context as GenerateContext, attr));
+  } finally {
+    context.once = previousOnce;
+  }
+  emit(context, indent, `const ${propsTargetVar} = {`);
+  emit(context, indent + 1, `__mikuru_context: __mikuru_context,`);
+  emit(context, indent + 1, `__mikuru_attrs: ${attrsVar},`);
+  for (const entry of entries) {
+    emit(context, indent + 1, `${entry},`);
+  }
+  emit(context, indent, `};`);
+  if (needsProxy) {
+    emitComponentPropsProxy(context as GenerateContext, propsVar, propsTargetVar, objectBindAttrs, objectOnAttrs, indent);
   }
 }
 
@@ -1408,7 +1794,7 @@ function hydrateEvents(context: HydrationContext, node: ElementNode, elementVar:
       emit(context, indent + 2, "}");
       emit(context, indent + 1, "}");
       emit(context, indent, "});");
-      emit(context, indent, `__mikuru_cleanup.push(() => {`);
+      emit(context, indent, `__mikuru_activeCleanup.push(() => {`);
       emit(context, indent + 1, `${stopVar}();`);
       emit(context, indent + 1, `for (const [${eventVar}, ${handlerVar}] of ${listenersVar}) {`);
       emit(context, indent + 2, `${elementVar}.removeEventListener(${eventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
@@ -1429,14 +1815,14 @@ function hydrateEvents(context: HydrationContext, node: ElementNode, elementVar:
       const nextEventVar = nextName(context, "eventName");
       emitHydrationEventHandler(context, indent, elementVar, handlerVar, String(attr.value).trim(), dynamicEvent);
       emit(context, indent, `let ${currentEventVar};`);
-      emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
+      emit(context, indent, "__mikuru_activeCleanup.push(effect(() => {");
       emit(context, indent + 1, `const ${nextEventVar} = String(unwrap(${expression}) ?? "");`);
       emit(context, indent + 1, `if (${nextEventVar} === ${currentEventVar}) return;`);
       emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
       emit(context, indent + 1, `${currentEventVar} = ${nextEventVar};`);
       emit(context, indent + 1, `if (${currentEventVar}) ${elementVar}.addEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
       emit(context, indent, "}));");
-      emit(context, indent, `__mikuru_cleanup.push(() => { if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}); });`);
+      emit(context, indent, `__mikuru_activeCleanup.push(() => { if (${currentEventVar}) ${elementVar}.removeEventListener(${currentEventVar}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}); });`);
       continue;
     }
 
@@ -1449,20 +1835,23 @@ function hydrateEvents(context: HydrationContext, node: ElementNode, elementVar:
     const handlerVar = nextName(context, "handler");
     emitHydrationEventHandler(context, indent, elementVar, handlerVar, String(attr.value).trim(), event);
     emit(context, indent, `${elementVar}.addEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""});`);
-    emit(context, indent, `__mikuru_cleanup.push(() => ${elementVar}.removeEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}));`);
+    emit(context, indent, `__mikuru_activeCleanup.push(() => ${elementVar}.removeEventListener(${quote(event.name)}, ${handlerVar}${eventOptions ? `, ${eventOptions}` : ""}));`);
   }
 }
 
 function emitHydrationEventHandler(context: HydrationContext, indent: number, elementVar: string, handlerVar: string, handlerExpression: string, event: EventDirective): void {
   const guard = eventModifierGuardExpression(event);
   const hasControl = event.modifiers.includes("prevent") || event.modifiers.includes("stop") || event.modifiers.includes("self") || guard;
+  const compiledHandler = eventHandlerExpression(handlerExpression, context as GenerateContext, undefined);
 
   if (!hasControl) {
-    emit(context, indent, `const ${handlerVar} = ($event) => ${handlerExpression}($event);`);
+    emit(context, indent, `const ${handlerVar} = __mikuru_guardEventHandler(${compiledHandler});`);
     return;
   }
 
-  emit(context, indent, `const ${handlerVar} = ($event) => {`);
+  const baseHandlerVar = nextName(context, "handler");
+  emit(context, indent, `const ${baseHandlerVar} = ${compiledHandler};`);
+  emit(context, indent, `const ${handlerVar} = ($event) => __mikuru_try(() => {`);
   if (event.modifiers.includes("self")) {
     emit(context, indent + 1, `if ($event.target !== ${elementVar}) { return; }`);
   }
@@ -1475,8 +1864,8 @@ function emitHydrationEventHandler(context: HydrationContext, indent: number, el
   if (event.modifiers.includes("stop")) {
     emit(context, indent + 1, "$event.stopPropagation();");
   }
-  emit(context, indent + 1, `return ${handlerExpression}($event);`);
-  emit(context, indent, "};");
+  emit(context, indent + 1, `return ${baseHandlerVar}($event);`);
+  emit(context, indent, `}, __mikuru_context.errorHandler, "event");`);
 }
 
 function hydrateModelAndShow(context: HydrationContext, node: ElementNode, elementVar: string, indent: number): void {
@@ -1520,7 +1909,7 @@ function hydrateModelAndShow(context: HydrationContext, node: ElementNode, eleme
 
       const warnedVar = nextName(context, "modelMismatchWarned");
       emit(context, indent, `let ${warnedVar} = false;`);
-      emit(context, indent, "__mikuru_cleanup.push(effect(() => {");
+      emit(context, indent, "__mikuru_activeCleanup.push(effect(() => {");
       if (modelMode === "select-multiple") {
         const expectedValuesVar = nextName(context, "expectedValues");
         const actualValuesVar = nextName(context, "actualValues");
@@ -1545,12 +1934,12 @@ function hydrateModelAndShow(context: HydrationContext, node: ElementNode, eleme
       emit(context, indent, "}));");
       emit(context, indent, `const ${handlerVar} = ($event) => { ${expression}.value = ${assignedValue}; };`);
       emit(context, indent, `${elementVar}.addEventListener(${quote(eventName)}, ${handlerVar});`);
-      emit(context, indent, `__mikuru_cleanup.push(() => ${elementVar}.removeEventListener(${quote(eventName)}, ${handlerVar}));`);
+      emit(context, indent, `__mikuru_activeCleanup.push(() => ${elementVar}.removeEventListener(${quote(eventName)}, ${handlerVar}));`);
       continue;
     }
 
     if (attr.name === "v-show") {
-      emit(context, indent, `__mikuru_cleanup.push(effect(() => { ${elementVar}.style.display = unwrap(${compileHydrationExpression(context, getAttrValueFromDirective(attr), attr.name)}) ? "" : "none"; }));`);
+      emit(context, indent, `__mikuru_activeCleanup.push(effect(() => { ${elementVar}.style.display = unwrap(${compileHydrationExpression(context, getAttrValueFromDirective(attr), attr.name)}) ? "" : "none"; }));`);
     }
   }
 }
@@ -1566,7 +1955,7 @@ function hydrateContentDirective(context: HydrationContext, node: ElementNode, e
   const property = attr.name === "v-html" ? "innerHTML" : "textContent";
   const warnedVar = nextName(context, "contentMismatchWarned");
   emit(context, indent, `let ${warnedVar} = false;`);
-  emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_content = String(unwrap(${expression}) ?? ""); if (${elementVar}.${property} !== __mikuru_content) { if (!${warnedVar}) { __mikuru_warn(${quote(`${attr.name} content mismatch: expected `)} + JSON.stringify(__mikuru_content) + ", got " + JSON.stringify(${elementVar}.${property} ?? "") + "."); ${warnedVar} = true; } ${elementVar}.${property} = __mikuru_content; } }));`);
+  emit(context, indent, `__mikuru_activeCleanup.push(effect(() => { const __mikuru_content = String(unwrap(${expression}) ?? ""); if (${elementVar}.${property} !== __mikuru_content) { if (!${warnedVar}) { __mikuru_warn(${quote(`${attr.name} content mismatch: expected `)} + JSON.stringify(__mikuru_content) + ", got " + JSON.stringify(${elementVar}.${property} ?? "") + "."); ${warnedVar} = true; } ${elementVar}.${property} = __mikuru_content; } }));`);
 }
 
 function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string, indent: number): void {
@@ -1578,7 +1967,7 @@ function hydrateText(context: HydrationContext, node: TextNode, nodeVar: string,
   }).join(" + ");
   const warnedVar = nextName(context, "textMismatchWarned");
   emit(context, indent, `let ${warnedVar} = false;`);
-  emit(context, indent, `__mikuru_cleanup.push(effect(() => { const __mikuru_text = ${expression || "\"\""}; if (${nodeVar}.textContent !== __mikuru_text) { if (!${warnedVar}) { __mikuru_warn("Text content mismatch: expected " + JSON.stringify(__mikuru_text) + ", got " + JSON.stringify(${nodeVar}.textContent ?? "") + "."); ${warnedVar} = true; } ${nodeVar}.textContent = __mikuru_text; } }));`);
+  emit(context, indent, `__mikuru_activeCleanup.push(effect(() => { const __mikuru_text = ${expression || "\"\""}; if (${nodeVar}.textContent !== __mikuru_text) { if (!${warnedVar}) { __mikuru_warn("Text content mismatch: expected " + JSON.stringify(__mikuru_text) + ", got " + JSON.stringify(${nodeVar}.textContent ?? "") + "."); ${warnedVar} = true; } ${nodeVar}.textContent = __mikuru_text; } }));`);
 }
 
 function hydrateTemplateRef(context: HydrationContext, node: ElementNode, valueExpression: string, indent: number): void {
@@ -1592,7 +1981,7 @@ function hydrateTemplateRef(context: HydrationContext, node: ElementNode, valueE
   const cleanupRefVar = nextName(context, "cleanupRef");
   const multiple = context.templateRefMode === "array";
   emit(context, indent, `const ${cleanupRefVar} = __mikuru_setRef(${targetExpression}, ${valueExpression}, ${multiple ? "true" : "false"});`);
-  emit(context, indent, `__mikuru_cleanup.push(${cleanupRefVar});`);
+  emit(context, indent, `__mikuru_activeCleanup.push(${cleanupRefVar});`);
 }
 
 function getTemplateRefAttr(node: ElementNode): TemplateAttribute | undefined {
@@ -2022,14 +2411,6 @@ function validateObjectOnModifiers(event: EventDirective, attr: TemplateAttribut
   }
 }
 
-function validateComponentEventModifiers(event: EventDirective, attr: TemplateAttribute): void {
-  for (const modifier of event.modifiers) {
-    if (modifier !== "once") {
-      throw new Error(`Event modifier .${modifier} is only supported on DOM events: ${attr.name}`);
-    }
-  }
-}
-
 function eventListenerOptions(event: EventDirective): string | undefined {
   const options = [
     event.modifiers.includes("capture") ? "capture: true" : undefined,
@@ -2110,20 +2491,6 @@ function eventKeyExpression(modifier: string): string | undefined {
   return keys ? JSON.stringify(keys) : undefined;
 }
 
-function componentEventHandlerExpression(event: EventDirective, handlerExpression: string, context: HydrationContext): string {
-  if (!event.modifiers.includes("once")) {
-    return handlerExpression;
-  }
-
-  const calledVar = nextName(context, "called");
-  const handlerVar = nextName(context, "handler");
-  return `(() => { let ${calledVar} = false; const ${handlerVar} = ${handlerExpression}; return (...$args) => { if (${calledVar}) { return; } ${calledVar} = true; return ${handlerVar}(...$args); }; })()`;
-}
-
-function componentEventPropRuntimeExpression(eventNameExpression: string): string {
-  return `"on" + ${eventNameExpression}.split(/[-:]/).filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join("")`;
-}
-
 function getDynamicEventArgument(name: string): { expression: string; modifiers: string[] } | undefined {
   const dynamic = parseDynamicArgument(name, ["@", "v-on:"]);
   if (!dynamic) return undefined;
@@ -2155,10 +2522,6 @@ function parseModelDirective(name: string): { argument?: string; modifiers: stri
 
 function hasElementModel(node: ElementNode): boolean {
   return node.attrs.some((attr) => Boolean(parseModelDirective(attr.name)));
-}
-
-function toComponentEventProp(eventName: string): string {
-  return `on${eventName.split(":").map((part) => part ? part[0]!.toUpperCase() + part.slice(1) : "").join("")}`;
 }
 
 function getAttrValueFromDirective(attr: TemplateAttribute): string {
@@ -2362,18 +2725,6 @@ function withTemplateRefMode<T>(context: HydrationContext, mode: "single" | "arr
   } finally {
     context.templateRefMode = previousMode;
   }
-}
-
-function splitScript(script: string): ScriptParts {
-  const imports: string[] = [];
-  const body: string[] = [];
-
-  for (const line of script.split(/\r?\n/)) {
-    if (/^\s*import\s/.test(line)) imports.push(line.trim());
-    else body.push(line);
-  }
-
-  return { imports, body: body.join("\n") };
 }
 
 function emit(context: HydrationContext, indent: number, line: string): void {

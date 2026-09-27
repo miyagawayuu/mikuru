@@ -13,12 +13,13 @@ export function compileSsr(source: string, options: CompileOptions = {}): SsrCom
     const ast = parseTemplate(descriptor.template, {
       filename: options.filename,
       source,
-      offset: descriptor.templateOffset
+      offset: descriptor.templateOffset,
+      debug: options.debug
     });
     emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile-ssr" });
     const templateTypeCheck = options.templateTypeCheck === true ? assertTemplateTypeCheck(descriptor, ast) : undefined;
     const bindings = analyzeTemplate(ast, { source, filename: options.filename });
-    const code = generateSsr(descriptor, ast);
+    const code = generateSsr(descriptor, ast, options.debug === true);
 
     return {
       code,

@@ -22,8 +22,8 @@ describe("basic example", () => {
     const result = compile(source, { filename: "examples/basic/MoodBadge.mikuru" });
 
     expect(result.code).toContain("export function mount(target, props = {})");
-    expect(result.code).toContain("const label = { get value() { return props.label; } };");
-    expect(result.code).toContain("const modelValue = { get value() { return props.modelValue; } };");
+    expect(result.code).toContain("const label = { get value() { return __mikuru_resolvedProps.label; } };");
+    expect(result.code).toContain("const modelValue = { get value() { return __mikuru_resolvedProps.modelValue; } };");
     expect(result.code).toContain("const emit = __mikuru_emit;");
     expect(result.code).toContain('emit("update:modelValue"');
     expect(result.code).toContain("unwrap(label)");

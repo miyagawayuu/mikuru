@@ -15,7 +15,8 @@ export function compileHydration(source: string, options: CompileOptions = {}): 
     const ast = parseTemplate(descriptor.template, {
       filename: options.filename,
       source,
-      offset: descriptor.templateOffset
+      offset: descriptor.templateOffset,
+      debug: options.debug
     });
     emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile-hydration" });
     const templateTypeCheck = options.templateTypeCheck === true ? assertTemplateTypeCheck(descriptor, ast) : undefined;
@@ -25,7 +26,11 @@ export function compileHydration(source: string, options: CompileOptions = {}): 
       batchedUpdates: options.batchedUpdates === true,
       externalStyles: options.externalStyles === true
     });
-    const hydrationCode = generateHydration(descriptor, ast, { includeImports: false });
+    const hydrationCode = generateHydration(descriptor, ast, {
+      includeImports: false,
+      batchedUpdates: options.batchedUpdates === true,
+      debug: options.debug === true
+    });
     const code = mountCode.replace("export default __mikuru_component;", `${hydrationCode}\nconst __mikuru_hydrationComponent = { ...__mikuru_component, hydrate };\nexport default __mikuru_hydrationComponent;`);
     const map = createSourceMap(code, descriptor, ast);
 

@@ -1,5 +1,5 @@
 import { getSourceLocation } from "./errors.js";
-import type { ElementNode, SfcDescriptor, SourceMap, TemplateAttribute, TemplateNode, TextNode } from "./types.js";
+import type { SfcDescriptor, SourceMap, TemplateAttribute, TemplateNode, TemplateRoot, TextNode } from "./types.js";
 import type { SourceLocation } from "./errors.js";
 
 const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -15,7 +15,7 @@ type SourceMapSegment = {
   originalColumn: number;
 };
 
-export function createSourceMap(code: string, descriptor: SfcDescriptor, root?: ElementNode): SourceMap {
+export function createSourceMap(code: string, descriptor: SfcDescriptor, root?: TemplateRoot): SourceMap {
   const source = descriptor.source ?? "";
   const filename = descriptor.filename ?? "anonymous.mikuru";
   const templateLocation = getSourceLocation(source, descriptor.templateOffset ?? 0, filename);
@@ -210,9 +210,10 @@ function createBlockLineCandidates(source: string, block: string, blockOffset: n
   return candidates;
 }
 
-function createTemplateCandidates(root: ElementNode): SourceMapCandidate[] {
+function createTemplateCandidates(root: TemplateRoot): SourceMapCandidate[] {
   const candidates: SourceMapCandidate[] = [];
-  collectTemplateCandidates(root, candidates);
+  if (root.type === "fragment") root.children.forEach((child) => collectTemplateCandidates(child, candidates));
+  else collectTemplateCandidates(root, candidates);
   candidates.sort((left, right) => right.needle.length - left.needle.length);
   return candidates;
 }

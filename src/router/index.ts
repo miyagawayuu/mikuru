@@ -1,14 +1,15 @@
 import { effect, inject, provide, ref, unwrap } from "../runtime/index.js";
 import { createDebugDiagnostic, emitDebugEvent } from "../runtime/devtools.js";
 import type { Ref } from "../runtime/index.js";
+import { collectDomRange, findFragmentEnd, removeDomRange } from "../runtime/domRange.js";
 
 export type RouteParams = Record<string, string | string[]>;
 export type RouteParamsRaw = Record<string, string | number | boolean | Array<string | number | boolean>>;
 export type RouteQueryValue = string | string[] | undefined;
 export type RouteQuery = Record<string, RouteQueryValue>;
 export type RouteComponent = {
-  mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: Element | Comment; unmount(): void };
-  hydrate?: (target: Element, props?: Record<string, unknown>) => { element: Element | Comment; unmount(): void } | Promise<{ element: Element | Comment; unmount(): void }>;
+  mount(target: Element | DocumentFragment, props?: Record<string, unknown>): { element: ChildNode; roots?: readonly ChildNode[]; unmount(): void };
+  hydrate?: (target: Element | Comment, props?: Record<string, unknown>) => { element: ChildNode; roots?: readonly ChildNode[]; unmount(): void } | Promise<{ element: ChildNode; roots?: readonly ChildNode[]; unmount(): void }>;
   renderToString?: (props?: Record<string, unknown>) => string | Promise<string>;
 };
 export type LazyRouteComponent = () => Promise<RouteComponent | { default: RouteComponent }>;
@@ -697,32 +698,83 @@ export const RouterView: RouteComponent = {
     return String(child ?? "");
   },
   hydrate(target, props = {}) {
-    const cleanup: Array<() => void> = [];
-    const childTarget = target.matches("[data-mikuru-router-view]")
-      ? target.firstElementChild
+    const wrapped = target.nodeType === 1 && (target as Element).matches("[data-mikuru-router-view]");
+    const childTarget = wrapped
+      ? Array.from((target as Element).childNodes).find((node): node is Element | Comment => node.nodeType === 1 || (node.nodeType === 8 && node.nodeValue === "mikuru-fragment"))
       : target;
-
+    const parent = childTarget?.parentNode;
+    const start = target.ownerDocument.createComment("mikuru-router-view");
+    const end = target.ownerDocument.createComment("/mikuru-router-view");
+    (start as Comment & { __mikuru_end?: Comment }).__mikuru_end = end;
+    if (childTarget && parent) {
+      parent.insertBefore(start, childTarget);
+      parent.insertBefore(end, findFragmentEnd(childTarget).nextSibling);
+      (childTarget as ChildNode & { __mikuru_replacementEnd?: ChildNode }).__mikuru_replacementEnd = end;
+    } else if (wrapped) {
+      (target as Element).append(start, end);
+    }
+    let child: { element: ChildNode; unmount(): void } | undefined;
+    let renderId = 0;
+    let disposed = false;
+    let currentPath: string | undefined;
+    let currentRecord: RouteRecord | undefined;
     if (childTarget && typeof props.children === "function") {
-      void Promise.resolve((props.children as (target: Element, slotProps?: Record<string, unknown>) => unknown)(childTarget, { __mikuru_context: props.__mikuru_context }))
+      const id = renderId + 1;
+      void Promise.resolve((props.children as (target: Element | Comment, slotProps?: Record<string, unknown>) => unknown)(childTarget as Element | Comment, { __mikuru_context: props.__mikuru_context }))
         .then((result) => {
-          if (result && typeof result === "object" && typeof (result as { unmount?: unknown }).unmount === "function") {
-            cleanup.push(() => (result as { unmount(): void }).unmount());
-          }
+          if (!result || typeof result !== "object" || typeof (result as { unmount?: unknown }).unmount !== "function") return;
+          const instance = result as { element: ChildNode; unmount(): void };
+          if (disposed || id !== renderId) instance.unmount();
+          else child = instance;
         });
     }
-
+    const stop = effect(() => {
+      const router = getRouterProp(props);
+      const route = router.currentRoute.value;
+      const depth = Number(unwrap(props.depth) ?? 0);
+      const record = route.matchedRecords[depth];
+      if (route.fullPath === currentPath && record === currentRecord) return;
+      currentPath = route.fullPath;
+      currentRecord = record;
+      if (renderId++ === 0) return;
+      const id = renderId;
+      child?.unmount();
+      child = undefined;
+      for (let node = start.nextSibling; node && node !== end;) { const next = node.nextSibling; node.remove(); node = next; }
+      if (!record?.component) return;
+      const componentPromise = resolveRouteComponent(record);
+      void (routerReadyTrackers.get(router)?.(componentPromise) ?? componentPromise).catch(() => undefined);
+      void componentPromise.then((component) => {
+        if (disposed || id !== renderId) return;
+        const fragment = end.ownerDocument.createDocumentFragment();
+        child = component.mount(fragment, { ...createRouteComponentProps(record, route, router, props.__mikuru_context), __mikuru_routeViewDepth: depth + 1 });
+        end.parentNode?.insertBefore(fragment, end);
+      }).catch((error) => { if (!disposed && id === renderId) routerErrorNotifiers.get(router)?.(error, route); });
+    });
     return {
-      element: target,
+      get element() { return wrapped ? target : (start.nextSibling && start.nextSibling !== end ? start.nextSibling : start); },
+      get roots() { return collectDomRange(start, end).slice(1, -1); },
+      __mikuru_start: wrapped ? undefined : start,
+      __mikuru_end: wrapped ? undefined : end,
       unmount() {
-        for (const fn of cleanup.splice(0).reverse()) fn();
+        if (disposed) return;
+        disposed = true;
+        ++renderId;
+        stop();
+        child?.unmount();
+        if (start.parentNode) removeDomRange(start, end);
       }
     };
   },
   mount(target, props = {}) {
-    const anchor = document.createComment("mikuru-router-view");
+    const start = document.createComment("mikuru-router-view");
+    const anchor = document.createComment("/mikuru-router-view");
+    (start as Comment & { __mikuru_end?: Comment }).__mikuru_end = anchor;
     const cleanup: Array<() => void> = [];
-    let child: { element: Element | Comment; unmount(): void } | undefined;
+    let child: { element: ChildNode; unmount(): void } | undefined;
     let renderId = 0;
+    let disposed = false;
+    target.appendChild(start);
     target.appendChild(anchor);
 
     const stop = effect(() => {
@@ -749,16 +801,16 @@ export const RouterView: RouteComponent = {
       void (routerReadyTrackers.get(router)?.(componentPromise) ?? componentPromise).catch(() => undefined);
       void componentPromise
         .then((component) => {
-          if (id !== renderId) return;
+          if (disposed || id !== renderId) return;
           child?.unmount();
           child = undefined;
 
           const fragment = anchor.ownerDocument.createDocumentFragment();
-          child = component.mount(fragment, createRouteComponentProps(record, route, router, props.__mikuru_context));
+          child = component.mount(fragment, { ...createRouteComponentProps(record, route, router, props.__mikuru_context), __mikuru_routeViewDepth: depth + 1 });
           anchor.parentNode?.insertBefore(fragment, anchor);
         })
         .catch((error) => {
-          if (id !== renderId) return;
+          if (disposed || id !== renderId) return;
           child?.unmount();
           child = undefined;
 
@@ -777,12 +829,15 @@ export const RouterView: RouteComponent = {
         });
     });
 
-    cleanup.push(stop, () => child?.unmount(), () => anchor.remove());
+    cleanup.push(() => { disposed = true; ++renderId; stop(); }, () => child?.unmount(), () => removeDomRange(start, anchor));
 
     return {
-      element: anchor,
+      get element() { return start.nextSibling && start.nextSibling !== anchor ? start.nextSibling : start; },
+      get roots() { return collectDomRange(start, anchor).slice(1, -1); },
+      __mikuru_start: start,
+      __mikuru_end: anchor,
       unmount() {
-        for (const fn of cleanup.splice(0).reverse()) fn();
+        for (const fn of cleanup.splice(0)) fn();
       }
     };
   }
@@ -807,6 +862,7 @@ export const RouterLink: RouteComponent = {
     return `<a href="${escapeRouterHtml(router.createHref(to))}"${classAttr}${ariaCurrent}>${label}</a>`;
   },
   hydrate(target, props = {}) {
+    if (target.nodeType !== 1) throw new TypeError("RouterLink hydration requires an element root");
     const anchor = target as HTMLAnchorElement;
     const cleanup: Array<() => void> = [];
     const hasChildren = typeof props.children === "function";
@@ -1238,10 +1294,10 @@ export function parseRouteQuery(raw: string): RouteQuery {
   const search = new URLSearchParams(raw);
 
   for (const [key, value] of search) {
-    const current = query[key];
+    const current = Object.hasOwn(query, key) ? query[key] : undefined;
     if (Array.isArray(current)) current.push(value);
     else if (current !== undefined) query[key] = [current, value];
-    else query[key] = value;
+    else Object.defineProperty(query, key, { value, enumerable: true, writable: true, configurable: true });
   }
 
   return query;

@@ -1,6 +1,8 @@
 import type { NavigationFailure, RouteLocation, RouteLocationRaw, RouteRecord, Router } from "./router/index.js";
 import { normalizeClass, normalizeStyle } from "./runtime/dom.js";
+import { isUnsafeAttributeName } from "./runtime/attributeSafety.js";
 import { emitDebugDiagnostic } from "./runtime/devtools.js";
+import { removeDomRange, findFragmentEnd } from "./runtime/domRange.js";
 
 export type MikuruSsrComponent = {
   renderToString: (props?: Record<string, unknown>) => string | Promise<string>;
@@ -9,12 +11,13 @@ export type MikuruSsrComponent = {
 export type MikuruSsrStream = AsyncIterable<string>;
 
 export type MikuruHydrationInstance = {
-  element: Element | Comment;
+  element: ChildNode;
+  roots?: readonly ChildNode[];
   unmount(): void;
 };
 
 export type MikuruHydrationComponent = {
-  hydrate?: (target: Element, props?: Record<string, unknown>) => MikuruHydrationInstance | Promise<MikuruHydrationInstance>;
+  hydrate?: (target: Element | Comment, props?: Record<string, unknown>) => MikuruHydrationInstance | Promise<MikuruHydrationInstance>;
   mount?: (target: Element | DocumentFragment, props?: Record<string, unknown>) => MikuruHydrationInstance;
 };
 
@@ -25,7 +28,8 @@ export type MikuruSsrRouteRenderResult = {
 };
 
 export type MikuruRouteHydrationResult = {
-  element: Element | Comment;
+  element: ChildNode;
+  roots?: readonly ChildNode[];
   route: RouteLocation;
   unmount(): void;
 };
@@ -72,8 +76,6 @@ const booleanAttributes = new Set([
   "selected"
 ]);
 
-const unsafeAttributeNamePattern = /[\s"'<>/=]/;
-
 export function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -84,7 +86,7 @@ export function escapeHtml(value: unknown): string {
 }
 
 export function renderAttr(name: string, value: unknown): string {
-  if (!name || unsafeAttributeNamePattern.test(name) || value === null || value === undefined) {
+  if (isUnsafeAttributeName(name) || value === null || value === undefined) {
     return "";
   }
 
@@ -173,7 +175,7 @@ export async function renderRouteToString(router: Router, toOrOptions: RouteLoca
   };
 }
 
-export async function hydrateRoute(router: Router, target: Element, toOrOptions: RouteLocationRaw | MikuruRouteHydrationOptions = router.currentRoute.value.fullPath, options: MikuruRouteHydrationOptions = {}): Promise<MikuruRouteHydrationResult> {
+export async function hydrateRoute(router: Router, target: Element | Comment, toOrOptions: RouteLocationRaw | MikuruRouteHydrationOptions = router.currentRoute.value.fullPath, options: MikuruRouteHydrationOptions = {}): Promise<MikuruRouteHydrationResult> {
   const to = isRouteHydrationOptions(toOrOptions) ? router.currentRoute.value.fullPath : toOrOptions;
   const hydrationOptions = isRouteHydrationOptions(toOrOptions) ? toOrOptions : options;
   const targetRoute = router.resolve(to);
@@ -192,7 +194,8 @@ export async function hydrateRoute(router: Router, target: Element, toOrOptions:
   const instance = await hydrateMatchedRoute(route, router, 0, target, createRouteComponentContext(router));
   const stopListening = hydrationOptions.listen ? router.listen() : undefined;
   return {
-    element: instance.element,
+    get element() { return instance.element; },
+    get roots() { return instance.roots; },
     route: instance.route,
     unmount() {
       stopListening?.();
@@ -212,6 +215,7 @@ async function renderMatchedRoute(route: RouteLocation, router: Router, depth: n
     ...resolveSsrRouteProps(record, route),
     route,
     router,
+    __mikuru_routeViewDepth: depth + 1,
     __mikuru_context: context,
     __mikuru_teleports: teleports,
     children: (slotProps?: Record<string, unknown>) => renderMatchedRoute(route, router, depth + 1, readRouteSlotContext(slotProps, context), teleports),
@@ -223,7 +227,7 @@ async function renderMatchedRoute(route: RouteLocation, router: Router, depth: n
   return renderComponentToString(component, props);
 }
 
-async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: number, target: Element, context: MikuruComponentContext): Promise<MikuruRouteHydrationResult> {
+async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: number, target: Element | Comment, context: MikuruComponentContext): Promise<MikuruRouteHydrationResult> {
   const record = route.matchedRecords[depth];
   if (!record) {
     return {
@@ -239,10 +243,11 @@ async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: 
     ...resolveSsrRouteProps(record, route),
     route,
     router,
+    __mikuru_routeViewDepth: depth + 1,
     __mikuru_context: context,
-    children: (childTarget?: Element, slotProps?: Record<string, unknown>) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget, readRouteSlotContext(slotProps, context))) : Promise.resolve(""),
+    children: (childTarget?: Element | Comment, slotProps?: Record<string, unknown>) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget, readRouteSlotContext(slotProps, context))) : Promise.resolve(""),
     slots: {
-      default: (childTarget?: Element, slotProps?: Record<string, unknown>) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget, readRouteSlotContext(slotProps, context))) : Promise.resolve("")
+      default: (childTarget?: Element | Comment, slotProps?: Record<string, unknown>) => childTarget ? trackHydratedChild(cleanups, hydrateMatchedRoute(route, router, depth + 1, childTarget, readRouteSlotContext(slotProps, context))) : Promise.resolve("")
     }
   };
 
@@ -253,7 +258,7 @@ async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: 
     const parent = target.parentNode;
     const anchor = target.ownerDocument.createComment("mikuru-route-hydrate");
     parent?.insertBefore(anchor, target);
-    target.remove();
+    removeDomRange(target, findFragmentEnd(target));
     const fragment = target.ownerDocument.createDocumentFragment();
     instance = component.mount(fragment, props);
     parent?.insertBefore(fragment, anchor);
@@ -263,7 +268,8 @@ async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: 
   }
 
   return {
-    element: instance.element,
+    get element() { return instance.element; },
+    get roots() { return instance.roots; },
     route,
     unmount() {
       for (const cleanup of cleanups.splice(0).reverse()) cleanup();
@@ -272,10 +278,17 @@ async function hydrateMatchedRoute(route: RouteLocation, router: Router, depth: 
   };
 }
 
-async function trackHydratedChild(cleanups: Array<() => void>, promise: Promise<MikuruRouteHydrationResult>): Promise<string> {
+async function trackHydratedChild(cleanups: Array<() => void>, promise: Promise<MikuruRouteHydrationResult>): Promise<MikuruRouteHydrationResult> {
   const child = await promise;
-  cleanups.push(() => child.unmount());
-  return "";
+  let disposed = false;
+  const result: MikuruRouteHydrationResult = {
+    get element() { return child.element; },
+    get roots() { return child.roots; },
+    route: child.route,
+    unmount() { if (disposed) return; disposed = true; child.unmount(); }
+  };
+  cleanups.push(() => result.unmount());
+  return result;
 }
 
 function createRouteComponentContext(router: Router): MikuruComponentContext {

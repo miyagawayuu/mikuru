@@ -1,6 +1,8 @@
 import { createCompileError } from "./errors.js";
+import { emitComponentAttrs, normalizeScript } from "./generate.js";
+import type { GenerateContext } from "./generate.js";
 import { compileTemplateExpression, parseForExpression } from "./parseExpression.js";
-import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode } from "./types.js";
+import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TemplateRoot, TextNode } from "./types.js";
 
 type SsrGenerateContext = {
   lines: string[];
@@ -10,6 +12,7 @@ type SsrGenerateContext = {
   source?: string;
   filename?: string;
   scopeAttr?: string;
+  fallthroughRoot?: ElementNode;
 };
 
 type SsrSelectModel = {
@@ -41,10 +44,6 @@ type IfBranch = {
   directive: "v-if" | "v-else-if" | "v-else";
 };
 
-type ScriptParts = {
-  imports: string[];
-  body: string;
-};
 
 type BindDirective = {
   name?: string;
@@ -59,7 +58,7 @@ type ComponentSlot = {
   scope?: string;
 };
 
-export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): string {
+export function generateSsr(descriptor: SfcDescriptor, root: TemplateRoot, debug = false): string {
   const context: SsrGenerateContext = {
     lines: [],
     index: 0,
@@ -69,16 +68,21 @@ export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): strin
     filename: descriptor.filename,
     scopeAttr: descriptor.styleScoped ? createScopeAttr(descriptor) : undefined
   };
-  const script = splitScript(descriptor.script ?? "");
+  const script = normalizeScript(descriptor, debug);
+  if (script.inheritAttrs && root.type === "element") {
+    context.fallthroughRoot = root;
+  }
 
   for (const importLine of script.imports) {
     emit(context, 0, importLine);
   }
+  if (script.runtimeImports.length) emit(context, 0, `import { ${script.runtimeImports.join(", ")} } from "mikuru";`);
   emit(context, 0, "import { escapeHtml as __mikuru_escape, renderAttr as __mikuru_renderAttr, renderAttrs as __mikuru_renderAttrs, renderComponentToString as __mikuru_renderComponent } from \"mikuru/server\";");
   emit(context, 0, "import { unwrap as __mikuru_unwrap } from \"mikuru/runtime\";");
   emit(context, 0, "");
 
   emit(context, 0, "export async function renderToString(props = {}) {");
+  emit(context, 1, "const unwrap = __mikuru_unwrap;");
   emit(context, 1, "let __mikuru_html = \"\";");
   emit(context, 1, "const __mikuru_teleports = props.__mikuru_teleports ?? {};");
   emit(context, 1, `const __mikuru_componentInfo = { component: ${quote(descriptor.filename ?? "anonymous.mikuru")}, filename: ${quote(descriptor.filename ?? "anonymous.mikuru")} };`);
@@ -96,10 +100,31 @@ export function generateSsr(descriptor: SfcDescriptor, root: ElementNode): strin
   emit(context, 1, "globalThis.__mikuru_currentRegistrar = __mikuru_ssrRegistrar;");
   emit(context, 1, "try {");
   if (script.body.trim()) {
+    if (script.usesPropsAlias) {
+      emit(context, 2, "const __mikuru_props = props;");
+    }
+    if (script.usesAttrsAlias) {
+      emit(context, 2, "const __mikuru_attrs = props.__mikuru_attrs ?? {};");
+    }
+    if (script.usesEmitAlias) {
+      emit(context, 2, "const __mikuru_emit = (name, ...args) => {");
+      emit(context, 3, "const handlerName = \"on\" + String(name).split(/[-:]/).filter(Boolean).map((part) => part[0].toUpperCase() + part.slice(1)).join(\"\");");
+      emit(context, 3, "props[handlerName]?.(...args);");
+      emit(context, 2, "};");
+    }
     emitRaw(context, script.body.trim());
     emit(context, 2, "");
   }
-  emitNode(context, root, 2);
+  if (debug && root.type === "fragment" && script.inheritAttrs) {
+    emit(context, 2, 'if (Object.keys(props.__mikuru_attrs ?? {}).length) console.warn("[Mikuru] Multiple component roots require explicit useAttrs() forwarding.");');
+  }
+  if (root.type === "fragment") {
+    emit(context, 2, '__mikuru_html += "<!--mikuru-fragment-->";');
+    for (const child of root.children) emitNode(context, child, 2);
+    emit(context, 2, '__mikuru_html += "<!--/mikuru-fragment-->";');
+  } else {
+    emitNode(context, root, 2);
+  }
   emit(context, 2, "return __mikuru_html;");
   emit(context, 1, "} finally {");
   emit(context, 2, "globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar;");
@@ -274,13 +299,34 @@ function emitElement(context: SsrGenerateContext, node: ElementNode, indent: num
 
 function emitPreElement(context: SsrGenerateContext, node: ElementNode, indent: number): void {
   emit(context, indent, `__mikuru_html += ${quote(`<${node.tag}`)};`);
+  const parentAttrsVar = context.fallthroughRoot === node ? nextName(context, "parentAttrs") : undefined;
+  const handledAttrsVar = parentAttrsVar ? nextName(context, "handledAttrs") : undefined;
+  if (parentAttrsVar && handledAttrsVar) {
+    emit(context, indent, `const ${parentAttrsVar} = props.__mikuru_attrs ?? {};`);
+    emit(context, indent, `const ${handledAttrsVar} = new Set();`);
+  }
 
   for (const attr of node.attrs) {
     if (attr.name === "v-pre") {
       continue;
     }
 
-    emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
+    const ownValue = attr.value === true ? "true" : quote(attr.value);
+    const valueExpression = parentAttrsVar
+      ? attr.name === "class" || attr.name === "style"
+        ? `[${ownValue}, ${parentAttrsVar}[${quote(attr.name)}]]`
+        : `Object.hasOwn(${parentAttrsVar}, ${quote(attr.name)}) ? ${parentAttrsVar}[${quote(attr.name)}] : ${ownValue}`
+      : ownValue;
+    emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(attr.name)}, ${valueExpression});`);
+    if (handledAttrsVar) {
+      emit(context, indent, `${handledAttrsVar}.add(${quote(attr.name)});`);
+    }
+  }
+
+  if (parentAttrsVar && handledAttrsVar) {
+    emit(context, indent, `for (const [name, value] of Object.entries(${parentAttrsVar})) {`);
+    emit(context, indent + 1, `if (!${handledAttrsVar}.has(name)) __mikuru_html += __mikuru_renderAttr(name, value);`);
+    emit(context, indent, `}`);
   }
 
   if (context.scopeAttr) {
@@ -323,8 +369,11 @@ function emitContentDirective(context: SsrGenerateContext, attr: TemplateAttribu
 
 function emitComponent(context: SsrGenerateContext, node: ElementNode, indent: number): void {
   const propsVar = nextName(context, "props");
+  const attrsVar = nextName(context, "attrs");
   emit(context, indent, `const ${propsVar} = {};`);
   emitComponentProps(context, node, propsVar, indent);
+  emitComponentAttrs(context as GenerateContext, node, attrsVar, indent);
+  emit(context, indent, `${propsVar}.__mikuru_attrs = ${attrsVar};`);
   emit(context, indent, `${propsVar}.__mikuru_context = __mikuru_context;`);
   emitRouterViewRouteSlot(context, node, propsVar, indent);
 
@@ -351,6 +400,7 @@ function emitDynamicComponent(context: SsrGenerateContext, node: ElementNode, in
   const dynamicNode = withoutDynamicComponentIs(node);
   const componentVar = nextName(context, "dynamicComponent");
   const propsVar = nextName(context, "props");
+  const attrsVar = nextName(context, "attrs");
 
   emit(context, indent, `const ${componentVar} = __mikuru_unwrap(${componentExpression});`);
   emit(context, indent, `if (${componentVar}) {`);
@@ -359,6 +409,8 @@ function emitDynamicComponent(context: SsrGenerateContext, node: ElementNode, in
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `const ${propsVar} = {};`);
   emitComponentProps(context, dynamicNode, propsVar, indent + 1);
+  emitComponentAttrs(context as GenerateContext, dynamicNode, attrsVar, indent + 1);
+  emit(context, indent + 1, `${propsVar}.__mikuru_attrs = ${attrsVar};`);
   emit(context, indent + 1, `${propsVar}.__mikuru_context = __mikuru_context;`);
   emitRouterViewRouteSlot(context, dynamicNode, propsVar, indent + 1);
   if (dynamicNode.children.length > 0) {
@@ -609,6 +661,13 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
   const hasObjectBind = node.attrs.some((attr) => Boolean(parseObjectBindDirective(attr.name)));
   const hasDynamicClass = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "class");
   const hasDynamicStyle = node.attrs.some((attr) => getDynamicAttrName(attr.name) === "style");
+  const parentAttrsVar = context.fallthroughRoot === node ? nextName(context, "parentAttrs") : undefined;
+  const handledAttrsVar = parentAttrsVar ? nextName(context, "handledAttrs") : undefined;
+
+  if (parentAttrsVar && handledAttrsVar) {
+    emit(context, indent, `const ${parentAttrsVar} = props.__mikuru_attrs ?? {};`);
+    emit(context, indent, `const ${handledAttrsVar} = new Set();`);
+  }
 
   for (const attr of node.attrs) {
     if (attr.name === "v-cloak") {
@@ -634,7 +693,14 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
       if (objectBindDirective.modifiers.includes("camel")) {
         emit(context, indent + 1, `const ${renderedAttrsVar} = Object.fromEntries(Object.entries(${attrsVar}).map(([key, value]) => [String(key).replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase()), value]));`);
       }
-      emit(context, indent + 1, `__mikuru_html += __mikuru_renderAttrs({ ...${renderedAttrsVar}${staticClass ? `, class: [${quote(staticClass)}, ${renderedAttrsVar}.class]` : ""}${staticStyle ? `, style: [${quote(staticStyle)}, ${renderedAttrsVar}.style]` : ""} });`);
+      const classParts = [staticClass ? quote(staticClass) : undefined, `${renderedAttrsVar}.class`, parentAttrsVar ? `${parentAttrsVar}.class` : undefined].filter(Boolean);
+      const styleParts = [staticStyle ? quote(staticStyle) : undefined, `${renderedAttrsVar}.style`, parentAttrsVar ? `${parentAttrsVar}.style` : undefined].filter(Boolean);
+      const classEntry = staticClass || parentAttrsVar ? `, class: [${classParts.join(", ")}]` : "";
+      const styleEntry = staticStyle || parentAttrsVar ? `, style: [${styleParts.join(", ")}]` : "";
+      emit(context, indent + 1, `__mikuru_html += __mikuru_renderAttrs({ ...${renderedAttrsVar}${parentAttrsVar ? `, ...${parentAttrsVar}` : ""}${classEntry}${styleEntry} });`);
+      if (parentAttrsVar && handledAttrsVar) {
+        emit(context, indent + 1, `for (const key of Object.keys(${parentAttrsVar})) ${handledAttrsVar}.add(key);`);
+      }
       emit(context, indent, "}");
       continue;
     }
@@ -649,7 +715,16 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
       const value = String(attr.value);
       const nameExpression = compileSsrExpression(context, dynamicArgument.nameExpression ?? "", attr.name);
       const valueExpression = compileSsrExpression(context, value, attr.name);
-      emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${bindNameExpression(`String(__mikuru_unwrap(${nameExpression}) ?? "")`, dynamicArgument)}, __mikuru_unwrap(${valueExpression}));`);
+      if (parentAttrsVar && handledAttrsVar) {
+        const nameVar = nextName(context, "attrName");
+        const valueVar = nextName(context, "attrValue");
+        emit(context, indent, `const ${nameVar} = ${bindNameExpression(`String(__mikuru_unwrap(${nameExpression}) ?? "")`, dynamicArgument)};`);
+        emit(context, indent, `const ${valueVar} = __mikuru_unwrap(${valueExpression});`);
+        emit(context, indent, `${handledAttrsVar}.add(${nameVar});`);
+        emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${nameVar}, ${nameVar} === "class" || ${nameVar} === "style" ? [${valueVar}, ${parentAttrsVar}[${nameVar}]] : Object.hasOwn(${parentAttrsVar}, ${nameVar}) ? ${parentAttrsVar}[${nameVar}] : ${valueVar});`);
+      } else {
+        emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${bindNameExpression(`String(__mikuru_unwrap(${nameExpression}) ?? "")`, dynamicArgument)}, __mikuru_unwrap(${valueExpression}));`);
+      }
       continue;
     }
 
@@ -667,7 +742,15 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
           : dynamicName === "style" && staticStyle
             ? `[${quote(staticStyle)}, __mikuru_unwrap(${expression})]`
             : `__mikuru_unwrap(${expression})`;
-      emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(dynamicName)}, ${valueExpression});`);
+      const mergedValueExpression = parentAttrsVar
+        ? dynamicName === "class" || dynamicName === "style"
+          ? `[${valueExpression}, ${parentAttrsVar}[${quote(dynamicName)}]]`
+          : `Object.hasOwn(${parentAttrsVar}, ${quote(dynamicName)}) ? ${parentAttrsVar}[${quote(dynamicName)}] : ${valueExpression}`
+        : valueExpression;
+      emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(dynamicName)}, ${mergedValueExpression});`);
+      if (handledAttrsVar) {
+        emit(context, indent, `${handledAttrsVar}.add(${quote(dynamicName)});`);
+      }
       continue;
     }
 
@@ -675,10 +758,25 @@ function emitAttrs(context: SsrGenerateContext, node: ElementNode, indent: numbe
       continue;
     }
 
-    emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(attr.name)}, ${attr.value === true ? "true" : quote(attr.value)});`);
+    const ownValue = attr.value === true ? "true" : quote(attr.value);
+    const valueExpression = parentAttrsVar
+      ? attr.name === "class" || attr.name === "style"
+        ? `[${ownValue}, ${parentAttrsVar}[${quote(attr.name)}]]`
+        : `Object.hasOwn(${parentAttrsVar}, ${quote(attr.name)}) ? ${parentAttrsVar}[${quote(attr.name)}] : ${ownValue}`
+      : ownValue;
+    emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(attr.name)}, ${valueExpression});`);
+    if (handledAttrsVar) {
+      emit(context, indent, `${handledAttrsVar}.add(${quote(attr.name)});`);
+    }
   }
 
   emitModelAttrs(context, node, indent);
+
+  if (parentAttrsVar && handledAttrsVar) {
+    emit(context, indent, `for (const [name, value] of Object.entries(${parentAttrsVar})) {`);
+    emit(context, indent + 1, `if (!${handledAttrsVar}.has(name)) __mikuru_html += __mikuru_renderAttr(name, value);`);
+    emit(context, indent, `}`);
+  }
 
   if (context.scopeAttr) {
     emit(context, indent, `__mikuru_html += __mikuru_renderAttr(${quote(context.scopeAttr)}, true);`);
@@ -1294,24 +1392,6 @@ function expressionContext(context: SsrGenerateContext, attr: TemplateAttribute,
     source: context.source ?? String(attr.value),
     offset: attr.valueLoc?.offset ?? attr.loc?.offset ?? 0,
     filename: context.filename
-  };
-}
-
-function splitScript(script: string): ScriptParts {
-  const imports: string[] = [];
-  const body: string[] = [];
-
-  for (const line of script.split(/\r?\n/)) {
-    if (/^\s*import\s/.test(line)) {
-      imports.push(line.trim());
-    } else {
-      body.push(line);
-    }
-  }
-
-  return {
-    imports,
-    body: body.join("\n")
   };
 }
 

@@ -40,6 +40,16 @@ type ScopedCssDiagnosticFixture = {
 
 const scopedCssFixtures: ScopedCssFixture[] = [
   {
+    name: "deep selector argument lists expand without scoping descendants",
+    source: `.host :deep(.first, .second) { color: red; }`,
+    scopeAttr: "data-mikuru-scope-deep-list",
+    contains: [
+      `.host[data-mikuru-scope-deep-list] .first`,
+      `.host[data-mikuru-scope-deep-list] .second`,
+      `color: red;`
+    ]
+  },
+  {
     name: "complex nested CSS without rewriting keyframe steps",
     source: `
 @media (hover: hover) {
@@ -335,22 +345,52 @@ describe("compiler", () => {
 
   it("parses template roots", () => {
     const ast = parseTemplate(`<button @click="increment">count: {{ count }}</button>`);
+    if (ast.type !== "element") throw new Error("Expected a single element root");
 
     expect(ast.tag).toBe("button");
     expect(ast.attrs).toContainEqual(expect.objectContaining({ name: "@click", value: "increment" }));
   });
 
+  it("returns fragment AST for multiple roots and preserves component spelling", () => {
+    const ast = parseTemplate(`<CardItem /><p>Next</p>`);
+    expect(ast.type).toBe("fragment");
+    if (ast.type !== "fragment") throw new Error("Expected a fragment root");
+    expect(ast.children[0]).toMatchObject({ type: "element", tag: "CardItem" });
+    expect(ast.children[1]).toMatchObject({ type: "element", tag: "p" });
+  });
+
+  it("checks type-only props declarations in TypeScript scripts", () => {
+    const source = `<template><p>{{ title.toUpperCase() }}</p></template><script lang="ts">const { title } = defineProps<{ title: number }>();</script>`;
+    expect(() => compile(source, { templateTypeCheck: true })).toThrow(/Template type check failed/);
+  });
+
   it("ignores HTML comments and keeps one meaningful root", () => {
     const ast = parseTemplate(`<!-- ignored --><section>content</section><!-- also ignored -->`);
+    if (ast.type !== "element") throw new Error("Expected a single element root");
 
     expect(ast.tag).toBe("section");
   });
 
   it("parses quoted angle brackets and single-quoted attributes", () => {
     const ast = parseTemplate(`<button title='1 > 0' @click='increment'>Compare</button>`);
+    if (ast.type !== "element") throw new Error("Expected a single element root");
 
     expect(ast.attrs).toContainEqual(expect.objectContaining({ name: "title", value: "1 > 0" }));
     expect(ast.attrs).toContainEqual(expect.objectContaining({ name: "@click", value: "increment" }));
+  });
+
+  it("keeps comparison operators and literal less-than signs in text", () => {
+    const ast = parseTemplate(`<p>{{ left<right ? "lower" : "higher" }} and 1 < 2 or <3</p>`);
+
+    expect(ast.children).toEqual([
+      expect.objectContaining({
+        type: "text",
+        parts: [
+          expect.objectContaining({ type: "expression", value: 'left<right ? "lower" : "higher"' }),
+          expect.objectContaining({ type: "static", value: " and 1 < 2 or <3" })
+        ]
+      })
+    ]);
   });
 
   it("treats void elements as self-closing", () => {
@@ -722,7 +762,8 @@ const items = [{ label: "one" }];
     expect(input.code).toContain("addEventListener(\"change\"");
     expect(input.code).toContain(".trim()");
     expect(input.code).toContain("Number(");
-    expect(component.code).toContain(".style.display = unwrap(unwrap(visible))");
+    expect(component.code).toContain("const __mikuru_visible = !!unwrap(unwrap(visible))");
+    expect(component.code).toContain("element.style.display = __mikuru_visible");
     expect(component.code).toContain("modelModifiers: { trim: true }");
   });
 
@@ -1105,8 +1146,8 @@ function select() {
 }
 </script>`);
 
-    expect(result.code).toContain("const title = { get value() { return props.title; } };");
-    expect(result.code).toContain("const active = { get value() { return props.active; } };");
+    expect(result.code).toContain("const title = { get value() { return __mikuru_resolvedProps.title; } };");
+    expect(result.code).toContain("const active = { get value() { return __mikuru_resolvedProps.active; } };");
     expect(result.code).toContain("const emit = __mikuru_emit;");
   });
 
@@ -1180,9 +1221,9 @@ function setup() {
     }
   });
 
-  it("reports line and column for template structure errors", () => {
-    expect(() => compile(`<template>\n  <section>\n    </article>\n  </section>\n</template>`, { filename: "Broken.mikuru" }))
-      .toThrow(/Broken\.mikuru:3:5/);
+  it("accepts HTML parser recovery for unmatched closing tags", () => {
+    const result = compile(`<template>\n  <section>\n    </article>\n  </section>\n</template>`, { filename: "Recovered.mikuru" });
+    expect(result.ast.type).toBe("element");
   });
 
   it("reports orphan v-else branches", () => {
@@ -1193,10 +1234,10 @@ function setup() {
     ).toThrow(/v-else must follow v-if or v-else-if \(BrokenElse\.mikuru:3:8\)/);
   });
 
-  it("documents parser limits with explicit compile errors", () => {
-    expect(() => compile(`<template><p>One</p><p>Two</p></template>`)).toThrow(/exactly one root element/);
+  it("documents remaining parser errors", () => {
+    expect(compile(`<template><p>One</p><p>Two</p></template>`).ast.type).toBe("fragment");
     expect(() => compile(`<template><p class="a" class="b">Duplicate</p></template>`)).toThrow(/Duplicate template attribute: class/);
-    expect(() => compile(`<template><1bad>Broken</1bad></template>`)).toThrow(/Invalid template tag name/);
+    expect(compile(`<template><1bad>Broken</1bad></template>`).ast.type).toBe("fragment");
     expect(() => compile(`<template><ul><li v-for="({ id }) in items">{{ id }}</li></ul></template>`)).toThrow(
       /Invalid v-for expression/
     );

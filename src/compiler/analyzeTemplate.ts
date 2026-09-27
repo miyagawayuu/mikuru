@@ -1,4 +1,4 @@
-import type { Binding, ElementNode, TemplateAttribute, TemplateNode } from "./types.js";
+import type { Binding, ElementNode, TemplateAttribute, TemplateNode, TemplateRoot } from "./types.js";
 import type { SourceLocation } from "./errors.js";
 import { createCompileError } from "./errors.js";
 import type { ExpressionLocationContext } from "./parseExpression.js";
@@ -9,9 +9,10 @@ type AnalyzeTemplateOptions = {
   filename?: string;
 };
 
-export function analyzeTemplate(root: ElementNode, options: AnalyzeTemplateOptions = {}): Binding[] {
+export function analyzeTemplate(root: TemplateRoot, options: AnalyzeTemplateOptions = {}): Binding[] {
   const bindings: Binding[] = [];
-  visitNode(root, bindings, options, false);
+  if (root.type === "fragment") root.children.forEach((child) => visitNode(child, bindings, options, false));
+  else visitNode(root, bindings, options, false);
   return bindings;
 }
 

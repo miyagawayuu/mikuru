@@ -1,4 +1,5 @@
 import { Window } from "happy-dom";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { compile } from "../src/compiler/index.js";
@@ -50,6 +51,33 @@ type CompiledFixture = {
 };
 
 describe("generated DOM code", () => {
+  it("rejects executable iframe URLs in the packaged embed player", () => {
+    const source = readFileSync(new URL("../components/MikuruEmbedPlayer.mikuru", import.meta.url), "utf8");
+    for (const url of ["javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "javascript:/embed/alert(1)"]) {
+      const fixture = compileForDom(source);
+      const instance = fixture.module.mount(fixture.root, { provider: "generic", url });
+      expect(fixture.root.querySelector("iframe")).toBeNull();
+      instance.unmount();
+    }
+    const fixture = compileForDom(source);
+    const instance = fixture.module.mount(fixture.root, { provider: "generic", url: "https://example.com/embed/video" });
+    expect(fixture.root.querySelector("iframe")?.getAttribute("src")).toBe("https://example.com/embed/video");
+    instance.unmount();
+  });
+
+  it("limits packaged WYSIWYG HTML to inert formatting and safe links", () => {
+    const source = readFileSync(new URL("../components/MikuruWysiwygEditor.mikuru", import.meta.url), "utf8");
+    const fixture = compileForDom(source);
+    const instance = fixture.module.mount(fixture.root, {
+      modelValue: '<p><strong>Safe</strong><a href="https://example.com">link</a></p><svg><a xlink:href="javascript:alert(1)">bad</a></svg><meta http-equiv="refresh" content="0;url=https://evil.example"><base href="https://evil.example"><form><button formaction="javascript:alert(1)">bad</button></form><template><img src="x" onerror="alert(1)"></template><p style="background:url(https://evil.example)" onclick="alert(1)">text</p>'
+    });
+    const surface = fixture.root.querySelector(".wysiwyg-surface")!;
+    expect(surface.querySelector("strong")?.textContent).toBe("Safe");
+    expect(surface.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
+    expect(surface.querySelector("svg,meta,base,form,template,[style],[onclick],[onerror]")).toBeNull();
+    instance.unmount();
+  });
+
   it("registers debug metadata only for debug builds", () => {
     const previousHook = (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;
     delete (globalThis as { __MIKURU_DEVTOOLS__?: unknown }).__MIKURU_DEVTOOLS__;

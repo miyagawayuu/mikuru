@@ -2,6 +2,12 @@ import { createCompileError, getSourceLocation } from "./errors.js";
 import type { SourceLocation } from "./errors.js";
 import type { ElementNode, TemplateAttribute, TemplateNode, TextNode, TextPart } from "./types.js";
 import { validateTemplateExpression } from "./parseExpression.js";
+import { parseFragment, type DefaultTreeAdapterTypes } from "parse5";
+type HtmlNode = DefaultTreeAdapterTypes.ChildNode;
+type HtmlElement = DefaultTreeAdapterTypes.Element;
+type HtmlTemplate = DefaultTreeAdapterTypes.Template;
+import type { TemplateRoot } from "./types.js";
+import { emitDebugDiagnostic } from "../runtime/devtools.js";
 
 type TemplateToken =
   | { type: "text"; value: string; start: number }
@@ -11,6 +17,7 @@ type ParseTemplateOptions = {
   filename?: string;
   source?: string;
   offset?: number;
+  debug?: boolean;
 };
 
 type LocationContext = {
@@ -36,63 +43,94 @@ const voidElements = new Set([
   "wbr"
 ]);
 
-export function parseTemplate(template: string, options: ParseTemplateOptions = {}): ElementNode {
+export function parseTemplate(template: string, options: ParseTemplateOptions = {}): TemplateRoot {
   const context: LocationContext = {
     filename: options.filename,
     source: options.source ?? template,
     offset: options.offset ?? 0
   };
-  const root: ElementNode = {
-    type: "element",
-    tag: "root",
-    attrs: [],
-    children: []
+  // Mask tag-like text inside interpolation without changing source offsets.
+  const protectedTemplate = template.replace(/\{\{[\s\S]*?\}\}/g, (match) => match.replace(/[<>]/g, " "));
+  const insertions: Array<{ at: number; size: number }> = [];
+  let htmlSource = "";
+  let previousEnd = 0;
+  for (const token of tokenizeTemplate(protectedTemplate, context)) {
+    if (token.type !== "tag" || !/\/\s*>$/.test(token.value) || token.value.startsWith("</")) continue;
+    const tag = /^<([A-Za-z][\w:-]*)/.exec(token.value)?.[1];
+    if (!tag || voidElements.has(tag.toLowerCase())) continue;
+    const end = token.start + token.value.length;
+    htmlSource += protectedTemplate.slice(previousEnd, end);
+    const closingTag = `</${tag}>`;
+    insertions.push({ at: end, size: closingTag.length });
+    htmlSource += closingTag;
+    previousEnd = end;
+  }
+  htmlSource += protectedTemplate.slice(previousEnd);
+  const originalOffset = (offset: number): number => {
+    let inserted = 0;
+    for (const insertion of insertions) {
+      const transformedAt = insertion.at + inserted;
+      if (offset <= transformedAt) break;
+      if (offset <= transformedAt + insertion.size) return insertion.at;
+      inserted += insertion.size;
+    }
+    return offset - inserted;
   };
-  const stack: ElementNode[] = [root];
-
-  for (const token of tokenizeTemplate(template, context)) {
-    if (token.type === "text") {
-      const textNode = isPreMode(stack)
-        ? parseRawText(token.value, token.start, context)
-        : parseText(token.value, token.start, context);
-
-      if (textNode) {
-        currentParent(stack).children.push(textNode);
+  const html = parseFragment(htmlSource, {
+    sourceCodeLocationInfo: true,
+    onParseError: (error) => {
+      if (error.code === "non-void-html-element-start-tag-with-trailing-solidus") return;
+      if (options.debug) emitDebugDiagnostic("compiler", "warning", `HTML parser repaired template structure: ${error.code}.`, {
+        phase: "template", filename: context.filename, loc: toLocation(originalOffset(error.startOffset), context)
+      });
+    }
+  });
+  const convert = (node: HtmlNode, pre = false): TemplateNode | undefined => {
+    if (node.nodeName === "#comment" || node.nodeName === "#documentType") return undefined;
+    if (node.nodeName === "#text") {
+      const start = originalOffset(node.sourceCodeLocation?.startOffset ?? 0);
+      const raw = template.slice(start, originalOffset(node.sourceCodeLocation?.endOffset ?? start));
+      const text = pre ? parseRawText(raw, start, context) : parseText(raw, start, context);
+      if (text) {
+        for (const part of text.parts) {
+          if (part.type === "static" && part.value.includes("&")) {
+            const decoded = parseFragment(part.value);
+            part.value = decoded.childNodes.map((child) => child.nodeName === "#text" ? (child as DefaultTreeAdapterTypes.TextNode).value : part.value).join("");
+          }
+        }
       }
-
-      continue;
+      return text;
     }
-
-    if (token.value.startsWith("</")) {
-      closeElement(token.value, token.start, stack, context);
-      continue;
+    const element = node as HtmlElement;
+    const location = element.sourceCodeLocation;
+    const transformedStart = location?.startTag?.startOffset ?? location?.startOffset;
+    const start = transformedStart === undefined ? undefined : originalOffset(transformedStart);
+    let result: ElementNode;
+    if (start === undefined) {
+      result = { type: "element", tag: element.tagName, attrs: [], children: [] };
+      if (options.debug) emitDebugDiagnostic("compiler", "warning", `HTML parser inserted <${element.tagName}>.`, { phase: "template", filename: context.filename });
+    } else {
+      const end = originalOffset(location?.startTag?.endOffset ?? location?.endOffset ?? start);
+      result = parseElement(template.slice(start, end), start, context).element;
+      result.namespaceURI = element.namespaceURI;
+      for (let index = 0; index < result.attrs.length; index += 1) {
+        if (result.attrs[index]?.value !== true && element.attrs[index]) result.attrs[index]!.value = element.attrs[index]!.value;
+      }
+      if (options.debug && !location?.endTag && !voidElements.has(result.tag.toLowerCase()) && !/\/\s*>$/.test(template.slice(start, end))) {
+        emitDebugDiagnostic("compiler", "warning", `HTML parser closed <${result.tag}> implicitly.`, { phase: "template", filename: context.filename, loc: result.loc });
+      }
     }
-
-    const { element, selfClosing } = parseElement(token.value, token.start, context);
-    currentParent(stack).children.push(element);
-
-    if (!selfClosing && !voidElements.has(element.tag.toLowerCase())) {
-      stack.push(element);
-    }
-  }
-
-  if (stack.length !== 1) {
-    const openElement = stack.at(-1);
-    throw createCompileError(
-      `Unclosed template element <${openElement?.tag ?? "unknown"}>`,
-      context.source,
-      openElement?.loc?.offset ?? context.offset,
-      context.filename
-    );
-  }
-
-  const children = root.children.filter((node) => node.type !== "text" || hasMeaningfulText(node));
-
-  if (children.length !== 1 || children[0]?.type !== "element") {
-    throw createCompileError("Template must contain exactly one root element", context.source, context.offset, context.filename);
-  }
-
-  return children[0];
+    const children = element.tagName === "template"
+      ? (element as HtmlTemplate).content.childNodes
+      : element.childNodes;
+    const childPre = pre || result.attrs.some((attr) => attr.name === "v-pre");
+    result.children = children.map((child) => convert(child, childPre)).filter((child): child is TemplateNode => child !== undefined);
+    return result;
+  };
+  const children = html.childNodes.map((node) => convert(node)).filter((node): node is TemplateNode => node !== undefined)
+    .filter((node) => node.type !== "text" || hasMeaningfulText(node));
+  if (children.length === 1 && children[0]?.type === "element") return children[0];
+  return { type: "fragment", children, loc: toLocation(0, context) };
 }
 
 function tokenizeTemplate(template: string, context: LocationContext): TemplateToken[] {
@@ -100,7 +138,7 @@ function tokenizeTemplate(template: string, context: LocationContext): TemplateT
   let cursor = 0;
 
   while (cursor < template.length) {
-    const tagStart = template.indexOf("<", cursor);
+    const tagStart = findNextTagStart(template, cursor);
 
     if (tagStart === -1) {
       tokens.push({ type: "text", value: template.slice(cursor), start: cursor });
@@ -138,6 +176,31 @@ function tokenizeTemplate(template: string, context: LocationContext): TemplateT
   }
 
   return tokens;
+}
+
+function findNextTagStart(template: string, start: number): number {
+  for (let index = start; index < template.length; index += 1) {
+    if (template.startsWith("{{", index)) {
+      const interpolationEnd = template.indexOf("}}", index + 2);
+      if (interpolationEnd !== -1) {
+        index = interpolationEnd + 1;
+        continue;
+      }
+    }
+
+    if (template[index] !== "<") {
+      continue;
+    }
+
+    const next = template[index + 1] ?? "";
+    if (/[A-Za-z!]/.test(next)
+      || (/[0-9]/.test(next) && /^<\d[\w:-]*>/.test(template.slice(index)))
+      || (next === "/" && /[A-Za-z]/.test(template[index + 2] ?? ""))) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function findTagEnd(template: string, tagStart: number): number {
@@ -374,29 +437,6 @@ function parseRawText(token: string, tokenStart: number, context: LocationContex
     parts: [{ type: "static", value: token }],
     loc: toLocation(tokenStart, context)
   };
-}
-
-function closeElement(token: string, tokenStart: number, stack: ElementNode[], context: LocationContext): void {
-  const tag = token.replace(/^<\//, "").replace(/>$/, "").trim();
-  const current = stack.pop();
-
-  if (!current || current.tag !== tag) {
-    throw createCompileError(`Unexpected closing tag </${tag}>`, context.source, context.offset + tokenStart, context.filename);
-  }
-}
-
-function isPreMode(stack: ElementNode[]): boolean {
-  return stack.some((node) => node.attrs.some((attr) => attr.name === "v-pre"));
-}
-
-function currentParent(stack: ElementNode[]): ElementNode {
-  const parent = stack.at(-1);
-
-  if (!parent) {
-    throw new Error("Template parser stack is empty");
-  }
-
-  return parent;
 }
 
 function hasMeaningfulText(node: TextNode): boolean {

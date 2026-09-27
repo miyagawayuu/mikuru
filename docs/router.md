@@ -26,6 +26,7 @@ router.listen();
 ## RouterView and RouterLink
 
 `RouterView` renders the matched route component. `RouterLink` renders an anchor and calls `router.push()` on click.
+Route components may have multiple roots. During hydration, pass the opening `<!--mikuru-fragment-->` comment to `hydrateRoute()` for a multi-root route; nested RouterView instances identify and retain the full fragment range. On later route changes, RouterView removes the old range before mounting the next route.
 
 ```mikuru
 <template>
@@ -410,6 +411,6 @@ const stopErrors = router.onError((error, to, from) => {
 });
 ```
 
-## Current Limits
+## SSR and Hydration
 
-- SSR and hydration are outside v1 scope.
+- Route SSR and hydration are available through `renderRouteToString()` and `hydrateRoute()` from `mikuru/server`. Hydration reuses generated route components when they expose `hydrate()` and falls back to `mount()` for other components.

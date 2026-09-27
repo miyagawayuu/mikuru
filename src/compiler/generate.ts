@@ -1,8 +1,9 @@
 import { parse, parseExpressionAt } from "acorn";
+import * as ts from "typescript";
 
 import { createCompileError } from "./errors.js";
 import { compileDescriptorStyle } from "./css.js";
-import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TextNode, TextPart } from "./types.js";
+import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TemplateRoot, TextNode, TextPart } from "./types.js";
 import type { SourceLocation } from "./errors.js";
 import type { ExpressionLocationContext } from "./parseExpression.js";
 import { compileTemplateExpression, parseForExpression, validateAssignableExpression, validateTemplateExpression } from "./parseExpression.js";
@@ -120,7 +121,7 @@ type SlotScopeBinding =
   | { kind: "property"; path: string[]; alias: string; defaultValue?: string }
   | { kind: "rest"; alias: string; exclude: string[] };
 
-export function generate(descriptor: SfcDescriptor, root: ElementNode, options: GenerateOptions = {}): string {
+export function generate(descriptor: SfcDescriptor, root: TemplateRoot, options: GenerateOptions = {}): string {
   const context: GenerateContext = {
     lines: [],
     index: 0,
@@ -130,7 +131,7 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
     debug: options.debug === true,
     batchedUpdates: options.batchedUpdates === true
   };
-  const script = normalizeScript(descriptor);
+  const script = normalizeScript(descriptor, context.debug);
 
   for (const importLine of script.imports) {
     emit(context, 0, importLine);
@@ -181,7 +182,8 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_transitionDone = (element, cleanup) => {");
   emit(context, 2, "let done = false;");
-  emit(context, 2, "const finish = () => {");
+  emit(context, 2, "const finish = (event) => {");
+  emit(context, 3, "if (event && event.target !== element) return;");
   emit(context, 3, "if (done) { return; }");
   emit(context, 3, "done = true;");
   emit(context, 3, "element.removeEventListener(\"transitionend\", finish);");
@@ -190,7 +192,11 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 2, "};");
   emit(context, 2, "element.addEventListener(\"transitionend\", finish);");
   emit(context, 2, "element.addEventListener(\"animationend\", finish);");
-  emit(context, 2, "setTimeout(finish, 50);");
+  emit(context, 2, "const style = globalThis.getComputedStyle?.(element);");
+  emit(context, 2, 'const times = (value) => String(value ?? "0s").split(",").map((part) => { const n = parseFloat(part); return Number.isFinite(n) ? n * (part.trim().endsWith("ms") ? 1 : 1000) : 0; });');
+  emit(context, 2, 'const maxTime = (duration, delay) => duration.reduce((max, time, index) => Math.max(max, time + (delay[index % delay.length] ?? 0)), 0);');
+  emit(context, 2, 'const timeout = style ? Math.max(maxTime(times(style.transitionDuration), times(style.transitionDelay)), maxTime(times(style.animationDuration), times(style.animationDelay))) : 0;');
+  emit(context, 2, "setTimeout(finish, Math.max(50, timeout + 20));");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_applyTransitionEnter = (element, name) => {");
   emit(context, 2, "const transition = typeof name === \"object\" ? name : { name };");
@@ -208,26 +214,32 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   emit(context, 2, "});");
   emit(context, 1, "};");
   emit(context, 1, "const __mikuru_applyTransitionMove = (element, transition) => {");
-  emit(context, 2, "if (!element || element.nodeType !== 1 || !transition?.name) { return; }");
+  emit(context, 2, "if (!element || !transition?.name) { return; }");
   emit(context, 2, "const move = transition.moveClass || `${transition.name}-move`;");
-  emit(context, 2, "element.classList.add(move);");
-  emit(context, 2, "__mikuru_transitionFrame(() => __mikuru_transitionDone(element, () => element.classList.remove(move)));");
+  emit(context, 2, "for (const root of __mikuru_rangeElements(element)) { root.classList.add(move); __mikuru_transitionFrame(() => __mikuru_transitionDone(root, () => root.classList.remove(move))); }");
   emit(context, 1, "};");
+  emit(context, 1, "const __mikuru_leavePromises = new Set();");
   emit(context, 1, "const __mikuru_removeNode = (node) => {");
-  emit(context, 2, "if (!node || !node.parentNode) { return; }");
-  emit(context, 2, "if (node.nodeType !== 1 || !node.__mikuru_transition || node.__mikuru_transitionLeaving) { node.remove(); return; }");
+  emit(context, 2, "if (!node || !node.parentNode) { return Promise.resolve(); }");
+  emit(context, 2, "if (node.__mikuru_transitionLeaving) return node.__mikuru_leavePromise ?? Promise.resolve();");
+  emit(context, 2, "if (node.nodeType !== 1 || !node.__mikuru_transition) { node.remove(); return Promise.resolve(); }");
   emit(context, 2, "node.__mikuru_transitionLeaving = true;");
   emit(context, 2, "const transition = node.__mikuru_transition;");
   emit(context, 2, "const from = transition.leaveFromClass || `${transition.name}-leave-from`;");
   emit(context, 2, "const active = transition.leaveActiveClass || `${transition.name}-leave-active`;");
   emit(context, 2, "const to = transition.leaveToClass || `${transition.name}-leave-to`;");
   emit(context, 2, "node.classList.add(from, active);");
-  emit(context, 2, "__mikuru_transitionFrame(() => {");
+  emit(context, 2, "const pending = new Promise((resolve) => __mikuru_transitionFrame(() => {");
   emit(context, 3, "node.classList.remove(from);");
   emit(context, 3, "node.classList.add(to);");
-  emit(context, 3, "__mikuru_transitionDone(node, () => { node.classList.remove(active, to); node.remove(); });");
-  emit(context, 2, "});");
+  emit(context, 3, "__mikuru_transitionDone(node, () => { node.classList.remove(active, to); node.remove(); resolve(); });");
+  emit(context, 2, "}));");
+  emit(context, 2, "__mikuru_leavePromises.add(pending);");
+  emit(context, 2, "node.__mikuru_leavePromise = pending;");
+  emit(context, 2, "pending.then(() => __mikuru_leavePromises.delete(pending));");
+  emit(context, 2, "return pending;");
   emit(context, 1, "};");
+  emitComponentRangeHelpers(context, 1);
   emit(context, 1, "const __mikuru_setRef = (target, value, multiple = false) => {");
   emit(context, 2, "if (typeof target === \"function\") {");
   emit(context, 3, "target(value);");
@@ -300,13 +312,32 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
     emit(context, 1, "");
   }
 
-  const rootVar = generateNode(context, root, "target", "__mikuru_cleanup", 1);
+  let rootVar: string;
+  let fragmentEndVar: string | undefined;
+  if (root.type === "fragment") {
+    rootVar = nextVar(context, "fragmentStart");
+    fragmentEndVar = nextVar(context, "fragmentEnd");
+    emit(context, 1, `const ${rootVar} = document.createComment("mikuru-fragment");`);
+    emit(context, 1, `const ${fragmentEndVar} = document.createComment("/mikuru-fragment");`);
+    emit(context, 1, `target.appendChild(${rootVar});`);
+    emit(context, 1, `target.appendChild(${fragmentEndVar});`);
+    generateChildren(context, root.children, "target", "__mikuru_cleanup", 1, fragmentEndVar);
+  } else {
+    rootVar = generateNode(context, root, "target", "__mikuru_cleanup", 1);
+  }
   emitDevtoolsRootUpdate(context, rootVar, 1);
   emit(context, 1, "// call mounted callbacks registered during setup and remove registrar");
   emit(context, 1, "for (const cb of __mikuru_mounted.splice(0)) { __mikuru_try(cb, undefined, \"mounted\"); }");
   emit(context, 1, "if (__mikuru_previousRegistrar === undefined) { delete globalThis.__mikuru_currentRegistrar; } else { globalThis.__mikuru_currentRegistrar = __mikuru_previousRegistrar; }");
   emit(context, 1, "return {");
-  emit(context, 2, `element: ${rootVar},`);
+  if (fragmentEndVar) {
+    emit(context, 2, `__mikuru_start: ${rootVar}, __mikuru_end: ${fragmentEndVar},`);
+    emit(context, 2, `get element() { return ${rootVar}.nextSibling && ${rootVar}.nextSibling !== ${fragmentEndVar} ? ${rootVar}.nextSibling : ${rootVar}; },`);
+    emit(context, 2, `get roots() { const result = []; for (let node = ${rootVar}.nextSibling; node && node !== ${fragmentEndVar}; node = node.nextSibling) result.push(node); return result; },`);
+  } else {
+    emit(context, 2, `element: ${rootVar},`);
+    emit(context, 2, `get roots() { return [${rootVar}]; },`);
+  }
   emit(context, 2, "activate() {");
   emit(context, 3, "for (const cb of __mikuru_activated) { __mikuru_try(cb, undefined, \"activated\"); }");
   emit(context, 2, "},");
@@ -320,7 +351,12 @@ export function generate(descriptor: SfcDescriptor, root: ElementNode, options: 
   }
   emit(context, 3, "__mikuru_runCleanup(__mikuru_cleanup);");
   emit(context, 3, "for (const cb of __mikuru_afterUnmount.splice(0).reverse()) { __mikuru_try(cb, undefined, \"unmounted\"); }");
-  emit(context, 3, `__mikuru_removeNode(${rootVar});`);
+  if (fragmentEndVar) {
+    emitRemoveBetween(context, 3, rootVar, fragmentEndVar);
+    emit(context, 3, `${rootVar}.remove(); ${fragmentEndVar}.remove();`);
+  } else {
+    emit(context, 3, `__mikuru_removeNode(${rootVar});`);
+  }
   emit(context, 2, "}");
   emit(context, 1, "};");
   emit(context, 0, "}");
@@ -488,6 +524,7 @@ function generateTemplateFragment(
   emit(context, indent, `const ${endVar} = document.createComment("/template");`);
   appendNode(context, parentVar, startVar, indent, beforeVar);
   appendNode(context, parentVar, endVar, indent, beforeVar);
+  emit(context, indent, `${startVar}.__mikuru_end = ${endVar};`);
   generateChildren(context, node.children, parentVar, cleanupVar, indent, endVar);
   return startVar;
 }
@@ -970,7 +1007,10 @@ function generateComponent(
   emit(context, indent, `const ${fragmentVar} = document.createDocumentFragment();`);
   emitComponentAttrs(context, node, attrsVar, indent);
   emitComponentProps(context, node, propsVar, attrsVar, indent);
+  if (node.tag === "RouterView") emit(context, indent, `if (props.__mikuru_routeViewDepth !== undefined && ${propsVar}.depth === undefined) ${propsVar}.depth = props.__mikuru_routeViewDepth;`);
   emit(context, indent, `const ${componentVar} = ${node.tag}.mount(${fragmentVar}, ${propsVar});`);
+  emit(context, indent, `${cleanupVar}.push(() => ${componentVar}.unmount());`);
+  emit(context, indent, `if (${componentVar}.__mikuru_start) ${componentVar}.__mikuru_start.__mikuru_end = ${componentVar}.__mikuru_end;`);
   if (context.scopeAttr) {
     emit(context, indent, `if (${componentVar}.element?.nodeType === 1) {`);
     emit(context, indent + 1, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
@@ -980,10 +1020,9 @@ function generateComponent(
   emitComponentFallthrough(context, node, componentVar, cleanupVar, indent + 1);
   emit(context, indent, "}");
   emitComponentShow(context, node, componentVar, cleanupVar, indent);
-  emit(context, indent, `${cleanupVar}.push(() => ${componentVar}.unmount());`);
   emitTemplateRef(context, node, componentVar, cleanupVar, indent);
   appendNode(context, parentVar, fragmentVar, indent, beforeVar);
-  return `${componentVar}.element`;
+  return `(${componentVar}.__mikuru_start ?? ${componentVar}.element)`;
 }
 
 function generateDynamicComponent(
@@ -1010,26 +1049,38 @@ function generateDynamicComponent(
   const currentTypeVar = nextVar(context, "currentComponent");
   const currentInstanceVar = nextVar(context, "currentComponent");
   const stopVar = nextVar(context, "stop");
+  const renderTokenVar = transitionVar ? nextVar(context, "componentRenderToken") : undefined;
+  const renderVar = transitionVar ? nextVar(context, "renderComponent") : undefined;
   emit(context, indent, `const ${startVar} = document.createComment("component");`);
   emit(context, indent, `const ${endVar} = document.createComment("/component");`);
+  emit(context, indent, `${startVar}.__mikuru_end = ${endVar};`);
   appendNode(context, parentVar, startVar, indent, beforeVar);
   appendNode(context, parentVar, endVar, indent, beforeVar);
   emit(context, indent, `const ${branchCleanupVar} = [];`);
   emit(context, indent, `let ${currentTypeVar};`);
   emit(context, indent, `let ${currentInstanceVar};`);
+  if (renderTokenVar) emit(context, indent, `let ${renderTokenVar} = 0;`);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   emit(context, indent + 1, `const ${componentTypeVar} = unwrap(${expression});`);
   emit(context, indent + 1, `if (${componentTypeVar} === ${currentTypeVar}) { return; }`);
+  if (transitionVar) emit(context, indent + 1, `const __mikuru_hadBranch = ${startVar}.nextSibling !== ${endVar};`);
+  if (transitionVar) emit(context, indent + 1, `const __mikuru_previousLeaves = new Set(__mikuru_leavePromises);`);
   emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
+  if (renderTokenVar) emit(context, indent + 1, `++${renderTokenVar};`);
+  emit(context, indent + 1, `${currentTypeVar} = ${componentTypeVar};`);
+  emit(context, indent + 1, `${currentInstanceVar} = null;`);
   emit(context, indent + 1, `if (!${componentTypeVar}) {`);
-  emit(context, indent + 2, `${currentTypeVar} = ${componentTypeVar};`);
-  emit(context, indent + 2, `${currentInstanceVar} = null;`);
   emit(context, indent + 2, "return;");
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `if (typeof ${componentTypeVar} !== "object" || typeof ${componentTypeVar}.mount !== "function") {`);
   emit(context, indent + 2, `throw new Error("Dynamic component :is must resolve to a component object with mount()");`);
   emit(context, indent + 1, "}");
+  if (renderVar && renderTokenVar) {
+    emit(context, indent + 1, `const __mikuru_currentToken = ${renderTokenVar};`);
+    emit(context, indent + 1, `const ${renderVar} = () => {`);
+    emit(context, indent + 2, `if (__mikuru_currentToken !== ${renderTokenVar}) return;`);
+  }
   const fragmentVar = nextVar(context, "fragment");
   const attrsVar = nextVar(context, "attrs");
   const propsVar = nextVar(context, "props");
@@ -1038,6 +1089,7 @@ function generateDynamicComponent(
   emitComponentAttrs(context, dynamicNode, attrsVar, indent + 1);
   emitComponentProps(context, dynamicNode, propsVar, attrsVar, indent + 1);
   emit(context, indent + 1, `const ${componentVar} = ${componentTypeVar}.mount(${fragmentVar}, ${propsVar});`);
+  emit(context, indent + 1, `${branchCleanupVar}.push(() => ${componentVar}.unmount());`);
   if (context.scopeAttr) {
     emit(context, indent + 1, `if (${componentVar}.element?.nodeType === 1) {`);
     emit(context, indent + 2, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
@@ -1047,17 +1099,18 @@ function generateDynamicComponent(
   emitComponentFallthrough(context, dynamicNode, componentVar, branchCleanupVar, indent + 2);
   emit(context, indent + 1, "}");
   emitComponentShow(context, dynamicNode, componentVar, branchCleanupVar, indent + 1);
-  emit(context, indent + 1, `${branchCleanupVar}.push(() => ${componentVar}.unmount());`);
   emitTemplateRef(context, dynamicNode, componentVar, branchCleanupVar, indent + 1);
   appendNode(context, parentVar, fragmentVar, indent + 1, endVar);
-  if (transitionVar) {
-    emitTransitionRegistration(context, `${componentVar}.element`, transitionVar, indent + 1);
-  }
-  emit(context, indent + 1, `${currentTypeVar} = ${componentTypeVar};`);
+  if (transitionVar) emitTransitionRegistration(context, `(${componentVar}.__mikuru_start ?? ${componentVar}.element)`, transitionVar, indent + 1);
   emit(context, indent + 1, `${currentInstanceVar} = ${componentVar};`);
+  if (renderVar && transitionVar) {
+    emit(context, indent + 1, "};");
+    emit(context, indent + 1, `if (${transitionVar}.mode === "out-in" && __mikuru_hadBranch) Promise.all(Array.from(__mikuru_leavePromises).filter((pending) => !__mikuru_previousLeaves.has(pending))).then(${renderVar}); else ${renderVar}();`);
+  }
   emit(context, indent, "});");
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `${stopVar}();`);
+  if (renderTokenVar) emit(context, indent + 1, `++${renderTokenVar};`);
   emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
   emit(context, indent, "});");
   return startVar;
@@ -1126,7 +1179,7 @@ function generateKeepAlive(
   emit(context, indent, `let ${currentRecordVar};`);
   emit(context, indent, `const ${componentNameHelperVar} = (component) => component?.name ?? component?.displayName ?? component?.__name ?? component?.constructor?.name ?? "";`);
   emit(context, indent, `const ${matchHelperVar} = (pattern, name) => pattern == null ? false : typeof pattern === "string" ? pattern.split(",").map((part) => part.trim()).filter(Boolean).includes(name) : Array.isArray(pattern) ? pattern.some((entry) => ${matchHelperVar}(entry, name)) : pattern instanceof RegExp ? pattern.test(name) : false;`);
-  emit(context, indent, `const ${activateRecordVar} = (record) => { if (record && !record.active) { record.active = true; record.instance.activate?.(); } };`);
+  emit(context, indent, `const ${activateRecordVar} = (record) => { if (record && !record.active) { record.active = true; record.instance.__mikuru_refreshShow?.(); record.instance.activate?.(); } };`);
   emit(context, indent, `const ${deactivateRecordVar} = (record) => { if (record?.active) { record.active = false; record.instance.deactivate?.(); } };`);
   emit(context, indent, `const ${collectNodesVar} = () => { const nodes = []; for (let ${collectNodeVar} = ${startVar}.nextSibling; ${collectNodeVar} && ${collectNodeVar} !== ${endVar}; ${collectNodeVar} = ${collectNodeVar}.nextSibling) { nodes.push(${collectNodeVar}); } return nodes; };`);
   emit(context, indent, `const ${stopVar} = effect(() => {`);
@@ -1150,6 +1203,7 @@ function generateKeepAlive(
   emitComponentAttrs(context, dynamicNode, attrsVar, indent + 2);
   emitComponentProps(context, dynamicNode, propsVar, attrsVar, indent + 2);
   emit(context, indent + 2, `const ${componentVar} = ${componentTypeVar}.mount(${fragmentVar}, ${propsVar});`);
+  emit(context, indent + 2, `${recordCleanupVar}.push(() => ${componentVar}.unmount());`);
   if (context.scopeAttr) {
     emit(context, indent + 2, `if (${componentVar}.element?.nodeType === 1) {`);
     emit(context, indent + 3, `${componentVar}.element.setAttribute(${quote(context.scopeAttr)}, "");`);
@@ -1164,7 +1218,6 @@ function generateKeepAlive(
   appendNode(context, parentVar, fragmentVar, indent + 2, endVar);
   emit(context, indent + 2, `${currentTypeVar} = ${componentTypeVar};`);
   emit(context, indent + 2, `${currentRecordVar} = { instance: ${componentVar}, element: ${componentVar}.element, nodes: ${recordNodesVar}, cleanups: ${recordCleanupVar}, transient: true };`);
-  emit(context, indent + 2, `${recordCleanupVar}.push(() => ${componentVar}.unmount());`);
   emit(context, indent + 2, "return;");
   emit(context, indent + 1, "}");
   emit(context, indent + 1, `let ${recordVar} = ${cacheVar}.get(${componentTypeVar});`);
@@ -1218,7 +1271,7 @@ function generateKeepAlive(
   return startVar;
 }
 
-function emitComponentShow(
+export function emitComponentShow(
   context: GenerateContext,
   node: ElementNode,
   componentVar: string,
@@ -1232,20 +1285,22 @@ function emitComponentShow(
   }
 
   const expression = compileTemplateExpression(requireAttrValue(showAttr), showAttr.name, toExpressionContext(context, showAttr.valueLoc));
-  const elementVar = nextVar(context, "componentEl");
-  const baseDisplayVar = nextVar(context, "baseDisplay");
+  const elementsVar = nextVar(context, "componentEls");
+  const displaysVar = nextVar(context, "baseDisplays");
+  const applyVar = nextVar(context, "applyShow");
   const stopVar = nextVar(context, "stop");
-  emit(context, indent, `const ${elementVar} = ${componentVar}.element;`);
-  emit(context, indent, `if (${elementVar}?.nodeType === 1) {`);
-  emit(context, indent + 1, `const ${baseDisplayVar} = ${elementVar}.style.display;`);
-  emit(context, indent + 1, `const ${stopVar} = effect(() => {`);
-  emit(context, indent + 2, `${elementVar}.style.display = unwrap(${expression}) ? ${baseDisplayVar} : "none";`);
-  emit(context, indent + 1, "});");
-  emit(context, indent + 1, `${cleanupVar}.push(${stopVar});`);
-  emit(context, indent, "}");
+  emit(context, indent, `const ${displaysVar} = new WeakMap();`);
+  emit(context, indent, `const ${applyVar} = () => {`);
+  emit(context, indent + 1, `const ${elementsVar} = ${componentVar}.__mikuru_start ? __mikuru_rangeElements(${componentVar}.__mikuru_start) : [${componentVar}.element].filter((node) => node?.nodeType === 1);`);
+  emit(context, indent + 1, `const __mikuru_visible = !!unwrap(${expression});`);
+  emit(context, indent + 1, `for (const element of ${elementsVar}) { if (!${displaysVar}.has(element)) ${displaysVar}.set(element, element.style.display); element.style.display = __mikuru_visible ? ${displaysVar}.get(element) : "none"; }`);
+  emit(context, indent, "};");
+  emit(context, indent, `const ${stopVar} = ${context.batchedUpdates ? "__mikuru_effect" : "effect"}(${applyVar});`);
+  emit(context, indent, `${componentVar}.__mikuru_refreshShow = ${applyVar};`);
+  emit(context, indent, `${cleanupVar}.push(() => { ${stopVar}(); delete ${componentVar}.__mikuru_refreshShow; });`);
 }
 
-function emitComponentAttrs(context: GenerateContext, node: ElementNode, attrsVar: string, indent: number): void {
+export function emitComponentAttrs(context: GenerateContext, node: ElementNode, attrsVar: string, indent: number): void {
   const objectBindExpressions = node.attrs
     .filter((attr) => isObjectBindAttr(attr))
     .map((attr) => {
@@ -1339,12 +1394,13 @@ function emitComponentAttrsProxy(
   emit(context, indent, "});");
 }
 
-function emitComponentFallthrough(
+export function emitComponentFallthrough(
   context: GenerateContext,
   node: ElementNode,
   componentVar: string,
   cleanupVar: string,
-  indent: number
+  indent: number,
+  hydrating = false
 ): void {
   const objectBindExpressions = node.attrs
     .filter((attr) => isObjectBindAttr(attr))
@@ -1362,14 +1418,15 @@ function emitComponentFallthrough(
 
   const elementVar = nextVar(context, "componentEl");
   emit(context, indent, `const ${elementVar} = ${componentVar}.element;`);
-  emit(context, indent, `if (${elementVar}?.nodeType === 1) {`);
+  if (context.debug) emit(context, indent, `if (${componentVar}.__mikuru_start) console.warn("[Mikuru] Multiple component roots require explicit useAttrs() forwarding.");`);
+  emit(context, indent, `if (!${componentVar}.__mikuru_start && ${elementVar}?.nodeType === 1) {`);
 
   if (classParts.length > 0) {
-    emitComponentFallthroughAttribute(context, elementVar, cleanupVar, "class", classParts, indent + 1);
+    emitComponentFallthroughAttribute(context, elementVar, cleanupVar, "class", classParts, indent + 1, hydrating);
   }
 
   if (styleParts.length > 0) {
-    emitComponentFallthroughAttribute(context, elementVar, cleanupVar, "style", styleParts, indent + 1);
+    emitComponentFallthroughAttribute(context, elementVar, cleanupVar, "style", styleParts, indent + 1, hydrating);
   }
 
   for (const attr of directAttrs) {
@@ -1397,11 +1454,28 @@ function emitComponentFallthroughAttribute(
   cleanupVar: string,
   attributeName: "class" | "style",
   parts: string[],
-  indent: number
+  indent: number,
+  hydrating: boolean
 ): void {
   const baseVar = nextVar(context, `base${attributeName === "class" ? "Class" : "Style"}`);
   const stopVar = nextVar(context, "stop");
-  emit(context, indent, `const ${baseVar} = ${elementVar}.getAttribute(${quote(attributeName)});`);
+  if (hydrating) {
+    const probeVar = nextVar(context, "fallthroughProbe");
+    const initialVar = nextVar(context, "fallthroughInitial");
+    const inheritedVar = nextVar(context, "fallthroughInherited");
+    const prefixVar = nextVar(context, "fallthroughPrefix");
+    emit(context, indent, `const ${probeVar} = document.createElement("span");`);
+    emit(context, indent, `setAttribute(${probeVar}, ${quote(attributeName)}, [${parts.join(", ")}]);`);
+    emit(context, indent, `const ${initialVar} = ${elementVar}.getAttribute(${quote(attributeName)}) ?? "";`);
+    emit(context, indent, `const ${inheritedVar} = ${probeVar}.getAttribute(${quote(attributeName)}) ?? "";`);
+    emit(context, indent, `let ${baseVar} = ${initialVar};`);
+    emit(context, indent, `if (${inheritedVar} && ${initialVar}.endsWith(${inheritedVar})) {`);
+    emit(context, indent + 1, `const ${prefixVar} = ${initialVar}.slice(0, -${inheritedVar}.length);`);
+    emit(context, indent + 1, `if (!${prefixVar} || /[\\s;]/.test(${prefixVar}.slice(-1))) ${baseVar} = ${prefixVar}.replace(/[;\\s]+$/, "");`);
+    emit(context, indent, `}`);
+  } else {
+    emit(context, indent, `const ${baseVar} = ${elementVar}.getAttribute(${quote(attributeName)});`);
+  }
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   emit(context, indent + 1, `setAttribute(${elementVar}, ${quote(attributeName)}, [${baseVar}, ${parts.join(", ")}]);`);
   emit(context, indent, "});");
@@ -1552,7 +1626,7 @@ function generateElement(
   validateAttributes(context, node);
 
   const elementVar = nextVar(context, "el");
-  emit(context, indent, `const ${elementVar} = document.createElement(${quote(node.tag)});`);
+  emit(context, indent, `const ${elementVar} = ${node.namespaceURI && node.namespaceURI !== "http://www.w3.org/1999/xhtml" ? `document.createElementNS(${quote(node.namespaceURI)}, ${quote(node.tag)})` : `document.createElement(${quote(node.tag)})`};`);
 
   if (context.scopeAttr) {
     emit(context, indent, `${elementVar}.setAttribute(${quote(context.scopeAttr)}, "");`);
@@ -1856,7 +1930,7 @@ function generatePreElement(
   beforeVar?: string
 ): string {
   const elementVar = nextVar(context, "el");
-  emit(context, indent, `const ${elementVar} = document.createElement(${quote(node.tag)});`);
+  emit(context, indent, `const ${elementVar} = ${node.namespaceURI && node.namespaceURI !== "http://www.w3.org/1999/xhtml" ? `document.createElementNS(${quote(node.namespaceURI)}, ${quote(node.tag)})` : `document.createElement(${quote(node.tag)})`};`);
 
   if (context.scopeAttr) {
     emit(context, indent, `${elementVar}.setAttribute(${quote(context.scopeAttr)}, "");`);
@@ -1878,7 +1952,7 @@ function generatePreElement(
   return elementVar;
 }
 
-function emitTemplateRef(
+export function emitTemplateRef(
   context: GenerateContext,
   node: ElementNode,
   valueExpression: string,
@@ -2151,6 +2225,7 @@ function generateIfChain(
   emit(context, indent, `const ${stopVar} = effect(() => {`);
   if (transitionVar) {
     emit(context, indent + 1, `const hadTransitionBranch = ${startVar}.nextSibling !== ${endVar};`);
+    emit(context, indent + 1, `const __mikuru_previousLeaves = new Set(__mikuru_leavePromises);`);
   }
   emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
   emitRemoveBetween(context, indent + 1, startVar, endVar);
@@ -2185,12 +2260,13 @@ function generateIfChain(
 
   if (transitionVar && renderBranchVar) {
     emit(context, indent + 1, "};");
-    emit(context, indent + 1, `if (${transitionVar}.mode === "out-in" && hadTransitionBranch) { setTimeout(${renderBranchVar}, 50); } else { ${renderBranchVar}(); }`);
+    emit(context, indent + 1, `if (${transitionVar}.mode === "out-in" && hadTransitionBranch) { Promise.all(Array.from(__mikuru_leavePromises).filter((pending) => !__mikuru_previousLeaves.has(pending))).then(${renderBranchVar}); } else { ${renderBranchVar}(); }`);
   }
 
   emit(context, indent, "});");
   emit(context, indent, `${cleanupVar}.push(() => {`);
   emit(context, indent + 1, `${stopVar}();`);
+  if (renderTokenVar) emit(context, indent + 1, `++${renderTokenVar};`);
   emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
   emit(context, indent, "});");
   return startVar;
@@ -2219,42 +2295,14 @@ function generateFor(
     return generateKeyedFor(context, node, parentVar, cleanupVar, indent, itemName, indexName, sourceExpression, keyExpression, beforeVar);
   }
 
-  const startVar = nextVar(context, "forStart");
-  const endVar = nextVar(context, "forEnd");
-  const branchCleanupVar = nextVar(context, "forCleanup");
-  const stopVar = nextVar(context, "stop");
-  emit(context, indent, `const ${branchCleanupVar} = [];`);
-  emit(context, indent, `const ${startVar} = document.createComment("for");`);
-  emit(context, indent, `const ${endVar} = document.createComment("/for");`);
-  appendNode(context, parentVar, startVar, indent, beforeVar);
-  appendNode(context, parentVar, endVar, indent, beforeVar);
-  emit(context, indent, `const ${stopVar} = effect(() => {`);
-  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
-  emitRemoveBetween(context, indent + 1, startVar, endVar);
-  if (indexName) {
-    const sourceVar = nextVar(context, "forSource");
-    const indexVar = nextVar(context, "forIndex");
-    emit(context, indent + 1, `const ${sourceVar} = unwrap(${compileTemplateExpression(sourceExpression, "v-for source", toExpressionContext(context, getStringAttrLocation(node, "v-for")))}) ?? [];`);
-    emit(context, indent + 1, `for (let ${indexVar} = 0; ${indexVar} < ${sourceVar}.length; ${indexVar} += 1) {`);
-    emit(context, indent + 2, `const ${itemName} = ${sourceVar}[${indexVar}];`);
-    emit(context, indent + 2, `const ${indexName} = ${indexVar};`);
-    withTemplateRefMode(context, "array", () => {
-      generateNode(context, withoutForAttrs(node), parentVar, branchCleanupVar, indent + 2, endVar);
-    });
-    emit(context, indent + 1, "}");
-  } else {
-    emit(context, indent + 1, `for (const ${itemName} of unwrap(${compileTemplateExpression(sourceExpression, "v-for source", toExpressionContext(context, getStringAttrLocation(node, "v-for")))}) ?? []) {`);
-    withTemplateRefMode(context, "array", () => {
-      generateNode(context, withoutForAttrs(node), parentVar, branchCleanupVar, indent + 2, endVar);
-    });
-    emit(context, indent + 1, "}");
+  // A position is a stable identity for an unkeyed row. Reuse the keyed row
+  // machinery so item/index refs, effects, components and template ranges all
+  // survive updates at the same position.
+  const positionName = indexName ?? nextVar(context, "forPosition");
+  if (node.tag === "template") {
+    return generateKeyedTemplateFor(context, node, parentVar, cleanupVar, indent, itemName, positionName, sourceExpression, positionName, beforeVar, true);
   }
-  emit(context, indent, "});");
-  emit(context, indent, `${cleanupVar}.push(() => {`);
-  emit(context, indent + 1, `${stopVar}();`);
-  emit(context, indent + 1, `__mikuru_runCleanup(${branchCleanupVar});`);
-  emit(context, indent, "});");
-  return startVar;
+  return generateKeyedFor(context, node, parentVar, cleanupVar, indent, itemName, positionName, sourceExpression, positionName, beforeVar, undefined, true);
 }
 
 function generateKeyedTemplateFor(
@@ -2267,7 +2315,8 @@ function generateKeyedTemplateFor(
   indexName: string | undefined,
   sourceExpression: string,
   keyExpression: string,
-  beforeVar?: string
+  beforeVar?: string,
+  positional = false
 ): string {
   validatePlainTemplate(context, node);
   const startVar = nextVar(context, "forStart");
@@ -2356,7 +2405,7 @@ function generateKeyedTemplateFor(
       emit(context, indent + 3, `${recordVar}.index.value = ${rawIndexVar};`);
     }
   }
-  emitMoveRangeBefore(context, indent + 3, `${recordVar}.start`, `${recordVar}.end`, parentVar, endVar);
+  if (!positional) emitMoveRangeBefore(context, indent + 3, `${recordVar}.start`, `${recordVar}.end`, parentVar, endVar);
   emit(context, indent + 2, `}`);
   emit(context, indent + 2, `${nextRecordsVar}.set(${keyVar}, ${recordVar});`);
   emit(context, indent + 1, `}`);
@@ -2392,7 +2441,8 @@ function generateKeyedFor(
   sourceExpression: string,
   keyExpression: string,
   beforeVar?: string,
-  transitionVar?: string
+  transitionVar?: string,
+  positional = false
 ): string {
   const startVar = nextVar(context, "forStart");
   const endVar = nextVar(context, "forEnd");
@@ -2478,7 +2528,11 @@ function generateKeyedFor(
     }
   }
 
-  emit(context, indent + 3, `${parentVar}.insertBefore(${recordVar}.element, ${endVar});`);
+  if (!positional) {
+    emit(context, indent + 3, `if (${recordVar}.element?.__mikuru_end) {`);
+    emitMoveRangeBefore(context, indent + 4, `${recordVar}.element`, `${recordVar}.element.__mikuru_end`, parentVar, endVar);
+    emit(context, indent + 3, `} else ${parentVar}.insertBefore(${recordVar}.element, ${endVar});`);
+  }
   if (transitionVar) {
     emit(context, indent + 3, `__mikuru_applyTransitionMove(${recordVar}.element, ${transitionVar});`);
   }
@@ -2488,7 +2542,7 @@ function generateKeyedFor(
   emit(context, indent + 1, `for (const [${keyVar}, ${recordVar}] of ${recordsVar}) {`);
   emit(context, indent + 2, `if (!${nextRecordsVar}.has(${keyVar})) {`);
   emit(context, indent + 3, `__mikuru_runCleanup(${recordVar}.cleanups);`);
-  emit(context, indent + 3, `__mikuru_removeNode(${recordVar}.element);`);
+    emit(context, indent + 3, `__mikuru_removeRange(${recordVar}.element);`);
   emit(context, indent + 2, `}`);
   emit(context, indent + 1, `}`);
   emit(context, indent + 1, `${recordsVar}.clear();`);
@@ -2551,11 +2605,20 @@ function emitMoveRangeBefore(
   emit(context, indent, `${parentVar}.insertBefore(${fragmentVar}, ${beforeExpression});`);
 }
 
-function emitTransitionRegistration(context: GenerateContext, nodeVar: string, transitionVar: string, indent: number): void {
-  emit(context, indent, `if (${nodeVar}?.nodeType === 1) {`);
-  emit(context, indent + 1, `${nodeVar}.__mikuru_transition = ${transitionVar};`);
-  emit(context, indent + 1, `${nodeVar}.__mikuru_transitionLeaving = false;`);
-  emit(context, indent + 1, `__mikuru_applyTransitionEnter(${nodeVar}, ${transitionVar});`);
+export function emitComponentRangeHelpers(context: GenerateContext, indent: number): void {
+  emit(context, indent, 'const __mikuru_rangeEnd = (start) => start?.__mikuru_end ?? (start?.nodeType === 8 && start.nodeValue === "mikuru-fragment" ? __mikuru_findRangeEnd(start) : start);');
+  emit(context, indent, 'const __mikuru_findRangeEnd = (start) => { let depth = 0; for (let node = start; node; node = node.nextSibling) { if (node.nodeType !== 8) continue; if (node.nodeValue === "mikuru-fragment") depth++; else if (node.nodeValue === "/mikuru-fragment" && --depth === 0) return node; } return start; };');
+  emit(context, indent, 'const __mikuru_rangeElements = (start) => { const end = __mikuru_rangeEnd(start); if (end === start) return start?.nodeType === 1 ? [start] : []; const elements = []; for (let node = start?.nextSibling; node && node !== end; node = node.nextSibling) if (node.nodeType === 1) elements.push(node); return elements; };');
+  emit(context, indent, 'const __mikuru_removeRange = (start, end = __mikuru_rangeEnd(start)) => { const pending = []; for (let node = start; node;) { const next = node.nextSibling; pending.push(__mikuru_removeNode(node)); if (node === end) break; node = next; } return Promise.all(pending); };');
+  emit(context, indent, 'const __mikuru_removeBetween = (start, end) => { const pending = []; for (let node = start.nextSibling; node && node !== end;) { const next = node.nextSibling; pending.push(__mikuru_removeNode(node)); node = next; } return Promise.all(pending); };');
+  emit(context, indent, 'const __mikuru_moveRangeBefore = (start, end, parent, before) => { const fragment = document.createDocumentFragment(); for (let node = start; node;) { const next = node.nextSibling; fragment.appendChild(node); if (node === end) break; node = next; } parent.insertBefore(fragment, before); };');
+}
+
+export function emitTransitionRegistration(context: GenerateContext, nodeVar: string, transitionVar: string, indent: number): void {
+  emit(context, indent, `for (const __mikuru_transitionElement of __mikuru_rangeElements(${nodeVar})) {`);
+  emit(context, indent + 1, `__mikuru_transitionElement.__mikuru_transition = ${transitionVar};`);
+  emit(context, indent + 1, `__mikuru_transitionElement.__mikuru_transitionLeaving = false;`);
+  emit(context, indent + 1, `__mikuru_applyTransitionEnter(__mikuru_transitionElement, ${transitionVar});`);
   emit(context, indent, "}");
 }
 
@@ -2682,8 +2745,15 @@ function textExpression(parts: TextPart[], context: GenerateContext): string {
     .join(" + ");
 }
 
-function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
-  const script = descriptor.script ?? "";
+export function normalizeScript(descriptor: SfcDescriptor, debug = false): ScriptParts {
+  const rawScript = descriptor.script ?? "";
+  const transpiled = descriptor.scriptLang === "ts"
+    ? ts.transpileModule(rawScript, { fileName: descriptor.filename ?? "component.ts", reportDiagnostics: true, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
+    : undefined;
+  if (transpiled?.diagnostics?.length) {
+    throw createCompileError(`Invalid TypeScript <script> syntax: ${ts.flattenDiagnosticMessageText(transpiled.diagnostics[0]!.messageText, " ")}`, descriptor.source ?? rawScript, descriptor.scriptOffset ?? 0, descriptor.filename);
+  }
+  const script = transpiled?.outputText ?? rawScript;
   const source = descriptor.source ?? script;
   const scriptOffset = descriptor.scriptOffset ?? 0;
   const imports: string[] = [];
@@ -2758,7 +2828,7 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
       }
 
       if (isMacroCall(declaration.init, "defineProps")) {
-        const replacement = transformDefinePropsDeclaration(declaration, script, descriptor);
+        const replacement = transformDefinePropsDeclaration(declaration, script, descriptor, debug);
         edits.push({ start: statement.start, end: statement.end, replacement });
         transformedMacroStarts.add(declaration.init?.start ?? declaration.start);
         usesPropsAlias = usesPropsAlias || replacement.includes("__mikuru_props");
@@ -2784,7 +2854,10 @@ function normalizeScript(descriptor: SfcDescriptor): ScriptParts {
     }
   }
 
-  const body = applyScriptEdits(script, edits).replace(/\bexport\s+(?=(const|let|var|function|class)\b)/g, "").trim();
+  const body = applyScriptEdits(script, edits)
+    .replace(/\bexport\s+(?=(const|let|var|function|class)\b)/g, "")
+    .replace(/(?:^|\n)\s*export\s*\{\s*\};?/g, "")
+    .trim();
   assertNoUnsupportedMacroCalls(ast, transformedMacroStarts, descriptor);
   validateDeclaredEmitCalls(ast, emitsDeclarations, descriptor);
 
@@ -2830,10 +2903,15 @@ function extractRuntimeImportSpecifiers(statement: ScriptNode): string[] {
   return imports;
 }
 
-function transformDefinePropsDeclaration(declaration: ScriptNode, script: string, descriptor: SfcDescriptor): string {
+function transformDefinePropsDeclaration(declaration: ScriptNode, script: string, descriptor: SfcDescriptor, debug: boolean): string {
   const macroCall = declaration.init;
 
   validateDefinePropsDeclaration(macroCall, descriptor);
+  const declarationNode = macroCall?.arguments?.[0];
+  const initialization = declarationNode
+    ? createPropsInitialization(script.slice(declarationNode.start, declarationNode.end), debug)
+    : "";
+  const propsName = declarationNode ? "__mikuru_resolvedProps" : "props";
 
   if (declaration.id?.type === "Identifier") {
     const localName = declaration.id.name ?? "";
@@ -2842,52 +2920,91 @@ function transformDefinePropsDeclaration(declaration: ScriptNode, script: string
       throwUnsupportedMacro("Unsupported defineProps binding", declaration.id, descriptor);
     }
 
-    return `const ${localName} = ${localName === "props" ? "__mikuru_props" : "props"};`;
+    return `${initialization}${initialization ? "\n" : ""}const ${localName} = ${localName === "props" && !declarationNode ? "__mikuru_props" : propsName};`;
   }
 
   if (declaration.id?.type !== "ObjectPattern") {
     throwUnsupportedMacro("defineProps() only supports identifier and object destructuring bindings", declaration.id ?? declaration, descriptor);
   }
 
-  return (declaration.id.properties ?? [])
-    .map((property) => transformDefinePropsProperty(property, script, descriptor))
-    .join("\n");
+  return `${initialization}${initialization ? "\n" : ""}${transformDefinePropsPattern(declaration.id, propsName, script, descriptor).join("\n")}`;
 }
 
-function transformDefinePropsProperty(property: ScriptNode, script: string, descriptor: SfcDescriptor): string {
-  if (property.type === "RestElement") {
-    throwUnsupportedMacro("defineProps() does not support rest props yet", property, descriptor);
+function createPropsInitialization(declaration: string, debug: boolean): string {
+  return `const __mikuru_propOptions = ${declaration};
+const __mikuru_propDefaults = new Map();
+const __mikuru_propValidated = new Map();
+const __mikuru_resolvedProps = new Proxy(props, {
+  get(target, key) {
+    const entry = __mikuru_propOptions[key];
+    const option = typeof entry === "function" ? { type: entry } : entry;
+    const incoming = target[key];
+    let value = incoming;
+    if (value === undefined && option && Object.prototype.hasOwnProperty.call(option, "default")) {
+      if (!__mikuru_propDefaults.has(key)) __mikuru_propDefaults.set(key, typeof option.default === "function" && option.type !== Function ? option.default() : option.default);
+      value = __mikuru_propDefaults.get(key);
+    }
+    if (${debug} && option && (!__mikuru_propValidated.has(key) || !Object.is(__mikuru_propValidated.get(key), incoming))) {
+      __mikuru_propValidated.set(key, incoming);
+      const warn = (reason) => console.warn("[Mikuru props] " + String(key) + " " + reason);
+      if (option.required && incoming === undefined) warn("is required.");
+      if (value != null && option.type && !(option.type === String ? typeof value === "string" : option.type === Number ? typeof value === "number" : option.type === Boolean ? typeof value === "boolean" : option.type === Array ? Array.isArray(value) : option.type === Object ? typeof value === "object" && !Array.isArray(value) : value instanceof option.type)) warn("has an invalid type.");
+      if (typeof option.validator === "function") {
+        try { if (!option.validator(value)) warn("failed validation."); }
+        catch (error) { warn("validator threw: " + (error instanceof Error ? error.message : String(error))); }
+      }
+    }
+    return value;
   }
+});
+for (const key of Object.keys(__mikuru_propOptions)) void __mikuru_resolvedProps[key];`;
+}
 
-  if (property.type !== "Property" || property.computed || property.key?.type !== "Identifier") {
-    throwUnsupportedMacro("Unsupported defineProps destructuring entry", property, descriptor);
+function transformDefinePropsPattern(pattern: ScriptNode, sourceExpression: string, script: string, descriptor: SfcDescriptor): string[] {
+  if (pattern.type !== "ObjectPattern") throwUnsupportedMacro("defineProps() only supports object destructuring bindings", pattern, descriptor);
+  const entries: string[] = [];
+  const excluded: string[] = [];
+  for (const property of pattern.properties ?? []) {
+    if (property.type === "RestElement") {
+      const localName = property.argument?.name;
+      if (property.argument?.type !== "Identifier" || !localName || !isIdentifier(localName)) {
+        throwUnsupportedMacro("Rest props must use a simple identifier", property, descriptor);
+      }
+      entries.push(`const ${localName} = new Proxy({}, { get(_, key) { return ${JSON.stringify(excluded)}.includes(key) ? undefined : ${sourceExpression}?.[key]; }, has(_, key) { return !${JSON.stringify(excluded)}.includes(key) && key in (${sourceExpression} ?? {}); }, ownKeys() { return Reflect.ownKeys(${sourceExpression} ?? {}).filter((key) => !${JSON.stringify(excluded)}.includes(key)); }, getOwnPropertyDescriptor(_, key) { return ${JSON.stringify(excluded)}.includes(key) ? undefined : { enumerable: true, configurable: true }; } });`);
+      continue;
+    }
+    if (property.type !== "Property" || property.computed) throwUnsupportedMacro("Unsupported defineProps destructuring entry", property, descriptor);
+    const propName = getPropertyKeyName(property.key);
+    if (!propName) throwUnsupportedMacro("Unsupported defineProps destructuring entry", property, descriptor);
+    excluded.push(propName);
+    const propertyExpression = /^[A-Za-z_$][\w$]*$/.test(propName)
+      ? `${sourceExpression}${sourceExpression === "props" || sourceExpression === "__mikuru_resolvedProps" ? "." : "?."}${propName}`
+      : `${sourceExpression}?.[${quote(propName)}]`;
+    const valueNode = property.value as ScriptNode | undefined;
+    if (!valueNode) throwUnsupportedMacro("Unsupported defineProps destructuring entry", property, descriptor);
+    let binding = valueNode;
+    let bindingExpression = propertyExpression;
+    if (binding.type === "AssignmentPattern") {
+      const defaultValue = script.slice(binding.right?.start ?? binding.end, binding.right?.end ?? binding.end);
+      bindingExpression = `(${propertyExpression} === undefined ? (${defaultValue}) : ${propertyExpression})`;
+      binding = binding.left ?? binding;
+    }
+    if (binding.type === "Identifier") {
+      const localName = binding.name ?? "";
+      if (!isIdentifier(localName)) throwUnsupportedMacro("Unsupported defineProps destructuring entry", binding, descriptor);
+      if (valueNode.type === "AssignmentPattern") {
+        const defaultValue = script.slice(valueNode.right?.start ?? valueNode.end, valueNode.right?.end ?? valueNode.end);
+        entries.push(`const ${localName} = { get value() { const value = ${propertyExpression}; return value === undefined ? (${defaultValue}) : value; } };`);
+      } else {
+        entries.push(`const ${localName} = { get value() { return ${propertyExpression}; } };`);
+      }
+    } else if (binding.type === "ObjectPattern") {
+      entries.push(...transformDefinePropsPattern(binding, bindingExpression, script, descriptor));
+    } else {
+      throwUnsupportedMacro("Unsupported defineProps nested destructuring entry", binding, descriptor);
+    }
   }
-
-  const propName = property.key.name ?? "";
-  const propValueNode = property.value as ScriptNode | undefined;
-  let localName = "";
-  let defaultValue: string | undefined;
-
-  if (propValueNode?.type === "Identifier") {
-    localName = propValueNode.name ?? "";
-  } else if (propValueNode?.type === "AssignmentPattern" && propValueNode.left?.type === "Identifier") {
-    localName = propValueNode.left.name ?? "";
-    defaultValue = script.slice(propValueNode.right?.start ?? propValueNode.end, propValueNode.right?.end ?? propValueNode.end);
-  } else {
-    throwUnsupportedMacro("defineProps() does not support nested destructuring yet", propValueNode ?? property, descriptor);
-  }
-
-  if (!isIdentifier(propName) || !isIdentifier(localName)) {
-    throwUnsupportedMacro("Unsupported defineProps destructuring entry", property, descriptor);
-  }
-
-  const propValue = `props.${propName}`;
-
-  if (defaultValue) {
-    return `const ${localName} = { get value() { const value = ${propValue}; return value === undefined ? (${defaultValue}) : value; } };`;
-  }
-
-  return `const ${localName} = { get value() { return ${propValue}; } };`;
+  return entries;
 }
 
 function transformDefineEmitsDeclaration(
@@ -3005,8 +3122,22 @@ function validateDefinePropsDeclaration(node: ScriptNode | null | undefined, des
 
     const valueNode = property.value as ScriptNode | undefined;
 
-    if (!isSupportedPropConstructor(valueNode)) {
-      throwUnsupportedMacro("defineProps() declaration values must use String, Number, Boolean, Array, or Object", valueNode, descriptor);
+    if (valueNode?.type === "ObjectExpression") {
+      for (const option of valueNode.properties ?? []) {
+        if (option.type !== "Property" || option.computed) throwUnsupportedMacro("Unsupported defineProps() option", option, descriptor);
+        const optionName = getPropertyKeyName(option.key);
+        if (!optionName || !["type", "required", "default", "validator"].includes(optionName)) {
+          throwUnsupportedMacro(`Unsupported defineProps() option "${optionName ?? ""}"`, option, descriptor);
+        }
+        if (optionName === "type" && !isSupportedPropConstructor(option.value as ScriptNode)) {
+          throwUnsupportedMacro("defineProps() type must use String, Number, Boolean, Array, or Object", option.value as ScriptNode, descriptor);
+        }
+        if (optionName === "required" && ((option.value as ScriptNode)?.type !== "Literal" || typeof (option.value as ScriptNode).value !== "boolean")) {
+          throwUnsupportedMacro("defineProps() required must be a boolean literal", option.value as ScriptNode, descriptor);
+        }
+      }
+    } else if (!isSupportedPropConstructor(valueNode)) {
+      throwUnsupportedMacro("defineProps() declaration values must use String, Number, Boolean, Array, Object, or an options object", valueNode, descriptor);
     }
   }
 }
@@ -3160,7 +3291,7 @@ function isIdentifier(value: string): boolean {
   return /^[A-Za-z_$][\w$]*$/.test(value);
 }
 
-function eventHandlerExpression(expression: string, context: GenerateContext, location: SourceLocation | undefined): string {
+export function eventHandlerExpression(expression: string, context: GenerateContext, location: SourceLocation | undefined): string {
   const validatedExpression = validateEventHandlerExpression(expression, context, location);
 
   if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(validatedExpression)) {
@@ -3487,7 +3618,7 @@ function getKeyAttrLocation(node: ElementNode): SourceLocation | undefined {
   return getStringAttrLocation(node, ":key") ?? getStringAttrLocation(node, "v-bind:key");
 }
 
-function getMemoExpression(context: GenerateContext, node: ElementNode): string | undefined {
+export function getMemoExpression(context: GenerateContext, node: ElementNode): string | undefined {
   const attr = node.attrs.find((candidate) => candidate.name === "v-memo");
 
   if (!attr) {
@@ -3503,7 +3634,7 @@ function getMemoExpression(context: GenerateContext, node: ElementNode): string 
   return compileTemplateExpression(expression, "v-memo", toExpressionContext(context, attr.valueLoc));
 }
 
-function getOnceMemoExpression(context: GenerateContext, node: ElementNode): string | undefined {
+export function getOnceMemoExpression(context: GenerateContext, node: ElementNode): string | undefined {
   if (!hasAttr(node, "v-once")) {
     return undefined;
   }
@@ -3566,7 +3697,7 @@ function throwTemplateError(message: string, context: GenerateContext, location:
   throw new Error(message);
 }
 
-function emitComponentProps(context: GenerateContext, node: ElementNode, propsVar: string, attrsVar: string, indent: number): void {
+export function emitComponentProps(context: GenerateContext, node: ElementNode, propsVar: string, attrsVar: string, indent: number): void {
   const props = node.attrs
     .filter((attr) => !isStructuralAttr(attr))
     .flatMap((attr) => componentPropEntries(context, attr));
@@ -3612,7 +3743,7 @@ function emitComponentProps(context: GenerateContext, node: ElementNode, propsVa
   }
 }
 
-function emitComponentPropsProxy(
+export function emitComponentPropsProxy(
   context: GenerateContext,
   propsVar: string,
   propsTargetVar: string,
@@ -4005,7 +4136,7 @@ function getSlotOutletNameExpression(
   return { dynamic: false, name: getStaticAttrValue(node, "name") ?? "default" };
 }
 
-function componentPropEntries(context: GenerateContext, attr: TemplateAttribute): string[] {
+export function componentPropEntries(context: GenerateContext, attr: TemplateAttribute): string[] {
   if (isSlotDirectiveAttr(attr)) {
     throwTemplateError("v-slot must be used on a <template> child in Mikuru", context, attr.loc);
   }
@@ -4151,7 +4282,7 @@ function getTransitionBranches(context: GenerateContext, children: ElementNode[]
   });
 }
 
-function getTransitionOptionsExpression(context: GenerateContext, node: ElementNode): string {
+export function getTransitionOptionsExpression(context: GenerateContext, node: ElementNode): string {
   const entries = [`name: String(unwrap(${getTransitionAttrExpression(context, node, "name", "v")}) ?? "v")`];
   const appearExpression = getTransitionAttrExpression(context, node, "appear");
   const modeExpression = getTransitionAttrExpression(context, node, "mode");
@@ -4333,7 +4464,7 @@ function getAsyncBoundaryTimeoutExpression(context: GenerateContext, node: Eleme
   return compileTemplateExpression(requireAttrValue(timeoutAttr), timeoutAttr.name, toExpressionContext(context, timeoutAttr.valueLoc));
 }
 
-function getKeepAliveOptionExpression(context: GenerateContext, node: ElementNode, name: "include" | "exclude" | "max"): string | undefined {
+export function getKeepAliveOptionExpression(context: GenerateContext, node: ElementNode, name: "include" | "exclude" | "max"): string | undefined {
   const dynamicAttr = node.attrs.find((attr) => getBindingName(attr.name) === name);
 
   if (dynamicAttr) {

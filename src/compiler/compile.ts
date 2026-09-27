@@ -15,7 +15,8 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
     const ast = parseTemplate(descriptor.template, {
       filename: options.filename,
       source,
-      offset: descriptor.templateOffset
+      offset: descriptor.templateOffset,
+      debug: options.debug
     });
     emitCompatDirectiveDiagnostics(ast, { debug: options.debug === true, filename: options.filename, phase: "compile" });
     const templateTypeCheck = options.templateTypeCheck === true ? assertTemplateTypeCheck(descriptor, ast) : undefined;

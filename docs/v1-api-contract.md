@@ -17,14 +17,18 @@ Debug builds use the stable v1 devtools contract. `createDevtoolsInspector()` an
 
 - `.mikuru` files use one required `<template>` block and optional `<script>` / `<style>` blocks.
 - Duplicate SFC blocks and unknown SFC blocks are compile errors.
-- Templates must have exactly one root element.
-- `<style scoped>` supports selector rewriting for common selectors, escaped selectors, attribute selectors, functional pseudo-classes, native CSS nesting, nested at-rules including `@scope` and `@starting-style`, unknown at-rules with nested rules, `:global(...)`, and `:deep(...)`; helper-looking text inside attributes and functional pseudo-class arguments is preserved, malformed block diagnostics include offset/line/column/code frame, and raw blocks such as `@keyframes`, `@font-face`, `@font-feature-values`, `@counter-style`, and `@property` are preserved.
+- Templates may have multiple or empty roots, including text roots. `parseTemplate()` returns an `ElementNode` for one element root and a `FragmentNode` otherwise. Callers that read `.tag` or `.attrs` must first check `ast.type === "element"`; fragment callers traverse `ast.children`.
+
+**Migration for AST consumers:** replace direct `parseTemplate(source).tag` access with a `type` check. The public `CompileResult.ast` and `SsrCompileResult.ast` types now use `TemplateRoot = ElementNode | FragmentNode`. Single-element templates still return their previous `ElementNode` shape.
+- HTML fragments are parsed with browser tree-building rules. Implied end tags and inserted elements such as `<tbody>` are reflected in the AST; debug builds report repairs. Component tag and directive spelling are restored from source positions.
+- `<style scoped>` uses PostCSS and selector ASTs for common selectors, escaped selectors, attribute selectors, functional pseudo-classes, native CSS nesting, nested at-rules including `@scope` and `@starting-style`, unknown at-rules with nested rules, `:global(...)`, and `:deep(...)`; malformed CSS diagnostics include offset/line/column/code frame and leave the original CSS intact. Declaration values and raw blocks such as `@keyframes`, `@font-face`, `@font-feature-values`, `@counter-style`, and `@property` are preserved.
 
 ## Template Contract
 
 Supported in v1:
 
 - Text interpolation with `{{ expression }}`.
+- Less-than signs in text and comparison expressions remain text or expressions, including compact forms such as `{{ left<right }}`.
 - DOM events with `@event` and `m-on:event`.
 - Object-form events with `m-on="listeners"` and native-element option modifiers such as `m-on.once`, `m-on.capture`, and `m-on.passive`.
 - DOM event modifiers `.prevent`, `.stop`, `.self`, `.once`, `.capture`, and `.passive`.
@@ -34,6 +38,7 @@ Supported in v1:
 - `class` and `style` binding normalization for strings, arrays, and objects.
 - Child component DOM attribute fallthrough for `class`, `style`, `id`, `title`, `role`, `aria-*`, `data-*`, and related DOM-facing attributes.
 - `m-if`, `m-else-if`, `m-else`, and `m-show`.
+- `m-html` for trusted or sanitized HTML, plus `m-text`, `m-pre`, and `m-cloak`.
 - `m-for` with `item in items`, `item of items`, `(item, index) in items`, and `(item, index) of items`.
 - `:key` / `m-bind:key` on `m-for` for keyed DOM reuse.
 - `m-memo` on keyed `m-for` records, with an array expression dependency list.
@@ -51,23 +56,23 @@ Supported in v1:
 - Error boundaries through built-in `<ErrorBoundary :fallback>`, including `errorInfo`, `retry`, `reset`, and `:reset-key`.
 - KeepAlive through built-in `<KeepAlive>` with one dynamic `<component :is>` child, parent-lifetime caching, `include`/`exclude` name filters, and `max` LRU pruning.
 
-Unsupported in v1:
-
-- Multiple template roots.
-- `m-html`.
-- Full HTML parser compatibility.
+HTML parsing follows fragment parsing rules; Mikuru directives and component tags remain framework syntax rather than browser HTML features.
 
 ## Component Contract
 
 - Uppercase tags are treated as child components.
+- Generated instances expose `element` and `roots`. For a fragment, `element` is its current first node, or its start boundary when empty; `roots` returns the current nodes between the internal boundaries. Multi-root SSR emits those boundaries and hydration reuses the enclosed SSR nodes.
+- Child `m-show` applies to every direct element root in a fragment and restores each element's previous inline `display`; text and comment roots remain in the range without CSS visibility changes.
 - Static attributes and bound props are passed through `props`.
-- DOM-facing attributes are also applied to the root `element` returned from `mount`; `class` and `style` are merged with the root element's existing values.
+- DOM-facing attributes are also applied to the root `element` returned from `mount`; `class` and `style` are merged with the root element's existing values. Compiled plain-element roots include automatic fallthrough attributes in initial SSR HTML.
 - Components can read fallthrough attributes with `useAttrs()` and opt out of automatic root fallthrough with `defineOptions({ inheritAttrs: false })`.
+- Multiple roots do not receive automatic DOM attribute fallthrough. Use `useAttrs()` to forward attributes explicitly; debug builds warn when automatic fallthrough is requested for a fragment child.
 - Template refs assign the child component instance to a ref object or callback and clean up on unmount; repeated refs inside `m-for` collect values in an array.
 - Component events are passed as `onEventName` props, with `.once` wrappers when requested.
 - Component `m-model` passes `modelValue`, `onUpdateModelValue`, and `modelModifiers` when modifiers are present. Named models such as `m-model:title` pass `title`, `onUpdateTitle`, and `titleModifiers` when modifiers are present.
 - Dynamic `<component :is>` mounts component objects, remounts on type changes, and supports component props, events, attrs, slots, refs, and `m-show`.
 - `<KeepAlive>` caches dynamic component instances across type switches, supports `include`/`exclude` string, array, and `RegExp` name filters, prunes least recently used records with `max`, runs `onActivated`/`onDeactivated` for cached generated components, and disposes the cache when the parent component unmounts.
+- `<Transition>` applies enter and leave classes to every direct element root of a child fragment. Its `out-in` mode waits for the outgoing leave operations before inserting the next conditional branch.
 - `defineAsyncComponent()` creates component objects from async loaders and supports loading, error, retry, timeout fallback behavior, and SSR loader resolution through `renderToString()`.
 - Child component instances must return `{ element, unmount }` from `mount`.
 
@@ -117,19 +122,20 @@ Unsupported in v1:
 - `mikuru/server` helpers escape text and attributes and can render a component object with `renderToString(props)`. `renderComponentToString` is the async component helper used by generated SSR output. `renderToStream` exposes rendered output as an async iterable for stream-shaped integrations.
 - `renderRouteToString(router, location, { teleports })` resolves redirects, lazy route components, route props, route component context, nested route components using default slots, and route-level Teleport collection.
 - `hydrateRoute(router, target, location?, options?)` resolves redirects, lazy route components, route props, route component context, and nested route components, then hydrates matched route components with `hydrate()` or mount fallback. Generated route components can use `<RouterView>` and `<RouterLink>` during SSR/hydration. `{ listen: true }` starts router history listening after hydration and stops it on unmount; `examples/router-ssr-hydration` keeps route SSR and route hydration wired together for browser E2E coverage.
+- `hydrate()` and `hydrateRoute()` accept an `Element` root or the opening `Comment` of a multi-root SSR fragment. Pass that comment when the route component has multiple roots; RouterView keeps the enclosed nodes together during later route changes.
 
 ## Hydration Contract
 
 - `compileHydration(source)` emits the normal `mount(target, props?)` plus `hydrate(target, props?)`.
-- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `m-show`, DOM and component `m-model`, initial `m-if` / `m-for` DOM, keeps hydrated element and `<template m-for>` lists reactive after source changes, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+- Hydration reuses matching existing SSR DOM, attaches DOM event listeners, syncs text interpolation plus static and bound attributes with effects, hydrates component context/lifecycle hooks, `m-show`, DOM and component `m-model`, `m-if` chains and `m-for` DOM, keeps hydrated conditions and element / `<template m-for>` lists reactive after source changes, reuses Teleport target and disabled inline content, and delegates child components to `component.hydrate()` with mount fallback when unavailable.
+- Hydrated `m-if` chains and `m-for` lists receive internal comment boundaries while retaining their initial SSR elements. A condition change disposes the old branch and mounts the next one. Keyed lists retain rows by key; unkeyed lists retain rows by position and create or clean up only rows added or removed at the end. `<Transition>` branches skip initial enter classes and use configured enter/leave classes and `out-in` mode on later switches. `compileHydration(source, { batchedUpdates: true })` queues generated hydration effects through the same job scheduler as mount; the default remains synchronous.
 - Root mismatches warn and fall back to normal `mount`; structural child mismatches recover by remounting unless `props.__mikuru_hydration.recover === false`. With recovery disabled, structural mismatches remain warnings and hydration continues best-effort without replacing the mismatched DOM. Hydration warnings include phase, component, filename, kind, action, inferred expected/actual values, and DOM path context where available, and emit versioned `hydration:warning` devtools events when a hook is present.
-- Dynamic branch reconciliation after the initial state is future work.
 
 ## Macro Contract
 
 - `defineProps()`, `defineEmits()`, `useAttrs()`, and `defineOptions()` are compile-time-only APIs.
 - `defineProps()`, `defineEmits()`, and `useAttrs()` must appear in top-level `const` declarations. `defineOptions()` must appear as a top-level call expression.
-- `defineProps()` supports identifier binding and object destructuring.
+- `defineProps()` supports identifier binding, nested object destructuring, rest props, TypeScript type arguments in `<script lang="ts">`, and runtime option objects with `type`, `required`, `default`, and `validator`. Type-only declarations participate in optional template TypeScript checking; runtime declarations evaluate defaults per instance and report invalid inputs in debug builds while continuing to render.
 - `defineEmits(["name"])` validates literal emit calls.
 - `useAttrs()` supports identifier binding.
 - `defineOptions()` supports `{ inheritAttrs: false }`.

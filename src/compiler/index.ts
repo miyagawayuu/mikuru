@@ -15,10 +15,12 @@ export type {
   CompileOptions,
   CompileResult,
   ElementNode,
+  FragmentNode,
   SfcDescriptor,
   SsrCompileResult,
   TemplateAttribute,
   TemplateNode,
+  TemplateRoot,
   TextNode,
   TextPart
 } from "./types.js";

@@ -1,5 +1,18 @@
 # Mikuru v1 Release Notes
 
+## 1.0.41 - 2026-10-24
+
+Mikuru 1.0.41 hardens attribute bindings and router query parsing, updates vulnerable dependencies, and improves SSR and hydration.
+
+- DOM bindings and SSR reject inline `on*` event attributes and malformed attribute names. Use `m-on` / `@` event directives for listeners.
+- DOM property bindings reject `__proto__`, `constructor`, and `prototype` assignments.
+- Router query parsing preserves prototype-like keys as own data properties without mutating the query object's prototype or reading inherited values.
+- Updated Happy DOM, Vite, Vitest, and transitive dependencies to remediate the six dependency audit findings.
+- Embed player iframes accept only HTTP(S) URLs. WYSIWYG HTML uses an allowlist of formatting elements and attributes, removing SVG, embedded documents, forms, metadata, and inline styles.
+- Includes the pending compiler, CSS parsing, SSR fallthrough, and reactive hydration improvements, including keyed lists, conditional ranges, transitions, and batched updates.
+
+Templates and scripts are trusted application code. Raw `m-html`, `innerHTML` property bindings, URL bindings, and iframe content still require application-level validation of untrusted input.
+
 ## 1.0.40 - 2026-05-18
 
 Mikuru 1.0.40 expands the package component library with more typed UI primitives and a hosted video embed component.

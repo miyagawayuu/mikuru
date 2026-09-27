@@ -8,6 +8,7 @@ export type SfcDescriptor = {
   templateOffset?: number;
   script?: string;
   scriptOffset?: number;
+  scriptLang?: string;
   style?: string;
   styleOffset?: number;
   styleScoped?: boolean;
@@ -17,9 +18,18 @@ export type SfcDescriptor = {
 
 export type TemplateNode = ElementNode | TextNode;
 
+export type FragmentNode = {
+  type: "fragment";
+  children: TemplateNode[];
+  loc?: SourceLocation;
+};
+
+export type TemplateRoot = ElementNode | FragmentNode;
+
 export type ElementNode = {
   type: "element";
   tag: string;
+  namespaceURI?: string;
   attrs: TemplateAttribute[];
   children: TemplateNode[];
   loc?: SourceLocation;
@@ -66,7 +76,7 @@ export type CompileResult = {
   code: string;
   map: SourceMap;
   descriptor: SfcDescriptor;
-  ast: ElementNode;
+  ast: TemplateRoot;
   bindings: Binding[];
   templateTypeCheck?: TemplateTypeCheckResult;
 };
@@ -74,7 +84,7 @@ export type CompileResult = {
 export type SsrCompileResult = {
   code: string;
   descriptor: SfcDescriptor;
-  ast: ElementNode;
+  ast: TemplateRoot;
   bindings: Binding[];
   templateTypeCheck?: TemplateTypeCheckResult;
 };

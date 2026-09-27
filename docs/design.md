@@ -81,15 +81,13 @@ flowchart LR
 - 代入ベースのリアクティビティではなく、初期MVPでは `ref` ベースの明示的リアクティビティを採用する。
 - Vueに近いテンプレートディレクティブを優先する。
 
-## v1の非目標
+## v1の非目標（初期設計時点）
 
-- SSR
-- hydration
-- transition
-- devtools
 - 完全なVue互換
 - 完全なテンプレート型チェック
 - scoped CSSの完全なCSS selector対応
+
+SSR、hydration、transition、devtools は初期設計後に実装した。現在の対応範囲は `v1-api-contract.md` を参照する。
 
 ## 判断基準
 

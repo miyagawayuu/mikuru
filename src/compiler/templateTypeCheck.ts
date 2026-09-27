@@ -4,7 +4,7 @@ import { createCompileError, getSourceLocation, type SourceLocation } from "./er
 import { compileTemplateExpression, parseForExpression, validateTemplateExpression } from "./parseExpression.js";
 import { parseSfc } from "./parseSfc.js";
 import { parseTemplate } from "./parseTemplate.js";
-import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode } from "./types.js";
+import type { ElementNode, SfcDescriptor, TemplateAttribute, TemplateNode, TemplateRoot } from "./types.js";
 
 export type TemplateTypeCheckDiagnostic = {
   message: string;
@@ -52,7 +52,7 @@ export function typeCheckTemplate(source: string, options: { filename?: string }
   return typeCheckTemplateDescriptor(descriptor, ast);
 }
 
-export function typeCheckTemplateDescriptor(descriptor: SfcDescriptor, ast: ElementNode): TemplateTypeCheckResult {
+export function typeCheckTemplateDescriptor(descriptor: SfcDescriptor, ast: TemplateRoot): TemplateTypeCheckResult {
   const source = descriptor.source ?? "";
   const filename = descriptor.filename ?? "anonymous.mikuru";
   const expressions = collectTemplateCheckExpressions(ast, source, filename);
@@ -67,7 +67,7 @@ export function typeCheckTemplateDescriptor(descriptor: SfcDescriptor, ast: Elem
   };
 }
 
-export function assertTemplateTypeCheck(descriptor: SfcDescriptor, ast: ElementNode): TemplateTypeCheckResult {
+export function assertTemplateTypeCheck(descriptor: SfcDescriptor, ast: TemplateRoot): TemplateTypeCheckResult {
   const result = typeCheckTemplateDescriptor(descriptor, ast);
 
   if (!result.ok) {
@@ -83,9 +83,10 @@ export function assertTemplateTypeCheck(descriptor: SfcDescriptor, ast: ElementN
   return result;
 }
 
-function collectTemplateCheckExpressions(root: ElementNode, source: string, filename: string): TemplateCheckExpression[] {
+function collectTemplateCheckExpressions(root: TemplateRoot, source: string, filename: string): TemplateCheckExpression[] {
   const expressions: TemplateCheckExpression[] = [];
-  visitNode(root, [], expressions, { source, filename }, false);
+  if (root.type === "fragment") root.children.forEach((child) => visitNode(child, [], expressions, { source, filename }, false));
+  else visitNode(root, [], expressions, { source, filename }, false);
   return expressions;
 }
 

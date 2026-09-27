@@ -25,6 +25,8 @@ For local framework development, the examples alias `mikuru` and `mikuru/runtime
 
 A Mikuru component is a `.mikuru` single-file component with one required `<template>` block and optional `<script>` / `<style>` blocks.
 
+The template may contain several roots. `mount()` and `hydrate()` return an instance whose `roots` getter lists the current root nodes; `element` returns the first current node, or the fragment's start comment when it is empty. Multiple-root SSR includes boundary comments, and hydration reuses the nodes inside them. Single-element components keep their existing root behavior. HTML uses browser fragment parsing, so implicit closing tags and inserted elements such as `<tbody>` appear in the rendered tree; debug builds report repairs.
+
 ```mikuru
 <template>
   <button @click="increment">count: {{ count }}</button>
@@ -124,11 +126,15 @@ Use `:attr` or `m-bind:attr` for dynamic attributes. Use `m-bind="attrs"` when a
 
 `class` supports strings, numbers, arrays, and objects. Static `class` and dynamic `:class` can be combined.
 `style` supports strings, numbers, arrays, and objects. Object keys can be camelCase or custom CSS properties.
-On child components, DOM-facing attributes fall through to the child component root element. This includes `class`, `style`, `id`, `title`, `role`, `tabindex`, `lang`, `dir`, `hidden`, `aria-*`, and `data-*` from static attributes, direct bindings, and object-form `m-bind`. `class` and `style` are merged with the root element's existing values.
+On child components, DOM-facing attributes fall through to the child component root element. This includes `class`, `style`, `id`, `title`, `role`, `tabindex`, `lang`, `dir`, `hidden`, `aria-*`, and `data-*` from static attributes, direct bindings, and object-form `m-bind`. `class` and `style` are merged with the root element's existing values. A compiled child's plain-element root receives those attributes in the initial SSR HTML as well as after mount or hydration.
+
+For a child with multiple roots, forward attributes explicitly with `useAttrs()`. Mikuru does not choose one root for automatic fallthrough and emits a warning in debug builds when it would otherwise do so.
 Object-form `m-bind` updates attributes reactively and removes stale keys when they disappear from the bound object.
 Direct, dynamic, and object-form `m-bind` arguments support `.prop`, `.attr`, and `.camel`. Use `.prop` for DOM property-only state such as `:indeterminate.prop` or `m-bind.prop="attrs"`, `.attr` when property sync should be skipped, and `.camel` when a kebab-case binding name should become camelCase.
 
-`null`, `undefined`, and `false` remove attributes. `true` creates a boolean-style attribute.
+`null` and `undefined` remove attributes. `false` removes boolean attributes but becomes the string `"false"` for other attributes; `true` creates a boolean attribute or the string `"true"` for other attributes.
+
+Text may contain literal less-than signs such as `1 < 2`, and interpolation expressions may use comparisons such as `{{ left<right }}`. The compiler keeps these as text or expressions across mount, SSR, and hydration.
 
 ## Forms and `m-model`
 
@@ -223,7 +229,9 @@ Use `m-memo` with keyed `m-for` when a reused record should skip subtree updates
 />
 ```
 
-Hydrated SSR lists also keep reacting after hydration. Element `m-for` rows and `<template m-for>` fragments reuse the initial SSR DOM, then create an internal update range the first time the source list changes so appended, removed, or replaced rows render with the same event and binding behavior as normal mount.
+Hydrated SSR lists also keep reacting after hydration. Element `m-for` rows and `<template m-for>` fragments reuse the initial SSR DOM and receive internal comment boundaries during hydration. Keyed rows retain their DOM nodes and child component instances across reorders and same-key updates; only added and removed keys mount or clean up rows. Keyed template fragments receive a boundary for each row. Without keys, rows are reused by position: replacing the item at position zero updates that row, while adding or removing tail items creates or cleans up only those rows. Use keys when row identity must follow an item across reorders.
+
+Hydrated `m-if` / `m-else-if` / `m-else` chains reuse their initial SSR nodes and receive internal comment boundaries. When the selected branch changes, Mikuru cleans up its effects, listeners, and child components, then mounts the new branch. This also applies to `<template>` fragments and branches inside `<Transition>`; initial SSR nodes do not enter again, while later switches use enter/leave classes and `out-in` mode. With `mikuru({ batchedUpdates: true })`, generated hydration updates flush through the job queue and can be observed with `nextTick()`; updates are synchronous by default.
 
 When the key is reused and the memo array is unchanged, Mikuru keeps the existing DOM/component record and does not update the generated item/index refs for that record.
 
@@ -245,6 +253,7 @@ Use `m-if`, `m-else-if`, and `m-else` for conditional DOM creation. The older `v
 ```
 
 Use `m-show` when the DOM should stay mounted and only visibility should change.
+On a child component with multiple roots, `m-show` changes `display` on each direct element root and restores each element's previous inline value when shown again. Text roots and internal comments remain in the DOM.
 
 ```mikuru
 <aside m-show="detailsOpen">Details</aside>
@@ -252,6 +261,7 @@ Use `m-show` when the DOM should stay mounted and only visibility should change.
 ```
 
 Wrap one conditional child or one `m-if` chain in `<Transition>` when the DOM should animate as it enters and leaves.
+For a multiple-root child, enter and leave classes are applied to its direct element roots. With `mode="out-in"`, the next conditional branch waits for the previous branch's leave to complete. Hydrated SSR roots do not receive initial enter classes.
 
 ```mikuru
 <template>
@@ -322,6 +332,9 @@ Use `<component :is="Current" />` when the component type should come from state
 ```
 
 Dynamic components support the same component props, events, fallthrough attrs, slots, refs, and `m-show` behavior as explicit child component tags.
+
+After hydration, bound child props, object-form `m-bind` / `m-on`, and fallthrough attributes remain live as they do after mount. This includes children retained by keyed `m-for`, `<component :is>`, and `<KeepAlive>`. Hydration reuses the SSR root; later class and style changes replace the parent's previous contribution. `m-once` keeps its initial component prop values.
+Hydrated dynamic components can switch types after the first render. KeepAlive adopts the initial SSR child into its cache, then detaches and reinserts the whole child range when switching. The cached child keeps its instance and DOM nodes.
 
 Wrap one dynamic component in `<KeepAlive>` when switching component types should preserve each component instance until the parent unmounts. The v1 built-in accepts exactly one `<component :is="...">` child and optional `include`, `exclude`, and `max` cache controls. `include` and `exclude` match the component `name`, `displayName`, `__name`, or constructor name with a comma-delimited string, array, or `RegExp`; `max` prunes the least recently used cached instance.
 
@@ -491,13 +504,11 @@ Supported `defineProps()` forms include:
 - `const { active = false } = defineProps();`
 - `const { count: total = 0 } = defineProps();`
 - `const { title } = defineProps({ title: String });`
+- `const { user: { name }, ...rest } = defineProps();`
+- `<script lang="ts">` with `defineProps<{ title: string }>()`
+- `const { title } = defineProps({ title: { type: String, required: true, default: "Untitled", validator: (value) => value.length > 0 } });`
 
-Unsupported in v1:
-
-- nested destructuring
-- rest props
-- TypeScript type parameters
-- runtime prop validation
+Destructured prop getters and rest proxies keep reading parent updates. Type arguments are checked when template type checking is enabled and do not generate runtime validation. Runtime option objects apply defaults per instance and warn about missing, mistyped, or invalid values in debug builds while rendering continues.
 
 ## Slots
 
@@ -571,7 +582,7 @@ Use `<style scoped>` for component-local selector scoping.
 </style>
 ```
 
-Scoped CSS handles common selector lists, pseudo-classes and pseudo-elements, attribute selectors, escaped selectors, native CSS nesting, and functional pseudo-classes such as `:is(...)`, `:where(...)`, and `:not(...)` without splitting on commas inside their arguments. It scopes rules inside `@media`, `@supports`, `@container`, `@layer`, `@scope`, `@starting-style`, and unknown at-rules that contain nested CSS rules. `:global(...)` leaves a selector outside component scoping, while `:deep(...)` scopes only the parent side of a deep selector. Matching helper-looking text inside attribute values and functional pseudo-class arguments is preserved as normal CSS text.
+Scoped CSS uses PostCSS and a selector AST for common selector lists, pseudo-classes and pseudo-elements, attribute selectors, escaped selectors, native CSS nesting, and functional pseudo-classes such as `:is(...)`, `:where(...)`, and `:not(...)` without splitting on commas inside their arguments. It scopes rules inside `@media`, `@supports`, `@container`, `@layer`, `@scope`, `@starting-style`, and unknown at-rules that contain nested CSS rules. `:global(...)` leaves a selector outside component scoping, while `:deep(...)` scopes only the parent side of a deep selector. Matching helper-looking text inside attribute values and functional pseudo-class arguments is preserved as normal CSS text.
 
 Comments, strings, attribute values, and `url(...)` values can contain `{`, `}`, and `,` without being treated as CSS rule delimiters. Keyframe step selectors and other raw at-rule bodies such as `@font-face`, `@font-feature-values`, `@counter-style`, `@page`, and `@property` are preserved instead of scoped. Malformed scoped CSS block diagnostics include offset, line, column, and a one-line code frame. When `.mikuru` files are compiled through `mikuru/vite`, component styles are routed into Vite's CSS pipeline so `<style module>`, `<style lang="scss">`, and project-level transforms such as PostCSS run through the app's normal CSS configuration.
 
